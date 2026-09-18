@@ -211,6 +211,22 @@ BGE_M3_RESOURCE = ResourceRequirement(
     concurrency_headroom="single model instance; no headroom for co-located Jarvis at 32 GiB",
 )
 
+DOCLING_RESOURCE = ResourceRequirement(
+    ram_gib_min=2.0, ram_gib_recommended=4.0, cpu_cores=2, disk_gib=3,
+    gpu_required=False, vram_gib_min=0.0, vram_gib_recommended="",
+    concurrency_headroom=("measured 650 MB RSS per conversion; a CPU-only torch "
+                          "wheel is required -- the default install pulls the CUDA "
+                          "stack and costs 6.2 GB on a host with no GPU"),
+)
+
+LLAMACPP_RESOURCE = ResourceRequirement(
+    ram_gib_min=2.0, ram_gib_recommended=8.0, cpu_cores=4, disk_gib=5,
+    gpu_required=False, vram_gib_min=0.0, vram_gib_recommended="",
+    concurrency_headroom=("CPU inference on 4 cores suits small classification / "
+                          "extraction models only; anything larger needs a GPU worker"),
+)
+
+
 UPSTREAMS: tuple[UpstreamCandidate, ...] = (
     UpstreamCandidate(
         "RouteLabs Router", "verified", AdapterState.AVAILABLE,
@@ -218,7 +234,8 @@ UPSTREAMS: tuple[UpstreamCandidate, ...] = (
         constraint="must never own truth, approval, the firewall, or business authorization",
     ),
     UpstreamCandidate(
-        "pgvector", "0.8.6", AdapterState.AVAILABLE, "PASS, in production",
+        "pgvector", "0.8.6", AdapterState.AVAILABLE,
+        "verified live in wave 1: pg_extension reports vector 0.8.6 in the production database",
         "ALREADY_INTEGRATED", constraint="do not reinstall",
     ),
     UpstreamCandidate(
@@ -227,15 +244,88 @@ UPSTREAMS: tuple[UpstreamCandidate, ...] = (
         constraint="human-originated coding tasks only; do not reinstall",
     ),
     UpstreamCandidate(
-        "Qwen-Agent", "0.0.34", AdapterState.DEGRADED, "import/smoke PASS",
-        "CANDIDATE", constraint="four undeclared runtime dependencies",
+        "Qwen-Agent", "0.0.34", AdapterState.UNAVAILABLE,
+        "wave 1: installs, then fails at import -- ModuleNotFoundError: numpy. "
+        "The recorded 'four undeclared runtime dependencies' finding reproduced "
+        "exactly; a package that cannot import from its own declared deps is a "
+        "reproducibility risk, not a candidate",
+        "REJECTED",
+        constraint="undeclared runtime dependencies; broken install contract",
     ),
     UpstreamCandidate(
-        "smolagents", "verified", AdapterState.DEGRADED, "smoke PASS",
-        "RESTRICTED_CANDIDATE",
+        "smolagents", "1.26.0", AdapterState.DEGRADED,
+        "wave 1: installed (85 MB, 18 s) and ran the real CRM task. Import 1.12 s, "
+        "59.9 MB RSS. Tools work deterministically; the CodeAgent loop needs a model",
+        "SECONDARY",
+        constraint="agent loop requires a model; Jarvis makes 0 model calls today",
     ),
     UpstreamCandidate(
-        "Agno", "verified", AdapterState.DEGRADED, "smoke PASS", "CHALLENGER",
+        "Agno", "3.0.10", AdapterState.DEGRADED,
+        "wave 1: installed (100 MB, 23 s) and ran the real CRM task. Import 1.06 s, "
+        "45.3 MB RSS -- the lighter of the two working frameworks",
+        "SECONDARY",
+        constraint="agent loop requires a model; Jarvis makes 0 model calls today",
+    ),
+    UpstreamCandidate(
+        "Docling", "2.129.0", AdapterState.AVAILABLE,
+        "wave 1: installed and run on a real business document "
+        "(/opt/lcarlie/durum/ticari.html, 27 KB) -- 8 tables, 273 text blocks, "
+        "correct Turkish section headings, 0.43 s convert, 650 MB RSS",
+        "ADMITTED_ISOLATED", requirement=DOCLING_RESOURCE,
+        constraint=("install CPU-only torch: the default wheel set pulls the full "
+                    "CUDA stack (6.2 GB) onto a GPU-less host. No document corpus "
+                    "exists on this server yet, so ingestion has no production input"),
+    ),
+    UpstreamCandidate(
+        "llama.cpp", "build 11028 (972d2313b)", AdapterState.AVAILABLE,
+        "wave 1: server runtime pulled as a container image (839 MB) and verified "
+        "running -- no host toolchain installed (the host has no cmake/g++)",
+        "RUNTIME_READY_MODEL_PENDING", requirement=LLAMACPP_RESOURCE,
+        constraint="no model on this host; nothing downloaded, by instruction",
+    ),
+    UpstreamCandidate(
+        "Langfuse", "n/a", AdapterState.UNAVAILABLE,
+        "wave 1: not installed. Jarvis makes 0 model calls -- measured across the "
+        "operational loop and the real multi-domain run -- so LLM tracing has "
+        "nothing to trace. Existing per-cycle and per-step telemetry already "
+        "carries latency, queue wait, cache hits, capabilities and failure reasons",
+        "DEFERRED_NO_MODEL_CALLS",
+    ),
+    UpstreamCandidate(
+        "Opik", "n/a", AdapterState.UNAVAILABLE,
+        "wave 1: not installed, same measurement as Langfuse", "DEFERRED_NO_MODEL_CALLS",
+    ),
+    UpstreamCandidate(
+        "Phoenix", "n/a", AdapterState.UNAVAILABLE,
+        "wave 1: not installed, same measurement as Langfuse", "DEFERRED_NO_MODEL_CALLS",
+    ),
+    UpstreamCandidate(
+        "Promptfoo", "n/a", AdapterState.UNAVAILABLE,
+        "wave 1: not installed. Evaluates model behaviour, and there is no model in "
+        "the loop to evaluate; the host also has no node/npm. Current behavioural "
+        "guarantees are deterministic and already covered by the unit suite",
+        "DEFERRED_NO_MODEL_CALLS",
+    ),
+    UpstreamCandidate(
+        "RouteLLM", "n/a", AdapterState.UNAVAILABLE,
+        "wave 1: not installed. Routing between models presupposes models; the "
+        "deterministic route is the whole path today",
+        "DEFERRED_NO_MODEL_CALLS",
+    ),
+    UpstreamCandidate(
+        "Uptime Kuma", "n/a", AdapterState.UNAVAILABLE,
+        "wave 1: not installed. Host already runs saglik.sh, alarm.sh and 13 systemd "
+        "timers covering service health and alerting; adding a monitoring service "
+        "would duplicate that and wants a port this project may not open",
+        "REJECTED_OVERLAP_EXISTING_MONITORING",
+    ),
+    UpstreamCandidate(
+        "OpenBao", "n/a", AdapterState.UNAVAILABLE,
+        "wave 1: not installed. The gap it addresses is real -- secrets live in at "
+        "least 8 separate .env files across /etc/lcarlie, /opt/lcarlie and /root, "
+        "with no rotation and no central inventory -- but migrating live credentials "
+        "is not a side effect of a capability wave",
+        "PROPOSED_MIGRATION_PLAN_ONLY",
     ),
     UpstreamCandidate(
         "BGE-M3", "n/a", AdapterState.REQUIRES_RESOURCE_UPGRADE,
