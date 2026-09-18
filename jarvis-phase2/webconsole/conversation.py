@@ -12,6 +12,7 @@ from jarvis.model_layer import (LOCAL_MODEL as LOCAL_MODEL_NAME, ModelRouter,
                                 ModelUnavailable, needs_escalation,
                                 should_use_model)
 from jarvis import conversation_memory, turkish
+from jarvis.company_knowledge import shared as company_knowledge
 from jarvis.agency import AgencyCapability
 from jarvis.specialist_pool import SpecialistPool
 
@@ -87,7 +88,9 @@ def _has_command(text: str, verbs: tuple[str, ...], raw: str = "") -> bool:
             lowered = word.casefold()
             if not any(lowered.startswith(stem) for stem in stems):
                 continue
-            if turkish.is_imperative_of(lowered, stems):
+            # Morphology answers the mood; the stem above already answered
+            # which verb. Asking it for the verb too is what broke "değiştir".
+            if turkish.is_positive_imperative(lowered):
                 position = raw.casefold().find(lowered)
                 head = _normalize(raw[max(0, position - 22):position])
                 if not any(noun in head for noun in _ANALYTICAL_OBJECTS):
@@ -546,6 +549,25 @@ FALLBACK_INTRO = (
 )
 
 
+_KNOWLEDGE = company_knowledge()
+
+
+def _system_for(message: str, internal_ok: bool = True) -> str:
+    """Persona, then who we are, then only what this message actually needs.
+
+    context() returns "" on a miss rather than dumping something adjacent: a
+    prompt padded with the wrong document answers worse than one without it.
+    """
+    parts = [_chat_system()]
+    identity = _KNOWLEDGE.identity()
+    if identity:
+        parts.append(identity)
+    block = _KNOWLEDGE.context(message, internal_ok=internal_ok)
+    if block:
+        parts.append(block)
+    return "\n\n".join(parts)
+
+
 def _chat_system() -> str:
     """The persona, plus whatever the operator asked to be remembered.
 
@@ -565,7 +587,7 @@ def _chat(message: str, intent: str, started: float) -> dict[str, Any]:
     introduction still stands so the user is never left without a reply.
     """
     try:
-        result = _router().synthesize(message, (), system=_chat_system(), max_tokens=160,
+        result = _router().synthesize(message, (), system=_system_for(message), max_tokens=160,
                                       escalate=needs_escalation(message),
                                       history=conversation_memory.history())
     except ModelUnavailable:
@@ -588,7 +610,7 @@ def stream_chat(message: str, intent: str):
     model = None
     calls = 0
     try:
-        for delta in _router().stream_text(message, _chat_system(), max_tokens=160,
+        for delta in _router().stream_text(message, _system_for(message), max_tokens=160,
                                            history=conversation_memory.history()):
             chunks.append(delta)
             yield {"type": "token", "delta": delta}

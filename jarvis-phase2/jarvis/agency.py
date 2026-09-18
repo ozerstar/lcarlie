@@ -370,6 +370,11 @@ class AgencyCapability:
         objections are produced deterministically above, and the model is only
         given those, so the summary can restate them but cannot add a number
         to them. If no provider answers, the deterministic summary stands.
+
+        Company knowledge is retrieved with ``internal_ok=False``: the Agency
+        writes copy, so the old catalog's claims are withheld from it
+        entirely, and what reaches it is the compliant framing plus the
+        warning naming what may not be written.
         """
         evidence = [{"ref": item["evidence"], "summary": item["problem"]}
                     for item in result["problems"]]
@@ -384,14 +389,22 @@ class AgencyCapability:
             "durum, en kritik problem, en güçlü fırsat ve önerilen ilk adım. "
             "Yeni sayı veya iddia ekleme.")
         try:
+            from .company_knowledge import shared as company_knowledge
             from .model_layer import ModelRouter
+
+            knowledge = company_knowledge()
+            system = "\n\n".join(
+                part for part in (knowledge.identity(),
+                                  knowledge.context(result["task"],
+                                                    internal_ok=False))
+                if part) or None
 
             # A campaign proposal weighs evidence, gaps and objections together;
             # that is escalation territory by definition.
             answer = ModelRouter().synthesize(
                 question, evidence,
                 missing_data=tuple(result.get("data_gaps") or ()),
-                escalate=True)
+                system=system, escalate=True)
             return answer.answer, answer.model, answer.model_calls
         except Exception:  # noqa: BLE001 - synthesis is a presentation layer
             lines = [item["problem"] for item in result["problems"][:3]]

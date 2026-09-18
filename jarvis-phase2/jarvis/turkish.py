@@ -102,6 +102,35 @@ def imperative_stem(word: str) -> str | None:
     return None
 
 
+@lru_cache(maxsize=4096)
+def is_positive_imperative(word: str) -> bool | None:
+    """Is this word a command, in mood terms alone?
+
+    True for an imperative that is not negated, False for anything else, None
+    when morphology is unavailable.
+
+    Deliberately says nothing about WHICH verb it is. A derived verb does not
+    lemmatise to its own surface form -- "değiştir" is the causative of
+    "değiş", "durdur" of "dur" -- so matching the lemma against a table of
+    surface stems silently fails on exactly the verbs that matter. The caller
+    already knows which verb it is looking at; it needs to know whether the
+    speaker is ordering or asking.
+    """
+    if _ANALYZER is None or not word:
+        return None
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            parses = _ANALYZER.analyze(word)
+    except Exception:  # noqa: BLE001
+        return None
+    for group in parses or ():
+        for parse in (group if isinstance(group, list) else [group]):
+            morphemes = getattr(parse, "morphemes", None) or ()
+            if "Imp" in morphemes and "Neg" not in morphemes:
+                return True
+    return False
+
+
 def is_imperative_of(word: str, stems: frozenset[str]) -> bool | None:
     """Is this word a command formed from one of these verb stems?
 
