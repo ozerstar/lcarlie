@@ -9,10 +9,14 @@
     "baseline_commit": "28f1bb6e167ab92dc7c4cbdd39d9e5e81d4951f3",
     "baseline_commit_subject": "Establish verified production source baseline v1",
     "baseline_commit_date": "2026-09-18T14:54:03+03:00",
-    "phase2c_commit": "5a4b2dd6e04cd4c959ca38c23ae1a4243e14cb9b",
-    "phase2c_commit_subject": "Phase 2C: shadow acceptance, TEST G, security recheck, transport fix",
     "tracked_files_at_baseline": 77,
-    "working_tree_clean": true
+    "working_tree_clean": true,
+    "phase2c_commits": [
+      "5a4b2dd6e04cd4c959ca38c23ae1a4243e14cb9b",
+      "37a3b96"
+    ],
+    "phase2d_commit": "ef32a34ac72a64111d3a3513909e18bf3317ef23",
+    "phase2d_commit_subject": "Phase 2D: close F-1 (action contract) and F-2 (capability gap)"
   },
   "snapshot": {
     "archive": "/opt/lcarlie/source-snapshots/lcarlie-jarvis-source-v1b.tar.gz",
@@ -50,6 +54,36 @@
     "git -C /opt/lcarlie/source/lcarlie-jarvis-v1 status --porcelain",
     "git -C /opt/lcarlie/source/lcarlie-jarvis-v1 remote -v",
     "sha256sum /opt/lcarlie/source-snapshots/lcarlie-jarvis-source-v1b.tar.gz",
-    "rsync -ain --delete --exclude=__pycache__ --exclude=evidence /opt/lcarlie/jarvis-phase2/ /opt/lcarlie/source/lcarlie-jarvis-v1/jarvis-phase2/"
-  ]
+    "rsync -ain --delete --exclude=__pycache__ --exclude=evidence /opt/lcarlie/jarvis-phase2/ /opt/lcarlie/source/lcarlie-jarvis-v1/jarvis-phase2/",
+    "docker exec lcarlie-postgres psql -X -q -U n8n -d n8n -At -c \"SELECT attname||'='||COALESCE(array_to_string(attacl,','),'none') FROM pg_attribute WHERE attrelid='core.ai_action_type'::regclass AND attnum>0\"",
+    "git -C /opt/lcarlie/source/lcarlie-jarvis-v1 ls-files | grep -c pycache   # expect 0"
+  ],
+  "phase2d": {
+    "gitignore_added": [
+      "__pycache__/",
+      "*.pyc",
+      "*.pyo"
+    ],
+    "gitignore_reason": "running the suite inside the source tree produced byte-code that git add -A would have committed; no .pyc has ever been tracked",
+    "tracked_pyc_files": 0,
+    "database_change": {
+      "migration": "004_action_contract_read_PROPOSED.sql",
+      "rollback": "rollback/004_action_contract_read_ROLLBACK.sql",
+      "type": "column-level SELECT grant",
+      "object": "core.ai_action_type",
+      "grantee": "ai_reader",
+      "columns": [
+        "action_type",
+        "risk_class",
+        "approval_mode",
+        "proposal_enabled",
+        "execution_enabled",
+        "schema_version"
+      ],
+      "excluded_columns": [
+        "description",
+        "created_at"
+      ]
+    }
+  }
 }
