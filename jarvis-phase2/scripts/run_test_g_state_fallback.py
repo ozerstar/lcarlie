@@ -33,7 +33,7 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
 
-from jarvis.firewall import ALLOWED_ACTIONS  # noqa: E402
+from jarvis.action_contract import INTENT_TO_CANONICAL  # noqa: E402
 from jarvis.routing import CapabilityRouter, Provider, ProviderState  # noqa: E402
 from jarvis.state_pg import PostgresTaskStateStore  # noqa: E402
 from psql_session import PsqlError, PsqlSession, encode  # noqa: E402
@@ -233,19 +233,24 @@ def main() -> int:
         else:
             check("G11_proposal_stops_at_PROPOSED", True, "no proposal row created")
 
-        # Informational: the Python-side allowlist and the canonical database
-        # allowlist are compared, not enforced against each other anywhere.
+        # Phase 2D: F-1 is closed. Jarvis keeps no allowlist of its own; it
+        # maps internal intents onto the canonical contract. Assert the
+        # mapping still covers the live contract exactly, in both directions.
         db_types = {row for row in session.run(
             "SELECT action_type FROM core.ai_action_type WHERE proposal_enabled") if row}
+        mapped = set(INTENT_TO_CANONICAL.values())
+        check("G15_contract_mapping_covers_database", mapped == db_types,
+              f"mapped={sorted(mapped)} db={sorted(db_types)} "
+              f"unmapped_db={sorted(db_types - mapped)} dangling={sorted(mapped - db_types)}")
         findings.append({
             "id": "firewall_allowlist_divergence",
-            "python_allowlist": sorted(ALLOWED_ACTIONS),
-            "database_allowlist": sorted(db_types),
-            "overlap": sorted(ALLOWED_ACTIONS & db_types),
-            "note": ("jarvis/firewall.py names no action type the database accepts, so a "
-                     "proposal validated by the Python firewall can never be persisted. "
-                     "The database is authoritative and stricter, so this is not an "
-                     "escalation path -- but it must be reconciled before activation."),
+            "status": "CLOSED_IN_PHASE_2D",
+            "internal_intents": sorted(INTENT_TO_CANONICAL),
+            "canonical_types": sorted(db_types),
+            "unmapped_canonical": sorted(db_types - mapped),
+            "note": ("jarvis/firewall.py no longer carries its own allowlist; the single "
+                     "allowlist is core.ai_action_type, loaded at runtime and checked for "
+                     "drift on every contract load."),
         })
 
         session.run("RESET SESSION AUTHORIZATION")

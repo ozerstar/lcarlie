@@ -30,9 +30,9 @@ class Phase2Runtime:
     def __init__(self, compiler: ContextCompiler):
         self.compiler = compiler
 
-    def handle(self, intent: str) -> dict:
+    def handle(self, intent: str, contract=None) -> dict:
         plan = build_plan(intent)
-        context = self.compiler.compile(intent)
+        context = self.compiler.compile(intent, contract=contract)
         task_id = sha256(intent.casefold().encode()).hexdigest()[:24]
         envelope = RuntimeEnvelope(
             task_id=task_id, entity_id=context.entity, actor="jarvis",

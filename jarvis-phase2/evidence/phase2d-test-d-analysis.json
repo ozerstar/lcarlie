@@ -1,0 +1,117 @@
+{
+  "status": "PLANNED",
+  "mode": "FAST",
+  "capability_envelope": {
+    "analysed": true,
+    "capability_gap": true,
+    "recommendations": [
+      "REQUIRES_RESOURCE_UPGRADE"
+    ],
+    "action_type": null,
+    "auto_remediation": false
+  },
+  "evidence_refs": [
+    "postgres:capability_state"
+  ],
+  "selection_scope": "topic",
+  "required_capabilities": [
+    "deterministic_company_memory",
+    "postgres_persistent_state",
+    "semantic_memory_retrieval",
+    "pgvector_retrieval_interface",
+    "embedding_model_bge_m3"
+  ],
+  "available": [
+    "deterministic_company_memory",
+    "postgres_persistent_state",
+    "pgvector_retrieval_interface"
+  ],
+  "missing": [],
+  "blocked": [],
+  "resource_blocked": [
+    "semantic_memory_retrieval",
+    "embedding_model_bge_m3"
+  ],
+  "upstream_blocked": [],
+  "controlled": [],
+  "fallbacks": [
+    "deterministic_company_memory"
+  ],
+  "recommendations": [
+    "REQUIRES_RESOURCE_UPGRADE"
+  ],
+  "capabilities_in_context": 5,
+  "registry_size": 9,
+  "health_checked_at": "2026-09-18T15:31:32.627409+03:00",
+  "contract_hash": "935c0769511c188e",
+  "gaps": [
+    {
+      "capability_id": "semantic_memory_retrieval",
+      "status": "RESOURCE_BLOCKED",
+      "blocker": "no embedding model; WAITING_RESOURCE_UPGRADE",
+      "recommendation": "REQUIRES_RESOURCE_UPGRADE",
+      "resource_requirement": {
+        "ram_gib_min": 32,
+        "ram_gib_recommended_colocated": 64,
+        "cpu_cores": 8,
+        "disk_gib": 20,
+        "gpu": "optional",
+        "vram_gib_min": 12,
+        "vram_gib_recommended": "16-24"
+      },
+      "fallback": "deterministic_company_memory",
+      "evidence": [
+        "derived:pgvector_retrieval_interface=AVAILABLE",
+        "derived:embedding_model_bge_m3=RESOURCE_BLOCKED",
+        "recorded:ai_semantic.memory_embedding holds no embeddings"
+      ]
+    },
+    {
+      "capability_id": "embedding_model_bge_m3",
+      "status": "RESOURCE_BLOCKED",
+      "blocker": "WAITING_RESOURCE_UPGRADE",
+      "recommendation": "REQUIRES_RESOURCE_UPGRADE",
+      "resource_requirement": {
+        "ram_gib_min": 32,
+        "ram_gib_recommended_colocated": 64,
+        "cpu_cores": 8,
+        "disk_gib": 20,
+        "gpu": "optional",
+        "vram_gib_min": 12,
+        "vram_gib_recommended": "16-24"
+      },
+      "fallback": "deterministic_company_memory",
+      "evidence": [
+        "probe:measured host RAM = 13.65 GiB (need >= 32)",
+        "probe:measured CPU cores = 4 (need >= 8)",
+        "recorded:no embedding model is installed"
+      ]
+    }
+  ],
+  "shadow": {
+    "mode": "SHADOW",
+    "action_path": [
+      "REQUEST",
+      "PLAN",
+      "RISK",
+      "PLANNED",
+      "STOP"
+    ],
+    "external_actions": false,
+    "external_provider_calls": 0,
+    "production_code_mutated": false,
+    "software_installed": false,
+    "human_approval_required": false,
+    "contract_valid": true
+  },
+  "telemetry": {
+    "context_compile_ms": 94.061,
+    "capability_registry_ms": 93.98,
+    "contract_check_ms": 0.009,
+    "total_ms": 94.368,
+    "model_calls": 0,
+    "canonical_action_count": 6,
+    "mapped_action_count": 6,
+    "contract_valid": true
+  }
+}

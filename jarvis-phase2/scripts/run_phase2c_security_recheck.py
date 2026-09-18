@@ -99,6 +99,25 @@ CHECKS = [
     ("reader_decide_action", "ai_reader", "DENY",
      "SELECT core.ai_decide_action(1, 'APPROVED', 'x')", "reader approving"),
 
+    # --- Phase 2D: the action contract grant (migration 004) -------------
+    ("contract_ungranted_column", "ai_reader", "DENY",
+     "SELECT description FROM core.ai_action_type",
+     "column-level grant must not expose description"),
+    ("contract_star_select", "ai_reader", "DENY",
+     "SELECT * FROM core.ai_action_type",
+     "SELECT * must fail; only the six granted columns are readable"),
+    ("contract_writer_cannot_read", "ai_writer", "DENY",
+     "SELECT action_type FROM core.ai_action_type",
+     "ai_writer proposes through the function, it never reads the table"),
+    ("contract_reader_cannot_write", "ai_reader", "DENY",
+     "UPDATE core.ai_action_type SET proposal_enabled=false",
+     "the contract stays read-only for Jarvis"),
+    ("contract_reader_cannot_insert", "ai_reader", "DENY",
+     "INSERT INTO core.ai_action_type(action_type,risk_class,approval_mode,"
+     "proposal_enabled,execution_enabled,schema_version,description) VALUES "
+     "('EVIL','LOW','ONE_PERSON',true,true,'v1','x')",
+     "Jarvis cannot add an action type to its own allowlist"),
+
     # --- positive controls: these MUST succeed ---------------------------
     ("allow_reader_health", "ai_reader", "ALLOW",
      "SELECT core.ai_orchestrator_health()", "approved health surface"),
@@ -108,6 +127,10 @@ CHECKS = [
      "SELECT count(*) FROM core.ai_load_jarvis_task_state(1)", "controlled state load"),
     ("allow_writer_model_policy", "ai_writer", "ALLOW",
      "SELECT core.ai_get_model_policy()", "approved policy surface"),
+    ("allow_reader_action_contract", "ai_reader", "ALLOW",
+     "SELECT action_type,risk_class,approval_mode,proposal_enabled,"
+     "execution_enabled,schema_version FROM core.ai_action_type",
+     "the granted projection the canonical contract loader uses"),
 ]
 
 

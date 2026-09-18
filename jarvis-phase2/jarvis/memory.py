@@ -40,6 +40,33 @@ class CompanyMemory:
             "SELECT row_to_json(x) FROM (SELECT * FROM "
             "mart.ai_company_intelligence_dashboard) x;"
         ),
+        # Phase 2D / F-1: the canonical action contract. Only the six columns
+        # ai_reader is granted are named; `description` and `created_at` are
+        # deliberately absent and would be denied.
+        "action_contract": (
+            "SELECT row_to_json(x) FROM (SELECT action_type,risk_class,"
+            "approval_mode,proposal_enabled,execution_enabled,schema_version "
+            "FROM core.ai_action_type ORDER BY action_type) x;"
+        ),
+        # Phase 2D / F-2: infrastructure facts for the capability registry.
+        # pg_catalog only -- readable by PUBLIC, and unlike
+        # information_schema it is not filtered by the caller's privileges,
+        # so a missing EXECUTE grant cannot masquerade as a missing function.
+        "capability_state": (
+            "SELECT row_to_json(x) FROM (SELECT "
+            "(SELECT extversion FROM pg_extension WHERE extname='vector') "
+            "AS pgvector_version,"
+            "(SELECT count(*) FROM pg_class c JOIN pg_namespace n "
+            "ON n.oid=c.relnamespace WHERE n.nspname='ai_semantic' "
+            "AND c.relname='memory_embedding') AS semantic_table,"
+            "(SELECT count(*) FROM pg_indexes WHERE schemaname='ai_semantic') "
+            "AS semantic_indexes,"
+            "(SELECT count(*) FROM pg_proc p JOIN pg_namespace n "
+            "ON n.oid=p.pronamespace WHERE n.nspname='core' AND p.proname IN "
+            "('ai_save_jarvis_task_state','ai_load_jarvis_task_state')) "
+            "AS state_functions,"
+            "(SELECT core.ai_orchestrator_health()) AS health) x;"
+        ),
     }
 
     def __init__(self, host: str | None = "lcarlie", timeout_s: int = 12):
@@ -97,8 +124,14 @@ class CompanyMemory:
     def get_company_agenda(self) -> Evidence:
         return self._fetch("agenda")
 
-    def get_capability_state(self) -> Evidence:
+    def get_model_policy(self) -> Evidence:
         return self._fetch("capabilities")
+
+    def get_action_contract(self) -> Evidence:
+        return self._fetch("action_contract")
+
+    def get_capability_state(self) -> Evidence:
+        return self._fetch("capability_state")
 
     def get_product_context(self, entity: str) -> Evidence:
         agenda = self.get_company_agenda()
