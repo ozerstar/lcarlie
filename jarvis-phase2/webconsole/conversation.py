@@ -21,6 +21,10 @@ GENERAL_REASONING = "GENERAL_REASONING"
 AGENCY_REQUEST = "AGENCY_REQUEST"
 
 
+_TR_CAPITALS = str.maketrans({"İ": "i", "I": "i", "Ş": "ş", "Ğ": "ğ",
+                              "Ü": "ü", "Ö": "ö", "Ç": "ç"})
+
+
 def _normalize(text: str) -> str:
     """Fold dotted/dotless i to one form.
 
@@ -29,7 +33,11 @@ def _normalize(text: str) -> str:
     matches neither "satış" nor "satis" in a table, so sales questions were
     never recognised and sales evidence was never gathered.
     """
-    return " ".join((text or "").casefold().replace("ı", "i").split())
+    # "İ".casefold() is "i" plus a COMBINING DOT ABOVE, not "i", so a message
+    # starting with a capital dotted I ("İyi akşamlar") matched no lemma at
+    # all. Fold the Turkish capitals explicitly first.
+    folded = (text or "").translate(_TR_CAPITALS).casefold().replace("ı", "i")
+    return " ".join(folded.split())
 
 
 def _has(text: str, terms: tuple[str, ...]) -> bool:
@@ -85,11 +93,32 @@ class RouteDecision:
     domain: str | None = None
 
 
+_PERSONAL_MARKERS = (
+    "kafam", "yorgunum", "yoruldum", "üzgünüm", "uzgunum", "moralim",
+    "sıkıldım", "sikildim", "bunaldım", "bunaldim", "canım sıkkın",
+    "canim sikkin", "stresliyim", "mutsuzum", "içimden", "icimden",
+    "dertleş", "dertles", "kendimi", "hissediyorum",
+)
+
+
 def classify(message: str) -> RouteDecision:
     text = _normalize(message)
+    # Someone talking about THEMSELVES is not asking for a company analysis.
+    # "kafam çok dolu, ne yapmalıyım" contains "ne yap" and was being answered
+    # with red-team objections over business signals.
+    if _has(text, _PERSONAL_MARKERS):
+        return RouteDecision(SIMPLE_CONVERSATION)
     if _has(text, ("merhaba", "selam", "sen nesin", "ne yapabiliyorsun", "kimsin", "hello",
                    "nasılsın", "nasilsin", "yardımcı olabilirsin", "yardimci olabilirsin",
-                   "neler yapabilirsin", "ne yapabilirsin")):
+                   "neler yapabilirsin", "ne yapabilirsin",
+                   # Ordinary Turkish small talk. Without these a greeting fell
+                   # through to reasoning and was answered from company data.
+                   "naber", "napıyorsun", "napiyorsun", "naptın", "naptin",
+                   "naptınız", "naptiniz", "ne yapıyorsun", "ne yapiyorsun",
+                   "nasıl gidiyor", "nasil gidiyor",
+                   "günaydın", "gunaydin", "iyi akşamlar", "iyi aksamlar",
+                   "iyi günler", "iyi gunler", "teşekkür", "tesekkur", "sağ ol",
+                   "sag ol", "eyvallah", "görüşürüz", "gorusuruz", "hey", "hi ")):
         return RouteDecision(SIMPLE_CONVERSATION)
     # A question ABOUT what to do is not an instruction to do it. Checked
     # first so "ne yapmalıyız" can never be read as the imperative "yap".
@@ -438,6 +467,43 @@ def _research(message: str, started: float) -> dict[str, Any]:
         research_stop_reason=report.get("stop_reason"))
 
 
+CHAT_SYSTEM = (
+    "Sen Jarvis'sin: L'CARLIÉ'nin yapay zekâ iş ortağısın. Doğal, sıcak ve kısa "
+    "Türkçe konuş -- sohbet eder gibi, rapor yazar gibi değil.\n"
+    "- Gerektiğinde karşı soru sor, merak et.\n"
+    "- Kullanıcı sadece konuşmak ya da dertleşmek istiyor olabilir; önce dinle, "
+    "hemen çözüm dayatma.\n"
+    "- Madde madde liste yapma, 2-4 cümle yeter.\n"
+    "Sınırlar: Şirketle ilgili sayı, tarih, ürün veya müşteri bilgisi UYDURMA -- "
+    "böyle bir şey sorulursa verilere bakman gerektiğini söyle. Hiçbir işlemi "
+    "kendin uygulayamazsın; onay insanındır."
+)
+
+FALLBACK_INTRO = (
+    "Merhaba, ben Jarvis. Şirket verilerini kanıtlarıyla okuyabilir, analiz planı "
+    "hazırlayabilir, araştırma ihtiyacını belirleyebilir ve işlem taleplerini insan "
+    "onayına yönlendirebilirim. Onay olmadan dış işlem yapmam."
+)
+
+
+def _chat(message: str, intent: str, started: float) -> dict[str, Any]:
+    """An ordinary conversational turn.
+
+    No evidence block is assembled: this is talk, not analysis. The model is
+    told plainly that it may not invent company facts, and it has no path to
+    an action either way. If no provider answers, the deterministic
+    introduction still stands so the user is never left without a reply.
+    """
+    try:
+        result = _router().synthesize(message, (), system=CHAT_SYSTEM, max_tokens=160)
+    except ModelUnavailable:
+        return _response(message, intent, "ANSWERED", FALLBACK_INTRO,
+                         started=started, model="deterministic-local")
+    return _response(message, intent, "ANSWERED", result.answer, started=started,
+                     model=result.model, model_calls=result.model_calls,
+                     tier=result.tier)
+
+
 _AGENCY: AgencyCapability | None = None
 
 
@@ -491,10 +557,7 @@ def route(message: str, runtime: Any) -> dict[str, Any]:
     started = perf_counter()
     decision = classify(message)
     if decision.intent == SIMPLE_CONVERSATION:
-        return _response(message, decision.intent, "ANSWERED",
-            "Merhaba, ben Jarvis. Şirket verilerini kanıtlarıyla okuyabilir, analiz planı hazırlayabilir, "
-            "araştırma ihtiyacını belirleyebilir ve işlem taleplerini insan onayına yönlendirebilirim. "
-            "Onay olmadan dış işlem yapmam.", started=started, model="deterministic-local")
+        return _chat(message, decision.intent, started)
     # The action boundary is settled before any model can be reached. A
     # request to change something must land on the firewall path whatever
     # else it looks like.
@@ -514,4 +577,5 @@ def route(message: str, runtime: Any) -> dict[str, Any]:
         return _analysis(message, _memory(runtime), started)
     if decision.intent == COMPANY_QUERY:
         return _company(message, decision.domain or "company", _memory(runtime), started)
-    return _synthesize(message, decision.intent, _memory(runtime), started)
+    # Anything left is ordinary conversation, not company analysis.
+    return _chat(message, decision.intent, started)

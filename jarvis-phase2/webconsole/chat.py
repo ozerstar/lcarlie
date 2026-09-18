@@ -74,9 +74,12 @@ def route(message: str, runtime, operator) -> dict[str, Any]:
                        text=(f"{len(pending)} bekleyen proposal var." if pending
                              else "Bekleyen proposal yok."))
 
-    decision = conversation.classify(text)
-    if decision.intent != conversation.GENERAL_REASONING:
-        return conversation.route(text, runtime)
+    # Every intent goes to the conversational router, GENERAL_REASONING
+    # included. It used to be the one exception, and it fell through to the
+    # Phase 2 shadow path below, which answers a chat message with whatever
+    # Company Memory happened to return -- "Naber" came back as
+    # "1 kayıt bulundu (kaynak: postgres:decision_summary)".
+    return conversation.route(text, runtime)
 
     if capability == "JUDGEMENT":
         # A judgement question with no grounded topic word cannot be answered

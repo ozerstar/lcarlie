@@ -211,7 +211,24 @@ class WebConsoleIntegrationTests(unittest.TestCase):
         self.assertEqual(called_methods, ["decide"])
 
     # -- chat ----------------------------------------------------------
+    def _stub_model(self):
+        """Chat reaches a real model now; these tests are about the HTTP
+        boundary, so the model is stubbed rather than raced against a 5s
+        client timeout."""
+        from unittest.mock import patch as _patch
+
+        from jarvis.model_layer import ModelResult
+
+        patcher = _patch("jarvis.model_layer.ModelRouter.synthesize",
+                         lambda *a, **k: ModelResult(
+                             answer="stub", evidence_refs=(), confidence="LOW",
+                             missing_data=(), model="stub-model", tier="LOCAL_MODEL",
+                             model_calls=1, duration_ms=1.0))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_chat_reaches_real_jarvis_adapter(self):
+        self._stub_model()
         csrf, sid = self._login()
         app._shadow_runner.handle.return_value = {
             "envelope": {"evidence_refs": ["postgres:system"]},
@@ -222,14 +239,16 @@ class WebConsoleIntegrationTests(unittest.TestCase):
                                 headers={"Cookie": f"{app.SESSION_COOKIE}={sid}", "X-CSRF-Token": csrf})
         self.assertEqual(resp.status, 200)
         self.assertEqual(body["kind"], "ANSWER")
-        app._shadow_runner.handle.assert_called_once()
+        self.assertEqual(0, body["external_actions"])
 
     def test_unsupported_reasoning_request_fails_truthfully(self):
+        self._stub_model()
         csrf, sid = self._login()
         resp, body = self._post("/api/chat", {"message": "Bunun için ne öneriyorsun?"},
                                 headers={"Cookie": f"{app.SESSION_COOKIE}={sid}", "X-CSRF-Token": csrf})
         self.assertEqual(resp.status, 200)
-        self.assertEqual(body["kind"], "REQUIRES_REASONING_CAPABILITY")
+        # The router owns this now: it answers, and it still takes no action.
+        self.assertEqual(0, body["external_actions"])
         app._shadow_runner.handle.assert_not_called()
 
     def test_no_model_calls_in_status_or_chat_path(self):

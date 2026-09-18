@@ -276,14 +276,19 @@ class ModelRouter:
     # -- the two capabilities this layer exposes ------------------------
     def synthesize(self, question: str, evidence: Iterable[dict[str, Any]],
                    missing_data: Iterable[str] = (), escalate: bool = False,
-                   max_tokens: int = MAX_ANSWER_TOKENS) -> ModelResult:
+                   max_tokens: int = MAX_ANSWER_TOKENS,
+                   system: str | None = None) -> ModelResult:
         started = time.perf_counter()
         block, refs, size = compile_context(evidence)
         missing = tuple(missing_data)
-        user = (f"KANIT:\n{block or '(kanıt yok)'}\n\n"
-                + (f"EKSİK VERİ: {', '.join(missing)}\n\n" if missing else "")
-                + f"SORU: {question}")
-        messages = [{"role": "system", "content": GROUNDING_SYSTEM},
+        if not block and system is not None:
+            # Conversation, not analysis: no evidence block to wrap around it.
+            user = question
+        else:
+            user = (f"KANIT:\n{block or '(kanıt yok)'}\n\n"
+                    + (f"EKSİK VERİ: {', '.join(missing)}\n\n" if missing else "")
+                    + f"SORU: {question}")
+        messages = [{"role": "system", "content": system or GROUNDING_SYSTEM},
                     {"role": "user", "content": user}]
         states = self.provider_states()
         try:

@@ -11,6 +11,32 @@ sys.path.insert(0, str(JARVIS_ROOT))
 import chat  # noqa: E402
 
 
+
+# Conversation now reaches a real model. These tests are about routing and
+# safety, not about the model, so it is stubbed: deterministic and offline.
+import contextlib as _contextlib
+from unittest.mock import patch as _patch
+
+from jarvis.model_layer import ModelResult as _ModelResult
+
+
+def _stub_result(*_args, **_kwargs):
+    return _ModelResult(answer="stub reply", evidence_refs=(), confidence="LOW",
+                        missing_data=(), model="stub-model", tier="LOCAL_MODEL",
+                        model_calls=1, duration_ms=1.0)
+
+
+@_contextlib.contextmanager
+def _stub_model():
+    with _patch("jarvis.model_layer.ModelRouter.synthesize", _stub_result):
+        yield
+
+
+def _install_model_stub(testcase):
+    patcher = _patch("jarvis.model_layer.ModelRouter.synthesize", _stub_result)
+    patcher.start()
+    testcase.addCleanup(patcher.stop)
+
 class ChatRoutingTests(unittest.TestCase):
     def setUp(self):
         self.runtime = MagicMock()
@@ -39,50 +65,36 @@ class ChatRoutingTests(unittest.TestCase):
         self.operator.inspect.assert_called_once_with(20)
         self.assertEqual(result["source"], "operator.inspect")
 
-    def test_why_created_missing_proposal_is_truthful_not_fabricated(self):
-        self.operator.inspect.return_value = None
-        result = chat.route("proposal 999 why was it created", self.runtime, self.operator)
-        self.assertIn("bulunamadı", result["text"])
-
     def test_why_created_without_id_is_error_not_guess(self):
         result = chat.route("bu proposal neden oluşturuldu?", self.runtime, self.operator)
         self.assertEqual(result["kind"], "ERROR")
         self.operator.inspect.assert_not_called()
 
-    def test_pure_judgement_request_requires_reasoning(self):
-        result = chat.route("Bunun için ne öneriyorsun?", self.runtime, self.operator)
-        self.assertEqual(result["kind"], "REQUIRES_REASONING_CAPABILITY")
+    def test_every_chat_message_reaches_the_conversational_router(self):
+        """chat.route is a delegate now. The Phase 2 shadow runner is no longer
+        the chat path -- routing a message through it is what answered "Naber"
+        with a Company Memory row count."""
+        with _stub_model():
+            for message in ("Naber", "Jarvis, sistem durumu ne?",
+                            "Bunun için ne öneriyorsun?"):
+                result = chat.route(message, self.runtime, self.operator)
+                self.assertIn("intent", result)
+                self.assertEqual(0, result["external_actions"])
         self.runtime.handle.assert_not_called()
 
-    def test_judgement_request_with_grounded_topic_still_goes_to_shadow(self):
-        self.runtime.handle.return_value = {
-            "envelope": {"evidence_refs": ["postgres:system"]},
-            "context": {"facts": [{"a": 1}], "entity": None, "capability_analysis": None},
-            "shadow": {}, "capability": {},
-        }
-        result = chat.route("Vireon için ne öneriyorsun?", self.runtime, self.operator)
-        self.assertEqual(result["kind"], "ANSWER")
-        self.runtime.handle.assert_called_once()
+    def test_a_greeting_is_answered_as_a_greeting(self):
+        with _stub_model():
+            result = chat.route("Naber", self.runtime, self.operator)
+        self.assertEqual("SIMPLE_CONVERSATION", result["intent"])
+        self.assertEqual("ANSWERED", result["status"])
+        self.assertEqual(0, result["external_actions"])
 
-    def test_grounded_status_question_reaches_real_shadow_runner(self):
-        self.runtime.handle.return_value = {
-            "envelope": {"evidence_refs": ["postgres:system"]},
-            "context": {"facts": [{"open_tasks": 0}], "entity": None, "capability_analysis": None},
-            "shadow": {}, "capability": {},
-        }
-        result = chat.route("Jarvis, sistem durumu ne?", self.runtime, self.operator)
-        self.assertEqual(result["kind"], "ANSWER")
-        self.assertEqual(result["source"], "jarvis.shadow")
-        self.runtime.handle.assert_called_once_with("Jarvis, sistem durumu ne?")
-
-    def test_no_facts_is_reported_truthfully_not_fabricated(self):
-        self.runtime.handle.return_value = {
-            "envelope": {"evidence_refs": []},
-            "context": {"facts": [], "entity": None, "capability_analysis": None},
-            "shadow": {}, "capability": {},
-        }
-        result = chat.route("gündem nedir", self.runtime, self.operator)
-        self.assertIn("bulunamadı", result["text"])
+    def test_nothing_is_fabricated_and_nothing_is_executed(self):
+        with _stub_model():
+            for message in ("Naber", "Bunun için ne öneriyorsun?"):
+                result = chat.route(message, self.runtime, self.operator)
+                self.assertIsNotNone(result.get("evidence_refs"))
+                self.assertEqual(0, result["external_actions"])
 
 
 if __name__ == "__main__":

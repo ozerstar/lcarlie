@@ -53,9 +53,14 @@ def _no_providers():
 
 class Tests(unittest.TestCase):
     def test_simple(self):
-        result = conversation.route("Merhaba, sen ne yapabiliyorsun?", Runtime())
+        # A greeting is a real conversational turn now. It may cost a model
+        # call; what must never change is that it takes no action.
+        with _no_providers():
+            result = conversation.route("Merhaba, sen ne yapabiliyorsun?", Runtime())
         self.assertEqual(("SIMPLE_CONVERSATION", "ANSWERED", 0),
                          (result["intent"], result["status"], result["model_calls"]))
+        self.assertEqual(0, result["external_actions"])
+        self.assertTrue(result["answer"])
     def test_crm_minimal_query(self):
         rt = Runtime(); result = conversation.route("Şirkette cevapsız müşteri var mı?", rt)
         self.assertEqual(["crm_unanswered"], rt.runtime.compiler.memory.calls)
@@ -99,11 +104,12 @@ class Tests(unittest.TestCase):
                 "Cevapsız müşteri probleminin nedenlerini değerlendir", Runtime())
             general = conversation.route("Bana yaratıcı bir fikir ver", Runtime())
         for result in (analysis, general):
-            self.assertIsNone(result["model"])
             self.assertEqual(0, result["model_calls"])
             self.assertEqual(0, result["external_actions"])
+            self.assertTrue(result["answer"])
         self.assertEqual("PROPOSED", analysis["status"])
-        self.assertEqual("AI_PROVIDER_UNAVAILABLE", general["status"])
+        # Chat degrades to the deterministic introduction rather than silence.
+        self.assertEqual("ANSWERED", general["status"])
 
     def test_counting_question_never_calls_a_model(self):
         result = conversation.route("Kaç cevapsız müşterimiz var?", Runtime())
