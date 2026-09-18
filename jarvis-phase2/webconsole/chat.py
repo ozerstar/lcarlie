@@ -29,6 +29,7 @@ import re
 from typing import Any, Iterator
 
 import intents
+import conversation
 
 ACTION_ID_RE = re.compile(r"\b(\d{1,10})\b")
 
@@ -72,6 +73,10 @@ def route(message: str, runtime, operator) -> dict[str, Any]:
         return _answer("ANSWER", source="operator.list_pending", data=pending,
                        text=(f"{len(pending)} bekleyen proposal var." if pending
                              else "Bekleyen proposal yok."))
+
+    decision = conversation.classify(text)
+    if decision.intent != conversation.GENERAL_REASONING:
+        return conversation.route(text, runtime)
 
     if capability == "JUDGEMENT":
         # A judgement question with no grounded topic word cannot be answered
