@@ -20,6 +20,13 @@ const state = {
   activityPollTimer: null,
   view: 'home',
   lastActivity: { audit: [], findings: [] },
+  // Last plan and, when the backend ever returns one, the run record that
+  // went with it. Both start null: nothing on the execution surface is
+  // rendered from a default.
+  lastPlan: null,
+  lastRun: null,
+  planInFlight: false,
+  lastVisualState: null,
 };
 
 function qs(id) { return document.getElementById(id); }
@@ -160,6 +167,23 @@ const CORE_STATE_TEXT = {
   OFFLINE: 'ÇEVRİMDIŞI',
 };
 
+/* While a request is being planned or a run record is on screen, the core
+ * shows that instead of the idle loop state. The override is cleared as soon
+ * as the execution surface has nothing live to say, so /api/status goes back
+ * to driving the core. */
+function applyCoreState(key, label) {
+  const core = qs('jarvisCore');
+  if (!core) return;
+  core.setAttribute('class', 'core-svg core-state-' + key);
+  qs('coreStateLabel').textContent = label;
+}
+
+/* Puts the core back on the last real /api/status reading. */
+function applyLoopCoreState() {
+  const visual = state.lastVisualState || 'IDLE';
+  applyCoreState(visual.toLowerCase(), CORE_STATE_TEXT[visual] || visual.replace(/_/g, ' '));
+}
+
 function flag(value, onText, offText, onCls, offCls) {
   if (value === null || value === undefined) return ['BİLİNMİYOR', 's-warn'];
   return value ? [onText, onCls] : [offText, offCls];
@@ -215,9 +239,9 @@ async function refreshStatus() {
   }
 
   const visual = body.visual_state || 'IDLE';
-  const core = qs('jarvisCore');
-  core.setAttribute('class', 'core-svg core-state-' + visual.toLowerCase());
-  qs('coreStateLabel').textContent = CORE_STATE_TEXT[visual] || visual.replace(/_/g, ' ');
+  state.lastVisualState = visual;
+  // The execution surface borrows the core only while something is in motion.
+  if (!execOverride()) applyLoopCoreState();
 
   if (visual === 'OFFLINE') {
     qs('tbLiveText').textContent = 'ÇEVRİMDIŞI';
@@ -496,11 +520,30 @@ function renderPlan(plan) {
 }
 
 async function requestPlan(message) {
-  const { ok, body } = await api('/api/plan', { method: 'POST', body: JSON.stringify({ message }) });
-  if (!ok || !body) {
-    return { error: (body && body.error) || 'bilinmeyen hata' };
+  state.planInFlight = true;
+  renderExecutionSurface();
+  let result;
+  try {
+    const { ok, body } = await api('/api/plan', { method: 'POST', body: JSON.stringify({ message }) });
+    if (!ok || !body) {
+      state.lastPlan = null;
+      state.lastRun = null;
+      result = { error: (body && body.error) || 'bilinmeyen hata' };
+    } else {
+      state.lastPlan = body;
+      // The runtime is not exposed over HTTP yet. If and when the backend
+      // attaches its own RunRecord.to_dict() to this response under `run`,
+      // every stage, domain card, evidence row and objection below starts
+      // rendering from it with no further frontend change. Until then this
+      // is null and the surface stays a labelled skeleton.
+      state.lastRun = extractRun(body);
+      result = { plan: body };
+    }
+  } finally {
+    state.planInFlight = false;
+    renderExecutionSurface();
   }
-  return { plan: body };
+  return result;
 }
 
 async function openPlan() {
@@ -713,4 +756,468 @@ document.querySelectorAll('.qa-btn[data-ask]').forEach((btn) => {
   });
 });
 
+/* ==================================================================
+ * EXECUTION SURFACE
+ * ------------------------------------------------------------------
+ * Renders the execution pipeline from what the backend actually says.
+ *
+ * Available today (/api/plan -> ExecutionPlan.to_dict()):
+ *   plan.status, plan.steps[].{step_id, capability, capability_status,
+ *   blocked_by, produces_action, requires_human_origination, arguments}
+ *   arguments.domain / .memory_queries / .data_available / .unavailable_reason
+ *
+ * Not exposed over HTTP yet: the run itself. jarvis/execution_runtime.py
+ * already serialises one (RunRecord.to_dict: run_id, plan_id, status, steps
+ * keyed by step_id, each with status / output / evidence_refs / error /
+ * block_reason). extractRun() below reads exactly that shape off the plan
+ * response if it is ever attached; nothing here invents a route, and no
+ * request is made to an endpoint that does not exist.
+ *
+ * Rule enforced throughout: a field the backend did not send is printed as
+ * an em dash. No percentage is computed anywhere -- the backend reports a
+ * per-step status, never a completion ratio.
+ * ================================================================== */
+
+const DOMAIN_CARDS = [
+  { id: 'sales', label: 'SATIŞ' },
+  { id: 'ecommerce', label: 'E-TİCARET' },
+  { id: 'advertising', label: 'REKLAM' },
+  { id: 'crm', label: 'CRM' },
+  { id: 'operations', label: 'OPERASYON' },
+];
+const DOMAIN_CAPS = DOMAIN_CARDS.map((d) => `${d.id}_analysis`);
+
+const EXEC_STAGES = [
+  { id: 'plan', label: 'PLAN', caps: [] },
+  { id: 'domains', label: '5 DOMAIN', caps: DOMAIN_CAPS.concat(['internal_data_analysis']) },
+  { id: 'fusion', label: 'KANIT BİRLEŞTİRME', caps: ['evidence_fusion'] },
+  { id: 'signals', label: 'PROBLEM / FIRSAT', caps: ['problem_opportunity_analysis'] },
+  { id: 'redteam', label: 'RED TEAM', caps: ['red_team_review'] },
+  { id: 'proposal', label: 'YÖNETİM ÖNERİSİ', caps: ['human_review_proposal', 'action_plan'] },
+];
+
+/* The backend's own step vocabulary (execution_runtime.py) mapped to the
+ * operator-facing words. RUNNING / IN_PROGRESS are accepted but no executor
+ * emits them today, so ÇALIŞIYOR only ever appears if the backend really
+ * reports a step in flight. */
+const STEP_STATE = {
+  PENDING: ['BEKLİYOR', 'st-wait'],
+  RUNNING: ['ÇALIŞIYOR', 'st-run'],
+  IN_PROGRESS: ['ÇALIŞIYOR', 'st-run'],
+  SUCCEEDED: ['TAMAMLANDI', 'st-done'],
+  COMPLETED: ['TAMAMLANDI', 'st-done'],
+  PROPOSED: ['ÖNERİ HAZIR', 'st-done'],
+  FAILED: ['HATA', 'st-error'],
+  DATA_UNAVAILABLE: ['VERİ YOK', 'st-nodata'],
+  BLOCKED_CAPABILITY: ['BLOKE', 'st-blocked'],
+  BLOCKED_UPSTREAM: ['BLOKE', 'st-blocked'],
+  REQUIRES_HUMAN_ORIGINATION: ['İNSAN BAŞLATIR', 'st-blocked'],
+};
+function stepState(status) {
+  return STEP_STATE[status] || [String(status || '—'), 'st-blocked'];
+}
+
+function extractRun(body) {
+  const run = body && body.run;
+  if (!run || typeof run !== 'object' || !run.steps || typeof run.steps !== 'object') return null;
+  return run;
+}
+function runStep(stepId) {
+  return (state.lastRun && state.lastRun.steps && state.lastRun.steps[stepId]) || null;
+}
+function planSteps() {
+  return (state.lastPlan && Array.isArray(state.lastPlan.steps)) ? state.lastPlan.steps : [];
+}
+/* The core belongs to /api/status. The execution surface borrows it only
+ * while something is genuinely in motion -- a plan request in flight, or a
+ * run record on screen. A plan that finished rendering hands it straight
+ * back, so the home screen keeps showing the live loop state. */
+function execOverride() {
+  return state.planInFlight || !!state.lastRun;
+}
+
+/* -- 1. execution state ------------------------------------------------ */
+function deriveExecState() {
+  if (state.planInFlight) return ['PLANLANIYOR', 'st-run', 'proposing'];
+  const plan = state.lastPlan;
+  if (!plan) return ['HAZIR', 'st-ready', 'idle'];
+  if (plan.status === 'REJECTED_AMBIGUOUS') return ['HATA', 'st-error', 'error'];
+
+  const steps = planSteps();
+  const run = state.lastRun;
+  if (!run) {
+    // Plan only. The pipeline has not been executed, so no progress state is
+    // claimed -- only what the plan itself already decided.
+    const domainSteps = steps.filter((s) => DOMAIN_CAPS.includes(s.capability));
+    const unavailable = domainSteps.filter((s) => s.capability_status === 'DATA_UNAVAILABLE');
+    if (domainSteps.length && unavailable.length === domainSteps.length) {
+      return ['VERİ YOK', 'st-nodata', 'no_data'];
+    }
+    if (plan.status === 'BLOCKED_CAPABILITY' || plan.status === 'BLOCKED_EXTERNAL_ACTION') {
+      return ['VERİ YOK', 'st-nodata', 'no_data'];
+    }
+    return ['PLANLANDI', 'st-ready', 'idle'];
+  }
+
+  if (run.status === 'FAILED') return ['HATA', 'st-error', 'error'];
+  const statusOf = (caps) => steps.filter((s) => caps.includes(s.capability))
+    .map((s) => (runStep(s.step_id) || {}).status).filter(Boolean);
+  const anyPending = (caps) => statusOf(caps).some((v) => v === 'PENDING');
+  const anyRunning = (caps) => statusOf(caps).some((v) => v === 'RUNNING' || v === 'IN_PROGRESS');
+
+  if (anyRunning(DOMAIN_CAPS.concat(['internal_data_analysis'])) || anyPending(DOMAIN_CAPS.concat(['internal_data_analysis']))) {
+    return ['VERİ TOPLANIYOR', 'st-run', 'proposing'];
+  }
+  if (anyRunning(['evidence_fusion', 'problem_opportunity_analysis'])
+      || anyPending(['evidence_fusion', 'problem_opportunity_analysis'])) {
+    return ['ANALİZ EDİLİYOR', 'st-run', 'proposing'];
+  }
+  if (anyRunning(['red_team_review']) || anyPending(['red_team_review'])) {
+    return ['RED TEAM', 'st-run', 'proposing'];
+  }
+  if (statusOf(['human_review_proposal', 'action_plan']).includes('PROPOSED')) {
+    return ['ONAY BEKLİYOR', 'st-wait', 'waiting_approval'];
+  }
+  const all = Object.values(run.steps || {}).map((s) => s.status);
+  if (all.length && all.every((v) => v === 'DATA_UNAVAILABLE')) return ['VERİ YOK', 'st-nodata', 'no_data'];
+  if (run.status === 'COMPLETED' || run.status === 'COMPLETED_DEGRADED') {
+    return ['TAMAMLANDI', 'st-done', 'done'];
+  }
+  return [String(run.status || '—'), 'st-blocked', 'idle'];
+}
+
+/* -- 2. stage rail ------------------------------------------------------ */
+function stageCell(stage) {
+  const plan = state.lastPlan;
+  let label = stage.label;
+  let text = 'PLANDA YOK';
+  let cls = 'st-absent';
+  let meta = '';
+
+  if (stage.id === 'plan') {
+    if (state.planInFlight) { text = 'PLANLANIYOR'; cls = 'st-run'; }
+    else if (plan) { text = 'HAZIR'; cls = 'st-ready'; meta = plan.plan_id || ''; }
+    else { text = 'PLAN YOK'; cls = 'st-absent'; }
+    return { label, text, cls, meta };
+  }
+  if (!plan) return { label, text: 'PLAN YOK', cls: 'st-absent', meta: '' };
+
+  const steps = planSteps().filter((s) => stage.caps.includes(s.capability));
+  if (!steps.length) return { label, text: 'PLANDA YOK', cls: 'st-absent', meta: '' };
+  if (stage.id === 'domains') label = `${steps.length} DOMAIN`;
+  meta = steps.map((s) => s.step_id).join(' · ');
+
+  const runStatuses = steps.map((s) => runStep(s.step_id)).filter(Boolean).map((r) => r.status);
+  if (runStatuses.length) {
+    const rank = ['FAILED', 'RUNNING', 'IN_PROGRESS', 'PENDING', 'BLOCKED_CAPABILITY',
+                  'BLOCKED_UPSTREAM', 'REQUIRES_HUMAN_ORIGINATION', 'DATA_UNAVAILABLE',
+                  'PROPOSED', 'SUCCEEDED'];
+    const worst = rank.find((value) => runStatuses.includes(value)) || runStatuses[0];
+    [text, cls] = stepState(worst);
+    return { label, text, cls, meta };
+  }
+
+  // Plan only: report what planning already determined, nothing more.
+  const blocked = steps.filter((s) => (s.blocked_by || []).length);
+  const noData = steps.filter((s) => s.capability_status === 'DATA_UNAVAILABLE');
+  if (noData.length === steps.length) { text = 'VERİ YOK'; cls = 'st-nodata'; }
+  else if (blocked.length) { text = 'BLOKE'; cls = 'st-blocked'; }
+  else if (steps.some((s) => s.requires_human_origination)) { text = 'İNSAN BAŞLATIR'; cls = 'st-blocked'; }
+  else { text = 'PLANLANDI'; cls = 'st-ready'; }
+  return { label, text, cls, meta };
+}
+
+function renderRail() {
+  qs('execRail').innerHTML = EXEC_STAGES.map((stage) => {
+    const cell = stageCell(stage);
+    return `<li class="exec-stage ${cell.cls}">
+      <span class="exec-stage-label">${escapeHtml(cell.label)}</span>
+      <span class="exec-stage-state">${escapeHtml(cell.text)}</span>
+      ${cell.meta ? `<span class="exec-stage-meta">${escapeHtml(cell.meta)}</span>` : ''}
+    </li>`;
+  }).join('');
+}
+
+/* -- 3. domain cards + right-panel strip -------------------------------- */
+function domainCell(domain) {
+  const plan = state.lastPlan;
+  if (!plan) return { text: 'PLAN YOK', cls: 'st-absent', meta: '' };
+  const step = planSteps().find((s) => s.capability === `${domain.id}_analysis`
+    || (s.arguments && s.arguments.domain === domain.id));
+  if (!step) return { text: 'PLANDA YOK', cls: 'st-absent', meta: '' };
+
+  const record = runStep(step.step_id);
+  if (record) {
+    const [text, cls] = stepState(record.status);
+    const output = record.output || {};
+    const bits = [];
+    if (output.records !== undefined) bits.push(`${output.records} kayıt`);
+    if (record.block_reason) bits.push(record.block_reason);
+    if (record.error) bits.push(record.error);
+    return { text, cls, meta: bits.join(' · ') };
+  }
+
+  const args = step.arguments || {};
+  if (step.capability_status === 'DATA_UNAVAILABLE' || args.data_available === false) {
+    return { text: 'VERİ YOK', cls: 'st-nodata', meta: args.unavailable_reason || '' };
+  }
+  if ((step.blocked_by || []).length) {
+    return { text: 'BLOKE', cls: 'st-blocked', meta: step.blocked_by.join(', ') };
+  }
+  return {
+    text: 'BEKLİYOR', cls: 'st-wait',
+    meta: (args.memory_queries || []).join(', '),
+  };
+}
+
+function renderDomains() {
+  const cells = DOMAIN_CARDS.map((domain) => ({ domain, cell: domainCell(domain) }));
+  qs('domainGrid').innerHTML = cells.map(({ domain, cell }) => `
+    <div class="dom-card ${cell.cls}">
+      <span class="dom-name">${escapeHtml(domain.label)}</span>
+      <span class="dom-state">${escapeHtml(cell.text)}</span>
+      ${cell.meta ? `<span class="dom-meta">${escapeHtml(cell.meta)}</span>` : ''}
+    </div>`).join('');
+
+  const strip = qs('domainStrip');
+  if (strip) {
+    strip.innerHTML = cells.map(({ domain, cell }) =>
+      `<li><span>${escapeHtml(domain.label)}</span>`
+      + `<span class="svc-state ${cell.cls === 'st-done' ? 's-ok' : cell.cls === 'st-error' ? 's-error'
+         : cell.cls === 'st-wait' || cell.cls === 'st-run' ? 's-warn' : 's-off'}">`
+      + `${escapeHtml(cell.text)}</span></li>`).join('');
+  }
+}
+
+/* -- 4. evidence -------------------------------------------------------- */
+/* One normaliser for every evidence shape the backend may produce: the
+ * internal `evidence_refs` strings the runtime emits today, and richer
+ * objects (web research rows, for instance) if a later step returns them.
+ * An alias that is absent stays absent -- it is never substituted. */
+function pick(source, names) {
+  for (const name of names) {
+    if (source && source[name] !== undefined && source[name] !== null && source[name] !== '') {
+      return source[name];
+    }
+  }
+  return undefined;
+}
+function normalizeEvidence(raw, ctx) {
+  if (typeof raw === 'string') {
+    // Internal refs are "publisher:query" (e.g. postgres:sales_orders). Split
+    // so the source column names the publisher and the reference column keeps
+    // the whole ref; a ref without a colon is shown whole in both.
+    const publisher = raw.includes(':') ? raw.slice(0, raw.indexOf(':')) : raw;
+    return { source: publisher, reference: raw, domain: ctx.domain, finding: ctx.finding,
+             freshness: ctx.freshness, confidence: ctx.confidence,
+             contradiction: ctx.contradiction, independent: ctx.independent };
+  }
+  return {
+    source: pick(raw, ['source', 'publisher', 'origin', 'host']),
+    url: pick(raw, ['url', 'link', 'href']),
+    title: pick(raw, ['title', 'headline', 'name']),
+    domain: pick(raw, ['domain', 'entity']) || ctx.domain,
+    finding: pick(raw, ['claim', 'finding', 'summary', 'text']) || ctx.finding,
+    reference: pick(raw, ['reference', 'evidence_ref', 'source_id', 'id']),
+    freshness: pick(raw, ['freshness', 'observed_at', 'retrieved_at', 'published_at']) || ctx.freshness,
+    confidence: pick(raw, ['confidence']) !== undefined ? pick(raw, ['confidence']) : ctx.confidence,
+    contradiction: pick(raw, ['contradiction']) !== undefined ? pick(raw, ['contradiction']) : ctx.contradiction,
+    independent: pick(raw, ['independent_sources', 'independent_source']) !== undefined
+      ? pick(raw, ['independent_sources', 'independent_source']) : ctx.independent,
+  };
+}
+
+function collectEvidence() {
+  const run = state.lastRun;
+  if (!run) return [];
+  const rows = [];
+  Object.entries(run.steps || {}).forEach(([stepId, record]) => {
+    const output = record.output || {};
+    const ctx = {
+      domain: output.domain || record.capability || stepId,
+      finding: output.records !== undefined ? `${output.records} kayıt` : (output.summary || ''),
+      freshness: pick(output, ['observed_at', 'retrieved_at']),
+      confidence: output.confidence,
+      contradiction: output.contradiction,
+      independent: output.independent_sources,
+    };
+    if (Array.isArray(output.evidence)) {
+      output.evidence.forEach((item) => rows.push(normalizeEvidence(item, ctx)));
+    }
+    (record.evidence_refs || []).forEach((ref) => rows.push(normalizeEvidence(ref, ctx)));
+  });
+  return rows;
+}
+
+/* Evidence rows are backend data, not operator input, but a URL that ends up
+ * in an href is still the one place a poisoned record could become script.
+ * Only http(s) survives; anything else is rendered as plain text. */
+function safeUrl(value) {
+  if (typeof value !== 'string') return null;
+  try {
+    const parsed = new URL(value, window.location.origin);
+    return (parsed.protocol === 'http:' || parsed.protocol === 'https:') ? parsed.href : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function evCell(value, mono) {
+  if (value === undefined || value === null || value === '') return '<td class="ev-na">—</td>';
+  return `<td${mono ? ' class="ev-mono"' : ''}>${escapeHtml(String(value))}</td>`;
+}
+
+function renderEvidence() {
+  const wrap = qs('evidenceWrap');
+  const rows = collectEvidence();
+  if (!rows.length) {
+    wrap.innerHTML = '<p class="pr-empty">Kanıt bulunamadı.</p>';
+    return;
+  }
+  const body = rows.map((row) => {
+    const href = safeUrl(row.url);
+    const sourceCell = href
+      ? `<td><a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(row.title || row.source || href)}</a></td>`
+      : evCell(row.title || row.source || row.url);
+    const contradiction = row.contradiction === undefined || row.contradiction === null
+      ? '<td class="ev-na">—</td>'
+      : (row.contradiction ? '<td class="ev-flag">VAR</td>' : '<td class="ev-ok">YOK</td>');
+    return `<tr>
+      ${sourceCell}
+      ${evCell(row.domain)}
+      ${evCell(row.finding)}
+      ${evCell(row.reference, true)}
+      ${evCell(row.freshness, true)}
+      ${evCell(row.confidence)}
+      ${contradiction}
+      ${evCell(row.independent)}
+    </tr>`;
+  }).join('');
+  wrap.innerHTML = `<table class="ev-table">
+    <thead><tr>
+      <th>KAYNAK</th><th>DOMAIN</th><th>BULGU</th><th>KANIT REF</th>
+      <th>TAZELİK</th><th>GÜVEN</th><th>ÇELİŞKİ</th><th>BAĞIMSIZ KAYNAK</th>
+    </tr></thead><tbody>${body}</tbody></table>`;
+}
+
+/* -- 5. management analysis (advisory, never applied) ------------------- */
+function outputsByCapability(capability) {
+  const run = state.lastRun;
+  if (!run) return [];
+  return planSteps()
+    .filter((s) => s.capability === capability)
+    .map((s) => (runStep(s.step_id) || {}).output)
+    .filter(Boolean);
+}
+
+function listBlock(title, items, emptyText) {
+  const body = items.length
+    ? `<ul>${items.join('')}</ul>`
+    : `<p class="pr-empty">${escapeHtml(emptyText)}</p>`;
+  return `<div class="pr-block"><h4>${escapeHtml(title)}</h4>${body}</div>`;
+}
+
+function renderProposed() {
+  const target = qs('proposedBody');
+  if (!state.lastRun) {
+    target.innerHTML = '<p class="pr-empty">Yürütme sonucu henüz yok — '
+      + 'bu bölüm yalnız gerçek bir yürütme kaydı geldiğinde dolar.</p>';
+    return;
+  }
+
+  const signals = outputsByCapability('problem_opportunity_analysis')
+    .flatMap((output) => output.signals || []);
+  // The detector has no problem/opportunity field today, only a severity.
+  // If one is ever added it is used; until then the split is by severity and
+  // the heading says so, rather than silently reclassifying signals.
+  const hasKind = signals.some((s) => s.kind || s.type);
+  const isOpportunity = (s) => (hasKind
+    ? String(s.kind || s.type).toUpperCase().includes('OPPORT')
+    : s.severity === 'INFO');
+  const signalItem = (s) => `<li><span class="pr-sev sev-${escapeHtml(s.severity || 'INFO')}">`
+    + `${escapeHtml(s.severity || '—')}</span><span class="pr-code">${escapeHtml(s.code || '')}</span>`
+    + `${escapeHtml(s.summary || '')}</li>`;
+
+  const objections = outputsByCapability('red_team_review')
+    .flatMap((output) => output.objections || [])
+    .map((o) => `<li><span class="pr-code">${escapeHtml(o.code || '')}</span>`
+      + `${escapeHtml(o.detail || '')}<span class="dom-meta">${escapeHtml(o.step_id || '')}</span></li>`);
+
+  const actions = ['human_review_proposal', 'action_plan']
+    .flatMap((cap) => outputsByCapability(cap))
+    .map((output) => {
+      const payload = output.payload || {};
+      const applied = output.submitted === true;
+      return `<li><span class="pr-code">${escapeHtml(output.action_type || output.internal_intent || '—')}</span>`
+        + `${escapeHtml(payload.reason || '')}`
+        + `<span class="dom-meta">${applied ? 'gönderildi' : 'ÖNERİ — uygulanmadı, gönderilmedi'}`
+        + `${output.submit_with ? ' · ' + escapeHtml(output.submit_with) : ''}</span></li>`;
+    });
+
+  const gaps = [];
+  outputsByCapability('evidence_fusion').forEach((output) => {
+    (output.missing_inputs || []).forEach((entry) => gaps.push(
+      `<li><span class="pr-code">${escapeHtml(entry.status || '')}</span>`
+      + `${escapeHtml(entry.reason || entry.capability || '')}`
+      + `<span class="dom-meta">${escapeHtml(entry.step_id || '')}</span></li>`));
+    if (output.needs_more_sources) {
+      gaps.push(`<li><span class="pr-code">THIN_SOURCING</span>`
+        + `bağımsız kaynak sayısı ${escapeHtml(String(output.independent_sources))}</li>`);
+    }
+  });
+  outputsByCapability('problem_opportunity_analysis').forEach((output) => {
+    (output.skipped || []).forEach((entry) => gaps.push(
+      `<li><span class="pr-code">SKIPPED</span>${escapeHtml(entry.reason || entry.rule || '')}</li>`));
+  });
+  Object.entries(state.lastRun.steps || {}).forEach(([stepId, record]) => {
+    if (record.status === 'DATA_UNAVAILABLE') {
+      gaps.push(`<li><span class="pr-code">VERİ YOK</span>`
+        + `${escapeHtml(record.block_reason || record.capability || '')}`
+        + `<span class="dom-meta">${escapeHtml(stepId)}</span></li>`);
+    }
+  });
+
+  target.innerHTML = [
+    listBlock('PROBLEMLER', signals.filter((s) => !isOpportunity(s)).map(signalItem),
+      'Problem sinyali yok.'),
+    listBlock(hasKind ? 'FIRSATLAR' : 'FIRSATLAR (INFO seviyeli sinyaller)',
+      signals.filter(isOpportunity).map(signalItem), 'Fırsat sinyali yok.'),
+    listBlock('RED TEAM İTİRAZLARI', objections, 'İtiraz kaydedilmedi.'),
+    listBlock('ÖNERİLEN AKSİYONLAR', actions, 'Önerilen aksiyon yok.'),
+    listBlock('VERİ EKSİKLERİ', gaps, 'Bildirilen veri eksiği yok.'),
+  ].join('');
+}
+
+/* -- 6. one render pass ------------------------------------------------- */
+function renderExecutionSurface() {
+  if (!qs('execRail')) return;
+  const [label, chipCls, coreKey] = deriveExecState();
+  const chip = qs('execStateChip');
+  chip.textContent = label;
+  chip.className = 'exec-state-chip ' + chipCls;
+  if (execOverride()) applyCoreState(coreKey, label);
+  else applyLoopCoreState();
+
+  const source = state.lastRun ? 'yürütme kaydı (run)' : (state.lastPlan ? 'plan (/api/plan)' : '—');
+  ['execSrc', 'domainGridSrc', 'evidenceSrc', 'proposedSrc'].forEach((id) => {
+    const el = qs(id);
+    if (el) el.textContent = 'kaynak: ' + source;
+  });
+  const domainSrc = qs('domainSrc');
+  if (domainSrc) domainSrc.textContent = state.lastRun ? 'yürütme kaydı' : (state.lastPlan ? 'plan' : 'plan yok');
+
+  renderRail();
+  renderDomains();
+  renderEvidence();
+  renderProposed();
+
+  qs('execNote').textContent = state.lastRun
+    ? `Yürütme kaydı ${state.lastRun.run_id || ''} · durum ${state.lastRun.status || '—'}.`
+    : (state.lastPlan
+      ? 'Yürütme başlamadı: bu konsolda çalıştırma uç noktası yok. Aşamalar '
+        + 'planın kendi kararlarını gösteriyor, ilerleme yüzdesi üretilmiyor.'
+      : 'Henüz plan üretilmedi.');
+}
+
+renderExecutionSurface();
 checkSession();

@@ -989,6 +989,197 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
 .plan-meta dd { margin: 0; color: var(--ivory-2); word-break: break-word; }
 .plan-note { font-size: 0.64rem; color: var(--ivory-4); margin-top: 14px; }
 
+/* ------------------------ execution surface ------------------------
+   Additive only: same tokens, same hairlines, same gold. Nothing here
+   animates unless a real run record says a step is running -- a skeleton
+   that pulses would read as progress the backend never reported. */
+.exec-section { margin-top: 26px; }
+.exec-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-bottom: 7px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.exec-title {
+  margin: 0;
+  font-size: 0.55rem;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  color: var(--gold-hi);
+}
+.exec-src {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  color: var(--ivory-4);
+}
+.exec-note { font-size: 0.64rem; color: var(--ivory-4); margin: 12px 0 0; line-height: 1.5; }
+
+.exec-state-chip {
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+  padding: 2px 8px;
+  color: var(--ivory-3);
+}
+.exec-state-chip.st-ready   { color: var(--gold); }
+.exec-state-chip.st-run     { color: var(--gold-hi); }
+.exec-state-chip.st-done    { color: var(--ok); }
+.exec-state-chip.st-wait    { color: var(--warn); }
+.exec-state-chip.st-error   { color: var(--crit); }
+.exec-state-chip.st-nodata,
+.exec-state-chip.st-blocked { color: var(--ivory-4); }
+
+/* -- stage rail -- */
+.exec-rail {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  flex-wrap: wrap;
+}
+.exec-stage {
+  flex: 1 1 140px;
+  min-width: 130px;
+  border: 1px solid var(--line-soft);
+  border-left-width: 2px;
+  border-left-color: var(--line-soft);
+  border-radius: var(--radius);
+  background: var(--glass);
+  padding: 10px 11px;
+  margin: 0 5px 8px 0;
+}
+.exec-stage-label {
+  display: block;
+  font-size: 0.55rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--ivory-2);
+}
+.exec-stage-state {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.48rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--ivory-4);
+}
+.exec-stage-meta {
+  display: block;
+  margin-top: 5px;
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  color: var(--ivory-4);
+  word-break: break-word;
+}
+.exec-stage.st-absent { opacity: 0.42; }
+.exec-stage.st-ready   { border-left-color: var(--gold-dim); }
+.exec-stage.st-ready   .exec-stage-state { color: var(--gold); }
+.exec-stage.st-wait    { border-left-color: var(--warn); }
+.exec-stage.st-wait    .exec-stage-state { color: var(--warn); }
+.exec-stage.st-run     { border-left-color: var(--gold); }
+.exec-stage.st-run     .exec-stage-state { color: var(--gold-hi); }
+.exec-stage.st-done    { border-left-color: var(--ok); }
+.exec-stage.st-done    .exec-stage-state { color: var(--ok); }
+.exec-stage.st-error   { border-left-color: var(--crit); }
+.exec-stage.st-error   .exec-stage-state { color: var(--crit); }
+.exec-stage.st-nodata,
+.exec-stage.st-blocked { border-left-color: var(--info); }
+.exec-stage.st-nodata  .exec-stage-state,
+.exec-stage.st-blocked .exec-stage-state { color: var(--info); }
+/* A stage only pulses when a run record actually reports it running. */
+.exec-stage.st-run .exec-stage-state { animation: aura 1.6s ease-in-out infinite; }
+
+/* -- domain grid -- */
+.dom-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.dom-card {
+  border: 1px solid var(--line-soft);
+  border-top: 2px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: var(--glass);
+  padding: 11px 12px;
+}
+.dom-name { display: block; font-size: 0.56rem; font-weight: 600; letter-spacing: 0.16em; color: var(--ivory); }
+.dom-state { display: block; margin-top: 7px; font-size: 0.48rem; font-weight: 700; letter-spacing: 0.14em; color: var(--ivory-4); }
+.dom-meta { display: block; margin-top: 6px; font-family: var(--font-mono); font-size: 0.54rem; color: var(--ivory-4); word-break: break-word; }
+.dom-card.st-absent { opacity: 0.42; }
+.dom-card.st-wait   { border-top-color: var(--warn); }
+.dom-card.st-wait   .dom-state { color: var(--warn); }
+.dom-card.st-run    { border-top-color: var(--gold); }
+.dom-card.st-run    .dom-state { color: var(--gold-hi); animation: aura 1.6s ease-in-out infinite; }
+.dom-card.st-done   { border-top-color: var(--ok); }
+.dom-card.st-done   .dom-state { color: var(--ok); }
+.dom-card.st-error  { border-top-color: var(--crit); }
+.dom-card.st-error  .dom-state { color: var(--crit); }
+.dom-card.st-nodata,
+.dom-card.st-blocked { border-top-color: var(--info); }
+.dom-card.st-nodata .dom-state,
+.dom-card.st-blocked .dom-state { color: var(--info); }
+
+/* -- evidence table -- */
+.ev-wrap { overflow-x: auto; }
+.ev-table { width: 100%; border-collapse: collapse; font-size: 0.68rem; min-width: 660px; }
+.ev-table th {
+  text-align: left;
+  font-size: 0.46rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: var(--ivory-4);
+  padding: 0 10px 7px 0;
+  border-bottom: 1px solid var(--line-soft);
+  white-space: nowrap;
+}
+.ev-table td {
+  padding: 8px 10px 8px 0;
+  vertical-align: top;
+  color: var(--ivory-2);
+  border-bottom: 1px solid rgba(242, 239, 233, 0.04);
+  word-break: break-word;
+}
+.ev-table td.ev-mono { font-family: var(--font-mono); font-size: 0.62rem; color: var(--ivory-3); }
+.ev-na { color: var(--ivory-4); }
+.ev-flag { color: var(--crit); font-weight: 700; }
+.ev-ok { color: var(--ok); }
+.ev-table a { color: var(--gold-hi); }
+
+/* -- proposed / management analysis -- */
+.proposed-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.pr-block {
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: var(--glass);
+  padding: 12px 13px;
+}
+.pr-block h4 {
+  margin: 0 0 9px;
+  font-size: 0.5rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  color: var(--ivory-2);
+}
+.pr-block ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.pr-block li { font-size: 0.7rem; color: var(--ivory-2); line-height: 1.45; }
+.pr-code {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.56rem;
+  letter-spacing: 0.04em;
+  color: var(--gold);
+  margin-right: 6px;
+}
+.pr-sev { font-size: 0.46rem; font-weight: 700; letter-spacing: 0.12em; border: 1px solid currentColor; border-radius: 2px; padding: 1px 5px; margin-right: 6px; }
+.pr-sev.sev-CRITICAL { color: var(--crit); }
+.pr-sev.sev-WARN { color: var(--warn); }
+.pr-sev.sev-INFO { color: var(--info); }
+.pr-empty { font-size: 0.64rem; color: var(--ivory-4); }
+
 /* --------------------------- scrollbars --------------------------- */
 .feed, .rp-scroll, .chat-log, .analiz-body, .modal-card, .proposal-list-lg, .evidence-block {
   scrollbar-width: thin;
@@ -1073,4 +1264,26 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
 @media (max-height: 620px) {
   .chat-log { max-height: 26vh; }
   .core-foot { display: none; }
+}
+
+/* ------------- execution surface: theme + responsive ---------------- */
+/* Core state labels for the execution vocabulary. Anything not listed
+   keeps the default gold, so an unknown state is never mis-coloured. */
+.core-state-error + .core-label .core-state { color: var(--crit); }
+.core-state-no_data + .core-label .core-state { color: var(--info); }
+.core-state-done + .core-label .core-state { color: var(--ok); }
+
+@media (max-width: 1180px) {
+  .dom-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+  .proposed-body { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .dom-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .exec-stage { flex: 1 1 100%; min-width: 0; margin-right: 0; }
+  .exec-src { margin-left: 0; width: 100%; }
+}
+@media (max-width: 420px) {
+  .dom-grid { grid-template-columns: minmax(0, 1fr); }
 }

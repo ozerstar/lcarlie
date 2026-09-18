@@ -118,6 +118,67 @@ class ShowsNoNumberTheBackendNeverMeasured(unittest.TestCase):
         self.assertIn("observed_at", APP_JS)
 
 
+class ExecutionSurfaceStaysHonest(unittest.TestCase):
+    """The execution UI is prepared, not simulated.
+
+    The runtime is not reachable over HTTP yet. These tests fail if the
+    frontend starts inventing a route to it, or starts showing progress the
+    backend never reported.
+    """
+
+    def test_no_invented_execution_endpoint(self):
+        for invented in ("/api/execute", "/api/run", "/api/runs", "/api/execution"):
+            self.assertNotIn(invented, APP_JS,
+                             f"frontend invents {invented}; app.py serves no such route")
+
+    def test_run_data_is_read_only_from_an_explicit_guard(self):
+        # A run is rendered only when the backend actually attaches one in the
+        # shape execution_runtime.RunRecord.to_dict() already produces.
+        self.assertIn("function extractRun(", APP_JS)
+        self.assertIn("state.lastRun = extractRun(body)", APP_JS)
+
+    def test_no_progress_percentage_anywhere(self):
+        """The backend reports a per-step status, never a ratio.
+
+        Checked against code with comments removed -- a comment explaining why
+        there is no percentage is not a percentage.
+        """
+        code = re.sub(r"/\*.*?\*/", "", APP_JS, flags=re.S)
+        code = re.sub(r"(?m)^\s*//.*$", "", code)
+        for pattern in (r"['\"`]\s*%\s*['\"`]", r"\+\s*['\"]%['\"]", r"toFixed\(",
+                        r"\bpercent\b", r"progress-bar", r"width\s*:\s*\$\{"):
+            self.assertIsNone(re.search(pattern, code),
+                              f"{pattern} implies a fabricated progress value")
+        markup = re.sub(r"(?s)<!--.*?-->", "", INDEX)
+        self.assertNotIn("progress", markup.lower())
+
+    def test_stage_and_domain_states_use_the_backend_vocabulary(self):
+        # Mapped straight off execution_runtime.py's own step statuses.
+        for status in ("PENDING", "SUCCEEDED", "FAILED", "DATA_UNAVAILABLE",
+                       "BLOCKED_CAPABILITY", "BLOCKED_UPSTREAM",
+                       "REQUIRES_HUMAN_ORIGINATION", "PROPOSED"):
+            self.assertIn(status, APP_JS, f"{status} is not mapped to a UI state")
+
+    def test_absent_evidence_says_so(self):
+        self.assertIn("Kanıt bulunamadı", APP_JS)
+
+    def test_proposed_panel_never_claims_an_action_was_applied(self):
+        self.assertIn("ÖNERİ — uygulanmadı", APP_JS)
+        self.assertIn("Bu panel hiçbir aksiyonu uygulamaz", INDEX)
+        for claim in ("uygulandı", "deploy edildi", "reklam değiştirildi", "yayınlandı"):
+            self.assertNotIn(claim, APP_JS, f"UI claims {claim!r} without backend confirmation")
+
+    def test_external_evidence_links_are_scheme_checked(self):
+        self.assertIn("function safeUrl(", APP_JS)
+        self.assertIn("parsed.protocol === 'http:'", APP_JS)
+
+    def test_skeleton_stages_do_not_animate(self):
+        # Only a stage the backend reports as RUNNING may pulse.
+        self.assertIn(".exec-stage.st-run .exec-stage-state { animation:", APP_CSS)
+        self.assertIsNone(re.search(r"\.exec-stage\.st-(absent|ready|wait)[^{]*\{[^}]*animation:", APP_CSS),
+                          "a stage with no run data animates")
+
+
 class NavigationOnlyOffersBackedViews(unittest.TestCase):
     def test_placeholder_sections_are_disabled(self):
         for view in ("veri", "ajanlar", "raporlar", "ayarlar"):

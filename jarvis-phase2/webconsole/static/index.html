@@ -210,6 +210,9 @@
         <h3 class="rp-sub">BEKLEYEN ÖNERİLER <span class="rp-src">pending_actions</span></h3>
         <div class="big-stat"><span id="statProposals" class="big-num">—</span><span class="big-unit">Company Memory kaydı</span></div>
 
+        <h3 class="rp-sub">DOMAIN DURUMU <span class="rp-src" id="domainSrc">plan yok</span></h3>
+        <ul class="svc-list" id="domainStrip"></ul>
+
         <h3 class="rp-sub">HIZLI AKSİYONLAR</h3>
         <div class="qa-grid">
           <button type="button" class="qa-btn" id="qaRefresh">DURUMU YENİLE</button>
@@ -239,7 +242,57 @@
                  placeholder="örn. “VIREON için rakip fiyat analizi çıkar”">
           <button type="submit" class="gold-btn">PLAN ÜRET</button>
         </form>
+
+        <!-- Execution flow rail. Stage state comes from the plan today and
+             from a run record the moment the backend returns one; a stage the
+             backend says nothing about stays a dim skeleton and never animates. -->
+        <section class="exec-section" aria-label="Yürütme akışı">
+          <div class="exec-head">
+            <h3 class="exec-title">YÜRÜTME AKIŞI</h3>
+            <span class="exec-state-chip" id="execStateChip">HAZIR</span>
+            <span class="exec-src" id="execSrc">kaynak: —</span>
+          </div>
+          <ol class="exec-rail" id="execRail"></ol>
+          <p class="exec-note" id="execNote">Henüz plan üretilmedi.</p>
+        </section>
+
+        <!-- Five business domains. No percentage is shown anywhere: the
+             backend reports a per-step status, never a completion ratio. -->
+        <section class="exec-section" aria-label="Domain durumu">
+          <div class="exec-head">
+            <h3 class="exec-title">DOMAIN DURUMU</h3>
+            <span class="exec-src" id="domainGridSrc">kaynak: —</span>
+          </div>
+          <div class="dom-grid" id="domainGrid"></div>
+        </section>
+
         <div id="analizResult" class="analiz-result"></div>
+
+        <!-- Generic evidence table: renders whatever evidence fields the
+             backend actually supplies (internal refs today, web-research rows
+             later) and prints an em dash for every field it does not. -->
+        <section class="exec-section" aria-label="Kanıt">
+          <div class="exec-head">
+            <h3 class="exec-title">KANIT</h3>
+            <span class="exec-src" id="evidenceSrc">kaynak: —</span>
+          </div>
+          <div class="ev-wrap" id="evidenceWrap"></div>
+        </section>
+
+        <!-- Management analysis. Advisory only: it renders a PROPOSED
+             envelope and never reports anything as applied. -->
+        <section class="exec-section" aria-label="Yönetim analizi">
+          <div class="exec-head">
+            <h3 class="exec-title">YÖNETİM ANALİZİ</h3>
+            <span class="risk-badge risk-MEDIUM" id="proposedBadge">ÖNERİ</span>
+            <span class="exec-src" id="proposedSrc">kaynak: —</span>
+          </div>
+          <div id="proposedBody" class="proposed-body"></div>
+          <p class="exec-note">
+            Bu panel hiçbir aksiyonu uygulamaz. Uygulama yolu değişmedi:
+            öneri, mevcut insan onayı akışından geçer.
+          </p>
+        </section>
       </div>
     </section>
   </main>
