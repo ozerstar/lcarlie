@@ -4,7 +4,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 
 from jarvis import business_signals as bs
-from jarvis.memory import Evidence
+from jarvis.memory import Evidence, MemoryError
 
 NOW = datetime(2026, 9, 18, 12, 0, 0, tzinfo=timezone.utc)
 
@@ -209,6 +209,141 @@ class CollectTests(unittest.TestCase):
     def test_open_work_query_is_allowlisted(self):
         from jarvis.memory import CompanyMemory
         self.assertIn("open_work", CompanyMemory.QUERIES)
+
+
+class CycleIntegrationTests(unittest.TestCase):
+    """The signal layer inside run_cycle: dedup, fail-safe, no model calls."""
+
+    def setUp(self):
+        import pathlib
+        import tempfile
+        from unittest.mock import patch
+
+        from jarvis import loop
+        self.loop = loop
+        self.patch = patch
+        tmp = pathlib.Path(tempfile.mkdtemp())
+        self.enterContext(patch.object(loop, "STATE_DIR", tmp))
+        self.enterContext(patch.object(loop, "STATE_FILE", tmp / "loop-state.json"))
+        self.enterContext(patch.object(loop, "FINDINGS_LOG", tmp / "findings.jsonl"))
+        self.enterContext(patch.object(loop, "AUDIT_LOG", tmp / "audit.jsonl"))
+
+    def _memory(self, waiting=8, work=None):
+        rows = decision(insan_onayi_bekleyen=waiting)
+        work_rows = [work_row()] if work is None else work
+
+        class M:
+            def get_system_status(self):
+                return Evidence("postgres:system", "C", "t",
+                                [{"open_tasks": 0, "failed_executions": 0}], 1.0)
+
+            def get_company_agenda(self):
+                return Evidence("postgres:agenda", "C", "t", [agenda_row()], 1.0)
+
+            def get_company_context(self):
+                return Evidence("postgres:decision_summary", "C", "t", rows, 1.0)
+
+            def get_open_work(self):
+                return Evidence("postgres:open_work", "C", "t", work_rows, 1.0)
+
+        return M()
+
+    def _findings(self):
+        path = self.loop.FINDINGS_LOG
+        if not path.exists():
+            return []
+        import json as _json
+        return [_json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+    def _run(self, memory):
+        with self.patch.object(self.loop, "CompanyMemory", return_value=memory), \
+             self.patch.object(self.loop, "_claim_task", return_value=None):
+            return self.loop.run_cycle(host=None)
+
+    def test_cycle_surfaces_business_signals(self):
+        report = self._run(self._memory(waiting=8))
+        self.assertEqual(report["business"]["status"], "ISSUE")
+        self.assertIn("approval_backlog", report["business"]["codes"])
+        self.assertEqual(report["business"]["new"], 1)
+        self.assertIn("business_ms", report["timings_ms"])
+
+    def test_signal_logged_to_the_existing_findings_log(self):
+        self._run(self._memory(waiting=8))
+        entries = self._findings()
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["signal_code"], "approval_backlog")
+        self.assertEqual(entries[0]["severity"], "WARN")
+        self.assertIn("human_approver", entries[0]["note"])
+
+    def test_standing_condition_is_not_relogged_every_cycle(self):
+        memory = self._memory(waiting=8)
+        first = self._run(memory)
+        second = self._run(memory)
+        third = self._run(memory)
+        self.assertEqual(first["business"]["new"], 1)
+        self.assertEqual(second["business"]["new"], 0)
+        self.assertEqual(third["business"]["new"], 0)
+        self.assertEqual(len(self._findings()), 1)
+
+    def test_changed_condition_is_logged_again(self):
+        self._run(self._memory(waiting=8))
+        report = self._run(self._memory(waiting=12))
+        self.assertEqual(report["business"]["new"], 1)
+        self.assertEqual(len(self._findings()), 2)
+
+    def test_resolved_condition_stops_reporting(self):
+        self._run(self._memory(waiting=8))
+        report = self._run(self._memory(waiting=0))
+        self.assertEqual(report["business"]["status"], "NOOP")
+        self.assertEqual(report["business"]["new"], 0)
+        self.assertEqual(len(self._findings()), 1)
+
+    def test_adapter_without_open_work_is_skipped_not_fatal(self):
+        class Old:
+            def get_system_status(self):
+                return Evidence("postgres:system", "C", "t",
+                                [{"open_tasks": 0, "failed_executions": 0}], 1.0)
+
+            def get_company_agenda(self):
+                return Evidence("postgres:agenda", "C", "t", [], 1.0)
+
+        report = self._run(Old())
+        self.assertEqual(report["business"]["status"], "SKIPPED")
+        self.assertEqual(report["result"], "NOOP")
+
+    def test_memory_failure_does_not_break_the_cycle(self):
+        class Broken:
+            def get_system_status(self):
+                return Evidence("postgres:system", "C", "t",
+                                [{"open_tasks": 0, "failed_executions": 0}], 1.0)
+
+            def get_company_agenda(self):
+                return Evidence("postgres:agenda", "C", "t", [], 1.0)
+
+            def get_company_context(self):
+                raise MemoryError("transport down")
+
+            def get_open_work(self):
+                return Evidence("postgres:open_work", "C", "t", [], 1.0)
+
+        report = self._run(Broken())
+        self.assertEqual(report["business"]["status"], "ERROR")
+        self.assertEqual(report["result"], "NOOP")
+        self.assertEqual(report["model_calls"], 0)
+
+    def test_cycle_still_makes_no_model_or_external_calls(self):
+        report = self._run(self._memory(waiting=20))
+        self.assertEqual(report["model_calls"], 0)
+        self.assertEqual(report["external_actions"], 0)
+        self.assertEqual(report["external_provider_calls"], 0)
+
+    def test_signal_layer_never_proposes_or_claims(self):
+        memory = self._memory(waiting=20)
+        with self.patch.object(self.loop, "CompanyMemory", return_value=memory), \
+             self.patch.object(self.loop, "_claim_task", return_value=None), \
+             self.patch.object(self.loop, "_propose_action") as propose:
+            self.loop.run_cycle(host=None)
+        propose.assert_not_called()
 
 
 if __name__ == "__main__":
