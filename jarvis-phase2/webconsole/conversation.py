@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import hashlib
+import os
 from dataclasses import dataclass
 from time import perf_counter
 from typing import Any
 
 from jarvis.execution_planner import STATUS_BLOCKED_EXTERNAL_ACTION, plan_request
 from jarvis.model_layer import ModelRouter, ModelUnavailable, should_use_model
+from jarvis.specialist_pool import SpecialistPool
 
 SIMPLE_CONVERSATION = "SIMPLE_CONVERSATION"
 COMPANY_QUERY = "COMPANY_QUERY"
@@ -245,6 +247,133 @@ def _synthesize(message: str, intent: str, memory: Any, started: float,
                      provider_states=result.provider_states)
 
 
+
+# --- specialist analysis -------------------------------------------------
+_POOL: SpecialistPool | None = None
+
+
+def _pool(memory: Any) -> SpecialistPool:
+    global _POOL
+    if _POOL is None:
+        _POOL = SpecialistPool(memory)
+    return _POOL
+
+
+def _analysis(message: str, memory: Any, started: float) -> dict[str, Any]:
+    """Planner shape -> minimum sufficient specialists -> fusion / red team /
+    strategy / managing director -> AI synthesis over what they found.
+
+    The pool selects the specialists; all twenty never run. Its findings are
+    the evidence the model is given, so the narrative can only restate what a
+    specialist actually concluded from a real query.
+    """
+    text = _normalize(message)
+    domains = [d for d, terms in _DOMAIN_TERMS.items() if _has(text, terms)]
+    if not domains:
+        domains = ["sales", "ecommerce", "advertising", "crm", "operations"]
+    entities = ("VIREON",) if "vireon" in text else ()
+
+    plan = plan_request(message)
+    try:
+        report = _pool(memory).execute(message, tuple(domains), entities=entities)
+    except Exception as exc:  # noqa: BLE001 - a pool failure must not end the turn
+        return _response(message, ANALYSIS_REQUEST, "PROPOSED",
+            "Analiz isteği Planner'a aktarıldı; uzman havuzu bu turda çalışamadı.",
+            missing_data=tuple(plan.required_internal_data), started=started,
+            model="deterministic-planner", plan=plan.to_dict(),
+            execution_started=False, error_detail=f"{type(exc).__name__}: {exc}")
+
+    evidence: list[dict[str, Any]] = []
+    refs: list[str] = []
+    for finding in report["findings"]:
+        if not finding.get("claim"):
+            continue
+        evidence.append({"ref": finding["specialist_id"], "summary": finding["claim"]})
+        refs.extend(finding.get("evidence_refs") or [])
+
+    missing = tuple(sorted({finding["specialist_id"] for finding in report["findings"]
+                            if finding.get("status") == "DATA_UNAVAILABLE"}))
+    try:
+        result = _router().synthesize(message, evidence, missing_data=missing)
+        answer, model, calls = result.answer, result.model, result.model_calls
+        confidence, tier = result.confidence, result.tier
+    except ModelUnavailable:
+        # The specialists still did their work; report it plainly.
+        answer = "\n".join(f"- [{f['specialist_id']}] {f['claim']}"
+                            for f in report["findings"] if f.get("claim"))
+        model, calls, confidence, tier = None, 0, "MEDIUM", "DETERMINISTIC"
+
+    return _response(message, ANALYSIS_REQUEST, "PROPOSED", answer,
+        evidence_refs=tuple(dict.fromkeys(refs)), missing_data=missing,
+        started=started, model=model, model_calls=calls, confidence=confidence,
+        tier=tier, plan=plan.to_dict(), execution_started=False,
+        approval_required=True,
+        specialists_selected=report["specialists_selected"],
+        specialists_skipped=report["specialists_skipped"],
+        fusion=report["fusion"], specialist_metrics=report["metrics"])
+
+
+# --- research ------------------------------------------------------------
+def _research(message: str, started: float) -> dict[str, Any]:
+    """Research Controller as it stands, then synthesis over what it returned.
+
+    Confidence travels through untouched: a thin result is reported as
+    LOW_CONFIDENCE rather than dressed up as fact.
+    """
+    try:
+        from jarvis.adapter_factory import default_factory
+        from jarvis.research_controller import ResearchController
+        from jarvis.research_sources import WebSearchCrawlAdapter
+
+        # Point the adapter at the SearXNG instance that is already running on
+        # this host. Without this it silently falls back to DuckDuckGo's
+        # keyless HTML endpoint, which returned zero results here -- the
+        # research stack was deployed but never actually connected.
+        searxng = os.environ.get("RESEARCH_SEARXNG_URL", "http://127.0.0.1:8888")
+        factory = default_factory()
+        factory.register(WebSearchCrawlAdapter(searxng_url=searxng))
+        report = ResearchController(factory).run(message)
+    except Exception as exc:  # noqa: BLE001
+        return _response(message, RESEARCH_REQUEST, "DATA_UNAVAILABLE",
+            "Araştırma isteği tanındı ancak araştırma capability'si şu anda çalışmıyor.",
+            missing_data=("fresh_research_source",), started=started,
+            error_code="RESEARCH_CAPABILITY_UNAVAILABLE",
+            error_detail=f"{type(exc).__name__}: {exc}")
+
+    sources = report.get("sources") or []
+    confidence_value = float(report.get("confidence") or 0.0)
+    evidence = [{"ref": item.get("url") or item.get("source") or "unknown",
+                 "summary": (item.get("title") or "")[:200]}
+                for item in sources[:8]]
+    refs = tuple(item["ref"] for item in evidence)
+    low = confidence_value < 0.5 or len(sources) < 2
+
+    if not sources:
+        return _response(message, RESEARCH_REQUEST, "LOW_CONFIDENCE",
+            "Araştırma çalıştı ancak doğrulanabilir kaynak bulunamadı. "
+            "Bu konuda güvenilir bir sonuç üretmiyorum.",
+            missing_data=("verified_research_source",), started=started,
+            research_confidence=confidence_value,
+            research_stop_reason=report.get("stop_reason"))
+
+    try:
+        result = _router().synthesize(
+            message + ("\n\nNOT: kaynaklar sınırlı, kesin konuşma."if low else ""),
+            evidence, missing_data=() if not low else ("independent_confirmation",))
+        answer, model, calls = result.answer, result.model, result.model_calls
+    except ModelUnavailable:
+        answer = "Bulunan kaynaklar:\n" + "\n".join(f"- {item['ref']}" for item in evidence)
+        model, calls = None, 0
+
+    return _response(message, RESEARCH_REQUEST,
+        "LOW_CONFIDENCE" if low else "ANSWERED", answer,
+        evidence_refs=refs, started=started, model=model, model_calls=calls,
+        confidence="LOW" if low else "MEDIUM",
+        research_confidence=confidence_value,
+        research_sources=len(sources),
+        research_stop_reason=report.get("stop_reason"))
+
+
 def _action(message: str, started: float) -> dict[str, Any]:
     plan = plan_request(message)
     # The conversational classifier recognises inflected Turkish action
@@ -275,21 +404,13 @@ def route(message: str, runtime: Any) -> dict[str, Any]:
     # The deterministic gate comes next: a question Company Memory answers
     # exactly must never cost a model call. Only genuinely open-ended wording
     # gets past this line.
-    if decision.intent in (COMPANY_QUERY, ANALYSIS_REQUEST, GENERAL_REASONING) \
+    if decision.intent in (COMPANY_QUERY, GENERAL_REASONING) \
             and should_use_model(message):
         return _synthesize(message, decision.intent, _memory(runtime), started)
+    if decision.intent == RESEARCH_REQUEST:
+        return _research(message, started)
+    if decision.intent == ANALYSIS_REQUEST:
+        return _analysis(message, _memory(runtime), started)
     if decision.intent == COMPANY_QUERY:
         return _company(message, decision.domain or "company", _memory(runtime), started)
-    if decision.intent == ANALYSIS_REQUEST:
-        plan = plan_request(message)
-        return _response(message, decision.intent, "PROPOSED",
-            "Analiz isteği Planner'a aktarıldı ve çalıştırılmadan bir plan hazırlandı.",
-            missing_data=tuple(plan.required_internal_data), started=started,
-            model="deterministic-planner", model_calls=plan.model_calls,
-            plan=plan.to_dict(), execution_started=False)
-    if decision.intent == RESEARCH_REQUEST:
-        return _response(message, decision.intent, "DATA_UNAVAILABLE",
-            "Araştırma isteği tanındı ancak production'da kullanılabilir araştırma capability'si yok.",
-            missing_data=("fresh_research_source",), started=started,
-            error_code="RESEARCH_CAPABILITY_UNAVAILABLE")
     return _synthesize(message, decision.intent, _memory(runtime), started)

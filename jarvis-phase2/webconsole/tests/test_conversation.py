@@ -72,23 +72,38 @@ class Tests(unittest.TestCase):
             result = conversation.route("Satışlarımızı analiz et.", Runtime())
         self.assertIn(result["status"], ("PROPOSED", "AI_PROVIDER_UNAVAILABLE"))
         self.assertEqual(0, result["external_actions"])
-    def test_research_unavailable(self):
+    def test_research_is_honest_about_its_confidence(self):
+        """Research runs for real now. Whatever it finds, it must never present
+        a thin result as fact, and it must never fabricate a source."""
         result = conversation.route("Rakiplerimizi araştır.", Runtime())
-        self.assertEqual("RESEARCH_CAPABILITY_UNAVAILABLE", result["error_code"])
+        self.assertEqual("RESEARCH_REQUEST", result["intent"])
+        self.assertIn(result["status"],
+                      ("ANSWERED", "LOW_CONFIDENCE", "DATA_UNAVAILABLE"))
+        self.assertEqual(0, result["external_actions"])
+        if result["status"] == "ANSWERED":
+            self.assertTrue(result["evidence_refs"])
     def test_action_proposed_only(self):
         result = conversation.route("Vireon fiyatını değiştir.", Runtime())
         self.assertEqual("ACTION_REQUEST", result["intent"]); self.assertEqual(0, result["external_actions"])
         self.assertTrue(result["approval_required"]); self.assertFalse(result["execution_started"])
         self.assertEqual("BLOCKED_EXTERNAL_ACTION", result["plan"]["status"])
     def test_provider_unavailable_fails_closed_not_silent(self):
-        """Every provider down must degrade, never crash and never fabricate."""
+        """Every provider down must degrade, never crash and never fabricate.
+
+        An analysis request now falls back to the specialists' own deterministic
+        findings rather than to silence, so the answer survives the model being
+        gone -- it just stops being a narrative.
+        """
         with _no_providers():
-            result = conversation.route(
+            analysis = conversation.route(
                 "Cevapsız müşteri probleminin nedenlerini değerlendir", Runtime())
-        self.assertEqual("AI_PROVIDER_UNAVAILABLE", result["status"])
-        self.assertIsNone(result["model"])
-        self.assertEqual(0, result["model_calls"])
-        self.assertEqual(0, result["external_actions"])
+            general = conversation.route("Bana yaratıcı bir fikir ver", Runtime())
+        for result in (analysis, general):
+            self.assertIsNone(result["model"])
+            self.assertEqual(0, result["model_calls"])
+            self.assertEqual(0, result["external_actions"])
+        self.assertEqual("PROPOSED", analysis["status"])
+        self.assertEqual("AI_PROVIDER_UNAVAILABLE", general["status"])
 
     def test_counting_question_never_calls_a_model(self):
         result = conversation.route("Kaç cevapsız müşterimiz var?", Runtime())
