@@ -261,7 +261,13 @@ function renderPlanSteps(plan) {
       const step = plan.steps.find((s) => s.step_id === stepId);
       const blocked = step.blocked_by && step.blocked_by.length;
       const marks = [];
-      if (blocked) marks.push(`<span class="plan-flag plan-flag-blocked">BLOKE: ${escapeHtml(step.blocked_by.join(', '))}</span>`);
+      if (step.capability_status === 'DATA_UNAVAILABLE') {
+        const why = (step.arguments && step.arguments.unavailable_reason) || '';
+        marks.push(`<span class="plan-flag plan-flag-blocked">VERİ YOK</span>`
+                 + (why ? `<span class="plan-unavailable">${escapeHtml(why)}</span>` : ''));
+      } else if (blocked) {
+        marks.push(`<span class="plan-flag plan-flag-blocked">BLOKE: ${escapeHtml(step.blocked_by.join(', '))}</span>`);
+      }
       if (step.requires_human_origination) marks.push('<span class="plan-flag plan-flag-human">İNSAN BAŞLATIR</span>');
       if (step.produces_action) marks.push('<span class="plan-flag">ONAY GEREKİR</span>');
       const deps = step.depends_on.length ? ` ← ${escapeHtml(step.depends_on.join(', '))}` : '';

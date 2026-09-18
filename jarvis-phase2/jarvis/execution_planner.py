@@ -52,6 +52,11 @@ STATUS_REJECTED_AMBIGUOUS = "REJECTED_AMBIGUOUS"
 STATUS_BLOCKED_EXTERNAL_ACTION = "BLOCKED_EXTERNAL_ACTION"
 STATUS_BLOCKED_CAPABILITY = "BLOCKED_CAPABILITY"
 
+# A domain workstream whose data simply is not reachable. Kept distinct
+# from a BLOCKED capability: the capability works, the data contract for
+# this domain does not exist yet.
+DATA_UNAVAILABLE = "DATA_UNAVAILABLE"
+
 RISK_LOW = "LOW"
 RISK_MEDIUM = "MEDIUM"
 RISK_HIGH = "HIGH"
@@ -125,6 +130,19 @@ ROUTES: dict[str, Route] = {
         produces_action=True,
         requires_human_origination=True,
     ),
+    "problem_opportunity_analysis": Route(
+        capability="problem_opportunity_analysis",
+        target="jarvis.business_signals (deterministic problem/opportunity detection)",
+        requires_capabilities=("deterministic_company_memory",),
+        execution_class=EXEC_LOCAL_DETERMINISTIC,
+    ),
+    "action_plan": Route(
+        capability="action_plan",
+        target="jarvis.firewall.validate_proposal -> core.ai_propose_action -> human approval",
+        requires_capabilities=("external_business_action",),
+        execution_class=EXEC_LOCAL_DETERMINISTIC,
+        produces_action=True,
+    ),
     "human_review_proposal": Route(
         capability="human_review_proposal",
         target="jarvis.firewall.validate_proposal -> core.ai_propose_action -> human approval",
@@ -133,6 +151,92 @@ ROUTES: dict[str, Route] = {
         produces_action=True,
     ),
 }
+
+
+# --- business domains ---------------------------------------------------
+@dataclass(frozen=True)
+class Domain:
+    """One business area a request can explicitly ask about.
+
+    `memory_queries` names EXISTING jarvis.memory.CompanyMemory queries -- the
+    fixed, ai_reader-allowlisted contract. It is deliberately never a table or
+    view name the planner made up: if a domain has no allowlisted query, the
+    tuple is empty and the workstream is planned as DATA_UNAVAILABLE rather
+    than quietly falling back to generic company context, which is exactly the
+    silent substitution that made a five-domain request look like one step.
+    """
+    domain_id: str
+    label: str
+    lemmas: tuple[str, ...]
+    memory_queries: tuple[str, ...]
+    unavailable_reason: str = ""
+
+
+DOMAINS: tuple[Domain, ...] = (
+    Domain(
+        domain_id="sales", label="Satış",
+        lemmas=("satış", "satis", "ciro", "gelir", "sales", "revenue", "sipariş", "siparis"),
+        memory_queries=(),
+        unavailable_reason=("mart.siparis / mart.siparis_kalem exist and ai_reader can "
+                            "read them, but no CompanyMemory query exposes them; the "
+                            "fixed query allowlist has no sales contract"),
+    ),
+    Domain(
+        domain_id="ecommerce", label="E-ticaret",
+        lemmas=("e-ticaret", "eticaret", "e ticaret", "ecommerce", "online satış",
+                "online satis", "web sitesi", "site trafiği", "site trafigi", "funnel"),
+        memory_queries=(),
+        unavailable_reason=("mart.funnel_* and mart.ga4_siparis_mutabakat are not granted "
+                            "to ai_reader and no CompanyMemory query exposes them"),
+    ),
+    Domain(
+        domain_id="advertising", label="Reklam / performans",
+        lemmas=("reklam", "advertising", "performans", "roas", "meta ads", "kampanya",
+                "harcama", "ad spend"),
+        memory_queries=(),
+        unavailable_reason=("mart.reklam_performans / mart.harcama / mart.roas_kapisi are "
+                            "not granted to ai_reader and no CompanyMemory query exposes them"),
+    ),
+    Domain(
+        domain_id="crm", label="CRM / müşteri",
+        lemmas=("crm", "müşteri", "musteri", "customer", "konuşma", "konusma",
+                "mesaj", "iletişim", "iletisim"),
+        # mart.acik_isler carries CEVAPSIZ_MESAJ rows -- unanswered customer
+        # messages -- and is the one customer-side signal the allowlist reaches.
+        memory_queries=("open_work",),
+    ),
+    Domain(
+        domain_id="operations", label="Operasyon",
+        lemmas=("operasyon", "operations", "kargo", "gönderi", "gonderi", "lojistik",
+                "tedarik", "stok", "süreç", "surec"),
+        # acik_isler also carries SINIFI_BILINMEYEN_GONDERI (unclassified
+        # shipment); orchestrator health covers the operational system side.
+        memory_queries=("open_work", "system"),
+    ),
+)
+
+
+def _domain_routes() -> dict[str, "Route"]:
+    """One route per domain, generated from DOMAINS so the table stays the
+    single definition and a new domain cannot be half-registered."""
+    return {
+        f"{domain.domain_id}_analysis": Route(
+            capability=f"{domain.domain_id}_analysis",
+            target=(f"jarvis.memory.CompanyMemory[{', '.join(domain.memory_queries)}]"
+                    if domain.memory_queries
+                    else "NO CANONICAL SOURCE (see unavailable_reason)"),
+            requires_capabilities=("deterministic_company_memory",) if domain.memory_queries else (),
+            execution_class=EXEC_LOCAL_DETERMINISTIC,
+        )
+        for domain in DOMAINS
+    }
+
+
+def detect_domains(normalized: str) -> tuple[Domain, ...]:
+    """Which business domains did the request explicitly name? Order follows
+    DOMAINS so the plan is stable regardless of word order in the request."""
+    return tuple(domain for domain in DOMAINS
+                 if any(_normalize(lemma) in normalized for lemma in domain.lemmas))
 
 
 # --- deterministic intent detection -----------------------------------
@@ -174,6 +278,24 @@ _EXTERNAL_ACTION_LEMMAS = (
     "siparis ver", "iade et", "ödeme al", "odeme al",
 )
 _CAPABILITY_LEMMAS = ("yetenek", "capability", "neler yapabilirsin", "ne yapabilirsin")
+_PROBLEM_OPPORTUNITY_LEMMAS = (
+    "problem", "sorun", "fırsat", "firsat", "açık iş", "acik is", "risk",
+    "dikkat etmesi gereken", "opportunity", "issue", "darboğaz", "darbogaz",
+)
+_ACTION_PLAN_LEMMAS = (
+    "sonraki adım", "sonraki adim", "adım planı", "adim plani", "aksiyon planı",
+    "aksiyon plani", "uygulanabilir", "yol haritası", "yol haritasi",
+    "action plan", "next step", "plan çıkar", "plan cikar",
+)
+
+
+def _register_domain_routes() -> None:
+    """Domain routes are generated, not typed out, so ROUTES stays the single
+    source of executable targets without five near-identical literals."""
+    ROUTES.update(_domain_routes())
+
+
+_register_domain_routes()
 
 
 def _normalize(text: str) -> str:
@@ -355,6 +477,12 @@ def _apply_registry(steps: list[PlanStep],
         unregistered = tuple(sorted(name for name in needed if name not in registry))
         blocked = missing + unregistered
         blocked_any = blocked_any or bool(blocked)
+        if step.capability_status == DATA_UNAVAILABLE:
+            # Decided at build time from the Company Memory query contract; a
+            # live capability probe cannot make a missing data contract exist.
+            blocked_any = True
+            annotated.append(step)
+            continue
         status = "BLOCKED" if blocked else ("OK" if statuses else "NO_CAPABILITY_REQUIRED")
         annotated.append(PlanStep(**{**asdict(step), "depends_on": step.depends_on,
                                      "capability_status": status, "blocked_by": blocked}))
@@ -408,6 +536,8 @@ class ExecutionPlanner:
         capability_hits = _hits(normalized, _CAPABILITY_LEMMAS)
         wants_recommendation = bool(_hits(normalized, _RECOMMEND_LEMMAS))
         is_diagnosis = bool(_hits(normalized, _DIAGNOSE_LEMMAS))
+        wants_problem_opportunity = bool(_hits(normalized, _PROBLEM_OPPORTUNITY_LEMMAS))
+        wants_action_plan = bool(_hits(normalized, _ACTION_PLAN_LEMMAS))
 
         steps: list[PlanStep] = []
         counter = 0
@@ -428,23 +558,55 @@ class ExecutionPlanner:
             ))
             return step_id
 
+        def add_domain(domain: "Domain") -> str:
+            step_id = add(
+                f"{domain.domain_id}_analysis",
+                f"{domain.label} alanini mevcut Company Memory verisi uzerinden analiz et",
+                arguments={
+                    "domain": domain.domain_id,
+                    "memory_queries": list(domain.memory_queries),
+                    "data_available": bool(domain.memory_queries),
+                    "unavailable_reason": domain.unavailable_reason,
+                },
+            )
+            if not domain.memory_queries:
+                # Visible failure, never a guess and never a silent swap to
+                # generic company context.
+                built = steps[-1]
+                steps[-1] = PlanStep(**{
+                    **asdict(built), "depends_on": built.depends_on,
+                    "capability_status": DATA_UNAVAILABLE,
+                    "blocked_by": (f"company_memory_query:{domain.domain_id}",),
+                })
+            return step_id
+
         entity = "VIREON" if "vireon" in normalized else None
+        domains = detect_domains(normalized)
 
         if capability_hits:
-            _ = (add("capability_analysis",
-                                   "Capability-gap analysis over the live registry"))
-        if internal_hits or (not external_hits and not code_hits and not capability_hits):
-            _ = (add(
+            add("capability_analysis", "Capability-gap analysis over the live registry")
+
+        # A named domain is its own workstream. This branch REPLACES the
+        # generic internal bucket -- collapsing five named domains into one
+        # "internal evidence" step is the decomposition bug this fixes, and
+        # falling back to company_context for a domain with no data contract
+        # is the silent substitution it must never do again.
+        multi_domain = len(domains) >= 2
+        if multi_domain:
+            for domain in domains:
+                add_domain(domain)
+        if not multi_domain and (internal_hits or not (external_hits or code_hits or capability_hits)):
+            add(
                 "internal_data_analysis",
                 f"Retrieve and analyse internal evidence{f' for {entity}' if entity else ''}",
                 arguments={"entity": entity, "matched_terms": list(internal_hits)},
-            ))
+            )
         if external_hits:
-            _ = (add(
+            add(
                 "external_research",
                 "Gather fresh external evidence (competitors / market)",
                 arguments={"matched_terms": list(external_hits)},
-            ))
+            )
         if code_hits:
             _ = (add(
                 "coding_task",
@@ -468,12 +630,26 @@ class ExecutionPlanner:
             last = (fusion,)
         mode = select_mode(tuple(step.capability for step in steps if step.step_id in workstream_ids),
                            requires_fresh_research, wants_recommendation, is_diagnosis)
+        if wants_problem_opportunity and workstream_ids:
+            findings = add(
+                "problem_opportunity_analysis",
+                "Derive problems, open work and opportunities from the gathered evidence only",
+                depends_on=last,
+                arguments={"evidence_only": True, "guessing_forbidden": True})
+            last = (findings,)
         if mode == MODE_DEEP:
             red = add("red_team_review",
-                      "Adversarial check of the fused evidence before anything is proposed",
+                      "Adversarial check of the findings before anything is proposed",
                       depends_on=last)
             last = (red,)
-        if wants_recommendation or mode == MODE_DEEP:
+        if wants_action_plan and workstream_ids:
+            # Advisory only: this lands as a PROPOSED item on the existing
+            # human-approval path. Nothing in the plan executes it.
+            add("action_plan",
+                "Produce an actionable next-step plan; advisory only, awaits human approval",
+                depends_on=last,
+                arguments={"internal_intent": "HUMAN_REVIEW_REQUEST", "advisory_only": True})
+        elif wants_recommendation or mode == MODE_DEEP:
             add("human_review_proposal",
                 "Submit findings for human review through the unchanged action firewall",
                 depends_on=last,
@@ -481,6 +657,8 @@ class ExecutionPlanner:
 
         placed, groups = _assign_groups(steps)
         placed, capability_blocked = _apply_registry(placed, registry)
+        capability_blocked = capability_blocked or any(
+            step.capability_status == DATA_UNAVAILABLE for step in placed)
 
         dependencies = tuple(
             (parent, step.step_id) for step in placed for parent in step.depends_on
@@ -503,6 +681,14 @@ class ExecutionPlanner:
             risk = RISK_LOW
 
         internal_data: list[str] = []
+        # Only queries that actually exist in the CompanyMemory allowlist. A
+        # domain with no contract contributes NOTHING here -- it must not look
+        # as if its data had been arranged for.
+        if multi_domain:
+            for domain in domains:
+                for query in domain.memory_queries:
+                    if query not in internal_data:
+                        internal_data.append(query)
         if entity:
             internal_data.append(f"product_context:{entity}")
         if any(step.capability == "internal_data_analysis" for step in placed) and not entity:
@@ -512,18 +698,28 @@ class ExecutionPlanner:
         if capability_hits:
             internal_data.append("capability_state")
 
-        intent = "COMPOSITE" if len(workstream_ids) >= 2 else (
-            placed[0].capability.upper() if placed else "UNKNOWN"
-        )
+        if multi_domain:
+            intent = "MULTI_DOMAIN_ANALYSIS"
+        elif len(workstream_ids) >= 2:
+            intent = "COMPOSITE"
+        else:
+            intent = placed[0].capability.upper() if placed else "UNKNOWN"
         if is_diagnosis and len(workstream_ids) < 2:
             intent = "DIAGNOSE_" + intent
 
         status = STATUS_BLOCKED_CAPABILITY if capability_blocked else STATUS_PLANNED
         reason = ""
         if capability_blocked:
-            blocked_steps = [step.step_id for step in placed if step.blocked_by]
-            reason = ("live capability status blocks step(s): "
-                      + ", ".join(blocked_steps))
+            unavailable = [f"{step.step_id}({step.arguments.get('domain')})"
+                           for step in placed if step.capability_status == DATA_UNAVAILABLE]
+            blocked_steps = [step.step_id for step in placed
+                             if step.blocked_by and step.capability_status != DATA_UNAVAILABLE]
+            parts = []
+            if unavailable:
+                parts.append("no Company Memory data contract for: " + ", ".join(unavailable))
+            if blocked_steps:
+                parts.append("live capability status blocks step(s): " + ", ".join(blocked_steps))
+            reason = "; ".join(parts)
 
         return ExecutionPlan(
             plan_id=_plan_id(normalized), request=raw, intent=intent, risk=risk, mode=mode,

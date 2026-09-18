@@ -241,5 +241,147 @@ class ContextRoutingTests(unittest.TestCase):
         self.assertTrue(set(plan.required_capabilities) <= allowed)
 
 
+class MultiDomainDecompositionTests(unittest.TestCase):
+    """Regression for the real-user failure: this exact request planned a
+    SINGLE internal_data_analysis step, silently substituting generic
+    company_context for five explicitly named business domains."""
+
+    REAL_REQUEST = (
+        "L'CARLIÉ şirketinin mevcut durumunu analiz et. Elindeki Company Memory "
+        "verilerine göre şu anda yönetimin dikkat etmesi gereken en önemli "
+        "problemleri, açık işleri ve fırsatları belirle. Her bulgunun hangi veriye "
+        "dayandığını belirt. Veri yoksa tahmin etme. Öncelikle satış, e-ticaret, "
+        "reklam, CRM ve operasyon alanlarına bak. Sonunda bana uygulanabilir bir "
+        "sonraki adım planı çıkar; ancak hiçbir işlemi benim onayım olmadan uygulama."
+    )
+
+    def setUp(self):
+        self.plan = _plan(self.REAL_REQUEST)
+        self.by_capability = {step.capability: step for step in self.plan.steps}
+
+    def test_mode_is_deep_not_smart(self):
+        self.assertEqual(self.plan.mode, ep.MODE_DEEP)
+        self.assertEqual(self.plan.intent, "MULTI_DOMAIN_ANALYSIS")
+
+    def test_five_domain_workstreams_exist(self):
+        expected = {"sales_analysis", "ecommerce_analysis", "advertising_analysis",
+                    "crm_analysis", "operations_analysis"}
+        self.assertTrue(expected <= set(self.by_capability))
+
+    def test_the_five_domains_are_parallel(self):
+        groups = {self.by_capability[name].parallel_group for name in
+                  ("sales_analysis", "ecommerce_analysis", "advertising_analysis",
+                   "crm_analysis", "operations_analysis")}
+        self.assertEqual(len(groups), 1, "domain workstreams must share one parallel group")
+        first_group = set(self.plan.parallel_groups[0])
+        self.assertEqual(
+            first_group,
+            {self.by_capability[name].step_id for name in
+             ("sales_analysis", "ecommerce_analysis", "advertising_analysis",
+              "crm_analysis", "operations_analysis")})
+        for name in ("sales_analysis", "crm_analysis"):
+            self.assertEqual(self.by_capability[name].depends_on, ())
+
+    def test_evidence_fusion_follows_every_domain(self):
+        fusion = self.by_capability["evidence_fusion"]
+        domain_ids = {self.by_capability[name].step_id for name in
+                      ("sales_analysis", "ecommerce_analysis", "advertising_analysis",
+                       "crm_analysis", "operations_analysis")}
+        self.assertEqual(set(fusion.depends_on), domain_ids)
+
+    def test_problem_opportunity_analysis_follows_fusion(self):
+        findings = self.by_capability["problem_opportunity_analysis"]
+        self.assertEqual(findings.depends_on, (self.by_capability["evidence_fusion"].step_id,))
+
+    def test_red_team_occurs_after_the_analysis(self):
+        red = self.by_capability["red_team_review"]
+        self.assertEqual(red.depends_on,
+                         (self.by_capability["problem_opportunity_analysis"].step_id,))
+
+    def test_action_plan_is_last_and_advisory_only(self):
+        action = self.by_capability["action_plan"]
+        self.assertEqual(action.depends_on, (self.by_capability["red_team_review"].step_id,))
+        self.assertEqual(action.parallel_group,
+                         max(step.parallel_group for step in self.plan.steps))
+        self.assertEqual([action.step_id], list(self.plan.parallel_groups[-1]))
+        self.assertTrue(action.produces_action)
+        self.assertTrue(action.arguments["advisory_only"])
+        self.assertIn("human approval", action.target)
+        self.assertTrue(self.plan.approval_required)
+
+    def test_missing_domain_data_fails_visibly_and_is_never_guessed(self):
+        for name in ("sales_analysis", "ecommerce_analysis", "advertising_analysis"):
+            step = self.by_capability[name]
+            self.assertEqual(step.capability_status, ep.DATA_UNAVAILABLE)
+            self.assertTrue(step.blocked_by)
+            self.assertFalse(step.arguments["data_available"])
+            self.assertTrue(step.arguments["unavailable_reason"])
+            self.assertEqual(step.arguments["memory_queries"], [])
+        self.assertEqual(self.plan.status, ep.STATUS_BLOCKED_CAPABILITY)
+        self.assertIn("no Company Memory data contract for", self.plan.reason)
+        # the silent substitution that caused the bug must not reappear
+        self.assertNotIn("company_context", self.plan.required_internal_data)
+        self.assertNotIn("internal_data_analysis", self.by_capability)
+
+    def test_available_domains_name_only_real_company_memory_queries(self):
+        from jarvis.memory import CompanyMemory
+        for name in ("crm_analysis", "operations_analysis"):
+            queries = self.by_capability[name].arguments["memory_queries"]
+            self.assertTrue(queries)
+            for query in queries:
+                self.assertIn(query, CompanyMemory.QUERIES)
+        for query in self.plan.required_internal_data:
+            if not query.startswith("product_context:"):
+                self.assertIn(query, set(CompanyMemory.QUERIES) | {"system_status",
+                                                                  "capability_state"})
+
+    def test_no_model_call_no_research_no_execution(self):
+        self.assertEqual(self.plan.model_calls, 0)
+        self.assertFalse(self.plan.requires_fresh_research)
+        self.assertNotIn("external_research", self.by_capability)
+        self.assertNotIn("coding_task", self.by_capability)
+        self.assertEqual(self.plan.estimated_execution_class, ep.EXEC_LOCAL_DETERMINISTIC)
+
+
+class DomainDetectionTests(unittest.TestCase):
+    def test_each_domain_is_recognised_from_its_turkish_term(self):
+        cases = {
+            "satış": "sales", "e-ticaret": "ecommerce", "reklam": "advertising",
+            "müşteri": "crm", "operasyon": "operations",
+        }
+        for term, domain_id in cases.items():
+            found = {d.domain_id for d in ep.detect_domains(ep._normalize(term))}
+            self.assertIn(domain_id, found, f"{term!r} did not resolve to {domain_id}")
+
+    def test_english_terms_resolve_too(self):
+        for term, domain_id in (("sales", "sales"), ("ecommerce", "ecommerce"),
+                                ("advertising", "advertising"), ("crm", "crm"),
+                                ("operations", "operations")):
+            found = {d.domain_id for d in ep.detect_domains(ep._normalize(term))}
+            self.assertIn(domain_id, found)
+
+    def test_one_named_domain_is_not_decomposed(self):
+        """A single-topic question keeps the existing internal-evidence path,
+        entity resolution included -- only a genuinely multi-domain request is
+        decomposed."""
+        plan = _plan("vireon satışları neden düşük")
+        capabilities = {step.capability for step in plan.steps}
+        self.assertEqual(capabilities, {"internal_data_analysis"})
+        self.assertEqual(plan.mode, ep.MODE_SMART)
+        self.assertIn("product_context:VIREON", plan.required_internal_data)
+
+    def test_two_named_domains_are_decomposed_and_go_deep(self):
+        plan = _plan("reklam ve operasyon tarafını analiz et")
+        capabilities = {step.capability for step in plan.steps}
+        self.assertIn("advertising_analysis", capabilities)
+        self.assertIn("operations_analysis", capabilities)
+        self.assertNotIn("internal_data_analysis", capabilities)
+        self.assertEqual(plan.mode, ep.MODE_DEEP)
+
+    def test_every_domain_route_is_registered(self):
+        for domain in ep.DOMAINS:
+            self.assertIn(f"{domain.domain_id}_analysis", ep.ROUTES)
+
+
 if __name__ == "__main__":
     unittest.main()
