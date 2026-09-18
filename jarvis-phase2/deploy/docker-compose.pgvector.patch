@@ -1,0 +1,10 @@
+--- docker-compose.yml
++++ docker-compose.yml
+@@ -3,7 +3,7 @@
+ services:
+   postgres:
+-    image: postgres:17-alpine
++    image: lcarlie/postgres-pgvector:17.11-0.8.6-alpine
+     container_name: lcarlie-postgres
+     restart: unless-stopped
+     environment:
