@@ -26,16 +26,22 @@ from typing import Any, Mapping
 
 # Bump when the mapping below changes. It is part of the contract hash, so a
 # stale deployment cannot masquerade as a current one.
-CONTRACT_MAP_VERSION = "2026-09-18.1"
+CONTRACT_MAP_VERSION = "2026-09-18.2"
 
 # Jarvis internal intent -> canonical core.ai_action_type.action_type
 #
 # The right-hand side is NOT editable by hand to make a test pass: it must
 # name a row that exists in the live contract with proposal_enabled = true,
 # and the drift check below proves it on every load.
+#
+# Two internal intents may map to the same canonical type -- CODE_CHANGE_REVIEW
+# reuses REQUEST_HUMAN_REVIEW rather than inventing a new database action type
+# for CodingExecutor results; the drift check's unmapped/unknown checks are
+# set-based and already tolerate this (see build_contract below).
 INTENT_TO_CANONICAL: Mapping[str, str] = {
     "CUSTOMER_REPLY_DRAFT": "DRAFT_CUSTOMER_REPLY",
     "HUMAN_REVIEW_REQUEST": "REQUEST_HUMAN_REVIEW",
+    "CODE_CHANGE_REVIEW": "REQUEST_HUMAN_REVIEW",
     "WHATSAPP_TEMPLATE_SEND": "WHATSAPP_SEND_TEMPLATE",
     "META_CAMPAIGN_CHANGE": "META_CAMPAIGN_CHANGE",
     "PRICE_CHANGE": "PRICE_CHANGE",

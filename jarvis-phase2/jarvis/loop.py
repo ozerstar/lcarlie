@@ -49,6 +49,7 @@ from time import perf_counter
 from typing import Any
 
 from .action_contract import ContractCache
+from .coding_executor import CodingExecutorError, CodingTaskSpec, run_coding_task, summarize_for_proposal
 from .firewall import ContractDriftError, FirewallError, validate_proposal
 from .memory import CompanyMemory, MemoryError
 
@@ -56,6 +57,16 @@ STATE_DIR = Path(os.environ.get("JARVIS_STATE_DIR", "/opt/lcarlie/jarvis-phase2/
 STATE_FILE = STATE_DIR / "loop-state.json"
 FINDINGS_LOG = STATE_DIR / "findings.jsonl"
 AUDIT_LOG = STATE_DIR / "audit.jsonl"
+CODING_TASK_PENDING_DIR = STATE_DIR / "coding_executor" / "pending"
+
+
+class CodingTaskDenied(FirewallError):
+    """A CODE_CHANGE_REVIEW task was claimed but CodingExecutor denied it
+    (scope violation, failed tests, missing/malformed spec, or a run error).
+    Subclasses FirewallError so it is caught by the existing propose/fail
+    handling in run_cycle without changing that except clause: the task
+    fails (FAILED_RETRYABLE) and, correctly, NO proposal is ever created for
+    a denied coding attempt."""
 
 WORKER_ID = "jarvis-operational-loop"
 LEASE_SECONDS = 60
@@ -131,6 +142,37 @@ def _propose_action(task_id: int, lease_token: str, idempotency_key: str,
            f"'{escaped_key}', '{action_type}', '{payload_json}'::jsonb) AS proposal_id;")
     rows = _psql(sql, host, role="ai_writer")
     return int(rows[0]) if rows else None
+
+
+# --------------------------------------------------------------------------
+# CodingExecutor bridge: a CODE_CHANGE_REVIEW task never builds a generic
+# payload directly. Its spec (objective/allowed_files/test_command) lives on
+# disk, written by a human via `jarvis-operator create-coding-task` --
+# ai_writer has no SELECT on core.ai_task, so this is the same
+# idempotency-key-carries-intent convention every other intent already uses,
+# extended with a spec FILE instead of just a slug, because a coding
+# objective and an allowlist cannot fit in an idempotency key.
+# --------------------------------------------------------------------------
+def _build_coding_review_payload(slug: str) -> dict[str, str]:
+    if not slug:
+        raise CodingTaskDenied("CODE_CHANGE_REVIEW requires a slug: jarvis:CODE_CHANGE_REVIEW:<slug>")
+    spec_path = CODING_TASK_PENDING_DIR / f"{slug}.json"
+    if not spec_path.is_file():
+        raise CodingTaskDenied(f"missing coding task spec: {spec_path}")
+    try:
+        spec = CodingTaskSpec.from_dict(json.loads(spec_path.read_text(encoding="utf-8")))
+    except (ValueError, json.JSONDecodeError) as exc:
+        raise CodingTaskDenied(f"invalid coding task spec: {exc}") from exc
+
+    try:
+        result = run_coding_task(spec, task_id=slug)
+    except CodingExecutorError as exc:
+        raise CodingTaskDenied(f"CodingExecutor could not run: {exc}") from exc
+
+    if not result.success:
+        raise CodingTaskDenied(f"CodingExecutor denied: {result.denied_reason}")
+
+    return {"subject_ref": f"coding-task:{slug}", "reason": summarize_for_proposal(result)}
 
 
 # --------------------------------------------------------------------------
@@ -252,13 +294,23 @@ def run_cycle(host: str | None = "lcarlie") -> dict[str, Any]:
         key = claimed.get("idempotency_key") or ""
         parts = key.split(":", 2)
         internal_intent = parts[1] if len(parts) >= 2 and parts[0] == "jarvis" else None
+        slug = parts[2] if len(parts) >= 3 else None
         t0 = perf_counter()
         try:
             contract = ContractCache(memory).get()
             if internal_intent is None:
                 raise FirewallError(f"idempotency_key does not follow jarvis:<intent>:<slug>: {key!r}")
-            payload = {"subject_ref": key,
-                      "reason": f"Automated proposal from operator-originated task {key}"}
+
+            if internal_intent == "CODE_CHANGE_REVIEW":
+                # CodingExecutor runs here, inside the firewall try/except: a
+                # scope violation, failing tests, or a run error all become a
+                # CodingTaskDenied -> caught below -> task fails, no proposal.
+                state["coding_task_count"] = state.get("coding_task_count", 0) + 1
+                payload = _build_coding_review_payload(slug)
+            else:
+                payload = {"subject_ref": key,
+                          "reason": f"Automated proposal from operator-originated task {key}"}
+
             validated = validate_proposal(internal_intent, payload, contract,
                                           idempotency_key=f"action:{key}")
             proposal_id = _propose_action(claimed["task_id"], claimed["lease_token"],
@@ -268,6 +320,11 @@ def run_cycle(host: str | None = "lcarlie") -> dict[str, Any]:
             state["proposal_created_count"] = state.get("proposal_created_count", 0) + 1
             task_detail = {"task_id": claimed["task_id"], "internal_intent": internal_intent,
                           "action_type": validated["action_type"], "proposal_id": proposal_id}
+        except CodingTaskDenied as exc:
+            _fail_task(claimed["task_id"], claimed["lease_token"], str(exc)[:500], host)
+            result = "CODING_TASK_DENIED"
+            state["coding_task_denied_count"] = state.get("coding_task_denied_count", 0) + 1
+            task_detail = {"task_id": claimed["task_id"], "error": str(exc)}
         except (FirewallError, ContractDriftError, MemoryError) as exc:
             _fail_task(claimed["task_id"], claimed["lease_token"], str(exc)[:500], host)
             result = "FIREWALL_REJECTED"
