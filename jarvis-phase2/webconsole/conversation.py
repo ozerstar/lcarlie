@@ -61,6 +61,13 @@ def _has_command(text: str, verbs: tuple[str, ...]) -> bool:
                 break
             tail = text[index + len(lemma):index + len(lemma) + 2]
             head = text[max(0, index - 22):index]
+            # The verb has to START a word. Without this, "sil" (delete) matches
+            # inside "nasilsin" and a greeting was answered with the action
+            # firewall notice; "indir" would match inside "indirim" the same way.
+            before = text[index - 1] if index else " "
+            if before.isalnum():
+                start = index + len(lemma)
+                continue
             negated = tail in ("ma", "me")
             # "Red Team kontrolü yap", "analiz yap", "test planı yap" are
             # instructions to Jarvis about its own work. Only a verb aimed at a
@@ -80,7 +87,9 @@ class RouteDecision:
 
 def classify(message: str) -> RouteDecision:
     text = _normalize(message)
-    if _has(text, ("merhaba", "selam", "sen nesin", "ne yapabiliyorsun", "kimsin", "hello")):
+    if _has(text, ("merhaba", "selam", "sen nesin", "ne yapabiliyorsun", "kimsin", "hello",
+                   "nasılsın", "nasilsin", "yardımcı olabilirsin", "yardimci olabilirsin",
+                   "neler yapabilirsin", "ne yapabilirsin")):
         return RouteDecision(SIMPLE_CONVERSATION)
     # A question ABOUT what to do is not an instruction to do it. Checked
     # first so "ne yapmalıyız" can never be read as the imperative "yap".
