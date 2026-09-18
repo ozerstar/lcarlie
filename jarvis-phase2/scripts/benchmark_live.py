@@ -7,10 +7,11 @@ from jarvis.context import ContextCompiler
 from jarvis.memory import CompanyMemory
 from jarvis.phase2 import Phase2Runtime
 from jarvis.telemetry import Telemetry
+from jarvis.transport import memory_host
 
 
 def main() -> None:
-    runtime = Phase2Runtime(ContextCompiler(CompanyMemory()))
+    runtime = Phase2Runtime(ContextCompiler(CompanyMemory(host=memory_host())))
     telemetry = Telemetry()
     intents = [
         "Jarvis, sistem durumu ne?",

@@ -4,13 +4,14 @@ import unittest
 from jarvis.context import ContextCompiler
 from jarvis.memory import CompanyMemory
 from jarvis.phase2 import Phase2Runtime
+from jarvis.transport import memory_host
 
 
 @unittest.skipUnless(os.environ.get("JARVIS_LIVE_TEST") == "1", "live test disabled")
 class LivePhase2Tests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.memory = CompanyMemory()
+        cls.memory = CompanyMemory(host=memory_host())
         cls.runtime = Phase2Runtime(ContextCompiler(cls.memory))
 
     def test_a_real_system_status_fast(self):

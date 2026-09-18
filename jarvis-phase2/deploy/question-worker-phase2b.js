@@ -41,6 +41,18 @@ function safeAttempt(provider, model, result, text = '') {
   console.error(JSON.stringify({ event: 'provider_attempt', provider, model, result, response_hash: responseHash(text) }));
 }
 
+async function runDeterministicProviderChain(providers) {
+  for (const provider of providers) {
+    try {
+      const text = await provider.call();
+      return { payload: parseAndValidate(text), provider: provider.name };
+    } catch (error) {
+      safeAttempt(provider.name, 'fixture', error.message);
+    }
+  }
+  throw new Error('ALL_PROVIDERS_FAILED');
+}
+
 async function generate(ctx) {
   const vertexModel = process.env.VERTEX_MODEL || 'gemini-2.5-flash';
   try {
@@ -83,4 +95,4 @@ async function main() {
 }
 
 if (require.main === module) main().catch(error => { console.error(JSON.stringify({ status: 'FAILED_SAFE', error: String(error.message).slice(0, 160) })); process.exit(1); });
-module.exports = { QUESTION_SCHEMA, parseAndValidate, responseHash };
+module.exports = { QUESTION_SCHEMA, parseAndValidate, responseHash, runDeterministicProviderChain };

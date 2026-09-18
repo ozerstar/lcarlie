@@ -42,7 +42,7 @@ class CompanyMemory:
         ),
     }
 
-    def __init__(self, host: str = "lcarlie", timeout_s: int = 12):
+    def __init__(self, host: str | None = "lcarlie", timeout_s: int = 12):
         self.host = host
         self.timeout_s = timeout_s
 
@@ -50,13 +50,14 @@ class CompanyMemory:
         if query_name not in self.QUERIES:
             raise ValueError("query is not allowlisted")
         sql = f"BEGIN; SET SESSION AUTHORIZATION ai_reader; {self.QUERIES[query_name]} ROLLBACK;"
-        remote = (
-            "docker exec lcarlie-postgres psql -X -q -U n8n -d n8n "
-            f"-Atc \"{sql}\""
-        )
+        psql = ["docker", "exec", "lcarlie-postgres", "psql", "-X", "-q",
+                "-U", "n8n", "-d", "n8n", "-Atc", sql]
+        command = (["ssh", self.host, " ".join(
+            ["docker exec lcarlie-postgres psql -X -q -U n8n -d n8n -Atc", f'"{sql}"']
+        )] if self.host else psql)
         started = perf_counter()
         result = subprocess.run(
-            ["ssh", self.host, remote], capture_output=True, text=True,
+            command, capture_output=True, text=True,
             timeout=self.timeout_s, check=False,
         )
         latency = (perf_counter() - started) * 1000
