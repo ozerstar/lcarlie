@@ -1,0 +1,197 @@
+{
+  "task": "SECURE_JARVIS_WEB_CONSOLE",
+  "overall": "READY_PENDING_DNS",
+  "marker": "JARVIS_WEB_CONSOLE_READY_PENDING_DNS",
+  "executed_at": "2026-09-18T16:55:00+03:00",
+  "continued_from": "minimum_operational_jarvis (verified, not repeated)",
+
+  "url": {
+    "target": "https://jarvis.lcarlie.shop",
+    "dns_status": "NXDOMAIN",
+    "dns_action_required": {"type": "A", "name": "jarvis.lcarlie.shop", "value": "185.169.180.68"},
+    "caddy_configured": true,
+    "tls_auto_provision": "will retry automatically once DNS resolves; no restart needed",
+    "verified_via": "Host-header requests over plain HTTP/backend port on the host"
+  },
+
+  "authentication": {
+    "single_operator_account": true,
+    "password_hashing": "hashlib.scrypt (stdlib, no bcrypt/argon2 install)",
+    "session_cookie": {"httponly": true, "secure": true, "samesite": "Strict"},
+    "csrf": "double-submit token, required on state-changing requests",
+    "rate_limiting": {"max_attempts": 5, "window_s": 900, "lockout_s": 900, "verified": true},
+    "session_idle_timeout_s": 1800,
+    "session_absolute_timeout_s": 43200,
+    "no_secrets_in_browser_js": true,
+    "no_localstorage_secrets": true
+  },
+
+  "chat": {
+    "backend_reused_unchanged": ["jarvis.shadow.ShadowRunner", "jarvis.operator.OperatorSession"],
+    "duplicated_jarvis_logic": false,
+    "turkish_intent_boundary": {
+      "module": "webconsole/intents.py",
+      "capabilities": 6,
+      "total_lemmas": 49,
+      "not_a_giant_phrase_list": true,
+      "informal_variants_verified_same_route": ["Vireon'u incele", "vireona bak", "vireon tarafında ne oluyor"],
+      "turkish_letter_safe_normalization": true
+    },
+    "requires_reasoning_capability_path": {
+      "implemented": true,
+      "example": "bunun için ne yapmalıyım -> REQUIRES_REASONING_CAPABILITY",
+      "grounded_judgement_still_reaches_shadow_runner": true,
+      "fabricated_answers": false
+    },
+    "streaming": {
+      "endpoint": "POST /api/chat/stream",
+      "frame_types": ["stage", "done", "error"],
+      "future_token_type_reserved": true,
+      "verified_live_against_production": true,
+      "example_stages": ["Company Memory okunuyor", "Kanıtlar doğrulanıyor"],
+      "hidden_chain_of_thought_exposed": false
+    },
+    "markdown_rendering": "dependency-free ~40 line renderer (headings, bold, code, lists)",
+    "proposal_cards": true,
+    "voice_ready_contract": {
+      "single_entry_point": "sendMessage(text)",
+      "coupled_to_keyboard_only": false
+    },
+    "open_source_components_evaluated": [
+      {"name": "assistant-ui", "adopted": false},
+      {"name": "Vercel AI SDK / AI Elements", "adopted": false}
+    ],
+    "adoption_reasoning": "both require a React/Next.js/Node build pipeline this host has never needed, built around token-streaming LLM UX the current deterministic (<1s) backend does not yet produce; requested UX achieved natively in <200 lines with a wire contract designed for future LLM-router extension"
+  },
+
+  "company_memory_connection": {
+    "real_data_verified": true,
+    "examples": [
+      {"message": "Jarvis, sistem durumu ne?", "source": "postgres:system", "fabricated": false},
+      {"message": "vireona bak", "entity_resolved": "VIREON", "records": 10, "fabricated": false},
+      {"message": "bekleyen isler ne", "source": "operator.list_pending", "result": "0 pending (real)"}
+    ]
+  },
+
+  "command_center_ui": {
+    "theme": "white ivory, graphite type, single turquoise accent, semantic amber/red only",
+    "generic_admin_template": false,
+    "dark_theme_primary": false,
+    "presence_visualization": "inline SVG + CSS (concentric rings, core glow/dot), no video/WebGL",
+    "visual_states": ["idle", "analyzing", "proposing", "waiting_approval", "offline"],
+    "states_driven_by_real_data": true,
+    "fake_random_activity": false,
+    "prefers_reduced_motion_respected": true,
+    "pauses_when_tab_hidden": true,
+    "typography_limitation": "Monument Extended / Metropolis not available as licensed web fonts on this host; disciplined system-font fallback used, recorded as a limitation"
+  },
+
+  "responsive": {
+    "desktop": "PASS - three-panel command center grid",
+    "tablet_landscape": "PASS - same grid, touch targets",
+    "tablet_portrait": "PASS - single column, core-first",
+    "phone": "PASS - single column, chat-first ordering, compact chips",
+    "same_backend_for_all": true,
+    "visual_cross_device_verification": "NOT PERFORMED - no headless browser tool wired to this VDS's network and no TLS cert yet (DNS pending); CSS breakpoints reviewed and unit-verified structurally, real-device pass recommended once DNS/TLS are live (documented, not fabricated as done)"
+  },
+
+  "pwa": {
+    "manifest": true,
+    "standalone_display": true,
+    "icons": "placeholder only (icons: []) - no L'CARLIE icon asset available to generate from; recorded limitation",
+    "offline_mode": "not implemented (explicitly out of scope per task instructions)"
+  },
+
+  "proposals": {
+    "list_endpoint": "GET /api/proposals -> jarvis.operator.OperatorSession.list_pending (unchanged)",
+    "inspect_endpoint": "GET /api/proposals/<id> -> OperatorSession.inspect (unchanged)",
+    "decide_endpoint": "POST /api/proposals/<id>/decide -> OperatorSession.decide (unchanged)",
+    "raw_sql_in_web_layer": false,
+    "verified_live": true
+  },
+
+  "human_approval": {
+    "jarvis_self_approval_possible": false,
+    "verified_by": ["unit test asserting decide() is the only operator method ever called",
+                    "structural: OperatorSession.decide always runs as human_approver"],
+    "web_process_holds_human_approver": false
+  },
+
+  "security": {
+    "https_enforced_at_caddy": true,
+    "hsts": true,
+    "csp": "default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'",
+    "session_cookie_flags": "HttpOnly; Secure; SameSite=Strict",
+    "csrf_protected": true,
+    "rate_limited_login": true,
+    "port_8091_publicly_exposed": false,
+    "port_8091_firewall_scope": "172.18.0.0/16 (lcarlie_web docker bridge only, same pattern as n8n 5678 deny)",
+    "frontend_db_access": false,
+    "frontend_credential_exposure": false,
+    "incident_found_and_fixed": {
+      "description": "docker compose up -d caddy recreated the container and dropped its out-of-band icaz_kapi network attachment; icaz sites 502'd briefly",
+      "detected_by": "immediate post-change health check, not user report",
+      "fixed_by": "docker network connect icaz_kapi lcarlie-caddy",
+      "confirmed_resolved": true,
+      "docker_compose_yml_final_state": "reverted, byte-identical to pre-task backup",
+      "lesson_applied": "future Caddyfile-only changes must use 'docker exec lcarlie-caddy caddy reload', never 'docker compose up' on the caddy service"
+    }
+  },
+
+  "external_provider_calls": 0,
+  "external_actions": 0,
+
+  "performance": {
+    "status_endpoint_ms": "~90",
+    "proposal_list_ms": "~90",
+    "chat_grounded_ms": "100-300 including staged events",
+    "static_assets_total_kb": "<40, no framework, no build step"
+  },
+
+  "services_health": {
+    "lcarlie-postgres": "healthy", "lcarlie-n8n": "healthy", "lcarlie-caddy": "healthy (after fix)",
+    "icaz-site": "healthy (after fix)", "icaz-oyun": "healthy (after fix)", "icaz-postgres": "healthy",
+    "jarvis-phase2.timer": "active/enabled, unaffected",
+    "jarvis-web.service": "active, kill-switch verified"
+  },
+
+  "source_commit": "582c2c8fba2c7ab59fb853e217c7daca959accd9",
+  "deployment_in_sync": true,
+
+  "backups": {
+    "dir": "/opt/lcarlie/backups/webconsole-20260918T162941",
+    "files": ["docker-compose.yml.pre-webconsole", "Caddyfile.pre-webconsole", "jarvis-phase2.pre-webconsole.tgz"]
+  },
+
+  "sha256": {
+    "webconsole/app.py": "c20936f1c0b0908c87bf796d469bbcde32ffdf0d70a402872c83dfc403ca22a8",
+    "webconsole/auth.py": "742ee6458a30cbce34a682717b46cacdfd2cbf7bf0a4a4f007bc38d5b16aff29",
+    "webconsole/chat.py": "da59ee0e82fb5914e72b0cb2aa320573943816a9dbaac00980777a0144a88792",
+    "webconsole/intents.py": "3431b8a2b4214ab94e7e9b1d3bcd17b600529f869589138819a17f7f8e840247",
+    "webconsole/static/index.html": "facba3163afa99d70dc3e0ddd20167143a849555d11493b799a6354279f19cd5",
+    "webconsole/static/app.css": "93b1bb99bf788fae9e4db44b24d8ebad490d82cb21bfb0850bf415791bbb71c4",
+    "webconsole/static/app.js": "f2e4a6ab9ceed7161f319ed430afe4e3b35725774c2b67fbf9aa51881864cccf",
+    "deploy/webconsole/jarvis-web.service": "91d0482f162bd87e6fbefaebef8064be6940f1cbcdfbf60d72c83d531d2c5bdb"
+  },
+
+  "tests": {
+    "web_console": {"total": 57, "result": "OK", "breakdown": {"auth": 16, "intents": 10, "chat_routing": 9, "http_integration": 20}},
+    "full_jarvis_suite": {"total": 108, "result": "OK"},
+    "security_recheck": {"total": 32, "pass": 32, "fail": 0}
+  },
+
+  "open_blockers": [
+    {"id": "DNS", "severity": "external, required for public access", "detail": "jarvis.lcarlie.shop A record does not exist"}
+  ],
+
+  "backlog_not_implemented": [
+    "change-password CLI convenience command (password change is possible today via a one-line python3 -c call)",
+    "real device visual QA pass once DNS/TLS are live",
+    "token-level streaming (reserved in the frame contract, not yet needed since backend has no LLM)",
+    "MFA/passkey (session/auth layer structured to allow adding this without a rewrite)"
+  ],
+
+  "next_step": "Add the DNS A record: jarvis.lcarlie.shop -> 185.169.180.68. No other action needed; Caddy will auto-provision TLS on its next retry.",
+
+  "final_statement": "JARVIS WEB CONSOLE IS OPERATIONAL (pending the one external DNS step). JARVIS CORE REMAINS IN READ -> ANALYZE -> PROPOSE MODE. EXTERNAL ACTION EXECUTION REMAINS DISABLED."
+}

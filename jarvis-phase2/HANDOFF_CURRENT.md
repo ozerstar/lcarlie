@@ -1,10 +1,11 @@
 # HANDOFF — CURRENT STATE
 
-Describes the system **as it actually is** at 2026-09-18 16:02 +03:00, not as
+Describes the system **as it actually is** at 2026-09-18 16:55 +03:00, not as
 planned. No secret values appear here; environment variables are listed by key
 name only.
 
-Read this first, then `MINIMUM_OPERATIONAL_JARVIS_REPORT.md`,
+Read this first, then `JARVIS_WEB_CONSOLE_REPORT.md`,
+`MINIMUM_OPERATIONAL_JARVIS_REPORT.md`,
 `PHASE2D_CONTRACT_CLOSURE_REPORT.md` and `PHASE2C_ACTIVATION_PREFLIGHT_REPORT.md`
 for the evidence behind every claim.
 
@@ -34,11 +35,15 @@ approval are authoritative and live in the database.
 
 ## 3. CURRENT PHASE
 
-**Minimum Operational Jarvis — ACTIVATED.** Markers `PHASE2C_SHADOW_READY`,
-`PHASE2D_CONTRACT_READY` and `MINIMUM_OPERATIONAL_JARVIS_READY` all exist.
-`JARVIS_ENABLED=true`, `JARVIS_MODE=OPERATIONAL`, **`EXTERNAL_ACTIONS=false`**.
-Jarvis reads Company Memory, analyzes deterministically, and can propose —
-external business action execution remains fully disabled.
+**Web Console deployed — READY_PENDING_DNS.** Markers `PHASE2C_SHADOW_READY`,
+`PHASE2D_CONTRACT_READY`, `MINIMUM_OPERATIONAL_JARVIS_READY` all exist; web
+console readiness recorded in `jarvis-web-console-result.json`
+(`overall: READY_PENDING_DNS`). `JARVIS_ENABLED=true`,
+`JARVIS_MODE=OPERATIONAL`, **`EXTERNAL_ACTIONS=false`**. Jarvis reads Company
+Memory, analyzes deterministically, and can propose; a browser-based operator
+console (auth + chat + proposals) now sits in front of it, reachable once one
+DNS record is added (§ below). External business action execution remains
+fully disabled throughout.
 
 ## 4. COMPLETED PHASES
 
@@ -50,6 +55,7 @@ external business action execution remains fully disabled.
 | 2C | activation preflight, source-of-truth baseline, SHADOW mode, acceptance A–H, security recheck — `PHASE2C_SHADOW_READY`, two findings left open |
 | 2D | F-1 action contract closed, F-2 capability gap closed, real proposal E2E — `PHASE2D_CONTRACT_READY`, no open blocker |
 | Min-Op | human proposal surface (`jarvis-operator`), operational loop (`jarvis-phase2.timer`), **JARVIS ACTIVATED** in read→analyze→propose mode — `MINIMUM_OPERATIONAL_JARVIS_READY` |
+| Web Console | authenticated command-center UI, streaming Turkish chat, proposal approve/reject over HTTPS — **READY_PENDING_DNS** (one A record needed) |
 
 ## 5. PRODUCTION STATE
 
@@ -231,6 +237,15 @@ is unaffected by which OS user starts `docker exec`.
 Containers as listed in §5. `question-worker` service: **inactive**,
 deliberately not started (separate from `jarvis-phase2.service`).
 
+**`jarvis-web.service`** (new) — the operator web console. `Type=simple`,
+runs continuously (not oneshot+timer like the loop), root (same reasoning as
+`jarvis-phase2.service`: needs docker-exec access to Postgres), hardened
+identically. Binds `0.0.0.0:8091` on the **host** — not exposed externally;
+see §31. `Restart=on-failure`. Independent env from the shared
+`/etc/lcarlie/jarvis-phase2.env`: its own `JARVIS_MODE=SHADOW` (for real-time
+chat, distinct from the loop's `OPERATIONAL` mode) is hardcoded in
+`/etc/systemd/system/jarvis-web.service` itself.
+
 ### 14a. A SEPARATE, PRE-EXISTING ORCHESTRATOR ("System A") — DO NOT CONFUSE
 
 Discovered during activation, unrelated to Jarvis, **not touched**: this host
@@ -286,6 +301,22 @@ list/show/decide CLI, using `core.human_decide_karar`).
 /opt/lcarlie/orchestrator/human-approval-cli.sh     SEPARATE system (System A,
                      karar/decision pipeline) -- not jarvis-operator, do not confuse
 /opt/lcarlie/backups/                        rollback points
+```
+
+Web console (new, inside the same `jarvis-phase2` package):
+```
+webconsole/            app.py (stdlib http.server), auth.py, chat.py,
+                       intents.py (Turkish capability boundary)
+webconsole/static/     index.html, app.css, app.js, manifest.webmanifest
+webconsole/tests/      test_web_auth, test_web_chat, test_web_intents,
+                       test_web_integration (57 tests)
+state/webconsole/      auth.json (operator account, 0600, NOT in git/rsync
+                       source sync -- excluded by --exclude=state everywhere)
+deploy/webconsole/     jarvis-web.service (installed to
+                       /etc/systemd/system/jarvis-web.service)
+/opt/lcarlie/n8n/Caddyfile   jarvis.lcarlie.shop block added (NOT part of
+                       this git repo -- lives in the n8n/Caddy ops tree,
+                       backed up separately, see §31)
 ```
 
 ## 16. SHA-256
@@ -402,8 +433,14 @@ measured over SSH from a workstation, these are local-docker on the host.
 
 ## 21. BLOCKERS
 
-**No open blocker.** F-1 and F-2 closed in Phase 2D; Minimum Operational
-Jarvis activated with no gate failing.
+**One, external: DNS.** `jarvis.lcarlie.shop` does not resolve yet
+(NXDOMAIN, confirmed live). Add one A record: `jarvis.lcarlie.shop → 185.169.180.68`
+(same server IP as `n8n.lcarlie.shop`). Caddy is already configured and
+retries certificate issuance automatically — no restart, no other action.
+
+Everything else: F-1 and F-2 closed in Phase 2D; Minimum Operational
+Jarvis activated with no gate failing; Web Console deployed and tested with
+no gate failing except this one external step.
 
 Carried forward, unchanged: BGE-M3 `WAITING_RESOURCE_UPGRADE` (now measured:
 13.65 GiB / 4 cores against 32 GiB / 8 cores) · Ruflo
@@ -506,6 +543,16 @@ the point; the service already runs as root, sandboxed, matching
 `action-worker.service`. Do not widen `jarvis-phase2.timer`'s interval below
 a few minutes without a reason. Do not install new software, research more
 repositories, or expand scope beyond what real operational need shows.
+
+**Never run `docker compose up` (or `up -d caddy`) on the `lcarlie-caddy`
+service for a Caddyfile-only change.** It RECREATES the container and drops
+its out-of-band `icaz_kapi` network attachment (added by İCAZ's own
+`kapi-ac.sh`, invisible to compose) — this happened during the web-console
+task and broke `www.icaz1986.com`/`oyun.icaz1986.com` for several minutes.
+Use `docker exec lcarlie-caddy caddy reload --config /etc/caddy/Caddyfile
+--adapter caddyfile` instead — always validate first with `caddy validate`.
+If a recreate is ever unavoidable, immediately follow with
+`docker network connect icaz_kapi lcarlie-caddy` and verify both icaz vhosts.
 
 ## 29. VERIFICATION COMMANDS
 
@@ -610,3 +657,54 @@ observed:
 - any container unhealthy, or an n8n workflow changing active state
 - `lcarlie-ai-worker.service`'s task queue being touched by Jarvis (a
   `PROPOSE_DECISION` task ever appearing in a Jarvis `PROPOSED` proposal)
+- `docker compose up` run on the `caddy` service again without immediately
+  verifying `icaz_kapi` is still attached and both icaz vhosts return 200
+- any request reaching `/api/proposals*` or `/api/chat*` without a valid
+  session (should be 401)
+- the operator account's password hash appearing anywhere in git history,
+  off-host logs, or this document set
+
+## 31. WEB CONSOLE
+
+Authenticated command-center UI in front of the already-operational Jarvis.
+Full detail in `JARVIS_WEB_CONSOLE_REPORT.md` / `jarvis-web-console-result.json`.
+Summary:
+
+- **Auth**: single operator account (`state/webconsole/auth.json`, 0600,
+  `hashlib.scrypt`), session cookie `HttpOnly;Secure;SameSite=Strict`, CSRF
+  double-submit, login rate limiting (5/15min → 15min lockout).
+- **Chat**: real, reuses `jarvis.shadow.ShadowRunner` and
+  `jarvis.operator.OperatorSession` unchanged. Turkish capability boundary in
+  `webconsole/intents.py` (6 capabilities, ~49 lemmas, Turkish-letter-safe
+  normalizer) — not duplicated Jarvis logic, not a giant phrase list.
+  Streaming via `POST /api/chat/stream` (newline-delimited JSON frames:
+  `stage` → `done`, `token` reserved for a future model-backed route).
+  Ungrounded judgement requests get `REQUIRES_REASONING_CAPABILITY`
+  truthfully, never a fabricated answer.
+- **Proposals**: `GET /api/proposals`, `GET /api/proposals/<id>`,
+  `POST /api/proposals/<id>/decide` — all `jarvis.operator.OperatorSession`,
+  byte-identical to the CLI's authority boundary. The web process never holds
+  `human_approver`.
+- **Network**: `jarvis-web.service` binds `0.0.0.0:8091` on the host (needed
+  because Caddy reaches it from inside a container); `ufw` restricts port
+  8091 to `172.18.0.0/16` (the `lcarlie_web` docker bridge only — verify with
+  `ufw status | grep 8091`). Caddy's `jarvis.lcarlie.shop` block
+  reverse-proxies to `172.18.0.1:8091` (that bridge's own gateway IP — stable
+  unless the `lcarlie_web` network is removed and recreated with a different
+  subnet, which does not happen during normal `docker compose up`).
+- **DNS**: not yet configured — see §21. This is the only remaining step.
+- **Open-source components researched, not adopted**: assistant-ui, Vercel
+  AI SDK/AI Elements — both require a Node/React build pipeline for a
+  token-streaming UX this deterministic backend doesn't produce yet; full
+  reasoning and sources in the report. The `/api/chat/stream` contract is
+  designed so adopting one later needs no backend change.
+- **Incident during this task**: `docker compose up -d caddy` recreated the
+  container and dropped its `icaz_kapi` network attachment; icaz sites 502'd
+  briefly, found immediately via health check, fixed with
+  `docker network connect icaz_kapi lcarlie-caddy`, confirmed healthy.
+  `docker-compose.yml` ended up reverted (byte-identical to the pre-task
+  backup); only the Caddyfile carries a real change (one new site block,
+  applied via `caddy reload`, never another `compose up`). See §28's new
+  rule.
+- **Credential**: the first-run operator password was delivered to the user
+  out of band, not recorded in any report/handoff file.

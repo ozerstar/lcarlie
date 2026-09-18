@@ -1,7 +1,7 @@
 {
   "document": "HANDOFF_CURRENT",
   "describes": "actual state, not planned state",
-  "as_of": "2026-09-18T16:02:00+03:00",
+  "as_of": "2026-09-18T16:55:00+03:00",
   "contains_secrets": false,
   "environment_variables_listed_as": "key names only",
   "project_objective": "L'CARLIE Autonomous Company Intelligence OS with Jarvis as its natural-language management and execution-coordination layer. Models are replaceable compute; task state and company memory belong to the OS.",
@@ -16,7 +16,7 @@
     "vector": "retrieval only",
     "authorization": "Action Firewall and human approval, both in the database"
   },
-  "current_phase": "MINIMUM_OPERATIONAL_JARVIS_ACTIVATED",
+  "current_phase": "WEB_CONSOLE_READY_PENDING_DNS",
   "markers": [
     "PHASE2C_SHADOW_READY",
     "PHASE2D_CONTRACT_READY",
@@ -29,7 +29,8 @@
     "2B",
     "2C",
     "2D",
-    "minimum_operational"
+    "minimum_operational",
+    "web_console"
   ],
   "production_state": {
     "containers": {
@@ -447,10 +448,11 @@
     "clean": true,
     "deployment_in_sync": true,
     "phase2d_commit": "ef32a34ac72a64111d3a3513909e18bf3317ef23",
-    "minimum_operational_commit": "0b560cfb5fff2bb2d628a4db316888e574388465"
+    "minimum_operational_commit": "0b560cfb5fff2bb2d628a4db316888e574388465",
+    "web_console_commit": "582c2c8fba2c7ab59fb853e217c7daca959accd9"
   },
-  "last_successful_step": "Minimum Operational Jarvis activated. jarvis-operator (human proposal surface) and jarvis/loop.py (deterministic observe->analyze->propose cycle) built and unit-tested (108 tests OK). Two previously-latent activation bugs found and fixed live: the service's User=jarvis had no docker-group access (fixed by running as root, hardened identically to action-worker.service), and ProtectSystem=strict needed an explicit ReadWritePaths for the loop's state directory. A real, committed demonstration ran end to end: a human created a task, the loop claimed and proposed it, the operator CLI approved it, the existing FakeExecutor completed it with zero external calls. Accelerated soak (20 cycles/8s) and a real kill-switch test both passed. Security recheck re-run: 32/32. JARVIS_ENABLED=true, EXTERNAL_ACTIONS=false, timer active.",
-  "next_step": "Jarvis is live and self-sustaining via jarvis-phase2.timer (5 min interval). No further activation step is needed. Future work -- widening analyze()'s rule set, adding more INTENT_TO_CANONICAL mappings, a controlled read path for task free-text context -- is backlog, not a blocker, and needs no new activation phase.",
+  "last_successful_step": "Jarvis Web Console built and deployed: authenticated command-center UI, streaming Turkish chat reusing jarvis.shadow/jarvis.operator unchanged, proposal list/inspect/approve/reject over the existing human_approver boundary. 57 web tests + full 108-test Jarvis suite + 32/32 security recheck all pass. Deployed via jarvis-web.service (root, hardened) + a new Caddy vhost proxying to the lcarlie_web bridge's own gateway IP; ufw restricts the backend port to that bridge only. A real incident (docker compose up dropping icaz's network attachment) was found and fixed live during deployment; icaz confirmed healthy afterward. Only remaining step is external: add the jarvis.lcarlie.shop DNS A record.",
+  "next_step": "Add DNS: jarvis.lcarlie.shop A record -> 185.169.180.68. No other action needed -- Caddy already retries certificate issuance automatically once DNS resolves.",
   "do_not_touch": [
     "Caddy",
     "n8n and its configuration",
@@ -462,7 +464,8 @@
     "core.ai_provider_allowed grant to ai_reader",
     "widening grant 004 beyond the six columns or to ai_writer",
     "the production question-worker service",
-    "adding jarvis (or any low-privilege account) to the docker group -- root-equivalent, defeats the point"
+    "adding jarvis (or any low-privilege account) to the docker group -- root-equivalent, defeats the point",
+    "docker compose up on the caddy service for Caddyfile-only changes -- use 'docker exec lcarlie-caddy caddy reload' instead (recreates the container and drops the out-of-band icaz_kapi network attachment)"
   ],
   "environment_key_names": {
     "persistent_env_file": [
@@ -501,7 +504,10 @@
     "production question-worker.js hash ceasing to be d0a6e9ac..., or its service becoming active",
     "rsync -ain between deployment and canonical source producing output",
     "any container unhealthy, or an n8n workflow changing active state",
-    "lcarlie-ai-worker.service's PROPOSE_DECISION tasks ever appearing in a Jarvis PROPOSED proposal"
+    "lcarlie-ai-worker.service's PROPOSE_DECISION tasks ever appearing in a Jarvis PROPOSED proposal",
+    "docker compose up run on the caddy service again without immediately verifying icaz_kapi is still attached",
+    "any request reaching /api/proposals* or /api/chat* without a valid session",
+    "the operator account password hash appearing in git history, off-host logs, or any report/handoff file"
   ],
   "operational_loop": {
     "module": "jarvis/loop.py + loop_cli.py",
@@ -513,5 +519,50 @@
     "wrong_task_type_handling": "core.ai_fail_task hands it back to the pool without reading its payload",
     "issue_finding_dedup": "logged once per distinct signature, not every cycle",
     "intent_carrying_convention": "jarvis:<INTERNAL_INTENT>:<slug> in the idempotency_key (ai_writer has no SELECT on core.ai_task, so no free-text field is readable after claiming)"
+  },
+  "web_console_marker": "JARVIS_WEB_CONSOLE_READY_PENDING_DNS (see jarvis-web-console-result.json)",
+  "web_console": {
+    "overall": "READY_PENDING_DNS",
+    "url": "https://jarvis.lcarlie.shop",
+    "dns_status": "NXDOMAIN",
+    "dns_action_required": {
+      "type": "A",
+      "name": "jarvis.lcarlie.shop",
+      "value": "185.169.180.68"
+    },
+    "service": "jarvis-web.service (root, hardened like jarvis-phase2.service, Type=simple, binds 0.0.0.0:8091)",
+    "firewall": "ufw allow from 172.18.0.0/16 to any port 8091 proto tcp (lcarlie_web bridge only)",
+    "caddy_route": "jarvis.lcarlie.shop -> reverse_proxy 172.18.0.1:8091 (lcarlie_web bridge's own gateway)",
+    "auth": "single operator account, hashlib.scrypt, session HttpOnly+Secure+SameSite=Strict, CSRF double-submit, rate-limited login",
+    "chat_backend_reused": [
+      "jarvis.shadow.ShadowRunner",
+      "jarvis.operator.OperatorSession"
+    ],
+    "chat_duplicated_logic": false,
+    "turkish_intent_module": "webconsole/intents.py (6 capabilities, ~49 lemmas, Turkish-letter-safe normalizer)",
+    "streaming_endpoint": "POST /api/chat/stream (stage -> done frames)",
+    "open_source_evaluated": [
+      "assistant-ui",
+      "Vercel AI SDK / AI Elements"
+    ],
+    "open_source_adopted": false,
+    "open_source_reasoning": "both require a Node/React build pipeline for token-streaming LLM UX; this backend returns complete deterministic answers with no LLM to stream from yet; requested UX built natively in <200 lines with a contract designed for future LLM-router extension",
+    "external_provider_calls": 0,
+    "external_actions": 0,
+    "tests": {
+      "web_console": 57,
+      "full_jarvis_suite": 108,
+      "security_recheck": "32/32"
+    },
+    "incident": {
+      "description": "docker compose up -d caddy recreated the container and dropped its out-of-band icaz_kapi network attachment",
+      "impact": "www.icaz1986.com and oyun.icaz1986.com returned 502 briefly",
+      "detected_by": "immediate post-change health check",
+      "fixed_by": "docker network connect icaz_kapi lcarlie-caddy",
+      "confirmed_resolved": true,
+      "docker_compose_yml_final_state": "reverted, byte-identical to pre-task backup",
+      "lesson": "never run 'docker compose up' on the caddy service for a Caddyfile-only change; use 'docker exec lcarlie-caddy caddy reload' instead"
+    },
+    "credential_delivery": "first-run operator password delivered to the user out of band; not recorded in any report or handoff file"
   }
 }
