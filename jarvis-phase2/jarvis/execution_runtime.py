@@ -267,9 +267,9 @@ def _execute_fusion(ctx: StepContext) -> StepOutcome:
     `missing_inputs` instead, so the confidence figure below is about evidence
     that exists rather than evidence that was assumed.
     """
-    records: list[SourceRecord] = []
     missing: list[dict[str, str]] = []
     refs: list[str] = []
+    per_entity: dict[str, list[SourceRecord]] = {}
     for step_id, record in sorted(ctx.upstream.items()):
         if record.status in DEGRADED_STATUSES:
             missing.append({"step_id": step_id, "capability": record.capability,
@@ -278,22 +278,41 @@ def _execute_fusion(ctx: StepContext) -> StepOutcome:
             continue
         if record.status != STEP_SUCCEEDED:
             continue
+        entity = str(record.output.get("domain") or record.capability)
         for ref in record.evidence_refs:
             refs.append(ref)
-            records.append(SourceRecord(
-                source_id=f"{step_id}:{ref}", publisher=ref,
-                entity=str(record.output.get("domain") or record.capability),
-                claim=f"{record.output.get('records', 0)} records",
+            # One claim per entity, so `contradiction` can only become true if
+            # two sources for the SAME domain disagree -- fuse() compares
+            # claims, and comparing one domain's claim against another's would
+            # report a contradiction that does not exist.
+            per_entity.setdefault(entity, []).append(SourceRecord(
+                source_id=f"{step_id}:{ref}", publisher=ref, entity=entity,
+                claim=f"evidence present for {entity}",
                 observed_at=_now(), authority=1.0,
             ))
-    fused = fuse(records)
+
+    domains: list[dict[str, Any]] = []
+    total = 0
+    for entity in sorted(per_entity):
+        fused = fuse(per_entity[entity])
+        total += len(per_entity[entity])
+        domains.append({
+            "entity": entity,
+            "sources": fused["independent_sources"],
+            "contradiction": fused["contradiction"],
+            "confidence": fused["confidence"],
+            "single_source": fused["independent_sources"] < 2,
+        })
+
     return StepOutcome(
         status=STEP_SUCCEEDED,
-        output={"independent_sources": fused["independent_sources"],
-                "contradiction": fused["contradiction"],
-                "confidence": fused["confidence"],
-                "needs_more_sources": fused["needs_more_sources"],
-                "fused_inputs": len(records),
+        output={"independent_sources": len(set(refs)),
+                "contradiction": any(item["contradiction"] for item in domains),
+                "confidence": (round(min(item["confidence"] for item in domains), 3)
+                               if domains else 0.0),
+                "needs_more_sources": any(item["single_source"] for item in domains),
+                "fused_inputs": total,
+                "domains": domains,
                 "missing_inputs": missing},
         evidence_refs=tuple(dict.fromkeys(refs)),
     )
