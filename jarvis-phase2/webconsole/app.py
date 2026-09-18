@@ -39,7 +39,9 @@ os.environ.setdefault("JARVIS_MODE", "SHADOW")
 os.environ.setdefault("EXTERNAL_ACTIONS", "false")
 os.environ.setdefault("JARVIS_MEMORY_TRANSPORT", "local-docker")
 
-from jarvis.action_contract import ContractCache  # noqa: E402
+from jarvis import capabilities as caps  # noqa: E402
+from jarvis.action_contract import ContractCache, ContractError  # noqa: E402
+from jarvis.execution_planner import plan_request  # noqa: E402
 from jarvis.context import ContextCompiler  # noqa: E402
 from jarvis.memory import CompanyMemory, MemoryError as JarvisMemoryError  # noqa: E402
 from jarvis.operator import OperatorSession  # noqa: E402
@@ -64,6 +66,29 @@ throttle = auth.LoginThrottle()
 _memory = CompanyMemory(host=memory_host())
 _shadow_runner = ShadowRunner(Phase2Runtime(ContextCompiler(_memory)))
 _operator = OperatorSession(host=memory_host())
+
+
+def _live_registry() -> dict:
+    """The capability registry the planner is checked against.
+
+    Built from the same live evidence ContextCompiler already uses -- one
+    Company Memory probe plus the loaded action contract. A failed probe or an
+    unloadable contract yields absent evidence, which build_registry turns into
+    UNKNOWN/MISSING rather than an optimistic guess, so the planner then blocks
+    the affected step instead of planning around a capability nobody verified.
+    """
+    try:
+        probe_evidence = _memory.get_capability_state()
+        probe = probe_evidence.records[0] if probe_evidence.records else {}
+    except JarvisMemoryError:
+        probe = {}
+    health = probe.get("health")
+    memory_ok = isinstance(health, dict) and "checked_at" in health
+    try:
+        contract = ContractCache(_memory).get()
+    except (ContractError, JarvisMemoryError):
+        contract = None
+    return caps.build_registry(probe=probe, contract=contract, memory_ok=memory_ok)
 
 
 def _client_ip(handler: "Handler") -> str:
@@ -288,6 +313,20 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/api/chat/stream":
             self._handle_chat_stream()
+            return
+        if path == "/api/plan":
+            # REQUEST -> PLAN -> DISPLAY. This endpoint plans and returns;
+            # it never executes a step. jarvis.execution_planner touches no
+            # database, spawns no subprocess and calls no model, so the only
+            # I/O here is the read-only registry probe above.
+            body = _read_json_body(self)
+            message = str(body.get("message", ""))[:2000]
+            try:
+                plan = plan_request(message, registry=_live_registry())
+            except JarvisMemoryError as exc:
+                self._send_json(502, {"error": str(exc)})
+                return
+            self._send_json(200, plan.to_dict())
             return
         if path.startswith("/api/proposals/") and path.endswith("/decide"):
             action_id = path.split("/")[-2]

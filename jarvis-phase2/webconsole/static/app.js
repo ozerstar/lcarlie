@@ -236,6 +236,91 @@ async function decide(actionId, decision) {
   }
 }
 
+/* ---------------- execution plan: REQUEST -> PLAN -> DISPLAY ----------------
+ * Shows what Jarvis WOULD do. There is deliberately no execute control here:
+ * the endpoint plans and returns, and every step that could ever act is gated
+ * behind the existing human-approval path (or, for a coding task, behind a
+ * human running `jarvis-operator create-coding-task` themselves).
+ */
+const PLAN_STATUS_TEXT = {
+  PLANNED: 'Plan hazır',
+  BLOCKED_CAPABILITY: 'Plan hazır ancak bazı adımlar yetenek eksikliğinden bloke',
+  BLOCKED_EXTERNAL_ACTION: 'Dış iş aksiyonu planlanmaz — insan kararına yönlendirildi',
+  REJECTED_AMBIGUOUS: 'Talep planlanamadı',
+};
+
+function planChip(label, value, cls) {
+  return `<span class="plan-chip ${cls || ''}"><span class="plan-chip-label">${escapeHtml(label)}</span>`
+       + `<span class="plan-chip-value">${escapeHtml(String(value))}</span></span>`;
+}
+
+function renderPlanSteps(plan) {
+  if (!plan.steps.length) return '<p class="empty-note">Bu talep için adım üretilmedi.</p>';
+  const groups = plan.parallel_groups.map((group, index) => {
+    const rows = group.map((stepId) => {
+      const step = plan.steps.find((s) => s.step_id === stepId);
+      const blocked = step.blocked_by && step.blocked_by.length;
+      const marks = [];
+      if (blocked) marks.push(`<span class="plan-flag plan-flag-blocked">BLOKE: ${escapeHtml(step.blocked_by.join(', '))}</span>`);
+      if (step.requires_human_origination) marks.push('<span class="plan-flag plan-flag-human">İNSAN BAŞLATIR</span>');
+      if (step.produces_action) marks.push('<span class="plan-flag">ONAY GEREKİR</span>');
+      const deps = step.depends_on.length ? ` ← ${escapeHtml(step.depends_on.join(', '))}` : '';
+      return `<li class="plan-step${blocked ? ' is-blocked' : ''}">
+        <div class="plan-step-head"><strong>${escapeHtml(step.step_id)}</strong> ${escapeHtml(step.capability)}<span class="plan-deps">${deps}</span></div>
+        <div class="plan-step-desc">${escapeHtml(step.description)}</div>
+        <div class="plan-step-target">${escapeHtml(step.target)}</div>
+        ${marks.length ? `<div class="plan-flags">${marks.join(' ')}</div>` : ''}
+      </li>`;
+    }).join('');
+    const parallel = group.length > 1 ? ' · paralel' : '';
+    return `<div class="plan-group"><div class="plan-group-title">GRUP ${index + 1}${parallel}</div><ol class="plan-steps">${rows}</ol></div>`;
+  }).join('');
+  return groups;
+}
+
+function renderPlan(plan) {
+  const blockedCaps = [...new Set(plan.steps.flatMap((s) => s.blocked_by || []))];
+  const statusText = PLAN_STATUS_TEXT[plan.status] || plan.status;
+  const chips = [
+    planChip('MOD', plan.mode, `plan-mode-${plan.mode}`),
+    planChip('RİSK', plan.risk, `risk-badge risk-${plan.risk}`),
+    planChip('NİYET', plan.intent),
+    planChip('SINIF', plan.estimated_execution_class),
+    planChip('TAZE ARAŞTIRMA', plan.requires_fresh_research ? 'GEREKLİ' : 'GEREKMİYOR'),
+    planChip('ONAY', plan.approval_required ? 'GEREKLİ' : 'GEREKMİYOR'),
+  ].join('');
+  return `
+    <h3>Yürütme Planı <span class="risk-badge risk-${plan.risk}">${escapeHtml(plan.status)}</span></h3>
+    <p class="plan-request">${escapeHtml(plan.request)}</p>
+    <p class="plan-status-text">${escapeHtml(statusText)}${plan.reason ? ' — ' + escapeHtml(plan.reason) : ''}</p>
+    <div class="plan-chips">${chips}</div>
+    ${renderPlanSteps(plan)}
+    <dl class="plan-meta">
+      <dt>Gerekli yetenekler</dt><dd>${escapeHtml(plan.required_capabilities.join(', ') || '—')}</dd>
+      <dt>Bloke yetenekler</dt><dd>${blockedCaps.length ? `<span class="plan-flag plan-flag-blocked">${escapeHtml(blockedCaps.join(', '))}</span>` : '—'}</dd>
+      <dt>Gerekli iç veri</dt><dd>${escapeHtml(plan.required_internal_data.join(', ') || '—')}</dd>
+      <dt>Plan kimliği</dt><dd>${escapeHtml(plan.plan_id)}</dd>
+    </dl>
+    <p class="plan-note">Bu yalnızca bir plandır. Hiçbir adım çalıştırılmadı; model çağrısı yapılmadı (model_calls=${escapeHtml(String(plan.model_calls))}).</p>
+  `;
+}
+
+async function openPlan() {
+  const message = qs('chatInput').value.trim();
+  if (!message) return;
+  const { ok, body } = await api('/api/plan', {
+    method: 'POST', body: JSON.stringify({ message }),
+  });
+  if (!ok || !body) {
+    addChatMessage('jarvis', `Plan üretilemedi: ${escapeHtml((body && body.error) || 'bilinmeyen hata')}`);
+    return;
+  }
+  qs('modalBody').innerHTML = renderPlan(body);
+  qs('proposalModal').hidden = false;
+}
+
+qs('planBtn').addEventListener('click', openPlan);
+
 qs('modalClose').addEventListener('click', () => { qs('proposalModal').hidden = true; });
 qs('proposalModal').addEventListener('click', (e) => { if (e.target.id === 'proposalModal') qs('proposalModal').hidden = true; });
 

@@ -324,3 +324,29 @@ body.tab-hidden .jarvis-core * { animation-play-state: paused !important; }
   .command-grid { grid-template-columns: 1fr; }
   .panel-intelligence, .panel-proposals { max-height: 30vh; }
 }
+
+/* execution plan view (reuses the existing modal, tokens and risk badges) */
+.plan-request { font-style: italic; color: var(--graphite-soft); margin: 2px 0 6px; }
+.plan-status-text { font-size: 0.82rem; margin: 0 0 12px; }
+.plan-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.plan-chip { display: inline-flex; flex-direction: column; background: var(--ivory); border-radius: 8px; padding: 4px 9px; }
+.plan-chip-label { font-size: 0.56rem; letter-spacing: 0.08em; color: var(--graphite-soft); }
+.plan-chip-value { font-size: 0.74rem; font-weight: 700; }
+.plan-mode-DEEP .plan-chip-value { color: var(--turquoise); }
+.plan-group { margin-bottom: 12px; }
+.plan-group-title { font-size: 0.58rem; letter-spacing: 0.1em; color: var(--graphite-soft); margin-bottom: 5px; }
+.plan-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.plan-step { background: var(--ivory); border-radius: 8px; padding: 9px 11px; border-left: 3px solid var(--turquoise); }
+.plan-step.is-blocked { border-left-color: var(--red); }
+.plan-step-head { font-size: 0.8rem; }
+.plan-deps { color: var(--graphite-soft); font-size: 0.7rem; }
+.plan-step-desc { font-size: 0.76rem; margin-top: 2px; }
+.plan-step-target { font-size: 0.66rem; color: var(--graphite-soft); margin-top: 3px; word-break: break-word; }
+.plan-flags { margin-top: 5px; display: flex; flex-wrap: wrap; gap: 5px; }
+.plan-flag { font-size: 0.58rem; letter-spacing: 0.05em; font-weight: 700; background: #fbeecb; color: #93650f; border-radius: 5px; padding: 1px 6px; }
+.plan-flag-blocked { background: #f6dcda; color: var(--red); }
+.plan-flag-human { background: #e3f3e9; color: var(--green); }
+.plan-meta { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 0.74rem; margin: 14px 0 0; }
+.plan-meta dt { color: var(--graphite-soft); }
+.plan-meta dd { margin: 0; word-break: break-word; }
+.plan-note { font-size: 0.7rem; color: var(--graphite-soft); margin-top: 12px; }
