@@ -1,11 +1,12 @@
 # HANDOFF — CURRENT STATE
 
-Describes the system **as it actually is** at 2026-09-18 15:35 +03:00, not as
+Describes the system **as it actually is** at 2026-09-18 16:02 +03:00, not as
 planned. No secret values appear here; environment variables are listed by key
 name only.
 
-Read this first, then `PHASE2D_CONTRACT_CLOSURE_REPORT.md` and
-`PHASE2C_ACTIVATION_PREFLIGHT_REPORT.md` for the evidence behind every claim.
+Read this first, then `MINIMUM_OPERATIONAL_JARVIS_REPORT.md`,
+`PHASE2D_CONTRACT_CLOSURE_REPORT.md` and `PHASE2C_ACTIVATION_PREFLIGHT_REPORT.md`
+for the evidence behind every claim.
 
 ---
 
@@ -33,9 +34,11 @@ approval are authoritative and live in the database.
 
 ## 3. CURRENT PHASE
 
-**Phase 2D complete.** Markers `PHASE2C_SHADOW_READY` and
-`PHASE2D_CONTRACT_READY` exist. **Not activated.** Neither marker authorizes
-activation.
+**Minimum Operational Jarvis — ACTIVATED.** Markers `PHASE2C_SHADOW_READY`,
+`PHASE2D_CONTRACT_READY` and `MINIMUM_OPERATIONAL_JARVIS_READY` all exist.
+`JARVIS_ENABLED=true`, `JARVIS_MODE=OPERATIONAL`, **`EXTERNAL_ACTIONS=false`**.
+Jarvis reads Company Memory, analyzes deterministically, and can propose —
+external business action execution remains fully disabled.
 
 ## 4. COMPLETED PHASES
 
@@ -45,7 +48,8 @@ activation.
 | 2 | real Company Memory adapter, Context Compiler, controlled task/proposal, execution planner, provider-independent routing |
 | 2B | production integration: pgvector image, semantic schema, `core.jarvis_task_state`, packaged service — Jarvis still disabled |
 | 2C | activation preflight, source-of-truth baseline, SHADOW mode, acceptance A–H, security recheck — `PHASE2C_SHADOW_READY`, two findings left open |
-| 2D | F-1 action contract closed, F-2 capability gap closed, real proposal E2E — `PHASE2D_CONTRACT_READY`, **no open blocker** |
+| 2D | F-1 action contract closed, F-2 capability gap closed, real proposal E2E — `PHASE2D_CONTRACT_READY`, no open blocker |
+| Min-Op | human proposal surface (`jarvis-operator`), operational loop (`jarvis-phase2.timer`), **JARVIS ACTIVATED** in read→analyze→propose mode — `MINIMUM_OPERATIONAL_JARVIS_READY` |
 
 ## 5. PRODUCTION STATE
 
@@ -62,12 +66,20 @@ Jarvis and not drift.
 
 ## 6. JARVIS ENABLED/DISABLED
 
-**DISABLED.**
-`JARVIS_ENABLED=false` in `/etc/lcarlie/jarvis-phase2.env` (mtime 14:39:13 —
-not written during Phase 2C or 2D).
-`jarvis-phase2.service`: `static` / `inactive`, no `[Install]` section.
-Direct run: `{"status":"DISABLED","reason":"JARVIS_ENABLED is not true"}`, exit
-**78**. No Jarvis process runs.
+**ENABLED — operational, external actions still disabled.**
+`/etc/lcarlie/jarvis-phase2.env`: `JARVIS_ENABLED=true`, `JARVIS_MODE=OPERATIONAL`,
+`EXTERNAL_ACTIONS=false`, `JARVIS_MEMORY_TRANSPORT=local-docker`.
+`jarvis-phase2.timer`: **active, enabled**, fires every 5 min
+(`OnUnitActiveSec=5min`, `RandomizedDelaySec=15s`). `jarvis-phase2.service`:
+`Type=oneshot`, triggered only by the timer — shows `inactive` between
+firings, which is normal (identical pattern to
+`lcarlie-action-worker.service`). No `[Install]` on the service itself; the
+timer carries `[Install] WantedBy=timers.target`.
+
+Kill switch, verified: `systemctl stop jarvis-phase2.timer && systemctl disable
+jarvis-phase2.timer` → no orphan process, DB stays consistent. To fully
+disable Jarvis again, also set `JARVIS_ENABLED=false` in the env file (the
+service fails closed with exit 78 regardless of the timer's state).
 
 ## 7. DATABASE COMPONENTS
 
@@ -81,8 +93,10 @@ Direct run: `{"status":"DISABLED","reason":"JARVIS_ENABLED is not true"}`, exit
   `function_owner`. **Phase 2D:** `ai_reader` holds column-level `SELECT` on
   six columns only (migration 004). `description` and `created_at` remain
   unreadable; `ai_writer` has no access at all; writes are denied to both.
-- `core.ai_task` 16 rows (all `PROPOSED_WRITTEN`); `core.ai_action_proposal`
-  **0 rows**.
+- `core.ai_task` 17 rows; `core.ai_action_proposal` **1 row** — a real,
+  committed demonstration proposal (action_id 20, `REQUEST_HUMAN_REVIEW`,
+  APPROVED, EXECUTED by the existing FakeExecutor with zero external calls).
+  Not a test artifact needing cleanup.
 - Controlled interfaces (SECURITY DEFINER, owned by `function_owner`):
   `ai_save_jarvis_task_state`, `ai_load_jarvis_task_state`, `ai_enqueue_task`,
   `ai_claim_task`, `ai_propose_action`, `ai_decide_action`,
@@ -146,13 +160,19 @@ valid.
 
 ## 10. HUMAN APPROVAL
 
-Unchanged and authoritative. `ai_decide_action` and `ai_get_pending_actions`:
-`human_approver` only. `ai_enqueue_task`: `human_approver` only — Jarvis cannot
-create its own work. Execution surfaces: `action_executor` only. Jarvis holds
-`ai_writer`, which has none of these.
+Unchanged and authoritative at the database. `ai_decide_action` and
+`ai_get_pending_actions`: `human_approver` only. `ai_enqueue_task`:
+`human_approver` only — Jarvis cannot create its own work. Execution surfaces:
+`action_executor` only. Jarvis holds `ai_writer`, which has none of these.
 
-**No operator-facing surface exists for approving a proposal.** The path exists
-in the database; nothing presents pending actions to a person yet.
+**Operator surface now exists:** `bin/jarvis-operator` (root required) —
+`list`, `inspect`, `approve`, `reject`, `create-task`. Every statement runs as
+`human_approver`, verified against the live grants (not `ai_reader` — that was
+tried first and correctly rejected by the database, since
+`ai_get_pending_actions()` is `human_approver`-only). `inspect` can only show
+**pending** proposals — `core.ai_action_proposal` has no read grant for anyone
+but its owner, and no controlled function returns decided-proposal detail;
+`decide()` confirms its effect by re-checking the pending list instead.
 
 ## 11. COMPANY MEMORY INTERFACES
 
@@ -193,11 +213,47 @@ against BGE-M3's 32 GiB / 8 cores.
 
 ## 14. SERVICES / CONTAINERS
 
-`jarvis-phase2.service` — static, inactive, `User=jarvis` (uid 996), oneshot,
-`NoNewPrivileges`, `PrivateTmp`, `ProtectSystem=strict`, `ProtectHome`,
-`MemoryMax=256M`, `CPUQuota=100%`, `TasksMax=64`, deliberately no `[Install]`.
+`jarvis-phase2.service` — oneshot, **runs as root** (changed from
+`User=jarvis`: that account is not in the `docker` group — socket is
+`root:docker` 660 — so it could never call `docker exec` at all; this was
+discovered and fixed during Minimum-Operational activation, never previously
+exercised). Hardened identically to the already-audited
+`lcarlie-action-worker.service`: `NoNewPrivileges`, `PrivateTmp`,
+`ProtectSystem=strict` + `ReadWritePaths=/opt/lcarlie/jarvis-phase2/state`,
+`ProtectHome`, `ProtectKernelTunables`, `ProtectControlGroups`,
+`RestrictSUIDSGID`, `CapabilityBoundingSet=` (empty),
+`RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6`, `MemoryMax=256M`,
+`CPUQuota=100%`, `TasksMax=64`. No `[Install]` on the service; triggered only
+by `jarvis-phase2.timer` (active, enabled, `[Install] WantedBy=timers.target`).
+The real authorization boundary — which PostgreSQL role a session assumes —
+is unaffected by which OS user starts `docker exec`.
+
 Containers as listed in §5. `question-worker` service: **inactive**,
-deliberately not started.
+deliberately not started (separate from `jarvis-phase2.service`).
+
+### 14a. A SEPARATE, PRE-EXISTING ORCHESTRATOR ("System A") — DO NOT CONFUSE
+
+Discovered during activation, unrelated to Jarvis, **not touched**: this host
+already runs an older decision pipeline —
+`core.ai_generate_company_intelligence_task()` (ai_writer-granted, has its own
+built-in idempotency) creates `PROPOSE_DECISION` tasks → a generic worker
+(`lcarlie-ai-worker.service/.timer`, `worker.js`, calls real LLM providers) →
+`core.karar` rows → `mart.ai_approval_inbox` →
+`/opt/lcarlie/orchestrator/human-approval-cli.sh` (its OWN separate
+list/show/decide CLI, using `core.human_decide_karar`).
+
+- **`lcarlie-ai-worker.service` is currently FAILING**: `EAI_AGAIN
+  lcarlie-postgres` — a DNS resolution failure inside its
+  `lcarlie_ai_egress` docker network. Pre-existing, unrelated to this work,
+  out of scope. Do not fix it as part of Jarvis work without being asked.
+- `core.ai_claim_task()` has **no `task_type` filter** — it claims whichever
+  OPEN task is oldest, System A's or Jarvis's. `jarvis/loop.py` defends
+  against this: if it claims a non-`PROPOSE_ACTION` task, it immediately
+  hands it back via `core.ai_fail_task` without reading its payload.
+- `human-approval-cli.sh` ≠ `jarvis-operator`. Different tables
+  (`core.karar`/`ai_action_proposal`), different functions
+  (`human_decide_karar`/`ai_decide_action`), different CLIs. Do not merge
+  them or route one's data through the other.
 
 ## 15. RELEVANT PATHS
 
@@ -205,22 +261,30 @@ deliberately not started.
 /opt/lcarlie/jarvis-phase2/                  Jarvis package (production)
   jarvis/            memory, transport, context, phase2, shadow, runtime,
                      action_contract, firewall, capabilities, routing,
-                     state_pg, telemetry, governors, cache, cli, benchmark
+                     state_pg, telemetry, governors, cache, cli, benchmark,
+                     operator, operator_cli, loop, loop_cli
   scripts/           run_shadow_acceptance.py (gate), run_phase2c_acceptance.py,
                      run_phase2d_proposal_e2e.py, run_test_g_state_fallback.py,
                      run_phase2c_security_recheck.py, psql_session.py,
                      benchmark_live.py
   tests/             test_bootstrap, test_phase2, test_shadow, test_state_pg,
                      test_live_phase2, test_action_contract, test_capabilities,
-                     question-worker-phase2b.test.js
+                     test_operator, test_loop, question-worker-phase2b.test.js
   migrations/        001 pgvector, 002 semantic, 003 jarvis_task_state,
                      004 action contract read grant (+ rollback for each)
-  deploy/            service unit, env template, pgvector Dockerfile/patch,
-                     question-worker-phase2b.js (candidate)
+  deploy/            service unit, timer, env template, pgvector Dockerfile/patch,
+                     question-worker-phase2b.js (candidate), bin/jarvis-phase2,
+                     bin/jarvis-operator
+  bin/               jarvis-phase2 (SHADOW|OPERATIONAL dispatch), jarvis-operator
+  state/             loop bookkeeping ONLY -- not company truth; loop-state.json,
+                     findings.jsonl, audit.jsonl (root:root 750, ReadWritePaths)
   evidence/          Phase 2C and Phase 2D evidence JSON
 /etc/lcarlie/jarvis-phase2.env               persistent env (keys in §29)
+/etc/systemd/system/jarvis-phase2.{service,timer}   installed, timer enabled
 /opt/lcarlie/source/lcarlie-jarvis-v1        canonical source baseline (git)
 /opt/lcarlie/orchestrator/question-worker.js production worker (UNTOUCHED)
+/opt/lcarlie/orchestrator/human-approval-cli.sh     SEPARATE system (System A,
+                     karar/decision pipeline) -- not jarvis-operator, do not confuse
 /opt/lcarlie/backups/                        rollback points
 ```
 
@@ -248,9 +312,12 @@ deliberately not started.
 | `tests/test_capabilities.py` | `26ac8537d7380cb47df7e21902e44fab4ab96d86ec4919abde2cdf5db3c2f7ab` |
 | `tests/test_shadow.py` | `54107b73edb45ac030f06e61f08097cfca4002291be739f62a33ec2fe026e0ba` |
 | `tests/test_bootstrap.py` | `342316098acbd1900c3485c8309324d5ead26754977ce541827864ea57a3181b` |
+| `jarvis/operator.py` | (see `handoff-current.json`) |
+| `jarvis/loop.py` | (see `handoff-current.json`) |
 | source snapshot `lcarlie-jarvis-source-v1b.tar.gz` | `a0f6cbed2e7ac284dd1cf5eab4deaf733075ac38f2acd736c0f6c0f7786e113f` |
 | Phase 2B DB dump | `22a26127448981e62b27679f11b8609f3a4460e0a3549760d77bf4c1935df535` |
 | Phase 2D package backup | `8fb67b482ba892233c78ebc73d88dbfd92a42dace860f580970092f7ac6db8fe` |
+| Minimum-Op package backup | `40d75222d6860d65331892f1a54b9acbc8d3b56f00876522d026f64e65851c61` |
 
 ## 17. BACKUPS
 
@@ -259,6 +326,7 @@ deliberately not started.
 /opt/lcarlie/backups/phase2c-20260918T145500+0300   pre-Phase2C package + Codex acceptance evidence
 /opt/lcarlie/backups/phase2c-claude-20260918T150824 package before Phase 2C edits
 /opt/lcarlie/backups/phase2d-20260918T152553        package + ai_action_type schema before Phase 2D
+/opt/lcarlie/backups/minop-20260918T155302          package + env + service unit before activation
 /opt/lcarlie/phase2b-staging/                        migrations, compose patch, packaged tgz
 ```
 Phase 2B restore was tested in an isolated PostgreSQL 17 (129 core/mart tables,
@@ -267,9 +335,18 @@ Phase 2B restore was tested in an isolated PostgreSQL 17 (129 core/mart tables,
 ## 18. ROLLBACK
 
 ```sh
-# Jarvis package
-tar xzf /opt/lcarlie/backups/phase2d-20260918T152553/jarvis-phase2.pre-phase2d.tgz \
+# STOP JARVIS IMMEDIATELY (kill switch, verified clean both directions):
+systemctl stop jarvis-phase2.timer && systemctl disable jarvis-phase2.timer
+sed -i 's/^JARVIS_ENABLED=true/JARVIS_ENABLED=false/' /etc/lcarlie/jarvis-phase2.env
+
+# Jarvis package (pre-activation)
+tar xzf /opt/lcarlie/backups/minop-20260918T155302/jarvis-phase2.pre-minop.tgz \
     -C /opt/lcarlie
+cp /opt/lcarlie/backups/minop-20260918T155302/jarvis-phase2.service.pre-minop \
+    /etc/systemd/system/jarvis-phase2.service
+rm -f /etc/systemd/system/jarvis-phase2.timer
+systemctl daemon-reload
+
 # Phase 2D database grant
 docker exec -i lcarlie-postgres psql -U n8n -d n8n -v ON_ERROR_STOP=1 -f - \
   < /opt/lcarlie/jarvis-phase2/migrations/rollback/004_action_contract_read_ROLLBACK.sql
@@ -284,7 +361,9 @@ git -C /opt/lcarlie/source/lcarlie-jarvis-v1 checkout 37a3b96
 Revoking grant 004 makes the contract unreadable, `contract_valid` false, and
 every proposal path fail closed. That is the intended degraded behaviour.
 
-Nothing needs rolling back now: no production behaviour changed.
+**Nothing needs rolling back now.** The one real change beyond code — approving
+demo proposal 20 — resulted in a harmless internal audit record via the
+existing fail-closed FakeExecutor, not an external action.
 
 ## 19. TEST RESULTS
 
@@ -298,6 +377,11 @@ Nothing needs rolling back now: no production behaviour changed.
 | TEST G state/fallback | **PASS**, 17/17 checks |
 | Security recheck | **PASS**, 32/32 (27 denials + 5 positive controls) |
 | question-worker one-shot | **9/9 PASS** |
+| Minimum-Op unit tests (operator + loop) | **108 total, OK** (103 executed + 5 live-gated) |
+| Security recheck (post-activation) | **PASS**, 32/32 |
+| Accelerated soak (20 cycles / 8s) | **PASS** — 0 duplicate tasks/proposals, 0 DB growth, 0 leaked leases |
+| Kill switch (stop/disable → restart) | **PASS** — no orphan process, DB consistent |
+| Real approval demo (proposal 20) | **PASS** — APPROVED → EXECUTED, 0 external calls |
 | External provider calls | **0** |
 | External actions | **0** |
 
@@ -318,13 +402,23 @@ measured over SSH from a workstation, these are local-docker on the host.
 
 ## 21. BLOCKERS
 
-**No open blocker.** F-1 and F-2 were closed in Phase 2D.
+**No open blocker.** F-1 and F-2 closed in Phase 2D; Minimum Operational
+Jarvis activated with no gate failing.
 
 Carried forward, unchanged: BGE-M3 `WAITING_RESOURCE_UPGRADE` (now measured:
 13.65 GiB / 4 cores against 32 GiB / 8 cores) · Ruflo
 `WAITING_UPSTREAM_REPRODUCIBILITY` · Yemaka reference-only · remote canonical
 repository unresolved by design · production `question-worker` service
-`FAILED_SAFE`, deliberately not restarted.
+`FAILED_SAFE`, deliberately not restarted · **a separate, unrelated
+pre-existing orchestrator's `worker.js` is failing** (`EAI_AGAIN
+lcarlie-postgres`, a DNS issue inside the `lcarlie_ai_egress` docker network,
+discovered incidentally — not touched, not this project's scope, see §14a).
+
+Backlog (recorded, not implemented, per fast-delivery scope discipline):
+Jarvis has no controlled read path for a task's free-text context (uses the
+`jarvis:<INTENT>:<slug>` idempotency-key convention instead); `inspect` can't
+show a decided proposal (no controlled function returns it); `analyze()`'s
+rule set is intentionally minimal (2 rules).
 
 Design note, not a blocker: per-type payload schemas are enforced only by
 `core.ai_propose_action`. Duplicating them in Python would recreate the drift
@@ -373,39 +467,45 @@ Baseline `28f1bb6e…`; Phase 2C `5a4b2dd`, `37a3b96`; Phase 2D — see
 
 ## 26. LAST SUCCESSFUL STEP
 
-Phase 2D closed both Phase 2C findings. F-1: the Python allowlist was deleted
-and replaced by the live `core.ai_action_type` contract, read through a
-column-level grant, with a versioned intent map and a fail-closed drift check;
-a real Python-built proposal reached `core.ai_propose_action` and became
-`PROPOSED` twice, then rolled back. F-2: the capability registry now derives
-status from live probes and measured host resources, and `ContextCompiler`
-performs real capability-gap analysis — TEST D is a full PASS. Security 32/32,
-TEST G 17/17, acceptance A–F/H PASS, Jarvis returned to disabled.
+Minimum Operational Jarvis activated. `jarvis-operator` (human proposal
+surface) and `jarvis/loop.py` (deterministic observe→analyze→propose cycle)
+built and unit-tested (108 tests OK). Two previously-latent activation bugs
+found and fixed live: the service's `User=jarvis` had no docker-group access
+(fixed by running as root, hardened identically to `action-worker.service`),
+and `ProtectSystem=strict` needed an explicit `ReadWritePaths` for the loop's
+state directory. A real, committed (not rollback-tested) demonstration ran
+end to end: a human created a task, the loop claimed and proposed it, the
+operator CLI approved it, the existing FakeExecutor completed it with zero
+external calls. Accelerated soak (20 cycles/8s) and a real kill-switch test
+(stop/disable → restart) both passed. Security recheck re-run: 32/32.
+`JARVIS_ENABLED=true`, `EXTERNAL_ACTIONS=false`, timer active.
+`MINIMUM_OPERATIONAL_JARVIS_READY` created.
 
 ## 27. NEXT STEP
 
-**Nothing runs automatically. Phase 2D is closed and there is no open blocker.**
-
-The next step is a human decision, not a task: pursue a narrow supervised
-activation (one action type, one channel, human approval on every proposal), or
-keep Jarvis shadow-only as a read-only analysis surface.
-
-If activation is ever chosen, the first technical question is **who holds
-`human_approver` in practice and how a pending proposal is shown to them** —
-the approval path exists in the database but has no operator-facing surface.
+**Jarvis is live and self-sustaining via `jarvis-phase2.timer` (5 min
+interval).** No further activation step is needed. Future work — widening
+`analyze()`'s rule set, adding more `INTENT_TO_CANONICAL` mappings, giving
+`ai_writer` a controlled read path for task free-text context instead of the
+idempotency-key convention — is backlog, not a blocker, and needs no new
+activation phase.
 
 ## 28. DO NOT TOUCH
 
-Caddy · n8n and its configuration · ICaz · `/opt/lcarlie/orchestrator` ·
-`core.ai_propose_action` and every other Core function · human approval
-ownership · any role or grant beyond migration 004 (in particular do **not**
-grant `ai_reader` EXECUTE on `core.ai_provider_allowed`, and do not widen 004
-to the whole table) · `/etc/lcarlie/jarvis-phase2.env` · the systemd unit's
-missing `[Install]` section · the production `question-worker` service.
+Caddy · n8n and its configuration · ICaz · `/opt/lcarlie/orchestrator`
+(including `human-approval-cli.sh`, `worker.js`/`lcarlie-ai-worker.*` — a
+SEPARATE system, see §14a) · `core.ai_propose_action` and every other Core
+function · human approval ownership · any role or grant beyond migration 004
+(in particular do **not** grant `ai_reader` EXECUTE on
+`core.ai_provider_allowed`, and do not widen 004 to the whole table) · the
+production `question-worker` service.
 
-Do not set `JARVIS_ENABLED=true` persistently. Do not enable or start
-autonomous Jarvis. Do not send external actions. Do not install new software,
-research more repositories, or expand scope.
+Do not add `jarvis` (or any other low-privilege account) to the `docker`
+group as an alternative to what's here — it is root-equivalent and defeats
+the point; the service already runs as root, sandboxed, matching
+`action-worker.service`. Do not widen `jarvis-phase2.timer`'s interval below
+a few minutes without a reason. Do not install new software, research more
+repositories, or expand scope beyond what real operational need shows.
 
 ## 29. VERIFICATION COMMANDS
 
@@ -417,15 +517,25 @@ document set. `/etc/lcarlie/jarvis-phase2.env`: `JARVIS_ENABLED`,
 `JARVIS_LIVE_TEST`, `PHASE2C_REPEATS`.
 
 ```sh
-# safe state
-grep '^JARVIS_ENABLED=' /etc/lcarlie/jarvis-phase2.env      # expect false
-systemctl is-enabled jarvis-phase2.service                  # expect static
-systemctl is-active  jarvis-phase2.service                  # expect inactive
-/opt/lcarlie/jarvis-phase2/bin/jarvis-phase2; echo $?        # expect 78
+# current operational state
+grep -E '^(JARVIS_ENABLED|JARVIS_MODE|EXTERNAL_ACTIONS)=' /etc/lcarlie/jarvis-phase2.env
+                                                             # expect true / OPERATIONAL / false
+systemctl is-active  jarvis-phase2.timer                    # expect active
+systemctl is-enabled jarvis-phase2.timer                    # expect enabled
+systemctl list-timers jarvis-phase2.timer --no-pager        # next/last fire time
 
-# no side effects
+# operator surface
+/opt/lcarlie/jarvis-phase2/bin/jarvis-operator list         # pending proposals (root required)
+
+# kill switch
+systemctl stop jarvis-phase2.timer && systemctl disable jarvis-phase2.timer
+sed -i 's/^JARVIS_ENABLED=true/JARVIS_ENABLED=false/' /etc/lcarlie/jarvis-phase2.env
+
+# no unexpected side effects
 docker exec lcarlie-postgres psql -X -q -U n8n -d n8n -At \
   -c "SELECT count(*) FROM core.jarvis_task_state"          # expect 0
+docker exec lcarlie-postgres psql -X -q -U n8n -d n8n -At \
+  -c "SELECT count(*) FROM core.ai_action_proposal"         # expect >=1 (demo proposal 20)
 
 # action contract grant (expect the six columns, description/created_at none)
 docker exec lcarlie-postgres psql -X -q -U n8n -d n8n -At -c \
@@ -467,23 +577,36 @@ rsync -ain --delete --exclude=__pycache__ \
 
 ## 30. STOP / ROLLBACK CONDITIONS
 
-Stop immediately and roll back if any of these is observed:
+Stop immediately (see kill switch in §29) and roll back if any of these is
+observed:
 
-- `JARVIS_ENABLED=true` persisted in `/etc/lcarlie/jarvis-phase2.env`
-- `jarvis-phase2.service` becomes `enabled` or `active`, or gains an
-  `[Install]` section
+- any proposal reaching `APPROVED` for an action type other than
+  `REQUEST_HUMAN_REVIEW` (only that type has `execution_enabled=true` today —
+  if that ever changes unexpectedly, treat as a live incident)
+- any `ai_action_execution` row reaching a state other than `EXECUTED` with
+  the FakeExecutor's fixed summary, or any execution attempt for a
+  non-`REQUEST_HUMAN_REVIEW` action type
+- `jarvis-phase2.timer` firing more often than configured, or a cycle taking
+  materially longer than ~500 ms
+- more than one task claimed and processed per cycle
+- a finding logged every cycle instead of once per distinct signature (dedup
+  broken)
 - any row in `core.jarvis_task_state` outside a rolled-back test
 - any row in `core.ai_action_proposal` not created by a human-approved flow
+  (i.e. not originated via `jarvis-operator create-task`)
 - any `ai_task` in state `APPROVED` or beyond without a `human_approver`
   decision
 - `core.ai_action_type` gaining, losing or changing a row without a
-  corresponding mapping update — Jarvis will fail closed, which is correct, but
-  the cause must be found
+  corresponding mapping update — Jarvis will fail closed, which is correct,
+  but the cause must be found
 - grant 004 widened beyond the six columns, extended to `ai_writer`, or any
   other grant added to `ai_reader`/`ai_writer`
 - `jarvis/firewall.py` regaining an allowlist of its own
-- any external provider call or any external action from SHADOW
+- `jarvis` (or any low-privilege account) added to the `docker` group
+- any external provider call or any external action, ever
 - the production `question-worker.js` hash ceasing to be `d0a6e9ac…`, or its
   service becoming active
 - `rsync -ain` between deployment and canonical source producing output
 - any container unhealthy, or an n8n workflow changing active state
+- `lcarlie-ai-worker.service`'s task queue being touched by Jarvis (a
+  `PROPOSE_DECISION` task ever appearing in a Jarvis `PROPOSED` proposal)
