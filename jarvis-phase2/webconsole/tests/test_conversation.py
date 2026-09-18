@@ -57,6 +57,7 @@ class Tests(unittest.TestCase):
         result = conversation.route("Vireon fiyatını değiştir.", Runtime())
         self.assertEqual("ACTION_REQUEST", result["intent"]); self.assertEqual(0, result["external_actions"])
         self.assertTrue(result["approval_required"]); self.assertFalse(result["execution_started"])
+        self.assertEqual("BLOCKED_EXTERNAL_ACTION", result["plan"]["status"])
     def test_provider_unavailable(self):
         result = conversation.route("Bana yaratıcı bir fikir ver", Runtime())
         self.assertEqual("AI_PROVIDER_UNAVAILABLE", result["status"]); self.assertIsNone(result["model"])

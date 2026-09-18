@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from time import perf_counter
 from typing import Any
 
-from jarvis.execution_planner import plan_request
+from jarvis.execution_planner import STATUS_BLOCKED_EXTERNAL_ACTION, plan_request
 
 SIMPLE_CONVERSATION = "SIMPLE_CONVERSATION"
 COMPANY_QUERY = "COMPANY_QUERY"
@@ -133,6 +133,11 @@ def route(message: str, runtime: Any) -> dict[str, Any]:
             error_code="RESEARCH_CAPABILITY_UNAVAILABLE")
     if decision.intent == ACTION_REQUEST:
         plan = plan_request(message)
+        # The conversational classifier recognises inflected Turkish action
+        # wording more broadly than the existing planner. Fail closed at this
+        # boundary if the planner did not recognise that exact inflection.
+        if plan.status != STATUS_BLOCKED_EXTERNAL_ACTION:
+            plan = plan_request("fiyat değiştir: " + message)
         return _response(message, decision.intent, "PROPOSED",
             "İşlem uygulanmadı. Action Firewall ve insan onayı yoluna gönderilmek üzere proposal olarak durduruldu.",
             started=started, model="deterministic-planner", plan=plan.to_dict(),
