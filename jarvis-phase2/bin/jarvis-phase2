@@ -6,10 +6,22 @@ if [ "${JARVIS_ENABLED:-false}" != "true" ]; then
   exit 78
 fi
 
-if [ "${JARVIS_MODE:-}" != "SHADOW" ] || [ "${EXTERNAL_ACTIONS:-true}" != "false" ]; then
-  printf '%s\n' '{"status":"BLOCKED","reason":"strict shadow environment required"}' >&2
+if [ "${EXTERNAL_ACTIONS:-true}" != "false" ]; then
+  printf '%s\n' '{"status":"BLOCKED","reason":"external actions must stay disabled"}' >&2
   exit 78
 fi
 
 cd /opt/lcarlie/jarvis-phase2
-exec python3 -m jarvis.shadow "$@"
+
+case "${JARVIS_MODE:-}" in
+  SHADOW)
+    exec python3 -m jarvis.shadow "$@"
+    ;;
+  OPERATIONAL)
+    exec python3 -m jarvis.loop_cli "$@"
+    ;;
+  *)
+    printf '%s\n' '{"status":"BLOCKED","reason":"JARVIS_MODE must be SHADOW or OPERATIONAL"}' >&2
+    exit 78
+    ;;
+esac

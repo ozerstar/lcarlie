@@ -1,0 +1,8 @@
+#!/bin/sh
+# Minimum human proposal surface. Separate from the Jarvis service/timer:
+# this is a human-run command, not gated by JARVIS_ENABLED, so a proposal
+# can be inspected/approved/rejected even while the automated loop is off.
+set -eu
+[ "$(id -u)" -eq 0 ] || { echo "root required" >&2; exit 1; }
+cd /opt/lcarlie/jarvis-phase2
+exec python3 -m jarvis.operator_cli "$@"
