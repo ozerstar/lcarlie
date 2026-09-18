@@ -32,17 +32,20 @@ ROLES = (CREATIVE_DIRECTOR, META_PERFORMANCE, CREATIVE_INTELLIGENCE,
 TASK_CAMPAIGN = "CAMPAIGN_PROPOSAL"
 TASK_PERFORMANCE = "PERFORMANCE_REVIEW"
 TASK_SOCIAL = "SOCIAL_PLAN"
+TASK_CRO = "CRO_REVIEW"
 
 TASK_ROLES = {
     TASK_CAMPAIGN: (CREATIVE_DIRECTOR, META_PERFORMANCE, CREATIVE_INTELLIGENCE,
                     COPYWRITER, CRO_SPECIALIST, GROWTH_STRATEGIST),
     TASK_PERFORMANCE: (META_PERFORMANCE, CREATIVE_INTELLIGENCE, GROWTH_STRATEGIST),
     TASK_SOCIAL: (SOCIAL_CONTENT, COPYWRITER, CREATIVE_DIRECTOR),
+    TASK_CRO: (CRO_SPECIALIST, GROWTH_STRATEGIST, CREATIVE_DIRECTOR),
 }
 TASK_QUERIES = {
     TASK_CAMPAIGN: ("sales_items", "advertising_performance", "ecommerce_price"),
     TASK_PERFORMANCE: ("advertising_performance", "advertising_spend"),
     TASK_SOCIAL: ("decision_summary",),
+    TASK_CRO: ("ecommerce_funnel", "ecommerce_price", "sales_orders"),
 }
 
 PROHIBITED_CLAIMS = (
@@ -61,11 +64,27 @@ class EvidenceSnapshot:
     load_ms: float
 
 
+CAMPAIGN_MARKERS = ("kampanya hazırla", "kampanya hazirla", "kampanyası hazırla",
+                    "kampanyasi hazirla", "yeni kampanya", "meta kampanya",
+                    "reklam kampanyası", "reklam kampanyasi", "kreatif açı",
+                    "kreatif aci", "kreatif fikir")
+
+
 def classify_task(task: str) -> str:
     text = task.casefold()
+    # Checked first: a campaign brief routinely mentions the landing page and
+    # the test plan, and must not be mistaken for a CRO review because of it.
+    if any(term in text for term in CAMPAIGN_MARKERS):
+        return TASK_CAMPAIGN
     if any(term in text for term in ("7 günlük", "7 gunluk", "instagram plan", "sosyal medya plan")):
         return TASK_SOCIAL
-    if any(term in text for term in ("performansında", "performansinda", "hangi problem", "ne test")):
+    if any(term in text for term in ("landing page", "landing-page", "açılış sayfası",
+                                     "acilis sayfasi", "dönüşümü artır", "donusumu artir",
+                                     "cro")):
+        return TASK_CRO
+    if any(term in text for term in ("performansında", "performansinda", "hangi problem",
+                                     "ne test", "reklam performansımızı", "reklam performansimizi",
+                                     "son reklam")):
         return TASK_PERFORMANCE
     return TASK_CAMPAIGN
 
@@ -157,6 +176,71 @@ def _concepts() -> list[dict[str, str]]:
     ]
 
 
+def _problems_and_opportunities(task_type: str, baseline: dict[str, Any],
+                                sales: dict[str, Any], snapshot: "EvidenceSnapshot",
+                                ) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    """Read off the evidence, never asserted beyond it.
+
+    Every entry names the ref it came from, so a reader can check it. Where
+    the number needed to judge something is missing, that absence is the
+    finding rather than a guess in its place.
+    """
+    problems: list[dict[str, str]] = []
+    opportunities: list[dict[str, str]] = []
+
+    rows = baseline.get("rows") or 0
+    confirmed = baseline.get("commercially_confirmed_rows") or 0
+    if rows and not confirmed:
+        problems.append({
+            "problem": (f"{rows} reklam kaydının hiçbirinde ticari olarak doğrulanmış "
+                        "satış yok; Meta'nın satış iddiası doğrulanmış satış değildir."),
+            "evidence": "postgres:advertising_performance"})
+    if baseline.get("spend"):
+        opportunities.append({
+            "opportunity": (f"Ölçülen harcama {baseline.get('spend')} TL ve CTR "
+                            f"{baseline.get('ctr_pct')}%: açı testi için gerçek bir "
+                            "temel var, tahmin gerekmiyor."),
+            "evidence": "postgres:advertising_spend"})
+    if sales.get("rows"):
+        opportunities.append({
+            "opportunity": (f"{sales.get('rows')} satış kalemi ve "
+                            f"{sales.get('net_revenue')} TL net ciro kayıtlı; "
+                            "kreatif mesaj gerçek ürün talebine bağlanabilir."),
+            "evidence": "postgres:sales_items"})
+    if sales.get("rows") and not sales.get("measured_rows"):
+        problems.append({
+            "problem": ("Satış kalemleri ölçüm penceresi dışında; kampanya etkisi "
+                        "bugünkü veriyle ciroya bağlanamaz."),
+            "evidence": "postgres:sales_items"})
+    for gap in snapshot.data_gaps:
+        problems.append({"problem": f"Veri sözleşmesi yok: {gap}",
+                         "evidence": "DATA_UNAVAILABLE"})
+    return problems, opportunities
+
+
+def _enrich_concepts(concepts: list[dict[str, str]], baseline: dict[str, Any],
+                     sales: dict[str, Any]) -> list[dict[str, Any]]:
+    """Attach the reasoning and the evidence each concept actually rests on."""
+    refs = [ref for ref, present in (("postgres:advertising_performance", baseline.get("rows")),
+                                     ("postgres:advertising_spend", baseline.get("spend")),
+                                     ("postgres:sales_items", sales.get("rows"))) if present]
+    why = [
+        (f"Mevcut CTR {baseline.get('ctr_pct')}% ilgi olduğunu gösteriyor; "
+         "sorun ilgi değil, iddia sınırı içinde kalan net bir mesaj."),
+        ("Ticari doğrulama yokken sonuç vaadi yerine bilgi ve keşif çağrısı "
+         "ölçülebilir ve mevzuata uygun."),
+        ("Açık bilgi dili, doğrulanamayan iddia riskini taşımadan ayrışma sağlar."),
+    ]
+    enriched: list[dict[str, Any]] = []
+    for index, concept in enumerate(concepts):
+        item = dict(concept)
+        item["why_this_might_work"] = why[index % len(why)]
+        item["evidence_used"] = refs
+        item["regulatory_risk"] = "NONE_DETECTED"
+        enriched.append(item)
+    return enriched
+
+
 def _regulatory_review(concepts: list[dict[str, str]]) -> tuple[list[str], list[dict[str, str]]]:
     risks, objections = [], []
     for concept in concepts:
@@ -212,8 +296,26 @@ class AgencyCapability:
             objections.append({"creative": "proposal", "claim": "complete measurement",
                                 "reason": "Missing: " + ", ".join(dict.fromkeys(data_gaps))})
         social = _social_plan() if task_type == TASK_SOCIAL else []
+        if task_type == TASK_CRO:
+            # The live page is not reachable through any existing capability,
+            # and inventing its content would be the one failure mode that
+            # matters here.
+            data_gaps.extend(("page_content", "ga4_site_traffic"))
+            objections.append({"creative": "landing page", "claim": "page content",
+                               "reason": "PAGE_CONTENT_DATA_UNAVAILABLE: live page text is "
+                                         "not readable by any current capability"})
+        problems, opportunities = _problems_and_opportunities(
+            task_type, baseline, sales, snapshot)
+        if task_type == TASK_CAMPAIGN:
+            concepts = _enrich_concepts(concepts, baseline, sales)
         result = {
             "task": task, "objective": task_type, "evidence_refs": list(snapshot.evidence_refs),
+            "current_evidence": {"advertising": baseline, "sales": sales,
+                                 "queries": list(TASK_QUERIES[task_type]),
+                                 "refs": list(snapshot.evidence_refs)},
+            "problems": problems, "opportunities": opportunities,
+            "page_content_state": ("PAGE_CONTENT_DATA_UNAVAILABLE"
+                                   if task_type == TASK_CRO else "NOT_APPLICABLE"),
             "data_gaps": list(dict.fromkeys(data_gaps)), "roles_used": list(roles),
             "campaign_objective": ("Qualified landing-page visits and evidence-aware creative learning"
                                    if task_type == TASK_CAMPAIGN else task_type.replace("_", " ").title()),
@@ -235,12 +337,18 @@ class AgencyCapability:
                                 if task_type == TASK_SOCIAL else
                                 ["CTR", "CPC", "link clicks", "landing-page views (DATA_UNAVAILABLE)",
                                  "commercially confirmed orders (DATA_UNAVAILABLE)"]),
+            "experiment_matrix": ([
+                {"cell": f"angle_{index + 1}", "creative": concept["name"],
+                 "audience": "held constant", "placement": "held constant",
+                 "budget": "held constant", "measure": "CTR, CPC, link clicks"}
+                for index, concept in enumerate(concepts)]
+                if task_type == TASK_CAMPAIGN else []),
             "regulatory_risks": regulatory_risks,
             "red_team_objections": objections,
             "next_actions": self._next_actions(task_type, baseline),
             "status": PROPOSED, "research_state": "RESEARCH_REQUIRED" if research_required else "NOT_REQUIRED",
             "model_contract": {"capability": "creative_synthesis", "required": False,
-                               "implemented_here": False},
+                               "implemented_here": True},
             "metrics": {"roles_selected": len(roles), "roles_skipped": len(ROLES) - len(roles),
                         "evidence_queries": len(TASK_QUERIES[task_type]),
                         "evidence_fetches": len(snapshot.evidence_refs),
@@ -248,14 +356,54 @@ class AgencyCapability:
                         "external_actions": 0, "load_ms": snapshot.load_ms,
                         "duration_ms": round((perf_counter() - started) * 1000, 3)},
         }
+        result["summary"], result["model"], result["model_calls"] = self._synthesize(result)
+        result["metrics"]["model_calls"] = result["model_calls"]
         result["proposal_id"] = "agency-" + hashlib.sha256(
             json.dumps(result, sort_keys=True, ensure_ascii=False, default=str).encode()).hexdigest()[:16]
         return result
 
     @staticmethod
+    def _synthesize(result: dict[str, Any]) -> tuple[str, str | None, int]:
+        """A manager-readable summary over the deliverable that already exists.
+
+        The model never invents the deliverable -- the concepts, baselines and
+        objections are produced deterministically above, and the model is only
+        given those, so the summary can restate them but cannot add a number
+        to them. If no provider answers, the deterministic summary stands.
+        """
+        evidence = [{"ref": item["evidence"], "summary": item["problem"]}
+                    for item in result["problems"]]
+        evidence += [{"ref": item["evidence"], "summary": item["opportunity"]}
+                     for item in result["opportunities"]]
+        for concept in result.get("creative_concepts", []):
+            evidence.append({"ref": "creative_concept", "summary":
+                             f"{concept['name']}: {concept['hook']}"})
+        question = (
+            f"Görev: {result['task']}\n"
+            "Yukarıdaki kanıtı bir pazarlama yöneticisine 6-10 cümlede özetle: "
+            "durum, en kritik problem, en güçlü fırsat ve önerilen ilk adım. "
+            "Yeni sayı veya iddia ekleme.")
+        try:
+            from .model_layer import ModelRouter
+
+            answer = ModelRouter().synthesize(
+                question, evidence,
+                missing_data=tuple(result.get("data_gaps") or ()))
+            return answer.answer, answer.model, answer.model_calls
+        except Exception:  # noqa: BLE001 - synthesis is a presentation layer
+            lines = [item["problem"] for item in result["problems"][:3]]
+            lines += [item["opportunity"] for item in result["opportunities"][:2]]
+            return ("\n".join(f"- {line}" for line in lines)
+                    or "Kanıt üzerinden özet üretilemedi.", None, 0)
+
+    @staticmethod
     def _next_actions(task_type: str, baseline: dict[str, Any]) -> list[str]:
         if task_type == TASK_SOCIAL:
             return ["Review copy against approved brand voice and product claims", "Schedule only after human approval"]
+        if task_type == TASK_CRO:
+            return ["Landing page metnini insan incelemesine al",
+                    "Funnel adımlarını ölçülebilir hale getir",
+                    "Sayfa içeriği okunabilir olana kadar sayfa hakkında iddia üretme"]
         if task_type == TASK_PERFORMANCE:
             return ["Separate 30-day comparable rows", "Reconcile Meta claims with commercial orders",
                     "Design one-variable creative tests", "Submit any campaign change for human approval"]

@@ -9,6 +9,7 @@ from typing import Any
 
 from jarvis.execution_planner import STATUS_BLOCKED_EXTERNAL_ACTION, plan_request
 from jarvis.model_layer import ModelRouter, ModelUnavailable, should_use_model
+from jarvis.agency import AgencyCapability
 from jarvis.specialist_pool import SpecialistPool
 
 SIMPLE_CONVERSATION = "SIMPLE_CONVERSATION"
@@ -17,6 +18,7 @@ ANALYSIS_REQUEST = "ANALYSIS_REQUEST"
 RESEARCH_REQUEST = "RESEARCH_REQUEST"
 ACTION_REQUEST = "ACTION_REQUEST"
 GENERAL_REASONING = "GENERAL_REASONING"
+AGENCY_REQUEST = "AGENCY_REQUEST"
 
 
 def _normalize(text: str) -> str:
@@ -32,6 +34,42 @@ def _normalize(text: str) -> str:
 
 def _has(text: str, terms: tuple[str, ...]) -> bool:
     return any(_normalize(term) in text for term in terms)
+
+
+_ANALYTICAL_OBJECTS = (
+    "kontrol", "analiz", "inceleme", "değerlendirme", "degerlendirme", "test",
+    "plan", "brief", "öneri", "oneri", "araştırma", "arastirma", "özet", "ozet",
+    "rapor", "karşılaştırma", "karsilastirma", "red team", "kıyas", "kiyas",
+)
+
+
+def _has_command(text: str, verbs: tuple[str, ...]) -> bool:
+    """True only for verbs used as commands, not for their negated forms.
+
+    Turkish negates an imperative with -ma/-me on the stem, so "yayınlama"
+    ("do not publish") contains "yayınla" ("publish"). A plain substring test
+    therefore read "Hiçbir şeyi yayınlama" as an instruction TO publish and
+    sent a campaign brief to the action firewall. Same for "değiştirme",
+    "gönderme", "artırma".
+    """
+    for term in verbs:
+        lemma = _normalize(term)
+        start = 0
+        while True:
+            index = text.find(lemma, start)
+            if index < 0:
+                break
+            tail = text[index + len(lemma):index + len(lemma) + 2]
+            head = text[max(0, index - 22):index]
+            negated = tail in ("ma", "me")
+            # "Red Team kontrolü yap", "analiz yap", "test planı yap" are
+            # instructions to Jarvis about its own work. Only a verb aimed at a
+            # business object is an action request.
+            analytical = any(noun in head for noun in _ANALYTICAL_OBJECTS)
+            if not negated and not analytical:
+                return True
+            start = index + len(lemma)
+    return False
 
 
 @dataclass(frozen=True)
@@ -60,8 +98,17 @@ def classify(message: str) -> RouteDecision:
              "kaldır", "kaldir", "çıkar", "cikar", "ekle", "düşür", "dusur",
              "yükselt", "yukselt", "aktifleştir", "aktiflestir",
              "pasifleştir", "pasiflestir", "devre dışı", "devre disi")
-    if not asks_for_advice and _has(text, verbs):
+    if not asks_for_advice and _has_command(text, verbs):
         return RouteDecision(ACTION_REQUEST)
+    if _has(text, ("kampanya hazırla", "kampanya hazirla", "kampanya kur",
+                   "reklam kampanyası", "reklam kampanyasi", "kreatif", "creative",
+                   "reklam metni", "copy yaz", "içerik planı", "icerik plani",
+                   "instagram plan", "sosyal medya plan", "landing page",
+                   "açılış sayfası", "acilis sayfasi", "cro",
+                   "reklam performansımızı", "reklam performansimizi",
+                   "reklam neden çalışmıyor", "reklam neden calismiyor",
+                   "yeni kampanya", "kampanya hazır")):
+        return RouteDecision(AGENCY_REQUEST)
     if _has(text, ("rakip", "pazar araştır", "pazar arastir", "research", "araştır", "arastir")):
         return RouteDecision(RESEARCH_REQUEST)
     if _has(text, ("analiz", "problem", "sorunları", "sorunlari", "en önemli",
@@ -382,6 +429,41 @@ def _research(message: str, started: float) -> dict[str, Any]:
         research_stop_reason=report.get("stop_reason"))
 
 
+_AGENCY: AgencyCapability | None = None
+
+
+def _agency(memory: Any) -> AgencyCapability:
+    global _AGENCY
+    if _AGENCY is None:
+        _AGENCY = AgencyCapability(memory)
+    return _AGENCY
+
+
+def _agency_request(message: str, memory: Any, started: float) -> dict[str, Any]:
+    """The Agency produces a proposal and nothing else.
+
+    It cannot publish an ad, change a budget, pause a campaign, publish to Wix
+    or Instagram, send a message or change a price -- it has no path to any of
+    them. Asking it to publish still lands on the action boundary, because
+    that check runs before this one.
+    """
+    try:
+        deliverable = _agency(memory).run(message)
+    except Exception as exc:  # noqa: BLE001
+        return _response(message, AGENCY_REQUEST, "DATA_UNAVAILABLE",
+            "Agency talebi tanındı ancak kanıt okunamadığı için çıktı üretilmedi.",
+            started=started, error_detail=f"{type(exc).__name__}: {exc}")
+    return _response(message, AGENCY_REQUEST, "PROPOSED",
+        deliverable.get("summary") or "Agency önerisi hazırlandı.",
+        evidence_refs=tuple(deliverable.get("evidence_refs") or ()),
+        missing_data=tuple(deliverable.get("data_gaps") or ()),
+        started=started, model=deliverable.get("model"),
+        model_calls=deliverable.get("model_calls", 0),
+        approval_required=True, execution_started=False,
+        agency=deliverable, roles_used=deliverable.get("roles_used"),
+        objective=deliverable.get("objective"))
+
+
 def _action(message: str, started: float) -> dict[str, Any]:
     plan = plan_request(message)
     # The conversational classifier recognises inflected Turkish action
@@ -415,6 +497,8 @@ def route(message: str, runtime: Any) -> dict[str, Any]:
     if decision.intent in (COMPANY_QUERY, GENERAL_REASONING) \
             and should_use_model(message):
         return _synthesize(message, decision.intent, _memory(runtime), started)
+    if decision.intent == AGENCY_REQUEST:
+        return _agency_request(message, _memory(runtime), started)
     if decision.intent == RESEARCH_REQUEST:
         return _research(message, started)
     if decision.intent == ANALYSIS_REQUEST:

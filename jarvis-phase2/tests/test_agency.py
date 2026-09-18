@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 from jarvis.agency import (AgencyCapability, PROHIBITED_CLAIMS, ROLES,
                            TASK_CAMPAIGN, TASK_PERFORMANCE, TASK_SOCIAL,
@@ -26,6 +27,14 @@ class FakeMemory:
 
 
 class AgencyTests(unittest.TestCase):
+    def setUp(self):
+        # Synthesis is a presentation layer; the deliverable under test is
+        # deterministic. Stubbing it keeps these tests offline and fast.
+        stub = patch.object(AgencyCapability, "_synthesize",
+                            staticmethod(lambda result: ("stub summary", None, 0)))
+        stub.start()
+        self.addCleanup(stub.stop)
+
     def test_task_routing_uses_minimum_roles(self):
         self.assertEqual(TASK_CAMPAIGN, classify_task("Vireon Meta kampanyası hazırla"))
         self.assertEqual(TASK_PERFORMANCE, classify_task("Performansında hangi problemler var, ne test edilmeli?"))
@@ -62,7 +71,11 @@ class AgencyTests(unittest.TestCase):
         memory = FakeMemory(); result = AgencyCapability(memory).run("Vireon Meta kampanyası hazırla")
         self.assertEqual(len(memory.calls), len(set(memory.calls)))
         self.assertEqual(len(memory.calls), result["metrics"]["evidence_fetches"])
+        # The deliverable owes nothing to a model: with synthesis stubbed out
+        # every concept, baseline and objection above is still produced.
         self.assertEqual((0, 0), (result["metrics"]["model_calls"], result["metrics"]["external_actions"]))
+        self.assertTrue(result["creative_concepts"])
+        self.assertTrue(result["current_evidence"]["refs"])
 
     def test_performance_is_proposed_without_action(self):
         result = AgencyCapability(FakeMemory()).run("Mevcut reklam performansında hangi problemler var? Ne test edilmeli?")
@@ -80,10 +93,33 @@ class AgencyTests(unittest.TestCase):
         memory = FakeMemory(); memory.QUERIES = {k: v for k, v in memory.QUERIES.items() if k != "ecommerce_price"}
         self.assertIn("ecommerce_price", AgencyCapability(memory).run("Vireon Meta kampanyası")["data_gaps"])
 
-    def test_research_and_model_are_contract_only(self):
+    def test_research_stays_contract_only_and_synthesis_is_now_implemented(self):
         result = AgencyCapability(FakeMemory()).run("Vireon Meta kampanyası")
         self.assertIn(result["research_state"], {"NOT_REQUIRED", "RESEARCH_REQUIRED"})
-        self.assertFalse(result["model_contract"]["implemented_here"])
+        # Research is still never executed from here; synthesis now is.
+        self.assertTrue(result["model_contract"]["implemented_here"])
+
+    def test_deliverable_contract_is_complete(self):
+        result = AgencyCapability(FakeMemory()).run("Vireon Meta kampanyası hazırla")
+        for key in ("campaign_objective", "current_evidence", "problems", "opportunities",
+                    "core_angle", "creative_concepts", "cro_recommendations", "test_plan",
+                    "experiment_matrix", "success_metrics", "red_team_objections",
+                    "data_gaps", "next_actions", "status"):
+            self.assertIn(key, result, key)
+        self.assertEqual("PROPOSED", result["status"])
+        for concept in result["creative_concepts"]:
+            for key in ("name", "hook", "primary_text", "headline", "cta", "visual_brief",
+                        "video_15s_brief", "landing_page_message", "why_this_might_work",
+                        "evidence_used", "regulatory_risk"):
+                self.assertIn(key, concept, key)
+
+    def test_cro_review_never_invents_page_content(self):
+        result = AgencyCapability(FakeMemory()).run(
+            "Vireon landing page'ini değerlendir ve dönüşümü artır")
+        self.assertEqual("CRO_REVIEW", result["objective"])
+        self.assertEqual("PAGE_CONTENT_DATA_UNAVAILABLE", result["page_content_state"])
+        self.assertIn("page_content", result["data_gaps"])
+        self.assertEqual(0, result["metrics"]["external_actions"])
 
     def test_competitor_request_marks_research_without_executing_it(self):
         result = AgencyCapability(FakeMemory()).run("Vireon rakip kreatif analizi ve Meta kampanyası")
