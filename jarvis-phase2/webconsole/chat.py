@@ -137,6 +137,13 @@ def stream(message: str, runtime, operator) -> Iterator[dict[str, Any]]:
         has_topic = any(term in intents.normalize(text) for term in
                         ("vireon", "durum", "sistem", "gündem", "gundem", "task", "proposal"))
         capability = "JUDGEMENT_GROUNDED" if has_topic else "JUDGEMENT_UNGROUNDED"
+    decision = conversation.classify(text)
+    if decision.intent in (conversation.SIMPLE_CONVERSATION,
+                           conversation.GENERAL_REASONING):
+        # Conversation streams: the reply appears word by word instead of
+        # after the whole thing is generated.
+        yield from conversation.stream_chat(text, decision.intent)
+        return
     for label in STAGE_LABELS.get(capability, STAGE_LABELS["UNCLASSIFIED"]):
         yield {"type": "stage", "label": label}
     yield {"type": "done", "result": route(message, runtime, operator)}

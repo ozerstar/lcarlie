@@ -8,7 +8,8 @@ from time import perf_counter
 from typing import Any
 
 from jarvis.execution_planner import STATUS_BLOCKED_EXTERNAL_ACTION, plan_request
-from jarvis.model_layer import ModelRouter, ModelUnavailable, should_use_model
+from jarvis.model_layer import (LOCAL_MODEL as LOCAL_MODEL_NAME, ModelRouter,
+                                ModelUnavailable, should_use_model)
 from jarvis.agency import AgencyCapability
 from jarvis.specialist_pool import SpecialistPool
 
@@ -502,6 +503,33 @@ def _chat(message: str, intent: str, started: float) -> dict[str, Any]:
     return _response(message, intent, "ANSWERED", result.answer, started=started,
                      model=result.model, model_calls=result.model_calls,
                      tier=result.tier)
+
+
+def stream_chat(message: str, intent: str):
+    """A conversational turn, streamed.
+
+    Yields {"type": "token", "delta": ...} frames and then exactly one
+    {"type": "done", "result": ...} carrying the same payload the non-streamed
+    path returns, so both surfaces stay identical.
+    """
+    started = perf_counter()
+    chunks: list[str] = []
+    model = None
+    calls = 0
+    try:
+        for delta in _router().stream_text(message, CHAT_SYSTEM, max_tokens=160):
+            chunks.append(delta)
+            yield {"type": "token", "delta": delta}
+        model, calls = LOCAL_MODEL_NAME, 1
+    except ModelUnavailable:
+        chunks = []
+
+    answer = "".join(chunks).strip()
+    if not answer:
+        answer, model, calls = FALLBACK_INTRO, "deterministic-local", 0
+    yield {"type": "done",
+           "result": _response(message, intent, "ANSWERED", answer, started=started,
+                               model=model, model_calls=calls)}
 
 
 _AGENCY: AgencyCapability | None = None

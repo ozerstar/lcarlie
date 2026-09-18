@@ -695,6 +695,7 @@ async function sendMessage(message) {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    let streamed = '';
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -705,7 +706,12 @@ async function sendMessage(message) {
         buffer = buffer.slice(newlineIndex + 1);
         if (!line.trim()) continue;
         const event = JSON.parse(line);
-        if (event.type === 'stage') {
+        if (event.type === 'token') {
+          streamed += event.delta;
+          stageDiv.className = 'chat-msg jarvis';
+          stageDiv.innerHTML = renderMarkdownLite(streamed);
+          log_scroll();
+        } else if (event.type === 'stage') {
           stageDiv.innerHTML = `<span class="stage-dot"></span> ${escapeHtml(event.label)}…`;
         } else if (event.type === 'done') {
           const result = event.result;
