@@ -188,27 +188,23 @@ class StepOutcome:
 
 
 # --- memory access, cached and allowlisted ------------------------------
-# query name (the CompanyMemory allowlist) -> the existing reader method.
-QUERY_READERS: dict[str, str] = {
-    "system": "get_system_status",
-    "decision_summary": "get_company_context",
-    "agenda": "get_company_agenda",
-    "open_work": "get_open_work",
-    "company_dashboard": "get_executive_brief",
-    "capability_state": "get_capability_state",
-    "action_contract": "get_action_contract",
-    "capabilities": "get_model_policy",
-}
-
-
 def _read(ctx: StepContext, query: str) -> tuple[Any, bool]:
-    """One allowlisted read, cached for the run. Never a raw SQL string and
-    never a query name the planner invented -- an unknown name is a denial,
-    not a fallback to something broader."""
-    reader = QUERY_READERS.get(query)
-    if reader is None:
-        raise ExecutionDenied(f"query is not an allowlisted CompanyMemory reader: {query}")
-    return ctx.cache.get_or_load(f"memory:{query}", getattr(ctx.memory, reader))
+    """One allowlisted read, cached for the run.
+
+    The allowlist is CompanyMemory.QUERIES itself, not a second table kept in
+    step with it by hand. This module used to carry its own query -> reader
+    map, and it drifted the moment the data fabric added queries: every new
+    domain read failed as "not an allowlisted reader" while being perfectly
+    allowlisted. That is the same duplicated-contract failure F-1 was about,
+    so the duplicate is gone rather than extended.
+
+    A name outside the allowlist is a denial, never a fallback to something
+    broader.
+    """
+    allowlist = getattr(ctx.memory, "QUERIES", {})
+    if query not in allowlist:
+        raise ExecutionDenied(f"query is not allowlisted in CompanyMemory: {query}")
+    return ctx.cache.get_or_load(f"memory:{query}", lambda: ctx.memory._fetch(query))
 
 
 # --- executors ----------------------------------------------------------

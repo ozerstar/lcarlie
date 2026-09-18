@@ -309,19 +309,39 @@ class MultiDomainDecompositionTests(unittest.TestCase):
         self.assertIn("human approval", action.target)
         self.assertTrue(self.plan.approval_required)
 
-    def test_missing_domain_data_fails_visibly_and_is_never_guessed(self):
-        for name in ("sales_analysis", "ecommerce_analysis", "advertising_analysis"):
+    def test_every_domain_now_resolves_to_real_queries(self):
+        from jarvis.memory import CompanyMemory
+
+        for name in ("sales_analysis", "ecommerce_analysis", "advertising_analysis",
+                     "crm_analysis", "operations_analysis"):
             step = self.by_capability[name]
-            self.assertEqual(step.capability_status, ep.DATA_UNAVAILABLE)
-            self.assertTrue(step.blocked_by)
-            self.assertFalse(step.arguments["data_available"])
-            self.assertTrue(step.arguments["unavailable_reason"])
-            self.assertEqual(step.arguments["memory_queries"], [])
-        self.assertEqual(self.plan.status, ep.STATUS_BLOCKED_CAPABILITY)
-        self.assertIn("no Company Memory data contract for", self.plan.reason)
-        # the silent substitution that caused the bug must not reappear
+            self.assertTrue(step.arguments["data_available"], name)
+            self.assertTrue(step.arguments["memory_queries"], name)
+            for query in step.arguments["memory_queries"]:
+                self.assertIn(query, CompanyMemory.QUERIES)
+        self.assertEqual(self.plan.status, ep.STATUS_PLANNED)
+        # the silent substitution that caused the original bug must not reappear
         self.assertNotIn("company_context", self.plan.required_internal_data)
         self.assertNotIn("internal_data_analysis", self.by_capability)
+
+    def test_a_domain_without_a_contract_still_fails_visibly(self):
+        """Synthetic, because the real five now have data: the guarantee under
+        test is the behaviour, not the current availability of any domain."""
+        synthetic = ep.Domain(domain_id="synthetic", label="Sentetik",
+                              lemmas=("sentetikalan",), memory_queries=(),
+                              unavailable_reason="synthetic fixture: no contract exists")
+        routes = dict(ep.ROUTES)
+        with patch.object(ep, "DOMAINS", ep.DOMAINS + (synthetic,)), \
+             patch.object(ep, "ROUTES", routes):
+            ep._register_domain_routes()
+            plan = _plan("sentetikalan ve satış analizi yap")
+        step = next(s for s in plan.steps if s.capability == "synthetic_analysis")
+        self.assertEqual(step.capability_status, ep.DATA_UNAVAILABLE)
+        self.assertTrue(step.blocked_by)
+        self.assertFalse(step.arguments["data_available"])
+        self.assertEqual(step.arguments["memory_queries"], [])
+        self.assertEqual(plan.status, ep.STATUS_BLOCKED_CAPABILITY)
+        self.assertIn("no Company Memory data contract for", plan.reason)
 
     def test_available_domains_name_only_real_company_memory_queries(self):
         from jarvis.memory import CompanyMemory

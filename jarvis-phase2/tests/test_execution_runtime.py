@@ -7,6 +7,7 @@ is under test rather than Postgres.
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import tempfile
 import threading
@@ -15,6 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
+from jarvis import execution_planner as ep_module
 from jarvis import execution_runtime as rt
 from jarvis.execution_planner import plan_request
 from jarvis.memory import Evidence
@@ -35,9 +37,44 @@ def _evidence(source, records=None):
 
 
 class FakeMemory:
-    QUERIES = {"system": "", "agenda": "", "open_work": "", "decision_summary": "",
-               "company_dashboard": "", "capability_state": "", "action_contract": "",
-               "capabilities": ""}
+    """Mirrors the real CompanyMemory contract: an allowlist plus _fetch.
+
+    Deliberately shaped like the real thing rather than like a list of getter
+    methods -- the runtime reads through QUERIES/_fetch, and a fake that
+    diverged from that contract is what let the query-map drift go unnoticed.
+    """
+
+    ROWS = {
+        "system": [{"open_tasks": 0, "pending_actions": 1, "checked_at": "now"}],
+        "agenda": [{"soru_id": 1, "olusturma": "2026-09-01T00:00:00+00:00"}],
+        "open_work": [{"tur": "CEVAPSIZ_MESAJ", "anahtar": "a",
+                       "zaman": "2026-09-01T00:00:00+00:00"}],
+        "decision_summary": [{"toplam": 3, "insan_onayi_bekleyen": 1}],
+        "company_dashboard": [{"generated_at": "now"}],
+        "capability_state": [{"health": {"checked_at": "now"}}],
+        "action_contract": [{"action_type": "REQUEST_HUMAN_REVIEW"}],
+        "capabilities": [{"enabled": True}],
+        "provenance": [{"entity_id": "ga4", "authority": "BLOCKED_BY_EXTERNAL_CREDENTIAL"}],
+        "data_quality": [{"entity_id": "gate", "passed": True}],
+        "sales_orders": [{"entity_id": 1, "source": "mart.siparis", "toplam": 100}],
+        "sales_items": [{"entity_id": 1, "source": "mart.siparis_kalem", "adet": 2}],
+        "ecommerce_profitability": [{"entity_id": "p1", "source": "mart.urun_karlilik"}],
+        "ecommerce_price": [{"entity_id": "p1", "source": "mart.fiyat_gercegi"}],
+        "ecommerce_funnel": [{"entity_id": "a>b", "source": "mart.funnel_orani"}],
+        "advertising_performance": [{"entity_id": "ad1", "source": "mart.reklam_performans"}],
+        "advertising_spend": [{"entity_id": "c1", "source": "mart.harcama"}],
+        "crm_customers": [{"entity_id": "c1", "source": "mart.musteri"}],
+        "crm_unanswered": [{"entity_id": "k1", "source": "mart.konusma_cevapsiz"}],
+        "operations_shipments": [{"entity_id": "g1", "source": "mart.gonderi"}],
+    }
+    QUERIES = {name: "" for name in ROWS}
+    DOMAIN_QUERIES = {
+        "sales": ("sales_orders", "sales_items"),
+        "ecommerce": ("ecommerce_profitability", "ecommerce_price", "ecommerce_funnel"),
+        "advertising": ("advertising_performance", "advertising_spend"),
+        "crm": ("crm_customers", "crm_unanswered", "open_work"),
+        "operations": ("operations_shipments", "open_work", "system"),
+    }
 
     def __init__(self):
         self.calls: list[str] = []
@@ -53,37 +90,65 @@ class FakeMemory:
         with self.lock:
             self.concurrent -= 1
 
+    def _fetch(self, name):
+        if name not in self.QUERIES:
+            raise ValueError("query is not allowlisted")
+        self._track(name)
+        return _evidence(name, [dict(row) for row in self.ROWS[name]])
+
     def get_system_status(self):
-        self._track("system")
-        return _evidence("system", [{"open_tasks": 0, "pending_actions": 1}])
+        return self._fetch("system")
 
     def get_company_agenda(self):
-        self._track("agenda")
-        return _evidence("agenda", [{"soru_id": 1, "olusturma": "2026-09-01T00:00:00+00:00"}])
+        return self._fetch("agenda")
 
     def get_open_work(self):
-        self._track("open_work")
-        return _evidence("open_work", [{"tur": "CEVAPSIZ_MESAJ", "anahtar": "a",
-                                        "zaman": "2026-09-01T00:00:00+00:00"}])
+        return self._fetch("open_work")
 
     def get_company_context(self):
-        self._track("decision_summary")
-        return _evidence("decision_summary", [{"toplam": 3, "insan_onayi_bekleyen": 1}])
+        return self._fetch("decision_summary")
 
     def get_executive_brief(self):
-        return _evidence("company_dashboard")
+        return self._fetch("company_dashboard")
 
     def get_capability_state(self):
-        return _evidence("capability_state", [{"health": {"checked_at": "now"}}])
+        return self._fetch("capability_state")
 
     def get_action_contract(self):
-        return _evidence("action_contract")
+        return self._fetch("action_contract")
 
     def get_model_policy(self):
-        return _evidence("capabilities")
+        return self._fetch("capabilities")
 
     def get_product_context(self, entity):
-        return _evidence("agenda")
+        return self._fetch("agenda")
+
+
+# --- synthetic fixture for degraded behaviour ---------------------------
+# A domain with NO data contract, used to test DATA_UNAVAILABLE handling.
+# Deliberately synthetic: the real domains are available now, and faking one
+# as missing would test a fiction that could drift from production at any
+# time.
+SYNTHETIC_DOMAIN = ep_module.Domain(
+    domain_id="synthetic", label="Sentetik",
+    lemmas=("sentetikalan",), memory_queries=(),
+    unavailable_reason="synthetic fixture: no Company Memory contract exists",
+)
+
+
+@contextlib.contextmanager
+def synthetic_domain():
+    """Registers the synthetic domain and its route for the duration of a test."""
+    domains = ep_module.DOMAINS + (SYNTHETIC_DOMAIN,)
+    routes = dict(ep_module.ROUTES)
+    with patch.object(ep_module, "DOMAINS", domains), \
+         patch.object(ep_module, "ROUTES", routes):
+        ep_module._register_domain_routes()
+        rt.EXECUTORS["synthetic_analysis"] = rt._execute_domain
+        try:
+            yield
+        finally:
+            rt.EXECUTORS.pop("synthetic_analysis", None)
 
 
 def live_contract():
@@ -140,27 +205,32 @@ class RealRequestDagTests(RuntimeTestBase):
             self.assertIn(step_id, self.record.steps)
 
     def test_available_domains_succeeded_with_real_evidence(self):
-        for capability in ("crm_analysis", "operations_analysis"):
+        for capability in ("sales_analysis", "ecommerce_analysis",
+                           "advertising_analysis", "crm_analysis",
+                           "operations_analysis"):
             step = self.by_capability[capability]
             self.assertEqual(step.status, rt.STEP_SUCCEEDED)
             self.assertTrue(step.evidence_refs)
             for ref in step.evidence_refs:
                 self.assertTrue(ref.startswith("postgres:"))
 
-    def test_unavailable_domains_are_carried_not_invented(self):
-        for capability in ("sales_analysis", "ecommerce_analysis", "advertising_analysis"):
-            step = self.by_capability[capability]
-            self.assertEqual(step.status, rt.STEP_DATA_UNAVAILABLE)
-            self.assertTrue(step.block_reason)
-            self.assertEqual(step.evidence_refs, ())
-            self.assertEqual(step.output.get("records"), 0)
+    def test_a_domain_without_a_data_contract_is_carried_not_invented(self):
+        """Synthetic domain: the real five are available now, so the missing-data
+        path is exercised against a fixture that cannot drift into existence."""
+        with synthetic_domain():
+            record = self._run("sentetikalan ve satış analizi yap, öneri ver")
+        step = next(s for s in record.steps.values()
+                    if s.capability == "synthetic_analysis")
+        self.assertEqual(step.status, rt.STEP_DATA_UNAVAILABLE)
+        self.assertTrue(step.block_reason)
+        self.assertEqual(step.evidence_refs, ())
+        self.assertEqual(step.output.get("records"), 0)
 
     def test_fusion_uses_only_real_upstream_evidence_and_names_the_gaps(self):
         fusion = self.by_capability["evidence_fusion"]
         self.assertEqual(fusion.status, rt.STEP_SUCCEEDED)
-        missing = {entry["capability"] for entry in fusion.output["missing_inputs"]}
-        self.assertEqual(missing, {"sales_analysis", "ecommerce_analysis",
-                                   "advertising_analysis"})
+        # every domain has a data contract now, so nothing is missing
+        self.assertEqual(fusion.output["missing_inputs"], [])
         # nothing was fabricated: every fused reference came from a step that
         # actually produced it
         upstream_refs = set()
@@ -171,9 +241,15 @@ class RealRequestDagTests(RuntimeTestBase):
         for ref in fusion.evidence_refs:
             self.assertTrue(ref.startswith("postgres:"))
 
-    def test_red_team_runs_after_fusion_and_analysis_and_raises_the_gaps(self):
+    def test_red_team_runs_after_fusion_and_analysis(self):
         red = self.by_capability["red_team_review"]
         self.assertEqual(red.status, rt.STEP_SUCCEEDED)
+        self.assertIn("objections", red.output)
+
+    def test_red_team_raises_an_objection_when_a_domain_has_no_data(self):
+        with synthetic_domain():
+            record = self._run("sentetikalan ve satış analizi yap, öneri ver")
+        red = next(s for s in record.steps.values() if s.capability == "red_team_review")
         codes = {entry["code"] for entry in red.output["objections"]}
         self.assertIn("INPUT_UNAVAILABLE", codes)
         self.assertFalse(red.output["clean"])
@@ -205,8 +281,24 @@ class RealRequestDagTests(RuntimeTestBase):
         for step in self.record.steps.values():
             self.assertEqual(step.model_calls, 0)
 
-    def test_run_is_degraded_not_completed_when_data_is_missing(self):
-        self.assertEqual(self.record.status, rt.RUN_DEGRADED)
+    def test_run_completes_now_that_every_domain_has_data(self):
+        """With a contract loaded, nothing in this DAG is degraded any more.
+
+        The class fixture deliberately runs WITHOUT a contract, which leaves the
+        proposal step blocked -- correctly. This asserts the whole-run green
+        path with the contract present.
+        """
+        runtime = rt.ExecutionRuntime(FakeMemory(), contract=live_contract(),
+                                      run_dir=self.run_dir / "green")
+        record = runtime.execute(self._plan(), originator="operator")
+        self.assertEqual(record.status, rt.RUN_COMPLETED)
+        self.assertEqual(record.telemetry["data_unavailable"], 0)
+        self.assertEqual(record.telemetry["failed"], 0)
+
+    def test_run_is_degraded_when_a_domain_has_no_data(self):
+        with synthetic_domain():
+            record = self._run("sentetikalan ve satış analizi yap, öneri ver")
+        self.assertEqual(record.status, rt.RUN_DEGRADED)
 
 
 class TelemetryTests(RuntimeTestBase):
@@ -261,7 +353,11 @@ class FailurePropagationTests(RuntimeTestBase):
         self.assertEqual(record.status, rt.RUN_FAILED)
 
     def test_data_unavailable_does_not_block_downstream(self):
-        record = self._run()
+        with synthetic_domain():
+            record = self._run("sentetikalan ve satış analizi yap, öneri ver")
+        synthetic = next(s for s in record.steps.values()
+                         if s.capability == "synthetic_analysis")
+        self.assertEqual(synthetic.status, rt.STEP_DATA_UNAVAILABLE)
         fusion = next(s for s in record.steps.values() if s.capability == "evidence_fusion")
         self.assertEqual(fusion.status, rt.STEP_SUCCEEDED)
 
