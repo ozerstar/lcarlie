@@ -1,0 +1,125 @@
+{
+  "test": "PHASE2C_TEST_G_STATE_FALLBACK",
+  "status": "PASS",
+  "run_tag": "test-phase2c-g-1789733484",
+  "transaction": "BEGIN ... ROLLBACK (nothing committed)",
+  "checks": [
+    {
+      "check": "G0_task_enqueued_by_human_approver",
+      "result": "PASS",
+      "detail": "task_id=96"
+    },
+    {
+      "check": "G1_task_claimed_as_ai_writer",
+      "result": "PASS",
+      "detail": "claimed=(96, '7ca36339-a84e-4b99-81c7-5dfb122bd3c7')"
+    },
+    {
+      "check": "G2_initial_state_persisted",
+      "result": "PASS",
+      "detail": "version=1"
+    },
+    {
+      "check": "G3_state_reloaded_after_interruption",
+      "result": "PASS",
+      "detail": "version=1 status=RUNNING"
+    },
+    {
+      "check": "G4_evidence_survived_interruption",
+      "result": "PASS",
+      "detail": "evidence=['postgres:system', 'postgres:agenda']"
+    },
+    {
+      "check": "G5_fallback_A_to_B",
+      "result": "PASS",
+      "detail": "attempts=['A', 'B']"
+    },
+    {
+      "check": "G6_no_task_loss",
+      "result": "PASS",
+      "detail": "outcome={'provider': 'B', 'summary': 'continued from persisted state', 'resumed_from_version': 1}"
+    },
+    {
+      "check": "G7_continuation_persisted",
+      "result": "PASS",
+      "detail": "version=2"
+    },
+    {
+      "check": "G8_no_evidence_loss",
+      "result": "PASS",
+      "detail": "evidence=['postgres:system', 'postgres:agenda', 'router:fallback:B']"
+    },
+    {
+      "check": "G9_state_replay_blocked",
+      "result": "PASS",
+      "detail": "rejected: PsqlError: [P0001] task state version conflict; state_untouched=True version=2"
+    },
+    {
+      "check": "G10a_writer_cannot_read_proposal_table",
+      "result": "PASS",
+      "detail": "denied: [42501] permission denied for table ai_action_proposal"
+    },
+    {
+      "check": "G10_duplicate_proposal_blocked",
+      "result": "PASS",
+      "detail": "rows=1 ids=[9] errors=['[P0001] invalid action task']"
+    },
+    {
+      "check": "G11_proposal_stops_at_PROPOSED",
+      "result": "PASS",
+      "detail": "state=PROPOSED"
+    },
+    {
+      "check": "G12_rollback_left_no_state",
+      "result": "PASS",
+      "detail": "jarvis_task_state rows=0"
+    },
+    {
+      "check": "G13_rollback_left_no_proposal",
+      "result": "PASS",
+      "detail": "proposal rows=0"
+    },
+    {
+      "check": "G14_rollback_left_no_task",
+      "result": "PASS",
+      "detail": "task rows=0"
+    }
+  ],
+  "findings": [
+    {
+      "id": "firewall_allowlist_divergence",
+      "python_allowlist": [
+        "CONTENT_CHANGE_PROPOSAL",
+        "CRM_REPLY_DRAFT",
+        "DATA_QUALITY_INVESTIGATION",
+        "META_BUDGET_CHANGE_PROPOSAL",
+        "WIX_PRICE_CHANGE_PROPOSAL"
+      ],
+      "database_allowlist": [
+        "DRAFT_CUSTOMER_REPLY",
+        "META_CAMPAIGN_CHANGE",
+        "PRICE_CHANGE",
+        "REQUEST_HUMAN_REVIEW",
+        "WHATSAPP_SEND_TEMPLATE",
+        "WIX_PUBLISH"
+      ],
+      "overlap": [],
+      "note": "jarvis/firewall.py names no action type the database accepts, so a proposal validated by the Python firewall can never be persisted. The database is authoritative and stricter, so this is not an escalation path -- but it must be reconciled before activation."
+    }
+  ],
+  "telemetry": {
+    "arrange_ms": 15.509,
+    "state_save_ms": 3.242,
+    "fallback_ms": 0.968,
+    "total_ms": 141.666,
+    "model_calls": 0,
+    "external_provider_calls": 0,
+    "external_actions": 0,
+    "fallback_count": 1,
+    "cache_hit": false,
+    "max_rss_mb": 14.38,
+    "cpu_seconds": 0.064,
+    "success": true
+  },
+  "generated_at": "2026-09-18T12:11:24.558087+00:00"
+}

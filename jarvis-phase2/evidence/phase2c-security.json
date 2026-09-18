@@ -1,0 +1,231 @@
+{
+  "test": "PHASE2C_SECURITY_RECHECK",
+  "status": "PASS",
+  "transaction": "BEGIN ... ROLLBACK (nothing committed)",
+  "counts": {
+    "total": 26,
+    "pass": 26,
+    "fail": 0,
+    "inconclusive": 0,
+    "deny_checks": 22,
+    "allow_controls": 4
+  },
+  "checks": [
+    {
+      "id": "raw_dml_truncate",
+      "role": "ai_writer",
+      "kind": "DENY",
+      "note": "raw TRUNCATE",
+      "result": "PASS",
+      "detail": "denied: [42501] permission denied for table ai_task"
+    },
+    {
+      "id": "raw_dml_delete",
+      "role": "ai_writer",
+      "kind": "DENY",
+      "note": "raw DELETE",
+      "result": "PASS",
+      "detail": "denied: [42501] permission denied for table ai_task"
+    },
+    {
+      "id": "raw_dml_update_task",
+      "role": "ai_writer",
+      "kind": "DENY",
+      "note": "raw UPDATE of task state",
+      "result": "PASS",
+      "detail": "denied: [42501] permission denied for table ai_task"
+    },
+    {
+      "id": "raw_dml_insert_state",
+      "role": "ai_writer",
+      "kind": "DENY",
+      "note": "raw write to persistent Jarvis state",
+      "result": "PASS",
+      "detail": "denied: [42501] permission denied for table jarvis_task_state"
+    },
+    {
+      "id": "raw_dml_update_state",
+      "role": "ai_writer",
+      "kind": "DENY",
+      "note": "raw version bump",
+      "result": "PASS",
+      "detail": "denied: [42501] permission denied for table jarvis_task_state"
+    },
+    {
+      "id": "raw_dml_delete_proposal",
+      "role": "ai_writer",
+      "kind": "DENY",
+      "note": "raw proposal deletion",
+      "result": "PASS",
+      "detail": "denied: [42501] permission denied for table ai_action_proposal"
+    },
+    {
+      "id": "set_role_human_approver",
+      "role": "ai_writer",
+      "kind": "DENY",
+      "note": "self approval via role switch",
+      "result": "PASS",
+      "detail": "denied: [42501] permission denied to set role \"human_approver\""
+    },
+    {
+      "id": "set_role_action_executor",
+      "role": "ai_writer",
+      "kind": "DENY",
+      "note": "execution via role switch",
+      "result": "PASS",
+      "detail": "denied: [42501] permission denied to set role \"action_executor\""
+    },
+    {
+      "id": "set_role_function_owner",
+      "role": "ai_writer",
+      "kind": "DENY",
+      "note": "owning the SECURITY DEFINER boundary",
+      "result": "PASS",
+      "detail": "denied: [42501] permission denied to set role \"function_owner\""
+    },
+    {
+      "id": "alter_role_superuser",
+      "role": "ai_writer",
+      "kind": "DENY",
+      "note": "self promotion",
+      "result": "PASS",
+      "detail": "denied: [42501] permission denied to alter role"
+    },
+    {
+      "id": "grant_approver",
+      "role": "ai_writer",
+      "kind": "DENY",
+      "note": "self grant",
+      "result": "PASS",
+      "detail": "denied: [42501] permission denied to grant role \"human_approver\""
+    },
+    {
+      "id": "create_role",
+      "role": "ai_writer",
+      "kind": "DENY",
+      "note": "new identity creation",
+      "result": "PASS",
+      "detail": "denied: [42501] permission denied to create role"
+    },
+    {
+      "id": "self_approval",
+      "role": "ai_writer",
+      "kind": "DENY",
+      "note": "approving its own proposal",
+      "result": "PASS",
+      "detail": "denied: [42501] permission denied for function ai_decide_action"
+    },
+    {
+      "id": "direct_execution",
+      "role": "ai_writer",
+      "kind": "DENY",
+      "note": "claiming an approved action for execution",
+      "result": "PASS",
+      "detail": "denied: [42501] permission denied for function ai_claim_approved_action"
+    },
+    {
+      "id": "self_enqueue",
+      "role": "ai_writer",
+      "kind": "DENY",
+      "note": "creating its own work",
+      "result": "PASS",
+      "detail": "denied: [42501] permission denied for function ai_enqueue_task"
+    },
+    {
+      "id": "shell_via_copy",
+      "role": "ai_writer",
+      "kind": "DENY",
+      "note": "shell execution from SQL",
+      "result": "PASS",
+      "detail": "denied: [42501] permission denied to COPY to or from an external program"
+    },
+    {
+      "id": "read_n8n_credentials",
+      "role": "ai_writer",
+      "kind": "DENY",
+      "note": "reading stored credentials",
+      "result": "PASS",
+      "detail": "denied: [42501] permission denied for table credentials_entity"
+    },
+    {
+      "id": "reader_insert",
+      "role": "ai_reader",
+      "kind": "DENY",
+      "note": "reader writing state",
+      "result": "PASS",
+      "detail": "denied: [42501] permission denied for table jarvis_task_state"
+    },
+    {
+      "id": "reader_propose",
+      "role": "ai_reader",
+      "kind": "DENY",
+      "note": "reader proposing an action",
+      "result": "PASS",
+      "detail": "denied: [42501] permission denied for function ai_propose_action"
+    },
+    {
+      "id": "reader_save_state",
+      "role": "ai_reader",
+      "kind": "DENY",
+      "note": "reader saving state",
+      "result": "PASS",
+      "detail": "denied: [42501] permission denied for function ai_save_jarvis_task_state"
+    },
+    {
+      "id": "reader_provider_allowed",
+      "role": "ai_reader",
+      "kind": "DENY",
+      "note": "grant deliberately NOT widened (see handoff section 9)",
+      "result": "PASS",
+      "detail": "denied: [42501] permission denied for function ai_provider_allowed"
+    },
+    {
+      "id": "reader_decide_action",
+      "role": "ai_reader",
+      "kind": "DENY",
+      "note": "reader approving",
+      "result": "PASS",
+      "detail": "denied: [42501] permission denied for function ai_decide_action"
+    },
+    {
+      "id": "allow_reader_health",
+      "role": "ai_reader",
+      "kind": "ALLOW",
+      "note": "approved health surface",
+      "result": "PASS",
+      "detail": "statement succeeded as required"
+    },
+    {
+      "id": "allow_reader_agenda",
+      "role": "ai_reader",
+      "kind": "ALLOW",
+      "note": "approved mart read",
+      "result": "PASS",
+      "detail": "statement succeeded as required"
+    },
+    {
+      "id": "allow_reader_load_state",
+      "role": "ai_reader",
+      "kind": "ALLOW",
+      "note": "controlled state load",
+      "result": "PASS",
+      "detail": "statement succeeded as required"
+    },
+    {
+      "id": "allow_writer_model_policy",
+      "role": "ai_writer",
+      "kind": "ALLOW",
+      "note": "approved policy surface",
+      "result": "PASS",
+      "detail": "statement succeeded as required"
+    }
+  ],
+  "telemetry": {
+    "total_ms": 137.168,
+    "model_calls": 0,
+    "external_provider_calls": 0,
+    "external_actions": 0,
+    "max_rss_mb": 12.5
+  },
+  "generated_at": "2026-09-18T12:11:30.860248+00:00"
+}

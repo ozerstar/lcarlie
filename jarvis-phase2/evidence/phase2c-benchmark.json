@@ -1,0 +1,13 @@
+{
+  "samples": 18,
+  "total_ms": {
+    "p50": 88.304,
+    "p95": 94.654
+  },
+  "context_compile_ms": {
+    "p50": 88.008,
+    "p95": 94.395
+  },
+  "model_calls": 0,
+  "failures": 0
+}

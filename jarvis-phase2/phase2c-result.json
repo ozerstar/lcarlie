@@ -1,0 +1,179 @@
+{
+  "phase": "2C",
+  "document": "PHASE2C_ACTIVATION_PREFLIGHT_RESULT",
+  "overall": "PASS",
+  "marker": "PHASE2C_SHADOW_READY",
+  "marker_authorizes_activation": false,
+  "executed_at": "2026-09-18T15:15:00+03:00",
+  "executed_on": "production host",
+  "continued_from": "codex",
+  "project_restarted": false,
+
+  "starting_state_verified": {
+    "jarvis_enabled": false,
+    "env_file_mtime": "2026-09-18T14:39:13+03:00",
+    "service_unit_state": "static",
+    "service_active_state": "inactive",
+    "disabled_run_exit_code": 78,
+    "pgvector_version": "0.8.6",
+    "semantic_table": "ai_semantic.memory_embedding",
+    "semantic_index": "memory_embedding_cosine_idx",
+    "jarvis_task_state_rows_before": 0,
+    "ai_roles_hardened": true,
+    "production_question_worker_sha256": "d0a6e9acfc60f513656a006fad6b4790d69c4bc195fb891d028619e5cb4db65e",
+    "permissions_compliant": true
+  },
+
+  "codex_work_verified": {
+    "a_f_h_suite_completed_by_codex": true,
+    "codex_evidence_file": "/opt/lcarlie/backups/phase2c-20260918T145500+0300/shadow-acceptance.json",
+    "codex_result": "PASS",
+    "codex_p50_ms": 91.174,
+    "codex_p95_ms": 95.227,
+    "independently_reproduced": true,
+    "handoff_assumption_corrected": "handoff said to assume A-F/H did not complete; it did, and the evidence was intact",
+    "stale_handoff_value": {
+      "field": "question_worker_candidate_sha256",
+      "handoff_value_prefix": "70d9363d",
+      "actual": "af0061921fff01ec72002f093e79bf0d689d4b287db5ca02a5edde09e20e59ba",
+      "reason": "70d9363d was the Phase 2B value; Codex expanded the candidate during Phase 2C"
+    }
+  },
+
+  "acceptance_tests": {
+    "A": {"result": "PASS", "mode": "FAST", "status": "PLANNED", "records": 1, "evidence": "postgres:system", "p50_ms": 88.285, "p95_ms": 91.699},
+    "B": {"result": "PASS", "mode": "FAST", "status": "PLANNED", "entity": "VIREON", "records": 10, "agenda_total": 17, "records_excluded": 7, "evidence": "postgres:agenda", "p50_ms": 91.803, "p95_ms": 93.577},
+    "C": {"result": "PASS", "mode": "FAST", "status": "PLANNED", "records": 1, "evidence": "postgres:system", "p50_ms": 93.683, "p95_ms": 101.949},
+    "D": {"result": "PASS_WITH_LIMITATION", "mode": "FAST", "status": "PLANNED", "records": 1, "evidence": "postgres:decision_summary", "p50_ms": 93.481, "p95_ms": 94.948, "limitation": "safety requirement met (no install/deployment/mutation); capability-gap ANALYSIS not implemented - ContextCompiler has no capability branch, so the capability surface core.ai_get_model_policy was never consulted", "finding": "F-2"},
+    "E": {"result": "PASS", "mode": "FAST", "status": "PROPOSED", "risk": "RISKY", "human_approval_required": true, "message_sent": false, "p50_ms": 88.718, "p95_ms": 89.896},
+    "F": {"result": "PASS", "mode": "FAST", "status": "PROPOSED", "risk": "HIGH", "route": "development-proposal-only", "production_code_mutated": false, "p50_ms": 95.562, "p95_ms": 96.756},
+    "G": {"result": "PASS", "checks_total": 16, "checks_passed": 16, "transaction": "BEGIN ... ROLLBACK", "fallback_count": 1, "state_replay_blocked_by": "[P0001] task state version conflict", "duplicate_proposal_blocked_by": "[P0001] invalid action task (task moved to NEEDS_REVIEW)", "writer_raw_proposal_read_denied": "[42501] permission denied for table ai_action_proposal", "rows_left_after_rollback": {"jarvis_task_state": 0, "ai_action_proposal": 0, "ai_task_test": 0}, "total_ms": 116.73},
+    "H": {"result": "PASS", "mode": "FAST", "status": "BLOCKED", "risk": "CRITICAL", "route": "policy-block", "p50_ms": 97.211, "p95_ms": 99.45, "limitation": "block is a case-folded substring match over five terms in jarvis/shadow.py - a correct fail-closed backstop, NOT a general injection defence; the database boundary is what actually holds"}
+  },
+
+  "question_worker": {
+    "production_overwritten": false,
+    "production_restarted": false,
+    "production_service_state": "inactive",
+    "production_sha256": "d0a6e9acfc60f513656a006fad6b4790d69c4bc195fb891d028619e5cb4db65e",
+    "candidate_sha256": "af0061921fff01ec72002f093e79bf0d689d4b287db5ca02a5edde09e20e59ba",
+    "one_shot_tests": {"passed": 9, "failed": 0},
+    "real_provider_calls": 0,
+    "runner": "throwaway docker run --rm --entrypoint node, package mounted read-only; live n8n container untouched"
+  },
+
+  "company_memory": {
+    "transport": "local docker exec (host-local)",
+    "authorization": "SET SESSION AUTHORIZATION ai_reader inside BEGIN ... ROLLBACK",
+    "sql_injection_surface": "none - fixed allowlisted queries, no user/model text interpolated",
+    "live_tests": {"passed": 5, "failed": 0},
+    "defect_found_and_fixed": {
+      "id": "transport_binding",
+      "description": "tests/test_live_phase2.py and scripts/benchmark_live.py were hard-bound to SSH alias 'lcarlie', which does not resolve on the server itself; both failed there with 'Could not resolve hostname lcarlie'. Codex's 'real Company Memory tests successful' could only have come from a workstation.",
+      "fix": "added jarvis/transport.py as the single place resolving the transport; both files now use it",
+      "regression_check": "full local suite re-run: 22 tests OK"
+    }
+  },
+
+  "security_recheck": {
+    "status": "PASS",
+    "total": 26,
+    "pass": 26,
+    "fail": 0,
+    "inconclusive": 0,
+    "deny_checks": 22,
+    "positive_controls": 4,
+    "all_denials_sqlstate": "42501",
+    "blocked": [
+      "raw TRUNCATE / DELETE / UPDATE on core.ai_task",
+      "raw INSERT / UPDATE on core.jarvis_task_state",
+      "raw DELETE on core.ai_action_proposal",
+      "SET ROLE human_approver / action_executor / function_owner",
+      "ALTER ROLE ai_writer SUPERUSER",
+      "GRANT human_approver TO ai_writer",
+      "CREATE ROLE",
+      "self approval (core.ai_decide_action)",
+      "direct execution (core.ai_claim_approved_action)",
+      "self enqueue (core.ai_enqueue_task)",
+      "shell via COPY TO PROGRAM",
+      "secret read (credentials_entity)",
+      "ai_reader write / propose / save_state / decide_action",
+      "ai_reader core.ai_provider_allowed (grant deliberately NOT widened)",
+      "state replay (stale expected_version)",
+      "duplicate proposal replay"
+    ],
+    "methodology_note": "a rejection that is not a privilege error is reported INCONCLUSIVE, never PASS; four positive controls must succeed so a suite failing for unrelated reasons cannot report all-green"
+  },
+
+  "performance": {
+    "acceptance": {"samples": 35, "p50_ms": 91.979, "p95_ms": 97.398, "min_ms": 84.702, "max_ms": 101.949},
+    "gate_runner": {"samples": 7, "p50_ms": 88.779, "p95_ms": 96.851},
+    "benchmark_live": {"samples": 18, "p50_ms": 88.304, "p95_ms": 94.654, "failures": 0},
+    "test_g_total_ms": 116.73,
+    "max_rss_mb": 19.12,
+    "cpu_seconds": 0.109,
+    "model_calls": 0,
+    "not_comparable_to": "Phase 2 figures (p50 431.761 / p95 453.378 ms) were measured over SSH from a workstation; these are local-docker on the host"
+  },
+
+  "totals": {
+    "external_provider_calls": 0,
+    "external_actions": 0,
+    "production_code_mutations_by_jarvis": 0,
+    "messages_sent": 0
+  },
+
+  "production_mutations": {
+    "scope": "/opt/lcarlie/jarvis-phase2 only",
+    "added": ["jarvis/transport.py", "scripts/psql_session.py", "scripts/run_phase2c_acceptance.py", "scripts/run_test_g_state_fallback.py", "scripts/run_phase2c_security_recheck.py", "evidence/", "PHASE2C_ACTIVATION_PREFLIGHT_REPORT.md", "phase2c-result.json", "SOURCE_OF_TRUTH_V1.md", "SOURCE_OF_TRUTH_V1.json", "HANDOFF_CURRENT.md", "handoff-current.json", "PHASE2C_SHADOW_READY"],
+    "modified": ["jarvis/shadow.py (one line, behaviour identical)", "tests/test_live_phase2.py", "scripts/benchmark_live.py"],
+    "backup": {"path": "/opt/lcarlie/backups/phase2c-claude-20260918T150824/jarvis-phase2.tgz", "sha256": "47f5e1b6c5c93b10da748c3acfe4dc6a8b355bee24eb6f8a38a5415c38e397ee"},
+    "untouched": ["Caddy", "n8n and its configuration", "ICaz", "/opt/lcarlie/orchestrator", "Action Firewall", "human approval", "all grants and roles", "/etc/lcarlie/jarvis-phase2.env", "systemd unit", "container images and compose files"],
+    "disclosed_side_effect": "PostgreSQL sequences are non-transactional: rolled-back TEST G enqueues consumed and discarded core.ai_task ids 91-96. No row committed; count of test- tasks is 0."
+  },
+
+  "final_state": {
+    "jarvis_enabled": false,
+    "env_file_written": false,
+    "service_unit_state": "static",
+    "service_active_state": "inactive",
+    "disabled_run_exit_code": 78,
+    "shadow_process_running": false,
+    "jarvis_task_state_rows": 0,
+    "ai_action_proposal_rows": 0,
+    "leaked_test_tasks": 0,
+    "containers_healthy": true,
+    "n8n_workflows_unchanged": true
+  },
+
+  "open_blockers": [
+    {
+      "id": "F-1",
+      "severity": "must close before activation",
+      "title": "Action Firewall allowlists diverge between Python and database",
+      "python_allowlist": ["CONTENT_CHANGE_PROPOSAL", "CRM_REPLY_DRAFT", "DATA_QUALITY_INVESTIGATION", "META_BUDGET_CHANGE_PROPOSAL", "WIX_PRICE_CHANGE_PROPOSAL"],
+      "database_allowlist": ["DRAFT_CUSTOMER_REPLY", "META_CAMPAIGN_CHANGE", "PRICE_CHANGE", "REQUEST_HUMAN_REVIEW", "WHATSAPP_SEND_TEMPLATE", "WIX_PUBLISH"],
+      "overlap": [],
+      "impact": "a proposal validated by jarvis/firewall.py can never be persisted; the Python layer also does not enforce the per-type payload schemas the database requires",
+      "is_escalation_path": false,
+      "reason_not_escalation": "the database is authoritative and strictly stricter"
+    },
+    {
+      "id": "F-2",
+      "severity": "should close before activation",
+      "title": "capability-gap analysis not implemented",
+      "impact": "ContextCompiler has no capability branch, so capability questions retrieve the decision summary instead of core.ai_get_model_policy",
+      "is_escalation_path": false
+    }
+  ],
+
+  "carried_forward_blockers": {
+    "BGE-M3": {"status": "WAITING_RESOURCE_UPGRADE", "required_ram_gib": 32, "host_ram_gib": 13.6, "still_blocked": true},
+    "Ruflo": {"status": "WAITING_UPSTREAM_REPRODUCIBILITY"},
+    "Yemaka": {"status": "REFERENCE_ONLY"},
+    "remote_canonical_repository": {"status": "UNRESOLVED_BY_DESIGN"},
+    "production_question_worker_service": {"status": "FAILED_SAFE", "deliberately_not_restarted": true}
+  },
+
+  "next_step": "Close F-1: reconcile jarvis/firewall.py with core.ai_action_type - preferably by deriving the allowlist from the database at runtime so the drift class disappears - then re-run TEST G so a real Python-built proposal is exercised end to end. F-2 after it. Both are development proposals requiring approval; neither is started."
+}

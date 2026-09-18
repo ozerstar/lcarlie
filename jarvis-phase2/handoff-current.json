@@ -1,0 +1,273 @@
+{
+  "document": "HANDOFF_CURRENT",
+  "describes": "actual state, not planned state",
+  "as_of": "2026-09-18T15:15:00+03:00",
+  "contains_secrets": false,
+  "environment_variables_listed_as": "key names only",
+
+  "project_objective": "L'CARLIE Autonomous Company Intelligence OS with Jarvis as its natural-language management and execution-coordination layer. Models are replaceable compute; task state and company memory belong to the OS.",
+
+  "architecture": {
+    "principle": "deterministic first -> local/small intelligence -> cheap model -> frontier model -> multi-frontier only when justified",
+    "modes": ["FAST", "SMART", "DEEP"],
+    "truth": "PostgreSQL is canonical verified truth",
+    "vector": "retrieval only",
+    "authorization": "Action Firewall and human approval, both in the database"
+  },
+
+  "current_phase": "2C_COMPLETE",
+  "marker": "PHASE2C_SHADOW_READY",
+  "activated": false,
+  "completed_phases": ["1", "2", "2B", "2C"],
+
+  "production_state": {
+    "containers": {
+      "lcarlie-postgres": "healthy",
+      "lcarlie-n8n": "up",
+      "lcarlie-caddy": "up",
+      "icaz-site": "healthy",
+      "icaz-oyun": "healthy",
+      "icaz-postgres": "healthy"
+    },
+    "n8n_workflows": {
+      "MEVZUAT FILTRESI": true,
+      "SATIS AJANI": true,
+      "WHATSAPP KANALI": true,
+      "INSTAGRAM KANALI": true,
+      "WEB SOHBET": false
+    },
+    "host": {"ram_gib": 13.6, "disk_used_pct": 19, "disk_free_gb": 70, "gpu": false}
+  },
+
+  "jarvis_state": {
+    "enabled": false,
+    "env_file": "/etc/lcarlie/jarvis-phase2.env",
+    "env_file_mtime": "2026-09-18T14:39:13+03:00",
+    "env_file_written_in_phase2c": false,
+    "service_unit_state": "static",
+    "service_active_state": "inactive",
+    "has_install_section": false,
+    "disabled_run_exit_code": 78,
+    "shadow_process_running": false
+  },
+
+  "database_components": {
+    "pgvector_version": "0.8.6",
+    "semantic_table": "ai_semantic.memory_embedding",
+    "semantic_index": "memory_embedding_cosine_idx",
+    "semantic_rows": 0,
+    "embeddings_installed": false,
+    "jarvis_task_state_rows": 0,
+    "ai_task_rows": 16,
+    "ai_task_states": {"PROPOSED_WRITTEN": 16},
+    "ai_action_proposal_rows": 0,
+    "controlled_functions": [
+      "core.ai_save_jarvis_task_state", "core.ai_load_jarvis_task_state",
+      "core.ai_enqueue_task", "core.ai_claim_task", "core.ai_propose_action",
+      "core.ai_decide_action", "core.ai_claim_approved_action",
+      "core.ai_orchestrator_health", "core.ai_get_model_policy",
+      "core.ai_get_pending_actions"
+    ]
+  },
+
+  "security_boundaries": {
+    "roles": ["ai_reader", "ai_writer", "human_approver", "action_executor", "function_owner"],
+    "role_attributes": "NOLOGIN, NOINHERIT, NOSUPERUSER, NOCREATEDB, NOCREATEROLE, NOREPLICATION, NOBYPASSRLS",
+    "ai_writer_table_privileges": "none",
+    "verified_blocked": 22,
+    "positive_controls": 4,
+    "all_denials_sqlstate": "42501",
+    "note": "SET SESSION AUTHORIZATION changes session_user, so a superuser connection that assumes ai_writer genuinely loses superuser - which is why these tests are valid"
+  },
+
+  "action_firewall": {
+    "authoritative_implementation": "core.ai_propose_action",
+    "changed_in_phase2c": false,
+    "requirements": [
+      "idempotency key prefixed 'action:'",
+      "task LEASED and of type PROPOSE_ACTION",
+      "matching unexpired lease token",
+      "action type enabled in core.ai_action_type",
+      "exact per-type payload shape",
+      "core.ai_jsonb_has_forbidden_key",
+      "payload <= 16KB"
+    ],
+    "replay_prevention": "first successful proposal moves the task to NEEDS_REVIEW",
+    "enabled_types": {
+      "DRAFT_CUSTOMER_REPLY": "MEDIUM",
+      "META_CAMPAIGN_CHANGE": "HIGH",
+      "PRICE_CHANGE": "CRITICAL",
+      "REQUEST_HUMAN_REVIEW": "LOW",
+      "WHATSAPP_SEND_TEMPLATE": "HIGH",
+      "WIX_PUBLISH": "CRITICAL"
+    }
+  },
+
+  "human_approval": {
+    "changed_in_phase2c": false,
+    "human_approver_only": ["core.ai_decide_action", "core.ai_get_pending_actions", "core.ai_enqueue_task"],
+    "action_executor_only": ["core.ai_claim_approved_action", "core.ai_complete_action_execution"],
+    "jarvis_role": "ai_writer",
+    "jarvis_can_create_own_work": false
+  },
+
+  "company_memory": {
+    "adapter": "jarvis/memory.py",
+    "sql_safety": "fixed allowlisted queries; no user or model text interpolated",
+    "session": "BEGIN; SET SESSION AUTHORIZATION ai_reader; ...; ROLLBACK",
+    "queries": {
+      "system": "core.ai_orchestrator_health()",
+      "agenda": "mart.sirket_gundemi (25)",
+      "open_work": "mart.acik_isler (25)",
+      "decision_summary": "mart.karar_ozet",
+      "capabilities": "core.ai_get_model_policy()",
+      "company_dashboard": "mart.ai_company_intelligence_dashboard"
+    },
+    "transport_resolver": "jarvis/transport.py",
+    "on_host_requirement": "JARVIS_MEMORY_TRANSPORT=local-docker (the ssh alias does not resolve on the server)"
+  },
+
+  "persistent_state": {
+    "backend": "postgresql",
+    "access": "controlled SECURITY DEFINER functions only",
+    "concurrency": "optimistic; stale expected_version rejected with [P0001] task state version conflict",
+    "sqlite_module_still_present_but_unused": "jarvis/state.py"
+  },
+
+  "test_results": {
+    "local_python_suite": {"collected": 22, "result": "OK", "executed": 17, "live_gated": 5},
+    "live_company_memory_on_host": {"passed": 5, "failed": 0},
+    "acceptance_a_f_h": {"status": "PASS", "samples": 35, "repeats_per_case": 5},
+    "acceptance_gate_codex_assertions": {"status": "PASS", "exit": 0},
+    "test_g": {"status": "PASS", "checks": 16, "passed": 16},
+    "security_recheck": {"status": "PASS", "total": 26, "deny": 22, "allow": 4, "fail": 0, "inconclusive": 0},
+    "question_worker_one_shot": {"passed": 9, "failed": 0},
+    "external_provider_calls": 0,
+    "external_actions": 0
+  },
+
+  "performance": {
+    "acceptance": {"samples": 35, "p50_ms": 91.979, "p95_ms": 97.398, "min_ms": 84.702, "max_ms": 101.949},
+    "benchmark_live": {"samples": 18, "p50_ms": 88.304, "p95_ms": 94.654},
+    "test_g_total_ms": 116.73,
+    "max_rss_mb": 19.12,
+    "cpu_seconds": 0.109,
+    "model_calls": 0,
+    "comparability_warning": "Phase 2 figures (431.761 / 453.378 ms) were measured over SSH from a workstation; these are local-docker on the host - the path changed, not the speed"
+  },
+
+  "blockers": [
+    {"id": "F-1", "severity": "must_close_before_activation", "title": "Action Firewall allowlists diverge between jarvis/firewall.py and core.ai_action_type", "overlap": [], "is_escalation_path": false},
+    {"id": "F-2", "severity": "should_close", "title": "capability-gap analysis not implemented in ContextCompiler", "is_escalation_path": false},
+    {"id": "BGE-M3", "severity": "carried_forward", "status": "WAITING_RESOURCE_UPGRADE"},
+    {"id": "Ruflo", "severity": "carried_forward", "status": "WAITING_UPSTREAM_REPRODUCIBILITY"},
+    {"id": "Yemaka", "severity": "carried_forward", "status": "REFERENCE_ONLY"},
+    {"id": "remote_repo", "severity": "carried_forward", "status": "UNRESOLVED_BY_DESIGN"},
+    {"id": "question_worker_service", "severity": "carried_forward", "status": "FAILED_SAFE_DELIBERATELY_NOT_RESTARTED"}
+  ],
+
+  "resource_requirements": {
+    "current_sufficient": true,
+    "phase2c_peak_rss_mb": 19.12,
+    "bge_m3": {"ram_gib_min": 32, "ram_gib_recommended_colocated": 64, "cpu_cores": 8, "disk_gib": 20, "gpu": "optional", "vram_gib_min": 12, "vram_gib_recommended": "16-24", "verdict": "REQUIRES_RESOURCE_UPGRADE - do not load on this host"}
+  },
+
+  "upstream_status": {
+    "routelabs_router": {"tests": "138 PASS", "role": "routing candidate only; must not own truth, approval, firewall or business authorization"},
+    "pgvector": {"version": "0.8.6", "status": "PASS_IN_PRODUCTION"},
+    "qwen_agent": {"version": "0.0.34", "status": "SMOKE_PASS", "caveat": "four undeclared runtime dependencies; needs reviewed reproducible lock"},
+    "smolagents": {"status": "SMOKE_PASS", "role": "restricted candidate"},
+    "agno": {"status": "SMOKE_PASS", "role": "challenger only"},
+    "ruflo": {"status": "BLOCKED_UPSTREAM", "action": "do not force install"},
+    "yemaka": {"status": "REFERENCE_ONLY"},
+    "bge_m3": {"status": "WAITING_RESOURCE_UPGRADE"},
+    "do_not_re_research": true
+  },
+
+  "question_worker": {
+    "production_path": "/opt/lcarlie/orchestrator/question-worker.js",
+    "production_sha256": "d0a6e9acfc60f513656a006fad6b4790d69c4bc195fb891d028619e5cb4db65e",
+    "production_touched": false,
+    "production_service": "inactive",
+    "production_known_condition": "FAILED_SAFE: no json",
+    "candidate_path": "/opt/lcarlie/jarvis-phase2/deploy/question-worker-phase2b.js",
+    "candidate_sha256": "af0061921fff01ec72002f093e79bf0d689d4b287db5ca02a5edde09e20e59ba",
+    "candidate_tests": "9/9 PASS",
+    "promote_in_phase2c": false,
+    "runner_note": "node exists only inside the n8n image; use a throwaway container with a read-only mount, never docker cp into the live n8n container"
+  },
+
+  "source_of_truth": {
+    "path": "/opt/lcarlie/source/lcarlie-jarvis-v1",
+    "remote": null,
+    "baseline_commit": "28f1bb6e167ab92dc7c4cbdd39d9e5e81d4951f3",
+    "phase2c_commit": "5a4b2dd6e04cd4c959ca38c23ae1a4243e14cb9b",
+    "clean": true,
+    "deployment_in_sync": true,
+    "gap_closed": "baseline was cut before Codex finished, so it did not contain Codex's own Phase 2C work"
+  },
+
+  "sha256": {
+    "orchestrator/question-worker.js": "d0a6e9acfc60f513656a006fad6b4790d69c4bc195fb891d028619e5cb4db65e",
+    "deploy/question-worker-phase2b.js": "af0061921fff01ec72002f093e79bf0d689d4b287db5ca02a5edde09e20e59ba",
+    "bin/jarvis-phase2": "6ec03f1c5adeb764bdb4e85f0aee59b53115b61d06f2b4fd05fc7596c4c1f8a2",
+    "jarvis/shadow.py": "6751b85b91fd25a137858b8c86904fbae8baecbd7370d55e45d24e7a6c24f8a0",
+    "jarvis/transport.py": "816e2b064e792ebaa990b1f377096be20ae34824d34e0c45ac49a909111fc61e",
+    "jarvis/memory.py": "9f467dd8056dd1502c835ce08364c48b8329b2e4d55843575d3528e7059e6097",
+    "scripts/run_shadow_acceptance.py": "da869bdd485a122f42fb6ef8d57b773e4ef264c2409539415f824f16348e1767",
+    "scripts/run_phase2c_acceptance.py": "41ef02847bfd75a1a1f5ab166cac75e46c462d5b0a77a50344f851310bd542cf",
+    "scripts/run_test_g_state_fallback.py": "b0b3459dfa9397a702c3920d9495f153afd653b8d9dfe8a2fea58f27d7fec778",
+    "scripts/run_phase2c_security_recheck.py": "68a78cc0509321f7eee04db97af693c63807fbac6c0363fbfb9de51cd9a7cf69",
+    "scripts/psql_session.py": "897a026c3ae1cebc32b016d37c6e9f7cc7d62643ab312babf508be76857690a8",
+    "source_snapshot_v1b.tar.gz": "a0f6cbed2e7ac284dd1cf5eab4deaf733075ac38f2acd736c0f6c0f7786e113f",
+    "phase2b_db_dump": "22a26127448981e62b27679f11b8609f3a4460e0a3549760d77bf4c1935df535",
+    "orchestrator.pre-phase2b.tar.gz": "b25e10fe65ad9f2c4bfc1dcadbf325098cd7db127605b1d1117805f57f2bad3d",
+    "phase2c_claude_package_backup.tgz": "47f5e1b6c5c93b10da748c3acfe4dc6a8b355bee24eb6f8a38a5415c38e397ee"
+  },
+
+  "backups": [
+    "/opt/lcarlie/backups/phase2b-20260918T142200+0300",
+    "/opt/lcarlie/backups/phase2c-20260918T145500+0300",
+    "/opt/lcarlie/backups/phase2c-claude-20260918T150824",
+    "/opt/lcarlie/phase2b-staging"
+  ],
+
+  "rollback": {
+    "jarvis_package": "untar a backup over /opt/lcarlie/jarvis-phase2",
+    "source": "git -C /opt/lcarlie/source/lcarlie-jarvis-v1 checkout 28f1bb6e167ab92dc7c4cbdd39d9e5e81d4951f3",
+    "db_objects": "migrations/rollback/001..003_*_ROLLBACK.sql",
+    "full_db": "/opt/lcarlie/backups/backup/geri-yukle.sh (validate -> safety dump -> restore -> verify)",
+    "needed_now": false
+  },
+
+  "last_successful_step": "Phase 2C finished: A-F/H verified and independently reproduced, TEST G written and passed (16/16), security rechecked (26/26), Company Memory transport defect fixed so live tests run on the host, Phase 2C work committed to the canonical source, Jarvis confirmed disabled, handoff and report written, PHASE2C_SHADOW_READY created.",
+
+  "next_step": "Close F-1: reconcile jarvis/firewall.py with core.ai_action_type, preferably by deriving the allowlist from the database at runtime; then re-run TEST G so a real Python-built proposal is exercised end to end. F-2 after it. Neither is started; neither authorizes activation.",
+
+  "do_not_touch": [
+    "Caddy", "n8n and its configuration", "ICaz", "/opt/lcarlie/orchestrator",
+    "Action Firewall", "human approval ownership", "any role or grant",
+    "core.ai_provider_allowed grant to ai_reader",
+    "/etc/lcarlie/jarvis-phase2.env",
+    "the systemd unit's missing [Install] section",
+    "the production question-worker service"
+  ],
+
+  "environment_key_names": {
+    "persistent_env_file": ["JARVIS_ENABLED", "JARVIS_STATE_BACKEND", "JARVIS_DB_HOST", "JARVIS_DB_PORT", "JARVIS_DB_NAME", "JARVIS_DB_ROLE", "JARVIS_MAX_CONCURRENCY"],
+    "shadow_process_only": ["JARVIS_MODE", "EXTERNAL_ACTIONS", "JARVIS_MEMORY_TRANSPORT", "JARVIS_SSH_HOST", "JARVIS_LIVE_TEST"]
+  },
+
+  "stop_rollback_conditions": [
+    "JARVIS_ENABLED=true persisted in /etc/lcarlie/jarvis-phase2.env",
+    "jarvis-phase2.service becomes enabled or active, or gains an [Install] section",
+    "any row in core.jarvis_task_state outside a rolled-back test",
+    "any row in core.ai_action_proposal not created by a human-approved flow",
+    "any ai_task in state APPROVED or beyond without a human_approver decision",
+    "any grant widened on ai_reader or ai_writer, especially core.ai_provider_allowed",
+    "any external provider call or external action from SHADOW",
+    "production question-worker.js hash ceasing to be d0a6e9ac..., or its service becoming active",
+    "rsync -ain between deployment and canonical source producing output",
+    "any container unhealthy, or an n8n workflow changing active state"
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "document": "SOURCE_OF_TRUTH_V1",
+  "status": "VERIFIED",
+  "verified_at": "2026-09-18T15:12:00+03:00",
+  "canonical_baseline": {
+    "path": "/opt/lcarlie/source/lcarlie-jarvis-v1",
+    "remote": null,
+    "push_performed": false,
+    "baseline_commit": "28f1bb6e167ab92dc7c4cbdd39d9e5e81d4951f3",
+    "baseline_commit_subject": "Establish verified production source baseline v1",
+    "baseline_commit_date": "2026-09-18T14:54:03+03:00",
+    "phase2c_commit": "5a4b2dd6e04cd4c959ca38c23ae1a4243e14cb9b",
+    "phase2c_commit_subject": "Phase 2C: shadow acceptance, TEST G, security recheck, transport fix",
+    "tracked_files_at_baseline": 77,
+    "working_tree_clean": true
+  },
+  "snapshot": {
+    "archive": "/opt/lcarlie/source-snapshots/lcarlie-jarvis-source-v1b.tar.gz",
+    "sha256": "a0f6cbed2e7ac284dd1cf5eab4deaf733075ac38f2acd736c0f6c0f7786e113f"
+  },
+  "handoff_abbreviations_verified": {
+    "commit_prefix_28f1bb6e": true,
+    "snapshot_prefix_a0f6cbed": true
+  },
+  "change_control_gap_found": {
+    "description": "v1 baseline was cut at 14:54; Codex kept editing the deployment until 14:58, so Codex's own Phase 2C work was never in the canonical source.",
+    "files_absent_from_baseline": [
+      "jarvis-phase2/jarvis/shadow.py",
+      "jarvis-phase2/tests/test_shadow.py",
+      "jarvis-phase2/scripts/run_shadow_acceptance.py",
+      "jarvis-phase2/tests/phase2b_duplicate_proposal.sql"
+    ],
+    "files_modified_uncommitted": [
+      "jarvis-phase2/jarvis/memory.py",
+      "jarvis-phase2/bin/jarvis-phase2",
+      "jarvis-phase2/deploy/bin/jarvis-phase2",
+      "jarvis-phase2/deploy/jarvis-phase2.service",
+      "jarvis-phase2/deploy/question-worker-phase2b.js",
+      "jarvis-phase2/tests/question-worker-phase2b.test.js"
+    ],
+    "closed_by_commit": "5a4b2dd6e04cd4c959ca38c23ae1a4243e14cb9b",
+    "deployment_in_sync": true
+  },
+  "not_covered": {
+    "/opt/lcarlie/orchestrator": "no change-control origin; mirrored as snapshot only",
+    "remote_ownership": "UNRESOLVED_BY_DESIGN"
+  },
+  "verification_commands": [
+    "git -C /opt/lcarlie/source/lcarlie-jarvis-v1 rev-parse HEAD",
+    "git -C /opt/lcarlie/source/lcarlie-jarvis-v1 status --porcelain",
+    "git -C /opt/lcarlie/source/lcarlie-jarvis-v1 remote -v",
+    "sha256sum /opt/lcarlie/source-snapshots/lcarlie-jarvis-source-v1b.tar.gz",
+    "rsync -ain --delete --exclude=__pycache__ --exclude=evidence /opt/lcarlie/jarvis-phase2/ /opt/lcarlie/source/lcarlie-jarvis-v1/jarvis-phase2/"
+  ]
+}
