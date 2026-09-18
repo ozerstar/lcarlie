@@ -11,7 +11,7 @@ from jarvis.execution_planner import STATUS_BLOCKED_EXTERNAL_ACTION, plan_reques
 from jarvis.model_layer import (LOCAL_MODEL as LOCAL_MODEL_NAME, ModelRouter,
                                 ModelUnavailable, needs_escalation,
                                 should_use_model)
-from jarvis import turkish
+from jarvis import conversation_memory, turkish
 from jarvis.agency import AgencyCapability
 from jarvis.specialist_pool import SpecialistPool
 
@@ -370,7 +370,8 @@ def _synthesize(message: str, intent: str, memory: Any, started: float,
     evidence, missing = _gather(message, memory)
     try:
         result = _router().synthesize(message, evidence, missing_data=missing,
-                                      escalate=escalate)
+                                      escalate=escalate,
+                                      history=conversation_memory.history(turns=3))
     except ModelUnavailable as exc:
         # Never speechless: the deterministic surface still answers.
         return _response(message, intent, "AI_PROVIDER_UNAVAILABLE",
@@ -545,6 +546,16 @@ FALLBACK_INTRO = (
 )
 
 
+def _chat_system() -> str:
+    """The persona, plus whatever the operator asked to be remembered.
+
+    notes_block returns an empty string when nothing has been kept, so a
+    fresh install pays nothing for this.
+    """
+    notes = conversation_memory.notes_block()
+    return CHAT_SYSTEM + ("\n\n" + notes if notes else "")
+
+
 def _chat(message: str, intent: str, started: float) -> dict[str, Any]:
     """An ordinary conversational turn.
 
@@ -554,8 +565,9 @@ def _chat(message: str, intent: str, started: float) -> dict[str, Any]:
     introduction still stands so the user is never left without a reply.
     """
     try:
-        result = _router().synthesize(message, (), system=CHAT_SYSTEM, max_tokens=160,
-                                      escalate=needs_escalation(message))
+        result = _router().synthesize(message, (), system=_chat_system(), max_tokens=160,
+                                      escalate=needs_escalation(message),
+                                      history=conversation_memory.history())
     except ModelUnavailable:
         return _response(message, intent, "ANSWERED", FALLBACK_INTRO,
                          started=started, model="deterministic-local")
@@ -576,7 +588,8 @@ def stream_chat(message: str, intent: str):
     model = None
     calls = 0
     try:
-        for delta in _router().stream_text(message, CHAT_SYSTEM, max_tokens=160):
+        for delta in _router().stream_text(message, _chat_system(), max_tokens=160,
+                                           history=conversation_memory.history()):
             chunks.append(delta)
             yield {"type": "token", "delta": delta}
         model, calls = LOCAL_MODEL_NAME, 1

@@ -31,6 +31,8 @@ from typing import Any, Iterator
 import intents
 import conversation
 
+from jarvis import conversation_memory
+
 ACTION_ID_RE = re.compile(r"\b(\d{1,10})\b")
 
 STAGE_LABELS = {
@@ -79,7 +81,9 @@ def route(message: str, runtime, operator) -> dict[str, Any]:
     # Phase 2 shadow path below, which answers a chat message with whatever
     # Company Memory happened to return -- "Naber" came back as
     # "1 kayıt bulundu (kaynak: postgres:decision_summary)".
-    return conversation.route(text, runtime)
+    result = conversation.route(text, runtime)
+    _remember(text, result)
+    return result
 
     if capability == "JUDGEMENT":
         # A judgement question with no grounded topic word cannot be answered
@@ -120,6 +124,13 @@ def route(message: str, runtime, operator) -> dict[str, Any]:
                         "capability": result.get("capability")})
 
 
+def _remember(message: str, result: dict[str, Any]) -> None:
+    """One place records the thread, so every surface -- streamed or not --
+    remembers the same conversation."""
+    conversation_memory.record(message, result.get("answer") or result.get("text") or "",
+                               intent=str(result.get("intent") or ""))
+
+
 def stream(message: str, runtime, operator) -> Iterator[dict[str, Any]]:
     """Yields {"type": "stage", "label": ...} events, then exactly one
     {"type": "done", "result": <route() output>} event.
@@ -142,7 +153,10 @@ def stream(message: str, runtime, operator) -> Iterator[dict[str, Any]]:
                            conversation.GENERAL_REASONING):
         # Conversation streams: the reply appears word by word instead of
         # after the whole thing is generated.
-        yield from conversation.stream_chat(text, decision.intent)
+        for frame in conversation.stream_chat(text, decision.intent):
+            if frame.get("type") == "done":
+                _remember(text, frame.get("result") or {})
+            yield frame
         return
     for label in STAGE_LABELS.get(capability, STAGE_LABELS["UNCLASSIFIED"]):
         yield {"type": "stage", "label": label}

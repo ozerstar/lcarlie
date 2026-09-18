@@ -350,7 +350,8 @@ class ModelRouter:
     def synthesize(self, question: str, evidence: Iterable[dict[str, Any]],
                    missing_data: Iterable[str] = (), escalate: bool = False,
                    max_tokens: int = MAX_ANSWER_TOKENS,
-                   system: str | None = None) -> ModelResult:
+                   system: str | None = None,
+                   history: list[dict[str, str]] | None = None) -> ModelResult:
         started = time.perf_counter()
         block, refs, size = compile_context(evidence)
         missing = tuple(missing_data)
@@ -361,8 +362,11 @@ class ModelRouter:
             user = (f"KANIT:\n{block or '(kanıt yok)'}\n\n"
                     + (f"EKSİK VERİ: {', '.join(missing)}\n\n" if missing else "")
                     + f"SORU: {question}")
-        messages = [{"role": "system", "content": system or GROUNDING_SYSTEM},
-                    {"role": "user", "content": user}]
+        # Prior turns sit between the system prompt and the new question, so
+        # "onu değil, diğerini" has something to refer back to.
+        messages = ([{"role": "system", "content": system or GROUNDING_SYSTEM}]
+                    + list(history or [])
+                    + [{"role": "user", "content": user}])
         states = self.provider_states()
         try:
             result, tier, calls = self.generate(messages, max_tokens, escalate)
@@ -402,11 +406,13 @@ class ModelRouter:
             context_chars=size, provider_states=states,
         )
 
-    def stream_text(self, question: str, system: str, max_tokens: int = 160):
+    def stream_text(self, question: str, system: str, max_tokens: int = 160,
+                    history: list[dict[str, str]] | None = None):
         """Stream a conversational reply. Falls back to a single block when the
         local provider is not the one answering."""
-        messages = [{"role": "system", "content": system},
-                    {"role": "user", "content": question}]
+        messages = ([{"role": "system", "content": system}]
+                    + list(history or [])
+                    + [{"role": "user", "content": question}])
         if self.local.state() == AdapterState.AVAILABLE:
             produced = False
             try:
