@@ -179,6 +179,26 @@ def research_subject(request: str, count: int = 3) -> tuple[str, ...]:
     return tuple(terms[:count]) or anchor_terms(request, count=count)
 
 
+def _decompose_best(request: str, max_queries: int = 5) -> tuple[str, ...]:
+    """Model decomposition when the model layer has it, deterministic otherwise.
+
+    This is the connection the docstring below anticipated -- the adapter still
+    only consumes the returned tuple. A model that is down, slow or produces
+    nothing usable falls straight back to the deterministic path, so research
+    never depends on a model being available.
+    """
+    try:
+        from .model_layer import ModelRouter
+
+        queries = ModelRouter().decompose_query(request, count=max_queries)
+        usable = tuple(q.strip() for q in queries if isinstance(q, str) and q.strip())
+        if usable:
+            return usable[:max_queries]
+    except Exception:  # noqa: BLE001 - decomposition must never break research
+        pass
+    return decompose(request, max_queries)
+
+
 def decompose(request: str, max_queries: int = 5) -> tuple[str, ...]:
     """Turn one long natural-language request into focused search queries.
 
@@ -505,7 +525,7 @@ class WebSearchCrawlAdapter(CapabilityAdapter):
         budget = int(envelope.get("max_bytes") or 64_000)
 
         started = perf_counter()
-        queries = decompose(query, self.max_queries)
+        queries = _decompose_best(query, self.max_queries)
         urls, search_ms, raw_count = self._search_many(queries)
         crawl_started = perf_counter()
         sources, fetch_stats = self._crawl(urls, query, budget)

@@ -46,12 +46,20 @@ def classify(message: str) -> RouteDecision:
         return RouteDecision(SIMPLE_CONVERSATION)
     # A question ABOUT what to do is not an instruction to do it. Checked
     # first so "ne yapmalıyız" can never be read as the imperative "yap".
+    # "plan çıkar" is a request FOR a plan, not an instruction to remove
+    # something -- without it the management prompt would be read as an action.
     asks_for_advice = _has(text, ("ne yap", "ne öneriyorsun", "ne oneriyorsun",
-                                  "ne yapmalı", "ne yapmali", "yapılması", "yapilmasi"))
+                                  "ne yapmalı", "ne yapmali", "yapılması", "yapilmasi",
+                                  "plan çıkar", "plan cikar"))
     verbs = ("değiştir", "degistir", "durdur", "başlat", "baslat", "gönder",
              "gonder", "yayınla", "yayinla", "publish", "yap", "ayarla",
              "güncelle", "guncelle", "artır", "artir", "azalt", "indir",
-             "sil", "kapat", "iptal et")
+             "sil", "kapat", "iptal et",
+             # "Ürünü siteden kaldır" reached the model instead of the
+             # firewall: removal and activation verbs were missing entirely.
+             "kaldır", "kaldir", "çıkar", "cikar", "ekle", "düşür", "dusur",
+             "yükselt", "yukselt", "aktifleştir", "aktiflestir",
+             "pasifleştir", "pasiflestir", "devre dışı", "devre disi")
     if not asks_for_advice and _has(text, verbs):
         return RouteDecision(ACTION_REQUEST)
     if _has(text, ("rakip", "pazar araştır", "pazar arastir", "research", "araştır", "arastir")):
