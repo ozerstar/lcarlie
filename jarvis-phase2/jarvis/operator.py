@@ -35,16 +35,21 @@ an audit record and fails every other action type closed
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import re
 
 from .action_contract import INTENT_TO_CANONICAL
+from .coding_executor import CodingTaskSpec
 from .memory import MemoryError
 
 _SLUG_RE = re.compile(r"^[A-Za-z0-9_.-]{1,80}$")
+
+CODING_TASK_PENDING_DIR = Path(os.environ.get("JARVIS_STATE_DIR", "/opt/lcarlie/jarvis-phase2/state")) / "coding_executor" / "pending"
 
 
 @dataclass(frozen=True)
@@ -153,3 +158,38 @@ class OperatorSession:
         rows = self._run(sql, stop_on_error=True)
         task_id = rows[0] if rows else None
         return {"task_id": task_id, "idempotency_key": key, "internal_intent": internal_intent}
+
+    # -- CodingExecutor: a human originates a bounded coding task -----------
+    def create_coding_task(self, slug: str, spec_path: str) -> dict[str, Any]:
+        """Validate a coding task spec, stage it for the loop, and enqueue
+        the CODE_CHANGE_REVIEW task that will pick it up.
+
+        The spec (objective, allowed_files, optional test_command/test_cwd)
+        is validated with the SAME CodingTaskSpec.from_dict the executor
+        itself uses, so a spec that is rejected here would also be rejected
+        at run time -- no separate, potentially-drifting validation path.
+        ai_writer has no SELECT on core.ai_task, so the spec is staged on
+        disk (not in the idempotency key) for jarvis/loop.py to read after
+        claiming the task, exactly like every other intent's slug convention.
+        """
+        if not _SLUG_RE.match(slug):
+            raise ValueError("slug must match [A-Za-z0-9_.-]{1,80}")
+        raw = Path(spec_path).read_text(encoding="utf-8")
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"spec is not valid JSON: {exc}") from exc
+        spec = CodingTaskSpec.from_dict(data)  # raises ValueError on an invalid spec
+
+        CODING_TASK_PENDING_DIR.mkdir(parents=True, exist_ok=True)
+        os.chmod(CODING_TASK_PENDING_DIR, 0o750)
+        staged_path = CODING_TASK_PENDING_DIR / f"{slug}.json"
+        staged_path.write_text(json.dumps({
+            "objective": spec.objective, "allowed_files": list(spec.allowed_files),
+            "test_command": list(spec.test_command), "test_cwd": spec.test_cwd,
+            "timeout_s": spec.timeout_s,
+        }, ensure_ascii=False, indent=2), encoding="utf-8")
+        os.chmod(staged_path, 0o640)
+
+        task = self.create_task("CODE_CHANGE_REVIEW", slug)
+        return {**task, "spec_staged_at": str(staged_path), "allowed_files": list(spec.allowed_files)}

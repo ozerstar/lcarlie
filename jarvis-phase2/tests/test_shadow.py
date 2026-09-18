@@ -47,7 +47,7 @@ class ShadowTests(unittest.TestCase):
         telemetry = self.runner.handle("Jarvis, sistem durumu ne?")["telemetry"]
         self.assertTrue(telemetry["contract_valid"])
         self.assertEqual(telemetry["canonical_action_count"], 6)
-        self.assertEqual(telemetry["mapped_action_count"], 6)
+        self.assertEqual(telemetry["mapped_action_count"], 7)  # CODE_CHANGE_REVIEW also maps to REQUEST_HUMAN_REVIEW
         self.assertEqual(telemetry["unknown_internal"], [])
         self.assertEqual(telemetry["unknown_canonical"], [])
         self.assertTrue(telemetry["contract_hash"])

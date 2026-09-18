@@ -38,7 +38,7 @@ class ContractTests(unittest.TestCase):
         value = contract()
         self.assertTrue(value.valid, value.reason)
         self.assertEqual(value.canonical_action_count, 6)
-        self.assertEqual(value.mapped_action_count, 6)
+        self.assertEqual(value.mapped_action_count, 7)  # CODE_CHANGE_REVIEW also maps to REQUEST_HUMAN_REVIEW
         self.assertEqual(value.unknown_internal, ())
         self.assertEqual(value.unknown_canonical, ())
 

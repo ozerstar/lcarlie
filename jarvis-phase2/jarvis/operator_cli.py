@@ -6,9 +6,19 @@ Usage:
   jarvis-operator approve <action_id> "<reason>"
   jarvis-operator reject  <action_id> "<reason>"
   jarvis-operator create-task <INTERNAL_INTENT> <slug>
+  jarvis-operator create-coding-task <slug> <spec.json>
 
 This is a human-run terminal command, not a Jarvis code path. See
 jarvis/operator.py for the authority separation this relies on.
+
+A coding task spec (spec.json) looks like:
+  {
+    "objective": "bounded description of the change",
+    "allowed_files": ["jarvis-phase2/jarvis/some_module.py"],
+    "test_command": ["python3", "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py"],
+    "test_cwd": "jarvis-phase2"
+  }
+test_command/test_cwd are optional and default to the full Jarvis suite.
 """
 from __future__ import annotations
 
@@ -64,6 +74,18 @@ def main() -> int:
         try:
             result = session.create_task(args[1], args[2])
         except ValueError as exc:
+            _print({"error": str(exc)})
+            return 1
+        _print(result)
+        return 0
+
+    if command == "create-coding-task":
+        if len(args) < 3:
+            print("usage: jarvis-operator create-coding-task <slug> <spec.json>")
+            return 1
+        try:
+            result = session.create_coding_task(args[1], args[2])
+        except (ValueError, OSError) as exc:
             _print({"error": str(exc)})
             return 1
         _print(result)
