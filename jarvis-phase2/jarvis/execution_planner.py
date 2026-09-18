@@ -176,26 +176,28 @@ DOMAINS: tuple[Domain, ...] = (
     Domain(
         domain_id="sales", label="Satış",
         lemmas=("satış", "satis", "ciro", "gelir", "sales", "revenue", "sipariş", "siparis"),
-        memory_queries=(),
-        unavailable_reason=("mart.siparis / mart.siparis_kalem exist and ai_reader can "
-                            "read them, but no CompanyMemory query exposes them; the "
-                            "fixed query allowlist has no sales contract"),
+        memory_queries=("sales_orders", "sales_items"),
     ),
     Domain(
         domain_id="ecommerce", label="E-ticaret",
         lemmas=("e-ticaret", "eticaret", "e ticaret", "ecommerce", "online satış",
                 "online satis", "web sitesi", "site trafiği", "site trafigi", "funnel"),
-        memory_queries=(),
-        unavailable_reason=("mart.funnel_* and mart.ga4_siparis_mutabakat are not granted "
-                            "to ai_reader and no CompanyMemory query exposes them"),
+        # Product profitability, catalog price reality and funnel step ratios.
+        # Site traffic is still absent on purpose: core.source_authority
+        # records GA4 as BLOCKED_BY_EXTERNAL_CREDENTIAL, so no traffic query
+        # exists to name here.
+        memory_queries=("ecommerce_profitability", "ecommerce_price",
+                        "ecommerce_funnel"),
     ),
     Domain(
         domain_id="advertising", label="Reklam / performans",
         lemmas=("reklam", "advertising", "performans", "roas", "meta ads", "kampanya",
                 "harcama", "ad spend"),
-        memory_queries=(),
-        unavailable_reason=("mart.reklam_performans / mart.harcama / mart.roas_kapisi are "
-                            "not granted to ai_reader and no CompanyMemory query exposes them"),
+        # Spend, impressions, reach, clicks, CTR, CPC and CPM per ad and per
+        # campaign-day. Conversion and revenue columns travel with these rows
+        # but are Meta's claim, not verified sale: source_authority records
+        # creative_performance as commercial_confirmation NOT_AVAILABLE.
+        memory_queries=("advertising_performance", "advertising_spend"),
     ),
     Domain(
         domain_id="crm", label="CRM / müşteri",
@@ -203,7 +205,7 @@ DOMAINS: tuple[Domain, ...] = (
                 "mesaj", "iletişim", "iletisim"),
         # mart.acik_isler carries CEVAPSIZ_MESAJ rows -- unanswered customer
         # messages -- and is the one customer-side signal the allowlist reaches.
-        memory_queries=("open_work",),
+        memory_queries=("crm_customers", "crm_unanswered", "open_work"),
     ),
     Domain(
         domain_id="operations", label="Operasyon",
@@ -211,7 +213,7 @@ DOMAINS: tuple[Domain, ...] = (
                 "tedarik", "stok", "süreç", "surec"),
         # acik_isler also carries SINIFI_BILINMEYEN_GONDERI (unclassified
         # shipment); orchestrator health covers the operational system side.
-        memory_queries=("open_work", "system"),
+        memory_queries=("operations_shipments", "open_work", "system"),
     ),
 )
 
