@@ -71,6 +71,12 @@ class NormalizedSource:
     claims: dict[str, str]
     evidence_ref: str
     injection_detected: bool = False
+    # Reliability metadata from the adapter. Kept on the record so a reader can
+    # see that a claim came from a company's own page rather than an
+    # independent one, and so snippets stay attached to their source.
+    source_type: str = "UNKNOWN"
+    evidence_snippets: tuple[str, ...] = ()
+    relevance: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -150,6 +156,9 @@ def normalize_source(raw: dict[str, Any], resolver: Callable[..., Any] = socket.
         freshness=max(0.0, min(1.0, float(raw.get("freshness", 0.5)))),
         claims=clean_claims, evidence_ref=str(raw.get("evidence_ref") or f"web:{digest[:16]}"),
         injection_detected=any(marker in marker_text for marker in UNTRUSTED_MARKERS),
+        source_type=str(raw.get("source_type") or "UNKNOWN"),
+        evidence_snippets=tuple(str(item) for item in (raw.get("evidence_snippets") or ())),
+        relevance=max(0.0, min(1.0, float(raw.get("relevance", 0.0)))),
     )
 
 

@@ -35,6 +35,8 @@ from html.parser import HTMLParser
 from time import perf_counter
 from typing import Any
 
+from concurrent.futures import ThreadPoolExecutor
+
 from .adapter_factory import AdapterEvidence, AdapterState, CapabilityAdapter
 from .research_controller import RESEARCH_CAPABILITY, UnsafeUrl, canonicalize_url
 
@@ -123,36 +125,227 @@ def anchor_terms(query: str, count: int = 3) -> tuple[str, ...]:
     return tuple(terms[:count])
 
 
-def relevance(text: str, title: str, query: str) -> float:
-    """How much of the question this page is actually about.
+# Facets a market research request can ask about. A facet is only used when
+# the request actually contains one of its cues -- there is no fixed query
+# list, so "rakip fiyatlarını bul" does not also search regulation.
+FACETS: tuple[tuple[str, tuple[str, ...], str], ...] = (
+    ("market", ("pazar", "market", "gelişme", "gelisme", "büyüme", "buyume",
+                "trend", "sektör", "sektor", "rapor"), "pazar raporu son gelişmeler"),
+    ("competitor", ("rakip", "competitor", "marka", "lansman", "launch",
+                    "hareket", "yeni ürün", "yeni urun"), "rakip markalar yeni ürün lansmanı"),
+    ("pricing", ("fiyat", "price", "indirim", "kampanya", "promosyon",
+                 "zam", "ücret", "ucret"), "fiyat kampanya indirim"),
+    ("consumer", ("tüketici", "tuketici", "consumer", "talep", "tercih",
+                  "davranış", "davranis", "trend"), "tüketici talebi kategori trendi"),
+    ("retail", ("eczane", "perakende", "retail", "e-ticaret", "eticaret",
+                "mağaza", "magaza", "satış kanalı", "pharmacy"), "eczane perakende e-ticaret satış"),
+    ("regulatory", ("mevzuat", "regülasyon", "regulasyon", "yönetmelik",
+                    "yonetmelik", "titck", "denetim", "yasak"), "kozmetik mevzuat yönetmelik"),
+)
 
-    Measured the hard way, because the easy way fails: a plain
-    presence-ratio over the query's words scored a Kocaeli real-estate
-    article 0.75 on a dermocosmetics market query -- a 58 KB page contains
-    `Türkiye`, `pazar`, `fırsat` and `2026` somewhere no matter its subject.
-    So the page must repeat at least one distinctive term, and the score is
-    term DENSITY rather than presence. No model, no embedding.
+DEFAULT_FACETS = ("market", "competitor")
+
+
+# Words that describe HOW to research, not WHAT to research. Without this the
+# length proxy picks "kaynaklarıyla" out of "kanıtları kaynaklarıyla döndür"
+# and every generated query -- and every relevance score -- is about the wrong
+# noun. Measured: it produced 0 usable sources from 15 crawled pages.
+_NON_SUBJECT_STEMS = frozenset(
+    {cue[:6] for _, cues, _ in FACETS for cue in cues}
+    | {"araştı", "arasti", "göster", "goster", "öneml", "onemli",
+       "güncel", "guncel", "sinyal", "acisin", "açısın",
+       "kaynak", "kanıtl", "kanitl", "kopya", "çeliş", "celis",
+       "doğrul", "dogrul", "kullan", "döndür", "dondur", "ayrı",
+       "ayri", "sayma", "bilgi", "durum", "bağıms", "bagims",
+       "orijin", "haberi", "yapmak", "olarak"}
+)
+
+
+def research_subject(request: str, count: int = 3) -> tuple[str, ...]:
+    """The distinctive nouns a request is actually about.
+
+    Used both to build search queries and to score pages. Scoring against the
+    whole request is what broke V2's first run: a 40-word instruction sentence
+    makes every page look irrelevant, because no page contains "kopyalarını"
+    or "döndür".
+    """
+    # Pool size is measured, not guessed. At 25 the instruction vocabulary of a
+    # long Turkish request survives filtering and pollutes both the queries and
+    # the relevance terms; at 10 the surviving subject is tight. A wider topic
+    # also HURTS scoring, because one unmatchable token (a brand name) caps
+    # every page's title and lead score.
+    terms = [term for term in anchor_terms(request, count=10)
+             if not any(term.startswith(stem) for stem in _NON_SUBJECT_STEMS)]
+    return tuple(terms[:count]) or anchor_terms(request, count=count)
+
+
+def decompose(request: str, max_queries: int = 5) -> tuple[str, ...]:
+    """Turn one long natural-language request into focused search queries.
+
+    Deterministic: no model. A long Turkish sentence is a poor search query --
+    the first benchmark proved it, returning a real-estate article and the
+    Wikipedia page for Turkey. The subject is the request's distinctive terms;
+    each selected facet becomes one query against that subject.
+
+    If the AI model layer later exposes a QUERY_DECOMPOSITION capability, it
+    can replace this function without touching anything else: the rest of the
+    adapter only consumes the returned tuple.
+    """
+    normalized = " ".join(request.split())
+    lowered = normalized.casefold()
+    # A word that signals a facet is not the subject. Without this the
+    # length proxy picks the inflected "kampanyalarını" (14 chars) over
+    # "dermokozmetik" (13) and every generated query searches the wrong noun.
+    cue_stems = _NON_SUBJECT_STEMS
+
+    subject = " ".join(research_subject(normalized, count=2))
+
+    chosen = [name for name, cues, _ in FACETS
+              if any(cue in lowered for cue in cues)] or list(DEFAULT_FACETS)
+    modifiers = {name: modifier for name, _, modifier in FACETS}
+
+    queries = [f"{subject} {modifiers[name]}".strip() for name in chosen[:max_queries]]
+    # The bare subject is deliberately NOT searched when a facet exists.
+    # Measured: "dermokozmetik" on its own returned five online pharmacies and
+    # nothing else -- a plain product noun is a shopping query, and shops do
+    # not report what changed in a market. Without a facet it is all we have.
+    if not queries and subject:
+        queries = [subject]
+    return tuple(dict.fromkeys(queries))[:max_queries]
+
+
+# ------------------------------------------------------------- source typing
+MARKETPLACE_HOSTS = ("trendyol.", "hepsiburada.", "amazon.", "n11.", "ciceksepeti.",
+                     "pazarama.", "gittigidiyor.", "etsy.")
+REGULATOR_HOSTS = ("titck.gov.tr", "saglik.gov.tr", "ticaret.gov.tr", "resmigazete.gov.tr",
+                   "tuik.gov.tr", "rekabet.gov.tr")
+COMMUNITY_HOSTS = ("reddit.", "eksisozluk.", "forum.", "quora.", "facebook.",
+                   "instagram.", "x.com", "twitter.", "youtube.")
+NEWS_MARKERS = ("muhabir", "haber merkezi", "son dakika", "yayınlanma tarihi",
+                "güncelleme tarihi", "editör", "ajans")
+TRADE_MARKERS = ("sektör raporu", "sektor raporu", "pazar araştırması", "pazar arastirmasi",
+                 "ciro", "pazar payı", "pazar payi", "büyüme oranı", "ihracat")
+# "1.249,00 TL" / "349 ₺" / "₺1.899" -- a listed price, not a statistic.
+PRICE_TAG = re.compile(r"(?:\d[\d.]{1,7},\d{2}\s?(?:TL|₺)|\d[\d.]{1,7}\s?(?:TL|₺)|₺\s?\d[\d.]{1,7})", re.IGNORECASE)
+
+SHOP_MARKERS = ("sepete ekle", "sepete at", "satın al", "satin al", "stokta",
+                "ücretsiz kargo", "ucretsiz kargo", "taksit")
+COMPANY_MARKERS = ("hakkımızda", "hakkimizda", "markamız", "markamiz",
+                   "ürünlerimiz", "urunlerimiz", "bize ulaşın", "bize ulasin")
+
+SOURCE_TYPES = ("OFFICIAL", "REGULATOR", "COMPANY", "NEWS", "TRADE_PUBLICATION",
+                "RETAILER", "MARKETPLACE", "COMMUNITY", "UNKNOWN")
+
+
+def classify_source(host: str, title: str, text: str) -> str:
+    """Deterministic source class from host and page markers.
+
+    Used as reliability metadata, and to keep a company's own statement from
+    being treated as independent confirmation of itself.
+    """
+    host = (host or "").casefold()
+    body = (title + " " + text[:6000]).casefold()
+
+    if any(marker in host for marker in REGULATOR_HOSTS):
+        return "REGULATOR"
+    if host.endswith(".gov.tr") or host.endswith(".gov") or host.endswith(".gov.uk"):
+        return "OFFICIAL"
+    if any(marker in host for marker in MARKETPLACE_HOSTS):
+        return "MARKETPLACE"
+    if any(marker in host for marker in COMMUNITY_HOSTS):
+        return "COMMUNITY"
+
+    prices = len(PRICE_TAG.findall(body))
+    shop = sum(marker in body for marker in SHOP_MARKERS) + (2 if prices >= 8 else 0)
+    company = sum(marker in body for marker in COMPANY_MARKERS)
+    news = sum(marker in body for marker in NEWS_MARKERS)
+    trade = sum(marker in body for marker in TRADE_MARKERS)
+
+    # A catalogue page full of prices is a shop even when it never says
+    # "sepete ekle" -- category landing pages often do not.
+    if prices >= 8 or (shop >= 2 and company >= 1):
+        return "RETAILER"
+    if company >= 2:
+        return "COMPANY"
+    if trade >= 2 and trade > news:
+        return "TRADE_PUBLICATION"
+    if news >= 1:
+        return "NEWS"
+    if shop >= 2:
+        return "RETAILER"
+    return "UNKNOWN"
+
+
+# A company talking about itself is evidence of what the company says, not an
+# independent check on whether it is true.
+NON_INDEPENDENT_TYPES = frozenset({"COMPANY", "RETAILER", "MARKETPLACE"})
+
+
+def score_source(title: str, text: str, query: str) -> dict[str, float]:
+    """Relevance from three separate signals instead of one bag of words.
+
+    The failure this replaces is recorded because it was not obvious: scoring
+    a page by how many query words it contains anywhere gave a Kocaeli
+    real-estate article 0.75 on a dermocosmetics query, because a 58 KB page
+    contains `Türkiye`, `pazar` and `fırsat` somewhere regardless of subject.
+    Title and lead are where a page declares its subject; the body only
+    confirms it. So they are weighted separately and the anchor term has to
+    show up where a page states what it is about.
     """
     terms = {term for term in _token_set(query) if len(term) > 3}
     if not terms:
-        return 1.0
-    body = (title + " " + text).casefold()
-    words = _WORD.findall(body)
-    if not words:
-        return 0.0
-    # Only the single most distinctive term counts as the topic anchor.
-    # Allowing any of the top three let the Wikipedia article on Turkey pass a
-    # dermocosmetics query on the word . The trade-off is
-    # explicit: a relevant page that uses only a synonym of the anchor is
-    # dropped, and a dropped page is visible in off_topic_dropped rather than
-    # silently weighted down.
+        return {"relevance": 1.0, "title": 1.0, "lead": 1.0, "density": 1.0, "anchor_hits": 0.0}
+
     anchors = anchor_terms(query, count=1)
-    if anchors and body.count(anchors[0]) < 2:
-        return 0.0
-    hits = sum(1 for word in words if word in terms)
-    density = hits / len(words)
-    # 2% of a page being query terms is already a strongly on-topic page.
-    return min(1.0, density / 0.02)
+    anchor = anchors[0] if anchors else ""
+    title_l, lead_l = title.casefold(), text[:1500].casefold()
+    body_l = (title + " " + text).casefold()
+
+    title_score = len(terms & _token_set(title_l)) / len(terms)
+    lead_score = len(terms & _token_set(lead_l)) / len(terms)
+    words = _WORD.findall(body_l)
+    density = (sum(1 for word in words if word in terms) / len(words)) if words else 0.0
+    density_score = min(1.0, density / 0.02)
+    anchor_hits = float(body_l.count(anchor)) if anchor else 0.0
+
+    declared = bool(anchor) and (anchor in title_l or anchor in lead_l)
+    if anchor and anchor_hits < 2:
+        relevance = 0.0
+    elif anchor and not declared and anchor_hits < 4:
+        # Mentioned in passing deep inside a long page: not what it is about.
+        relevance = 0.0
+    else:
+        relevance = 0.45 * title_score + 0.35 * lead_score + 0.20 * density_score
+    return {"relevance": round(relevance, 3), "title": round(title_score, 3),
+            "lead": round(lead_score, 3), "density": round(density_score, 3),
+            "anchor_hits": anchor_hits}
+
+
+_SENTENCE = re.compile(r"[^.!?\n]{40,400}[.!?]")
+
+
+def evidence_snippets(text: str, query: str, limit: int = 3) -> list[str]:
+    """Sentences from the page that actually mention the subject.
+
+    Grounded by construction: every snippet is a verbatim span of the fetched
+    page, so a reader can check it against the source. Numeric claims stay in
+    extract_claims; this is the readable half of the same evidence.
+    """
+    anchors = set(anchor_terms(query, count=2))
+    terms = {term for term in _token_set(query) if len(term) > 4}
+    found: list[str] = []
+    for match in _SENTENCE.finditer(text):
+        sentence = " ".join(match.group(0).split())
+        lowered = sentence.casefold()
+        if anchors and not any(anchor in lowered for anchor in anchors):
+            continue
+        if len(_token_set(lowered) & terms) < min(2, len(terms)):
+            continue
+        if sentence not in found:
+            found.append(sentence)
+        if len(found) >= limit:
+            break
+    return found
 
 
 def extract_claims(text: str, query: str, limit: int = 6) -> dict[str, str]:
@@ -258,13 +451,16 @@ class WebSearchCrawlAdapter(CapabilityAdapter):
 
     def __init__(self, searxng_url: str | None = None, max_results: int = 6,
                  max_pages: int = 4, resolver: Any = socket.getaddrinfo,
-                 timeout: float = 10.0, min_relevance: float = 0.34) -> None:
+                 timeout: float = 10.0, min_relevance: float = 0.34,
+                 max_queries: int = 4, search_concurrency: int = 3) -> None:
         self.searxng_url = searxng_url if searxng_url is not None else os.environ.get("RESEARCH_SEARXNG_URL", "")
         self.max_results = max_results
         self.max_pages = max_pages
         self.resolver = resolver
         self.timeout = timeout
         self.min_relevance = min_relevance
+        self.max_queries = max_queries
+        self.search_concurrency = search_concurrency
         self._last: dict[str, Any] = {}
 
     # -- contract ---------------------------------------------------------
@@ -309,32 +505,78 @@ class WebSearchCrawlAdapter(CapabilityAdapter):
         budget = int(envelope.get("max_bytes") or 64_000)
 
         started = perf_counter()
-        urls, search_ms = self._search(query)
+        queries = decompose(query, self.max_queries)
+        urls, search_ms, raw_count = self._search_many(queries)
+        crawl_started = perf_counter()
         sources, fetch_stats = self._crawl(urls, query, budget)
+        crawl_ms = round((perf_counter() - crawl_started) * 1000, 3)
+
+        by_type: dict[str, int] = {}
+        for source in sources:
+            by_type[source["source_type"]] = by_type.get(source["source_type"], 0) + 1
+        independent = {source["origin_id"] for source in sources
+                       if source["source_type"] not in NON_INDEPENDENT_TYPES}
+
         self._last = {
-            "search_ms": search_ms, "results_found": len(urls),
+            "generated_queries": list(queries),
+            "search_ms": search_ms, "crawl_ms": crawl_ms,
+            "raw_results": raw_count, "unique_urls": len(urls),
+            "url_duplicates_dropped": max(0, raw_count - len(urls)),
             "pages_fetched": fetch_stats["fetched"],
             "pages_failed": fetch_stats["failed"],
-            "duplicates_dropped": fetch_stats["duplicates"],
+            "content_duplicates_dropped": fetch_stats["duplicates"],
             "off_topic_dropped": fetch_stats["off_topic"],
+            "relevant_kept": len(sources),
+            "source_types": by_type,
+            "independent_non_company": len(independent),
             "total_ms": round((perf_counter() - started) * 1000, 3),
         }
         return {"sources": sources, "model_calls": 0, "cost": 0.0,
                 "external_actions": 0, "metrics": dict(self._last)}
 
     # -- internals --------------------------------------------------------
-    def _search(self, query: str) -> tuple[list[str], float]:
+    def _search_many(self, queries: tuple[str, ...]) -> tuple[list[str], float, int]:
+        """Run the focused queries in bounded parallel, then merge.
+
+        Ordering is round-robin across queries rather than concatenation, so a
+        single broad query cannot fill the whole fetch budget and starve the
+        competitor or pricing angle.
+        """
         started = perf_counter()
+        workers = max(1, min(self.search_concurrency, len(queries)))
+        per_query: list[list[str]] = []
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            for result in pool.map(self._search_one, queries):
+                per_query.append(result)
+
+        raw_count = sum(len(rows) for rows in per_query)
+        merged: list[str] = []
+        seen: set[str] = set()
+        for index in range(max((len(rows) for rows in per_query), default=0)):
+            for rows in per_query:
+                if index >= len(rows):
+                    continue
+                url = rows[index]
+                key = url.split("#", 1)[0].rstrip("/").casefold()
+                if key in seen:
+                    continue
+                seen.add(key)
+                merged.append(url)
+        return merged, round((perf_counter() - started) * 1000, 3), raw_count
+
+    def _search_one(self, query: str) -> list[str]:
         if self.searxng_url:
             try:
-                urls = _searxng_search(self.searxng_url, query, self.max_results, self.resolver)
+                return _searxng_search(self.searxng_url, query, self.max_results, self.resolver)
             except Exception:
-                urls = _duckduckgo_search(query, self.max_results, self.resolver)
-        else:
-            urls = _duckduckgo_search(query, self.max_results, self.resolver)
-        return urls, round((perf_counter() - started) * 1000, 3)
+                pass
+        try:
+            return _duckduckgo_search(query, self.max_results, self.resolver)
+        except Exception:
+            return []
 
     def _crawl(self, urls: list[str], query: str, budget: int) -> tuple[list[dict[str, Any]], dict[str, int]]:
+        topic = " ".join(research_subject(query, count=4)) or query
         rows: list[dict[str, Any]] = []
         texts: list[str] = []
         stats = {"fetched": 0, "failed": 0, "duplicates": 0, "off_topic": 0}
@@ -358,12 +600,13 @@ class WebSearchCrawlAdapter(CapabilityAdapter):
                 meta.feed(html)
             except Exception:
                 pass
-            score = relevance(text, meta.title, query)
-            if score < self.min_relevance:
+            scores = score_source(meta.title, text, topic)
+            if scores["relevance"] < self.min_relevance:
                 stats["off_topic"] += 1
                 continue
             texts.append(text)
             host = (urllib.parse.urlsplit(final_url).hostname or "").casefold()
+            source_type = classify_source(host, meta.title, text)
             canonical_host = host
             if meta.canonical:
                 canonical_host = (urllib.parse.urlsplit(
@@ -377,11 +620,17 @@ class WebSearchCrawlAdapter(CapabilityAdapter):
                 "observed_at": meta.published or "",
                 # Authority is not a reputation score -- we have no ground
                 # truth for that. It is how much of the question the page
-                # actually addresses, discounted for plain HTTP.
-                "authority": round(min(1.0, score) * (1.0 if final_url.startswith("https://") else 0.7), 3),
-                "relevance": round(score, 3),
+                # actually addresses, discounted for plain HTTP and for a
+                # source class that cannot corroborate itself.
+                "authority": round(min(1.0, scores["relevance"])
+                                   * (1.0 if final_url.startswith("https://") else 0.7)
+                                   * (0.6 if source_type in NON_INDEPENDENT_TYPES else 1.0), 3),
+                "relevance": scores["relevance"],
+                "relevance_signals": scores,
+                "source_type": source_type,
+                "evidence_snippets": evidence_snippets(text, topic),
                 "freshness": 0.8 if meta.published else 0.4,
-                "claims": extract_claims(text, query),
+                "claims": extract_claims(text, topic),
                 "evidence_ref": final_url,
             })
         return rows, stats
