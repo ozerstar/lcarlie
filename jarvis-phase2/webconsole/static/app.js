@@ -39,6 +39,14 @@ async function api(path, options = {}) {
   const res = await fetch(path, Object.assign({ credentials: 'same-origin' }, options, { headers }));
   let body = null;
   try { body = await res.json(); } catch (_) { /* no body */ }
+  // A 401 means the session lapsed (idle 30 min / absolute 12 h). Drop straight
+  // back to the login card instead of letting polls and POSTs keep firing
+  // against a dead session. /api/session never 401s -- it answers
+  // {authenticated:false} with 200 -- so this cannot loop.
+  if (res.status === 401 && state.csrfToken) {
+    state.csrfToken = null;
+    showLogin();
+  }
   return { ok: res.ok, status: res.status, body };
 }
 
