@@ -53,6 +53,18 @@ _ANALYTICAL_OBJECTS = (
 )
 
 
+# A Turkish imperative is the bare stem, optionally with a person suffix.
+# Everything else built on the same stem is some other form: an ability, an
+# infinitive, a past tense -- none of them an instruction.
+_IMPERATIVE_SUFFIXES = frozenset((
+    "", "ın", "in", "un", "ün", "ınız", "iniz", "unuz", "ünüz",
+    # stems ending in a vowel take a buffer y: guncelle -> guncelleyin
+    "yın", "yin", "yun", "yün", "yınız", "yiniz", "yunuz", "yünüz",
+    # negated imperative, recognised here so the -ma/-me check below sees it
+    "ma", "me", "mayın", "meyin", "mayınız", "meyiniz",
+))
+
+
 def _has_command(text: str, verbs: tuple[str, ...]) -> bool:
     """True only for verbs used as commands, not for their negated forms.
 
@@ -76,6 +88,15 @@ def _has_command(text: str, verbs: tuple[str, ...]) -> bool:
             # firewall notice; "indir" would match inside "indirim" the same way.
             before = text[index - 1] if index else " "
             if before.isalnum():
+                start = index + len(lemma)
+                continue
+            # ... and the word has to BE the imperative, not merely begin with
+            # it. "yapabiliyoruz" is a question about ability, not an order.
+            end = index + len(lemma)
+            while end < len(text) and (text[end].isalnum() or text[end] in "'’"):
+                end += 1
+            suffix = text[index + len(lemma):end]
+            if suffix not in _IMPERATIVE_SUFFIXES:
                 start = index + len(lemma)
                 continue
             negated = tail in ("ma", "me")
@@ -481,6 +502,11 @@ CHAT_SYSTEM = (
     "- Kullanıcı sadece konuşmak ya da dertleşmek istiyor olabilir; önce dinle, "
     "hemen çözüm dayatma.\n"
     "- Madde madde liste yapma, 2-4 cümle yeter.\n"
+    "Yeteneklerin: şirket verisini (satış, e-ticaret, reklam, CRM, operasyon) "
+    "kanıtıyla okumak, analiz ve kampanya önerisi hazırlamak, web araştırması "
+    "istemek. YAPAMADIKLARIN: kişisel veri veya telefon numarası bulmak, "
+    "internette kişi aramak, sistemlere girmek, mesaj/reklam/fiyat değiştirmek. "
+    "Böyle bir şey istenirse dürüstçe yapamayacağını söyle.\n"
     "Sınırlar: Şirketle ilgili sayı, tarih, ürün veya müşteri bilgisi UYDURMA -- "
     "böyle bir şey sorulursa verilere bakman gerektiğini söyle. Hiçbir işlemi "
     "kendin uygulayamazsın; onay insanındır."
