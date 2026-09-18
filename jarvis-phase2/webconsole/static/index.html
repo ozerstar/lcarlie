@@ -3,90 +3,277 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>L'CARLIÉ · JARVIS</title>
-<meta name="theme-color" content="#f7f5f1">
+<title>L’CARLIÉ · AUTONOMOUS COMPANY INTELLIGENCE OS</title>
+<meta name="theme-color" content="#0a0a0b">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="stylesheet" href="/app.css">
 </head>
 <body>
 
-<!-- LOGIN -->
+<!-- ============================ LOGIN ============================ -->
 <section id="loginView" class="view login-view" hidden>
-  <div class="login-card">
-    <div class="brand-mark">
-      <span class="brand-name">L'CARLIÉ</span>
-      <span class="brand-sub">AUTONOMOUS COMPANY INTELLIGENCE OS</span>
+  <div class="login-frame">
+    <div class="login-card">
+      <div class="brand-mark">
+        <span class="brand-name">L’CARLIÉ</span>
+        <span class="brand-rule"></span>
+        <span class="brand-sub">AUTONOMOUS COMPANY INTELLIGENCE OS</span>
+      </div>
+      <form id="loginForm" class="login-form" autocomplete="off">
+        <label>OPERATÖR
+          <input id="loginUser" name="username" type="text" autocomplete="username" required>
+        </label>
+        <label>PAROLA
+          <input id="loginPass" name="password" type="password" autocomplete="current-password" required>
+        </label>
+        <button type="submit">GİRİŞ</button>
+        <p id="loginError" class="login-error" hidden></p>
+      </form>
+      <p class="login-foot">Naturally Yours</p>
     </div>
-    <form id="loginForm" class="login-form" autocomplete="off">
-      <label>Operatör
-        <input id="loginUser" name="username" type="text" autocomplete="username" required>
-      </label>
-      <label>Parola
-        <input id="loginPass" name="password" type="password" autocomplete="current-password" required>
-      </label>
-      <button type="submit">Giriş</button>
-      <p id="loginError" class="login-error" hidden></p>
-    </form>
   </div>
 </section>
 
-<!-- COMMAND CENTER -->
+<!-- ======================= COMMAND CENTER ======================= -->
 <div id="appView" class="view app-view" hidden>
 
   <header class="topbar">
-    <div class="topbar-brand">
-      <span class="brand-name">L'CARLIÉ</span>
+    <div class="tb-brand">
+      <span class="brand-name">L’CARLIÉ</span>
       <span class="brand-sub">AUTONOMOUS COMPANY INTELLIGENCE OS</span>
     </div>
-    <div class="topbar-states" id="topbarStates">
-      <div class="state-chip" id="chipTime"><span class="state-label">SAAT</span><span class="state-value">—</span></div>
-      <div class="state-chip" id="chipJarvis"><span class="state-label">JARVIS</span><span class="state-value">—</span></div>
-      <div class="state-chip" id="chipMemory"><span class="state-label">HAFIZA</span><span class="state-value">—</span></div>
-      <div class="state-chip" id="chipFirewall"><span class="state-label">FIREWALL</span><span class="state-value">—</span></div>
-      <div class="state-chip" id="chipOperator"><span class="state-label">OPERATÖR</span><span class="state-value">—</span></div>
-      <button id="logoutBtn" class="ghost-btn" type="button">Çıkış</button>
+
+    <nav class="tb-nav" id="mainNav" aria-label="Ana gezinme">
+      <button type="button" class="nav-item is-active" data-view="home">ANA SAYFA</button>
+      <button type="button" class="nav-item" data-view="analiz">ANALİZ</button>
+      <button type="button" class="nav-item" data-view="gorevler">GÖREVLER</button>
+      <button type="button" class="nav-item" data-view="veri" disabled title="Bu bölümün arka uç servisi henüz yok">VERİ</button>
+      <button type="button" class="nav-item" data-view="ajanlar" disabled title="Bu bölümün arka uç servisi henüz yok">AJANLAR</button>
+      <button type="button" class="nav-item" data-view="raporlar" disabled title="Bu bölümün arka uç servisi henüz yok">RAPORLAR</button>
+      <button type="button" class="nav-item" data-view="ayarlar" disabled title="Bu bölümün arka uç servisi henüz yok">AYARLAR</button>
+    </nav>
+
+    <div class="tb-meta">
+      <div class="tb-clock"><span id="tbDate" class="tb-date">—</span><span id="tbTime" class="tb-time">—</span></div>
+      <div class="tb-live" id="tbLive"><span class="live-dot"></span><span id="tbLiveText" class="live-text">BAĞLANIYOR</span></div>
+      <div class="tb-operator"><span class="op-avatar" id="opAvatar">—</span><span class="op-name" id="opName">—</span></div>
+      <button id="logoutBtn" class="ghost-btn" type="button">ÇIKIŞ</button>
     </div>
   </header>
 
-  <main class="command-grid">
+  <!-- ------------------------- ANA SAYFA ------------------------- -->
+  <main class="stage view-panel" id="viewHome">
 
-    <section class="panel panel-intelligence" aria-label="Jarvis intelligence stream">
-      <h2 class="panel-title">CANLI ZEKÂ</h2>
-      <ol id="activityFeed" class="activity-feed"></ol>
+    <section class="panel p-left" aria-label="Canlı zekâ akışı">
+      <div class="panel-head">
+        <h2 class="panel-title">CANLI ZEKÂ AKIŞI</h2>
+        <span class="panel-count" id="feedCount">—</span>
+      </div>
+      <ol id="activityFeed" class="feed"></ol>
     </section>
 
-    <section class="panel panel-core" aria-label="Jarvis presence">
-      <div class="core-wrap">
-        <svg id="jarvisCore" class="jarvis-core" viewBox="0 0 400 400" role="img" aria-label="Jarvis durumu">
-          <circle class="ring ring-outer" cx="200" cy="200" r="170"></circle>
-          <circle class="ring ring-mid" cx="200" cy="200" r="130"></circle>
-          <circle class="ring ring-inner" cx="200" cy="200" r="92"></circle>
-          <g id="nodes"></g>
-          <circle class="core-glow" cx="200" cy="200" r="46"></circle>
-          <circle class="core-dot" cx="200" cy="200" r="10"></circle>
+    <section class="panel p-core" aria-label="L’CARLIÉ zekâ çekirdeği">
+      <div class="core-stack">
+        <svg id="jarvisCore" class="core-svg core-state-idle" viewBox="0 0 620 470" role="img"
+             aria-labelledby="coreSvgTitle" preserveAspectRatio="xMidYMid meet">
+          <title id="coreSvgTitle">L’CARLIÉ zekâ çekirdeği ve departman düğümleri</title>
+
+          <g class="orbit-spin" aria-hidden="true">
+            <circle class="ring ring-outer" cx="310" cy="235" r="205"></circle>
+          </g>
+          <g class="orbit-spin-rev" aria-hidden="true">
+            <circle class="ring ring-mid" cx="310" cy="235" r="128"></circle>
+          </g>
+          <circle class="ring ring-node" cx="310" cy="235" r="168"></circle>
+          <circle class="ring ring-inner" cx="310" cy="235" r="92"></circle>
+
+          <g class="orbit-sweep" aria-hidden="true">
+            <path class="sweep-arc" d="M 310 67 A 168 168 0 0 1 455.5 319"></path>
+          </g>
+
+          <g class="orbit-nodes">
+            <g class="onode">
+              <line class="ospoke" x1="310" y1="149" x2="310" y2="77"/>
+              <circle class="ohalo" cx="310" cy="67" r="8"/>
+              <circle class="odot" cx="310" cy="67" r="3.4"/>
+              <text class="olabel" x="310" y="45" text-anchor="middle">STRATEJİ</text>
+            </g>
+            <g class="onode">
+              <line class="ospoke" x1="365.3" y1="169.1" x2="411.6" y2="114"/>
+              <circle class="ohalo" cx="418" cy="106.3" r="8"/>
+              <circle class="odot" cx="418" cy="106.3" r="3.4"/>
+              <text class="olabel" x="428.3" y="97" text-anchor="start">
+                <tspan x="428.3">PAZAR &amp;</tspan>
+                <tspan x="428.3" dy="11">RAKİP</tspan>
+              </text>
+            </g>
+            <g class="onode">
+              <line class="ospoke" x1="394.7" y1="220.1" x2="465.6" y2="207.6"/>
+              <circle class="ohalo" cx="475.4" cy="205.8" r="8"/>
+              <circle class="odot" cx="475.4" cy="205.8" r="3.4"/>
+              <text class="olabel" x="491.2" y="206" text-anchor="start">
+                <tspan x="491.2">ÜRÜN &amp;</tspan>
+                <tspan x="491.2" dy="11">AR-GE</tspan>
+              </text>
+            </g>
+            <g class="onode">
+              <line class="ospoke" x1="384.5" y1="278" x2="446.8" y2="314"/>
+              <circle class="ohalo" cx="455.5" cy="319" r="8"/>
+              <circle class="odot" cx="455.5" cy="319" r="3.4"/>
+              <text class="olabel" x="469.3" y="330" text-anchor="start">
+                <tspan x="469.3">SATIŞ &amp;</tspan>
+                <tspan x="469.3" dy="11">E-TİCARET</tspan>
+              </text>
+            </g>
+            <g class="onode">
+              <line class="ospoke" x1="339.4" y1="315.8" x2="364" y2="383.5"/>
+              <circle class="ohalo" cx="367.5" cy="392.9" r="8"/>
+              <circle class="odot" cx="367.5" cy="392.9" r="3.4"/>
+              <text class="olabel" x="372.9" y="410.9" text-anchor="start">
+                <tspan x="372.9">REKLAM &amp;</tspan>
+                <tspan x="372.9" dy="11">BÜYÜME</tspan>
+              </text>
+            </g>
+            <g class="onode">
+              <line class="ospoke" x1="280.6" y1="315.8" x2="256" y2="383.5"/>
+              <circle class="ohalo" cx="252.5" cy="392.9" r="8"/>
+              <circle class="odot" cx="252.5" cy="392.9" r="3.4"/>
+              <text class="olabel" x="247.1" y="410.9" text-anchor="end">
+                <tspan x="247.1">MÜŞTERİ</tspan>
+                <tspan x="247.1" dy="11">&amp; CRM</tspan>
+              </text>
+            </g>
+            <g class="onode">
+              <line class="ospoke" x1="235.5" y1="278" x2="173.2" y2="314"/>
+              <circle class="ohalo" cx="164.5" cy="319" r="8"/>
+              <circle class="odot" cx="164.5" cy="319" r="3.4"/>
+              <text class="olabel" x="150.7" y="330" text-anchor="end">FİNANS</text>
+            </g>
+            <g class="onode">
+              <line class="ospoke" x1="225.3" y1="220.1" x2="154.4" y2="207.6"/>
+              <circle class="ohalo" cx="144.6" cy="205.8" r="8"/>
+              <circle class="odot" cx="144.6" cy="205.8" r="3.4"/>
+              <text class="olabel" x="128.8" y="206" text-anchor="end">OPERASYON</text>
+            </g>
+            <g class="onode">
+              <line class="ospoke" x1="254.7" y1="169.1" x2="208.4" y2="114"/>
+              <circle class="ohalo" cx="202" cy="106.3" r="8"/>
+              <circle class="odot" cx="202" cy="106.3" r="3.4"/>
+              <text class="olabel" x="191.7" y="97" text-anchor="end">
+                <tspan x="191.7">MEVZUAT</tspan>
+                <tspan x="191.7" dy="11">&amp; KALİTE</tspan>
+              </text>
+            </g>
+          </g>
+
+          <circle class="core-aura" cx="310" cy="235" r="74"></circle>
+          <circle class="core-disc" cx="310" cy="235" r="62"></circle>
+          <circle class="core-edge" cx="310" cy="235" r="62"></circle>
         </svg>
-        <div class="core-caption">
-          <span id="coreStateLabel">IDLE</span>
+
+        <div class="core-label" aria-live="polite">
+          <span class="core-brand">L’CARLIÉ</span>
+          <span class="core-state" id="coreStateLabel">HAZIR</span>
         </div>
+      </div>
+
+      <div class="core-foot">
+        <p class="core-chain">VERİ<span>+</span>ARAŞTIRMA<span>+</span>ANALİZ<span>+</span>ÖNERİ<span>+</span>EYLEM</p>
+        <p class="core-sign">Naturally Yours</p>
       </div>
     </section>
 
-    <section class="panel panel-proposals" aria-label="Pending proposals">
-      <h2 class="panel-title">BEKLEYEN ÖNERİLER</h2>
-      <ol id="proposalList" class="proposal-list"></ol>
-      <p id="proposalEmpty" class="empty-note" hidden>Bekleyen öneri yok.</p>
-    </section>
+    <aside class="panel p-right" aria-label="Sistem durumu">
+      <div class="panel-head">
+        <h2 class="panel-title">SİSTEM DURUMU</h2>
+      </div>
+
+      <div class="rp-scroll">
+        <div class="metric-row">
+          <div class="metric"><span class="m-label">CPU</span><span class="m-value m-na" id="mCpu">N/A</span></div>
+          <div class="metric"><span class="m-label">RAM</span><span class="m-value m-na" id="mRam">N/A</span></div>
+          <div class="metric"><span class="m-label">DİSK</span><span class="m-value m-na" id="mDisk">N/A</span></div>
+        </div>
+        <p class="rp-note">Kaynak kullanımı bu konsola bağlı değil — uç nokta yok, tahmini yüzde gösterilmiyor.</p>
+
+        <h3 class="rp-sub">SERVİSLER</h3>
+        <ul class="svc-list" id="svcList"></ul>
+
+        <h3 class="rp-sub">KUYRUK <span class="rp-src">Company Memory</span></h3>
+        <ul class="kv-list" id="queueList"></ul>
+
+        <h3 class="rp-sub">BEKLEYEN ONAYLAR <span class="rp-src">operatör kuyruğu</span></h3>
+        <div class="big-stat"><span id="statApprovals" class="big-num">—</span><span class="big-unit">öneri onay bekliyor</span></div>
+        <ol id="proposalList" class="proposal-list"></ol>
+        <p id="proposalEmpty" class="empty-note" hidden>Bekleyen öneri yok.</p>
+
+        <h3 class="rp-sub">BEKLEYEN ÖNERİLER <span class="rp-src">pending_actions</span></h3>
+        <div class="big-stat"><span id="statProposals" class="big-num">—</span><span class="big-unit">Company Memory kaydı</span></div>
+
+        <h3 class="rp-sub">HIZLI AKSİYONLAR</h3>
+        <div class="qa-grid">
+          <button type="button" class="qa-btn" id="qaRefresh">DURUMU YENİLE</button>
+          <button type="button" class="qa-btn" data-ask="Bugün şirkette durum ne?">GÜNLÜK DURUM</button>
+          <button type="button" class="qa-btn" data-ask="Bekleyen önerilerin neler?">ÖNERİLERİ LİSTELE</button>
+          <button type="button" class="qa-btn" data-ask="Açık işler neler?">AÇIK İŞLER</button>
+        </div>
+      </div>
+    </aside>
 
   </main>
 
-  <section class="chat-dock" aria-label="Jarvis sohbet">
-    <div id="chatLog" class="chat-log"></div>
-    <form id="chatForm" class="chat-form">
-      <input id="chatInput" type="text" placeholder="Jarvis'e sor… örn. “Bugün şirkette durum ne?”" autocomplete="off">
-      <button type="button" id="retryBtn" class="ghost-btn" hidden>Tekrar</button>
-      <button type="button" id="stopBtn" class="ghost-btn" hidden>Durdur</button>
-      <button type="button" id="planBtn" class="ghost-btn">Plan</button>
-      <button type="submit" id="sendBtn">Gönder</button>
+  <!-- -------------------------- ANALİZ --------------------------- -->
+  <main class="stage stage-single view-panel" id="viewAnaliz" hidden>
+    <section class="panel p-wide" aria-label="Yürütme planı analizi">
+      <div class="panel-head">
+        <h2 class="panel-title">ANALİZ · YÜRÜTME PLANI</h2>
+        <span class="panel-count">/api/plan</span>
+      </div>
+      <div class="analiz-body">
+        <p class="rp-note">
+          Bir talebi yaz; Jarvis onu denetlenmiş bir yürütme grafiğine çevirir.
+          Hiçbir adım çalıştırılmaz, model çağrılmaz — yalnızca plan gösterilir.
+        </p>
+        <form id="analizForm" class="analiz-form">
+          <input id="analizInput" type="text" autocomplete="off"
+                 placeholder="örn. “VIREON için rakip fiyat analizi çıkar”">
+          <button type="submit" class="gold-btn">PLAN ÜRET</button>
+        </form>
+        <div id="analizResult" class="analiz-result"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ------------------------- GÖREVLER -------------------------- -->
+  <main class="stage stage-split view-panel" id="viewGorevler" hidden>
+    <section class="panel" aria-label="Bekleyen öneriler">
+      <div class="panel-head">
+        <h2 class="panel-title">BEKLEYEN ÖNERİLER</h2>
+        <span class="panel-count" id="taskPropCount">—</span>
+      </div>
+      <p id="taskProposalEmpty" class="empty-note" hidden>Bekleyen öneri yok.</p>
+      <ol id="taskProposalList" class="proposal-list proposal-list-lg"></ol>
+    </section>
+    <section class="panel" aria-label="Döngü kayıtları">
+      <div class="panel-head">
+        <h2 class="panel-title">DÖNGÜ KAYITLARI</h2>
+        <span class="panel-count" id="taskCycleCount">—</span>
+      </div>
+      <ol id="taskCycleList" class="feed feed-lg"></ol>
+    </section>
+  </main>
+
+  <!-- ----------------------- COMMAND BAR ------------------------- -->
+  <section class="cmdbar" id="cmdBar" aria-label="L’CARLIÉ komut satırı">
+    <div id="chatLog" class="chat-log" hidden></div>
+    <form id="chatForm" class="cmd-form">
+      <span class="cmd-caret" aria-hidden="true"></span>
+      <input id="chatInput" type="text" autocomplete="off"
+             placeholder="L’CARLIÉ’ye sorun… örn. “Bugün şirkette durum ne?”">
+      <button type="button" id="retryBtn" class="ghost-btn" hidden>TEKRAR</button>
+      <button type="button" id="stopBtn" class="ghost-btn" hidden>DURDUR</button>
+      <button type="button" id="planBtn" class="ghost-btn">PLAN</button>
+      <button type="submit" id="sendBtn" class="gold-btn">GÖNDER</button>
     </form>
   </section>
 
