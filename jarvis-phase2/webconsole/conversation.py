@@ -11,6 +11,7 @@ from jarvis.execution_planner import STATUS_BLOCKED_EXTERNAL_ACTION, plan_reques
 from jarvis.model_layer import (LOCAL_MODEL as LOCAL_MODEL_NAME, ModelRouter,
                                 ModelUnavailable, needs_escalation,
                                 should_use_model)
+from jarvis import turkish
 from jarvis.agency import AgencyCapability
 from jarvis.specialist_pool import SpecialistPool
 
@@ -65,7 +66,7 @@ _IMPERATIVE_SUFFIXES = frozenset((
 ))
 
 
-def _has_command(text: str, verbs: tuple[str, ...]) -> bool:
+def _has_command(text: str, verbs: tuple[str, ...], raw: str = "") -> bool:
     """True only for verbs used as commands, not for their negated forms.
 
     Turkish negates an imperative with -ma/-me on the stem, so "yayınlama"
@@ -74,6 +75,27 @@ def _has_command(text: str, verbs: tuple[str, ...]) -> bool:
     sent a campaign brief to the action firewall. Same for "değiştirme",
     "gönderme", "artırma".
     """
+    # Morphology first: "yap" is Verb+Imp, "yapabiliyoruz" is Verb+Able+Prog.
+    # Only words that actually begin with one of the stems are analysed, so
+    # the cost stays at a couple of lookups per message rather than one per
+    # word.
+    # Stems in their real Turkish spelling, because that is what the analyser
+    # is given -- not the folded form the tables use.
+    stems = frozenset(v.casefold() for v in verbs if " " not in v)
+    if turkish.MORPHOLOGY_AVAILABLE and stems and raw:
+        for word in turkish.words(raw):
+            lowered = word.casefold()
+            if not any(lowered.startswith(stem) for stem in stems):
+                continue
+            if turkish.is_imperative_of(lowered, stems):
+                position = raw.casefold().find(lowered)
+                head = _normalize(raw[max(0, position - 22):position])
+                if not any(noun in head for noun in _ANALYTICAL_OBJECTS):
+                    return True
+        # A multi-word verb ("iptal et") still needs the substring pass below;
+        # a single-word one has now been answered by morphology.
+        verbs = tuple(v for v in verbs if " " in v)
+
     for term in verbs:
         lemma = _normalize(term)
         start = 0
@@ -125,7 +147,11 @@ _PERSONAL_MARKERS = (
 
 
 def classify(message: str) -> RouteDecision:
-    text = _normalize(message)
+    # "kampanyayi kapat" is the same instruction as "kampanyayı kapat"; the
+    # operator types from a phone. Restoring the diacritics once here means
+    # every table below sees real Turkish.
+    raw = turkish.deasciify(message)
+    text = _normalize(raw)
     # Someone talking about THEMSELVES is not asking for a company analysis.
     # "kafam çok dolu, ne yapmalıyım" contains "ne yap" and was being answered
     # with red-team objections over business signals.
@@ -159,7 +185,7 @@ def classify(message: str) -> RouteDecision:
              "kaldır", "kaldir", "çıkar", "cikar", "ekle", "düşür", "dusur",
              "yükselt", "yukselt", "aktifleştir", "aktiflestir",
              "pasifleştir", "pasiflestir", "devre dışı", "devre disi")
-    if not asks_for_advice and _has_command(text, verbs):
+    if not asks_for_advice and _has_command(text, verbs, raw):
         return RouteDecision(ACTION_REQUEST)
     if _has(text, ("kampanya hazırla", "kampanya hazirla", "kampanya kur",
                    "reklam kampanyası", "reklam kampanyasi", "kreatif", "creative",
