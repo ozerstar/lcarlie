@@ -9,7 +9,8 @@ from typing import Any
 
 from jarvis.execution_planner import STATUS_BLOCKED_EXTERNAL_ACTION, plan_request
 from jarvis.model_layer import (LOCAL_MODEL as LOCAL_MODEL_NAME, ModelRouter,
-                                ModelUnavailable, should_use_model)
+                                ModelUnavailable, needs_escalation,
+                                should_use_model)
 from jarvis.agency import AgencyCapability
 from jarvis.specialist_pool import SpecialistPool
 
@@ -316,7 +317,9 @@ def _gather(message: str, memory: Any) -> tuple[list[dict[str, Any]], list[str]]
 
 
 def _synthesize(message: str, intent: str, memory: Any, started: float,
-                escalate: bool = False) -> dict[str, Any]:
+                escalate: bool | None = None) -> dict[str, Any]:
+    if escalate is None:
+        escalate = needs_escalation(message)
     evidence, missing = _gather(message, memory)
     try:
         result = _router().synthesize(message, evidence, missing_data=missing,
@@ -388,7 +391,10 @@ def _analysis(message: str, memory: Any, started: float) -> dict[str, Any]:
     missing = tuple(sorted({finding["specialist_id"] for finding in report["findings"]
                             if finding.get("status") == "DATA_UNAVAILABLE"}))
     try:
-        result = _router().synthesize(message, evidence, missing_data=missing)
+        # Specialist findings are the hard case: weighing several domains and a
+        # red-team pass against each other is what the stronger model is for.
+        result = _router().synthesize(message, evidence, missing_data=missing,
+                                      escalate=needs_escalation(message))
         answer, model, calls = result.answer, result.model, result.model_calls
         confidence, tier = result.confidence, result.tier
     except ModelUnavailable:
@@ -496,7 +502,8 @@ def _chat(message: str, intent: str, started: float) -> dict[str, Any]:
     introduction still stands so the user is never left without a reply.
     """
     try:
-        result = _router().synthesize(message, (), system=CHAT_SYSTEM, max_tokens=160)
+        result = _router().synthesize(message, (), system=CHAT_SYSTEM, max_tokens=160,
+                                      escalate=needs_escalation(message))
     except ModelUnavailable:
         return _response(message, intent, "ANSWERED", FALLBACK_INTRO,
                          started=started, model="deterministic-local")

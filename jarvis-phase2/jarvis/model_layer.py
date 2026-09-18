@@ -49,6 +49,8 @@ KIMI_CONFIG = os.environ.get("JARVIS_KIMI_CONFIG", "/root/kimi-sandbox-home/conf
 MAX_EVIDENCE_ITEMS = 12
 MAX_EVIDENCE_CHARS = 6000
 MAX_ANSWER_TOKENS = int(os.environ.get("JARVIS_MODEL_MAX_TOKENS", "320"))
+# Below this a reply is not an answer; it is the small model giving up.
+MIN_USEFUL_ANSWER_CHARS = 24
 LOCAL_TIMEOUT_S = float(os.environ.get("JARVIS_LOCAL_MODEL_TIMEOUT_S", "120"))
 EXTERNAL_TIMEOUT_S = 90.0
 
@@ -116,6 +118,33 @@ def _fold(text: str) -> str:
     return " ".join((text or "").casefold().replace("ı", "i").split())
 
 
+# Work the 4B local model is not the right tool for. Deterministic, like the
+# model gate itself -- no model is consulted to decide which model to use.
+_ESCALATION_TERMS = (
+    # the user asking for it outright
+    "detaylı", "detayli", "derin", "kapsamlı", "kapsamli", "daha iyi düşün",
+    "daha iyi dusun", "uzun uzun", "büyük model", "buyuk model",
+    # judgement that has to weigh things against each other
+    "strateji", "karar ver", "kıyasla", "kiyasla", "karşılaştır", "karsilastir",
+    "karşı çık", "karsi cik", "itiraz", "risk analizi", "senaryo",
+    "avantaj ve dezavantaj", "artı ve eksi", "arti ve eksi",
+)
+# A long, multi-clause request is doing more than one thing at once.
+_ESCALATION_CHARS = 280
+
+
+def needs_escalation(message: str) -> bool:
+    """Should this go to the stronger model first?
+
+    Small talk, counting and single-domain lookups stay local; weighing
+    options, arguing against a finding, or an explicitly deep request does
+    not. Being wrong here is cheap: the chain tries the other provider next.
+    """
+    text = _fold(message)
+    return bool(text) and (len(text) >= _ESCALATION_CHARS
+                           or any(_fold(term) in text for term in _ESCALATION_TERMS))
+
+
 def should_use_model(message: str) -> bool:
     """True only when the question genuinely needs open-ended reasoning.
 
@@ -123,9 +152,9 @@ def should_use_model(message: str) -> bool:
     Company Memory already knows the exact number.
     """
     text = _fold(message)
-    if any(term in text for term in _REASONING_TERMS):
+    if any(_fold(term) in text for term in _REASONING_TERMS):
         return True
-    if any(term in text for term in _EXACT_ANSWER_TERMS):
+    if any(_fold(term) in text for term in _EXACT_ANSWER_TERMS):
         return False
     return False
 
@@ -214,9 +243,15 @@ class ExternalProvider:
     name = "external"
     tier = TIER_EXTERNAL
 
+    # A 429 is not a per-call accident, it is a quota that stays exhausted.
+    # Remembering it keeps every later escalation from paying seconds to
+    # rediscover the same answer.
+    RATE_LIMIT_COOLDOWN_S = 900
+
     def __init__(self, url: str = EXTERNAL_URL, model: str = EXTERNAL_MODEL):
         self.url = url.rstrip("/")
         self.model = model
+        self._rate_limited_until = 0.0
 
     def _key(self) -> str | None:
         try:
@@ -230,7 +265,11 @@ class ExternalProvider:
         return found.group(1) if found else None
 
     def state(self) -> AdapterState:
-        return AdapterState.AVAILABLE if self._key() else AdapterState.UNAVAILABLE
+        if not self._key():
+            return AdapterState.UNAVAILABLE
+        if time.time() < self._rate_limited_until:
+            return AdapterState.RATE_LIMITED
+        return AdapterState.AVAILABLE
 
     def complete(self, messages: list[dict[str, str]], max_tokens: int) -> dict[str, Any]:
         key = self._key()
@@ -244,8 +283,10 @@ class ExternalProvider:
                          headers={"Authorization": f"Bearer {key}"})
         except urllib.error.HTTPError as exc:
             # 429 is the documented free-tier condition; it is a state, not a bug.
-            state = "RATE_LIMITED" if exc.code == 429 else f"HTTP_{exc.code}"
-            raise ModelUnavailable(f"external provider {state}") from None
+            if exc.code == 429:
+                self._rate_limited_until = time.time() + self.RATE_LIMIT_COOLDOWN_S
+                raise ModelUnavailable("external provider RATE_LIMITED") from None
+            raise ModelUnavailable(f"external provider HTTP_{exc.code}") from None
         usage = data.get("usage") or {}
         return {"text": data["choices"][0]["message"]["content"],
                 "model": self.model,
@@ -327,6 +368,18 @@ class ModelRouter:
             result, tier, calls = self.generate(messages, max_tokens, escalate)
         except ModelUnavailable as exc:
             raise ModelUnavailable(str(exc)) from None
+
+        # An empty or stub-length answer from the small model is a failure, not
+        # an answer. Try the stronger one before returning it.
+        if (not escalate and tier == TIER_LOCAL
+                and len((result.get("text") or "").strip()) < MIN_USEFUL_ANSWER_CHARS
+                and self.external.state() == AdapterState.AVAILABLE):
+            try:
+                retry = self.external.complete(messages, max_tokens)
+                result, tier, calls = retry, TIER_EXTERNAL, calls + 1
+            except (ModelUnavailable, urllib.error.URLError, TimeoutError, OSError,
+                    KeyError, ValueError):
+                pass
 
         # Confidence follows the EVIDENCE, not the model's self-assessment: a
         # fluent answer over one source is not more trustworthy than a terse

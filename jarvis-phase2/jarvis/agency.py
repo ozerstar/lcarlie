@@ -386,9 +386,12 @@ class AgencyCapability:
         try:
             from .model_layer import ModelRouter
 
+            # A campaign proposal weighs evidence, gaps and objections together;
+            # that is escalation territory by definition.
             answer = ModelRouter().synthesize(
                 question, evidence,
-                missing_data=tuple(result.get("data_gaps") or ()))
+                missing_data=tuple(result.get("data_gaps") or ()),
+                escalate=True)
             return answer.answer, answer.model, answer.model_calls
         except Exception:  # noqa: BLE001 - synthesis is a presentation layer
             lines = [item["problem"] for item in result["problems"][:3]]
