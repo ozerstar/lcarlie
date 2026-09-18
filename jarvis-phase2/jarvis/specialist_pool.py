@@ -15,6 +15,7 @@ from time import perf_counter
 from typing import Any, Callable
 
 from .cache import QueryCache
+from .memory import CompanyMemory
 from .research import SourceRecord, fuse
 
 DATA_UNAVAILABLE = "DATA_UNAVAILABLE"
@@ -47,19 +48,19 @@ SPECIALISTS: tuple[SpecialistDefinition, ...] = (
     SpecialistDefinition("market_intelligence", "Market Intelligence", (MARKET_RESEARCH,), ("market",), requires_research=True),
     SpecialistDefinition("competitor_intelligence", "Competitor Intelligence", (MARKET_RESEARCH,), ("competitor",), requires_research=True),
     SpecialistDefinition("research", "Research", (MARKET_RESEARCH,), ("research",), requires_research=True),
-    SpecialistDefinition("meta_performance", "Meta Performance", (PERFORMANCE_ANALYSIS,), ("advertising",), ("advertising",)),
-    SpecialistDefinition("creative_intelligence", "Creative Intelligence", (PERFORMANCE_ANALYSIS,), ("creative",), ("advertising",)),
-    SpecialistDefinition("social_media", "Social Media", (PERFORMANCE_ANALYSIS,), ("social",), ("advertising",)),
+    SpecialistDefinition("meta_performance", "Meta Performance", (PERFORMANCE_ANALYSIS,), ("advertising",), ("advertising_performance", "advertising_spend"), ("ga4_site_traffic",)),
+    SpecialistDefinition("creative_intelligence", "Creative Intelligence", (PERFORMANCE_ANALYSIS,), ("creative",), ("advertising_performance",)),
+    SpecialistDefinition("social_media", "Social Media", (PERFORMANCE_ANALYSIS,), ("social",), ("advertising_performance",)),
     SpecialistDefinition("growth", "Growth", (DATA_ANALYSIS, PERFORMANCE_ANALYSIS), ("growth",), ("decision_summary",)),
-    SpecialistDefinition("ecommerce_sales", "E-Commerce Sales", (DATA_ANALYSIS,), ("sales", "ecommerce"), ("sales",)),
-    SpecialistDefinition("crm_customer", "CRM / Customer", (CUSTOMER_ANALYSIS,), ("crm", "customer"), ("open_work",)),
-    SpecialistDefinition("field_b2b_sales", "Field / B2B Sales", (DATA_ANALYSIS,), ("b2b",), ("sales",)),
-    SpecialistDefinition("product_portfolio", "Product / Portfolio", (DATA_ANALYSIS,), ("product", "portfolio"), ("decision_summary",)),
+    SpecialistDefinition("ecommerce_sales", "E-Commerce Sales", (DATA_ANALYSIS,), ("sales",), ("sales_orders", "sales_items"), ("gunluk_marj",)),
+    SpecialistDefinition("crm_customer", "CRM / Customer", (CUSTOMER_ANALYSIS,), ("crm", "customer"), ("crm_customers", "crm_unanswered", "open_work")),
+    SpecialistDefinition("field_b2b_sales", "Field / B2B Sales", (DATA_ANALYSIS,), ("b2b",), ("sales_orders", "sales_items")),
+    SpecialistDefinition("product_portfolio", "Product / Portfolio", (DATA_ANALYSIS,), ("ecommerce", "product", "portfolio"), ("ecommerce_profitability", "ecommerce_price", "ecommerce_funnel"), ("ga4_site_traffic", "real_inventory", "gunluk_marj")),
     SpecialistDefinition("finance", "Finance", (FINANCIAL_ANALYSIS,), ("financial", "finance"), ("financial",), risk="MEDIUM"),
     SpecialistDefinition("accounting_control", "Accounting Control", (FINANCIAL_ANALYSIS,), ("accounting",), ("financial",), risk="MEDIUM"),
-    SpecialistDefinition("operations", "Operations", (OPERATIONAL_ANALYSIS,), ("operations",), ("open_work", "system")),
+    SpecialistDefinition("operations", "Operations", (OPERATIONAL_ANALYSIS,), ("operations",), ("operations_shipments", "open_work", "system"), ("real_inventory",)),
     SpecialistDefinition("regulatory_quality", "Regulatory / Quality", (REGULATORY_REVIEW,), ("regulatory", "quality"), ("decision_summary",), risk="HIGH"),
-    SpecialistDefinition("data_measurement", "Data / Measurement", (DATA_ANALYSIS,), ("measurement", "advertising"), ("advertising",)),
+    SpecialistDefinition("data_measurement", "Data / Measurement", (DATA_ANALYSIS,), ("measurement",), ("advertising_performance", "advertising_spend"), ("ga4_site_traffic",)),
     SpecialistDefinition("ai_prompt_engineering", "AI / Prompt Engineering", (DATA_ANALYSIS,), ("ai", "prompt"), ("capability_state",)),
     SpecialistDefinition("red_team", "Red Team", (RED_TEAM,), ("red_team",), risk="HIGH"),
     SpecialistDefinition("strategy", "Strategy", (STRATEGIC_SYNTHESIS,), ("strategy",), risk="MEDIUM"),
@@ -67,17 +68,9 @@ SPECIALISTS: tuple[SpecialistDefinition, ...] = (
 )
 REGISTRY = {item.specialist_id: item for item in SPECIALISTS}
 
-# Names, never SQL. They mirror ExecutionRuntime.QUERY_READERS and are the only
-# data contracts a specialist may request.
-ALLOWLISTED_QUERIES = {
-    "system": "get_system_status",
-    "decision_summary": "get_company_context",
-    "open_work": "get_open_work",
-    "company_dashboard": "get_executive_brief",
-    "capability_state": "get_capability_state",
-    "action_contract": "get_action_contract",
-    "capabilities": "get_model_policy",
-}
+# One source of truth: exactly the allowlist used by Company Memory and the
+# current Execution Runtime. No second SQL or query-name registry is created.
+ALLOWLISTED_QUERIES = frozenset(CompanyMemory.QUERIES)
 
 
 @dataclass(frozen=True)
@@ -138,11 +131,10 @@ class CompanyMemoryGateway:
         self.memory = memory
 
     def read(self, query: str) -> tuple[Any, tuple[str, ...], str]:
-        reader = ALLOWLISTED_QUERIES.get(query)
-        if not reader or self.memory is None or not hasattr(self.memory, reader):
+        if query not in ALLOWLISTED_QUERIES or self.memory is None:
             return None, (), DATA_UNAVAILABLE
         try:
-            value = getattr(self.memory, reader)()
+            value = self.memory._fetch(query)
         except Exception:
             return None, (), DATA_UNAVAILABLE
         refs = (str(getattr(value, "source", f"company_memory:{query}")),)
@@ -159,19 +151,31 @@ class SpecialistContextCompiler:
         results: dict[str, Any] = {}
         refs: list[str] = []
         freshness = "unknown"
+        constraints = ["PROPOSED_ONLY", "NO_EXTERNAL_ACTION"]
+        per_query_budget = max(2, (self.max_bytes - 512) // max(1, len(definition.required_data)))
         for query in definition.required_data:
             value, query_refs, query_freshness = self.gateway.read(query)
             if value is not None:
                 serial = getattr(value, "records", value)
-                candidate = {**results, query: serial}
-                encoded = json.dumps(candidate, ensure_ascii=False, default=str).encode("utf-8")
-                if len(encoded) <= self.max_bytes:
-                    results = candidate
-                    refs.extend(query_refs)
-                    freshness = query_freshness
+                bounded = serial
+                if isinstance(serial, list):
+                    bounded = []
+                    for row in serial:
+                        candidate = [*bounded, row]
+                        if len(json.dumps(candidate, ensure_ascii=False, default=str).encode("utf-8")) > per_query_budget:
+                            constraints.append(f"TRUNCATED:{query}:{len(serial)}")
+                            break
+                        bounded = candidate
+                results[query] = bounded
+                refs.extend(query_refs)
+                freshness = query_freshness
         size = len(json.dumps(results, ensure_ascii=False, default=str).encode("utf-8"))
+        if size > self.max_bytes:
+            results, refs = {}, []
+            constraints.append("CONTEXT_BUDGET_EXHAUSTED")
+            size = 2
         return SpecialistContext(task, domain, entities, results, tuple(dict.fromkeys(refs)),
-                                 freshness, ("PROPOSED_ONLY", "NO_EXTERNAL_ACTION"), size)
+                                 freshness, tuple(constraints), size)
 
 
 def _digest(value: Any) -> str:
@@ -190,6 +194,52 @@ def deterministic_confidence(evidence_count: int, completeness: float,
     return round(max(0.0, min(1.0, score)), 3)
 
 
+def _rows(context: SpecialistContext, query: str) -> list[dict[str, Any]]:
+    value = context.query_results.get(query) or []
+    return value if isinstance(value, list) else []
+
+
+def _domain_claim(context: SpecialistContext) -> str:
+    """Deterministic facts only; every number comes from the supplied rows."""
+    if context.domain == "sales":
+        orders, items = _rows(context, "sales_orders"), _rows(context, "sales_items")
+        measured = [row for row in orders if row.get("olcumde")]
+        revenue = sum(float(row.get("ciro_dogrulanmis_net") or row.get("ciro_beyan_edilmis_net") or 0)
+                      for row in measured)
+        return (f"Sales bounded context: {len(orders)} orders and {len(items)} line items; "
+                f"{len(measured)} measured orders represent a {revenue:.2f} net-revenue subtotal.")
+    if context.domain == "ecommerce":
+        products = _rows(context, "ecommerce_profitability")
+        prices = _rows(context, "ecommerce_price")
+        funnels = _rows(context, "ecommerce_funnel")
+        revenue = sum(float(row.get("ciro_net") or 0) for row in products)
+        unknown_cost = sum(1 for row in products if float(row.get("kapsama_yuzde") or 0) < 100)
+        return (f"E-commerce bounded context: {len(products)} product profitability rows, {len(prices)} price rows "
+                f"and {len(funnels)} funnel transitions; net revenue is {revenue:.2f}, "
+                f"with {unknown_cost} product rows below full cost coverage.")
+    if context.domain == "advertising":
+        performance = _rows(context, "advertising_performance")
+        latest = [row for row in performance if row.get("pencere") == 30]
+        spend = sum(float(row.get("harcama") or 0) for row in latest)
+        unconfirmed = sum(1 for row in latest if row.get("commercial_confirmation") != "CONFIRMED")
+        return (f"Advertising bounded context: {len(latest)} 30-day ad rows with a {spend:.2f} spend subtotal; "
+                f"{unconfirmed} rows lack commercial confirmation.")
+    if context.domain == "crm":
+        customers = _rows(context, "crm_customers")
+        unanswered = _rows(context, "crm_unanswered")
+        longest = max((float(row.get("bekleme_saat") or 0) for row in unanswered), default=0)
+        return (f"CRM bounded context: {len(customers)} customer records and {len(unanswered)} unanswered "
+                f"conversations; longest wait is {longest:.1f} hours.")
+    if context.domain == "operations":
+        shipments = _rows(context, "operations_shipments")
+        alarms = sum(1 for row in shipments if row.get("alarm"))
+        open_work = _rows(context, "open_work")
+        return (f"Operations bounded context: {len(shipments)} shipment records, {alarms} shipment alarms "
+                f"and {len(open_work)} open-work records.")
+    count = sum(len(value) for value in context.query_results.values() if isinstance(value, list))
+    return f"{context.domain}: deterministic analysis covered {count} allowlisted records."
+
+
 class DeterministicSpecialist(Specialist):
     def __init__(self, definition: SpecialistDefinition):
         self.definition = definition
@@ -199,7 +249,8 @@ class DeterministicSpecialist(Specialist):
 
     def analyze(self, context: SpecialistContext) -> Finding:
         started = perf_counter()
-        missing = tuple(q for q in self.definition.required_data if q not in context.query_results)
+        missing = tuple(q for q in (*self.definition.required_data, *self.definition.optional_data)
+                        if q not in context.query_results)
         self._evidence = context.evidence_refs
         completeness = 1.0 if not self.definition.required_data else 1 - len(missing) / len(self.definition.required_data)
         self._confidence = deterministic_confidence(len(self._evidence), completeness)
@@ -208,7 +259,7 @@ class DeterministicSpecialist(Specialist):
             kind, claim = DATA_UNAVAILABLE, ""
         else:
             kind = "OBSERVATION"
-            claim = f"{self.definition.label} completed deterministic analysis for {context.domain}."
+            claim = _domain_claim(context)
         next_steps = (("request_fresh_research",) if self.definition.requires_research else ())
         fid = "finding-" + _digest([self.definition.specialist_id, context.task, context.domain,
                                     context.evidence_refs])[:16]
@@ -224,8 +275,8 @@ class DeterministicSpecialist(Specialist):
 
 DOMAIN_ROUTES: dict[str, tuple[str, ...]] = {
     "sales": ("ecommerce_sales",),
-    "ecommerce": ("ecommerce_sales",),
-    "advertising": ("meta_performance", "data_measurement"),
+    "ecommerce": ("product_portfolio",),
+    "advertising": ("meta_performance",),
     "crm": ("crm_customer",),
     "customer": ("crm_customer",),
     "operations": ("operations",),
@@ -357,7 +408,10 @@ class SpecialistPool:
     @staticmethod
     def _red_team(task: str, findings: list[Finding], fused: dict[str, Any]) -> Finding:
         refs = tuple(ref for f in findings for ref in f.evidence_refs)
-        missing = tuple(f.specialist_id for f in findings if not f.evidence_refs or f.missing_data)
+        missing = tuple(dict.fromkeys(
+            item for finding in findings
+            for item in ((finding.specialist_id,) if not finding.evidence_refs else finding.missing_data)
+        ))
         objections = []
         if missing: objections.append("missing_data")
         if fused.get("contradiction"): objections.append("contradiction")
@@ -372,17 +426,25 @@ class SpecialistPool:
     @staticmethod
     def _strategy(task: str, findings: list[Finding], red: Finding) -> Finding:
         refs = tuple(dict.fromkeys(ref for f in findings for ref in f.evidence_refs))
-        claim = "Strategy options prepared from validated findings and Red Team review." if refs else ""
+        domains = {finding.domain for finding in findings if finding.evidence_refs}
+        options = []
+        if "crm" in domains: options.append("clear the evidenced unanswered-conversation backlog")
+        if "advertising" in domains: options.append("reconcile commercial confirmation before budget changes")
+        if {"sales", "ecommerce"} & domains: options.append("close revenue, cost, and margin measurement gaps")
+        if "operations" in domains: options.append("maintain shipment monitoring and obtain real inventory data")
+        claim = ("Strategy options: " + "; ".join(options) + ".") if refs else ""
         return Finding("finding-" + _digest([task, "strategy", refs])[:16], "strategy", "strategy",
                        "OPTIONS" if refs else DATA_UNAVAILABLE, claim, refs,
                        deterministic_confidence(len(refs), float(bool(refs)), contradictions=len(red.contradictions)),
                        "derived", contradictions=red.contradictions,
-                       recommended_next_analysis=("human_review",))
+                       recommended_next_analysis=tuple(options) + ("human_review",))
 
     @staticmethod
     def _md(task: str, findings: list[Finding], red: Finding, strategy: Finding) -> Finding:
         refs = strategy.evidence_refs
-        claim = "PROPOSED: priorities, dependencies, impact, risks, gaps, and next actions synthesized." if refs else ""
+        claim = ("PROPOSED: first clear the CRM response backlog; then validate advertising sales, "
+                 "revenue, cost, margin, and inventory evidence before approving growth actions."
+                 if refs else "")
         return Finding("finding-" + _digest([task, "managing_director", refs])[:16],
                        "managing_director", "executive", PROPOSED if refs else DATA_UNAVAILABLE,
                        claim, refs, strategy.confidence, "derived",

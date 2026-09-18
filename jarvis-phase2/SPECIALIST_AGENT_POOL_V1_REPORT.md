@@ -23,6 +23,13 @@ contracts return `DATA_UNAVAILABLE`; fixture or invented business data is never
 substituted. Research specialists emit a disabled `fresh_research_source`
 request compatible with Research Controller V1, but do not execute it.
 
+The integration mapping uses the current Data Fabric allowlist directly:
+`sales_orders`, `sales_items`, `ecommerce_profitability`, `ecommerce_price`,
+`ecommerce_funnel`, `advertising_performance`, `advertising_spend`,
+`crm_customers`, `crm_unanswered`, `operations_shipments`, `open_work`, and
+`system`. GA4/site traffic, real inventory, and daily margin remain explicit
+missing-data gaps.
+
 ## Deterministic-first policy
 
 Routing, context isolation, confidence, evidence fusion, contradiction checks,
@@ -32,11 +39,12 @@ Model calls are zero.
 ## Deterministic benchmark
 
 For the requested sales, e-commerce, advertising, CRM, and operations fixture,
-minimum routing selects eight specialists (five primary plus Red Team, Strategy,
-and Managing Director) instead of twenty. That is a 60% specialist reduction,
-with five context units instead of twenty and four dependency-stage work units
-instead of twenty, while preserving all requested domain coverage. Both paths
-have zero model calls; the routed path also avoids unrelated data retrieval.
+minimum routing selects eight specialists (five domain specialists plus Red
+Team, Strategy, and Managing Director) instead of twenty. That is a 60%
+specialist reduction, with five context units instead of twenty and four
+dependency-stage work units instead of twenty, while preserving all requested
+domain coverage. Both paths have zero model calls; the routed path also avoids
+unrelated data retrieval.
 
 ## Rollback
 
