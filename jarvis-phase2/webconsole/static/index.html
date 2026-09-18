@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>L'CARLIÉ · JARVIS</title>
+<meta name="theme-color" content="#f7f5f1">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+
+<!-- LOGIN -->
+<section id="loginView" class="view login-view" hidden>
+  <div class="login-card">
+    <div class="brand-mark">
+      <span class="brand-name">L'CARLIÉ</span>
+      <span class="brand-sub">AUTONOMOUS COMPANY INTELLIGENCE OS</span>
+    </div>
+    <form id="loginForm" class="login-form" autocomplete="off">
+      <label>Operatör
+        <input id="loginUser" name="username" type="text" autocomplete="username" required>
+      </label>
+      <label>Parola
+        <input id="loginPass" name="password" type="password" autocomplete="current-password" required>
+      </label>
+      <button type="submit">Giriş</button>
+      <p id="loginError" class="login-error" hidden></p>
+    </form>
+  </div>
+</section>
+
+<!-- COMMAND CENTER -->
+<div id="appView" class="view app-view" hidden>
+
+  <header class="topbar">
+    <div class="topbar-brand">
+      <span class="brand-name">L'CARLIÉ</span>
+      <span class="brand-sub">AUTONOMOUS COMPANY INTELLIGENCE OS</span>
+    </div>
+    <div class="topbar-states" id="topbarStates">
+      <div class="state-chip" id="chipTime"><span class="state-label">SAAT</span><span class="state-value">—</span></div>
+      <div class="state-chip" id="chipJarvis"><span class="state-label">JARVIS</span><span class="state-value">—</span></div>
+      <div class="state-chip" id="chipMemory"><span class="state-label">HAFIZA</span><span class="state-value">—</span></div>
+      <div class="state-chip" id="chipFirewall"><span class="state-label">FIREWALL</span><span class="state-value">—</span></div>
+      <div class="state-chip" id="chipOperator"><span class="state-label">OPERATÖR</span><span class="state-value">—</span></div>
+      <button id="logoutBtn" class="ghost-btn" type="button">Çıkış</button>
+    </div>
+  </header>
+
+  <main class="command-grid">
+
+    <section class="panel panel-intelligence" aria-label="Jarvis intelligence stream">
+      <h2 class="panel-title">CANLI ZEKÂ</h2>
+      <ol id="activityFeed" class="activity-feed"></ol>
+    </section>
+
+    <section class="panel panel-core" aria-label="Jarvis presence">
+      <div class="core-wrap">
+        <svg id="jarvisCore" class="jarvis-core" viewBox="0 0 400 400" role="img" aria-label="Jarvis durumu">
+          <circle class="ring ring-outer" cx="200" cy="200" r="170"></circle>
+          <circle class="ring ring-mid" cx="200" cy="200" r="130"></circle>
+          <circle class="ring ring-inner" cx="200" cy="200" r="92"></circle>
+          <g id="nodes"></g>
+          <circle class="core-glow" cx="200" cy="200" r="46"></circle>
+          <circle class="core-dot" cx="200" cy="200" r="10"></circle>
+        </svg>
+        <div class="core-caption">
+          <span id="coreStateLabel">IDLE</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel panel-proposals" aria-label="Pending proposals">
+      <h2 class="panel-title">BEKLEYEN ÖNERİLER</h2>
+      <ol id="proposalList" class="proposal-list"></ol>
+      <p id="proposalEmpty" class="empty-note" hidden>Bekleyen öneri yok.</p>
+    </section>
+
+  </main>
+
+  <section class="chat-dock" aria-label="Jarvis sohbet">
+    <div id="chatLog" class="chat-log"></div>
+    <form id="chatForm" class="chat-form">
+      <input id="chatInput" type="text" placeholder="Jarvis'e sor… örn. “Bugün şirkette durum ne?”" autocomplete="off">
+      <button type="button" id="retryBtn" class="ghost-btn" hidden>Tekrar</button>
+      <button type="button" id="stopBtn" class="ghost-btn" hidden>Durdur</button>
+      <button type="submit" id="sendBtn">Gönder</button>
+    </form>
+  </section>
+
+  <div id="proposalModal" class="modal" hidden>
+    <div class="modal-card">
+      <button class="modal-close" id="modalClose" type="button" aria-label="Kapat">×</button>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>

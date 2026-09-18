@@ -1,0 +1,10 @@
+{
+  "name": "L'CARLIÉ JARVIS",
+  "short_name": "JARVIS",
+  "description": "L'CARLIÉ Autonomous Company Intelligence OS -- operator console",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f5f1",
+  "theme_color": "#f7f5f1",
+  "icons": []
+}
