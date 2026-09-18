@@ -124,6 +124,10 @@ class CompanyMemory:
     def get_company_agenda(self) -> Evidence:
         return self._fetch("agenda")
 
+    def get_open_work(self) -> Evidence:
+        return self._fetch("open_work")
+
+
     def get_model_policy(self) -> Evidence:
         return self._fetch("capabilities")
 
