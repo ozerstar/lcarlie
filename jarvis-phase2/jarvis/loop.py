@@ -48,6 +48,7 @@ from pathlib import Path
 from time import perf_counter
 from typing import Any
 
+from . import business_signals
 from .action_contract import ContractCache
 from .coding_executor import CodingExecutorError, CodingTaskSpec, run_coding_task, summarize_for_proposal
 from .firewall import ContractDriftError, FirewallError, validate_proposal
@@ -231,6 +232,48 @@ def analyze(observation: Observation) -> Analysis:
 
 
 # --------------------------------------------------------------------------
+# business signal layer (deterministic, advisory, zero model calls)
+# --------------------------------------------------------------------------
+BUSINESS_FINDING_NOTE = (
+    "Deterministic business signal. Jarvis cannot enqueue its own task "
+    "(ai_enqueue_task is granted to human_approver only, by design). This "
+    "finding is recorded for a human to act on."
+)
+
+
+def _business_signals(memory: Any, state: dict[str, Any]) -> dict[str, Any]:
+    """Advisory rules over mart.karar_ozet / sirket_gundemi / acik_isler.
+
+    Never raises into the operational path: the loop must still claim and
+    propose work even when this layer is unavailable. Only signatures absent
+    from the previous cycle are logged, so a standing condition is recorded
+    once instead of every five minutes.
+    """
+    if not hasattr(memory, "get_open_work"):
+        return {"status": "SKIPPED", "reason": "adapter has no get_open_work", "new": 0}
+    try:
+        report = business_signals.run(memory)
+    except Exception as exc:  # advisory layer must never break the cycle
+        return {"status": "ERROR", "error": str(exc)[:300], "new": 0}
+
+    previous = set(state.get("business_signatures") or [])
+    fresh = [signal for signal in report.signals if signal.signature not in previous]
+    for signal in fresh:
+        _append_jsonl(FINDINGS_LOG, {
+            "observed_at": report.observed_at, "signature": signal.signature,
+            "reason": signal.summary, "evidence": signal.evidence,
+            "signal_code": signal.code, "severity": signal.severity,
+            "note": BUSINESS_FINDING_NOTE,
+        })
+    state["business_signatures"] = [signal.signature for signal in report.signals]
+    if fresh:
+        state["business_finding_count"] = state.get("business_finding_count", 0) + len(fresh)
+    return {"status": report.status, "signals": len(report.signals), "new": len(fresh),
+            "codes": [signal.code for signal in report.signals],
+            "skipped_rules": len(report.skipped), "report_hash": report.content_hash}
+
+
+# --------------------------------------------------------------------------
 # one operational cycle
 # --------------------------------------------------------------------------
 def run_cycle(host: str | None = "lcarlie") -> dict[str, Any]:
@@ -262,6 +305,10 @@ def run_cycle(host: str | None = "lcarlie") -> dict[str, Any]:
         state["last_issue_signature"] = analysis.signature
     else:
         state["last_issue_signature"] = None
+
+    t0 = perf_counter()
+    business = _business_signals(memory, state)
+    timings["business_ms"] = round((perf_counter() - t0) * 1000, 3)
 
     # -- claim at most one PROPOSE_ACTION task, fail-safe on anything else --
     t0 = perf_counter()
@@ -342,6 +389,7 @@ def run_cycle(host: str | None = "lcarlie") -> dict[str, Any]:
         "cycle": state["cycle_count"], "result": result,
         "analysis_status": analysis.status, "analysis_reason": analysis.reason,
         "finding_logged": finding_logged, "task_detail": task_detail,
+        "business": business,
         "observation_hash": observation.content_hash,
         "timings_ms": timings, "total_ms": round((perf_counter() - started) * 1000, 3),
         "model_calls": 0, "external_provider_calls": 0, "external_actions": 0,
