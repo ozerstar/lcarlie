@@ -7,6 +7,7 @@ from time import perf_counter
 from typing import Any
 
 from jarvis.execution_planner import STATUS_BLOCKED_EXTERNAL_ACTION, plan_request
+from jarvis.model_layer import ModelRouter, ModelUnavailable, should_use_model
 
 SIMPLE_CONVERSATION = "SIMPLE_CONVERSATION"
 COMPANY_QUERY = "COMPANY_QUERY"
@@ -17,7 +18,18 @@ GENERAL_REASONING = "GENERAL_REASONING"
 
 
 def _normalize(text: str) -> str:
+    """Fold dotted/dotless i to one form.
+
+    Applied to BOTH sides of every comparison. Folding only the message
+    silently broke every lemma containing "ı": "satış" folds to "satiş", which
+    matches neither "satış" nor "satis" in a table, so sales questions were
+    never recognised and sales evidence was never gathered.
+    """
     return " ".join((text or "").casefold().replace("ı", "i").split())
+
+
+def _has(text: str, terms: tuple[str, ...]) -> bool:
+    return any(_normalize(term) in text for term in terms)
 
 
 @dataclass(frozen=True)
@@ -28,25 +40,30 @@ class RouteDecision:
 
 def classify(message: str) -> RouteDecision:
     text = _normalize(message)
-    if any(term in text for term in ("merhaba", "selam", "sen nesin", "ne yapabiliyorsun", "kimsin", "hello")):
+    if _has(text, ("merhaba", "selam", "sen nesin", "ne yapabiliyorsun", "kimsin", "hello")):
         return RouteDecision(SIMPLE_CONVERSATION)
+    # A question ABOUT what to do is not an instruction to do it. Checked
+    # first so "ne yapmalıyız" can never be read as the imperative "yap".
+    asks_for_advice = _has(text, ("ne yap", "ne öneriyorsun", "ne oneriyorsun",
+                                  "ne yapmalı", "ne yapmali", "yapılması", "yapilmasi"))
     verbs = ("değiştir", "degistir", "durdur", "başlat", "baslat", "gönder",
-             "gonder", "yayınla", "yayinla", "publish")
-    if any(term in text for term in verbs):
+             "gonder", "yayınla", "yayinla", "publish", "yap", "ayarla",
+             "güncelle", "guncelle", "artır", "artir", "azalt", "indir",
+             "sil", "kapat", "iptal et")
+    if not asks_for_advice and _has(text, verbs):
         return RouteDecision(ACTION_REQUEST)
-    if any(term in text for term in ("rakip", "pazar araştır", "pazar arastir", "research", "araştır", "arastir")):
+    if _has(text, ("rakip", "pazar araştır", "pazar arastir", "research", "araştır", "arastir")):
         return RouteDecision(RESEARCH_REQUEST)
-    if any(term in text for term in ("analiz", "problem", "sorunları", "sorunlari", "en önemli",
-                                     "en onemli", "ne yap", "yapılması",
-                                     "yapilmasi", "fırsat", "firsat")):
+    if _has(text, ("analiz", "problem", "sorunları", "sorunlari", "en önemli",
+                   "en onemli", "ne yap", "yapılması", "yapilmasi", "fırsat", "firsat")):
         return RouteDecision(ANALYSIS_REQUEST)
-    if any(term in text for term in ("cevapsız", "cevapsiz", "müşteri", "musteri", "crm")):
+    if _has(text, ("cevapsız", "cevapsiz", "müşteri", "musteri", "crm")):
         return RouteDecision(COMPANY_QUERY, "crm")
-    if any(term in text for term in ("reklam", "meta", "harcama", "roas", "ctr", "cpa")):
+    if _has(text, ("reklam", "meta", "harcama", "roas", "ctr", "cpa")):
         return RouteDecision(COMPANY_QUERY, "advertising")
-    if any(term in text for term in ("satış", "satis", "sipariş", "siparis", "ciro")):
+    if _has(text, ("satış", "satis", "sipariş", "siparis", "ciro")):
         return RouteDecision(COMPANY_QUERY, "sales")
-    if any(term in text for term in ("bugün şirket", "bugun sirket")):
+    if _has(text, ("bugün şirket", "bugun sirket")):
         return RouteDecision(COMPANY_QUERY, "company")
     return RouteDecision(GENERAL_REASONING)
 
@@ -109,6 +126,139 @@ def _company(message: str, domain: str, memory: Any, started: float) -> dict[str
                          missing_data=(domain,), started=started, error_type=type(exc).__name__)
 
 
+
+# --- evidence gathering for synthesis -----------------------------------
+# Which Company Memory queries bear on a question. Deliberately narrow: the
+# model gets the evidence for the domains the question names, never the whole
+# fabric. An unnamed domain contributes nothing rather than everything.
+_DOMAIN_TERMS = {
+    "crm": ("cevapsız", "cevapsiz", "müşteri", "musteri", "crm", "konuşma", "konusma"),
+    "advertising": ("reklam", "meta", "harcama", "roas", "ctr", "kampanya"),
+    "sales": ("satış", "satis", "sipariş", "siparis", "ciro", "gelir"),
+    "ecommerce": ("e-ticaret", "eticaret", "ürün", "urun", "fiyat", "marj", "funnel"),
+    "operations": ("operasyon", "kargo", "gönderi", "gonderi", "teslimat"),
+}
+
+_ROUTER: ModelRouter | None = None
+
+
+def _router() -> ModelRouter:
+    global _ROUTER
+    if _ROUTER is None:
+        _ROUTER = ModelRouter()
+    return _ROUTER
+
+
+def _summarize(name: str, records: list[dict[str, Any]]) -> str:
+    """A compact, factual line per source. No interpretation happens here --
+    that is the model's job, and it must not be fed conclusions as if they
+    were data."""
+    if not records:
+        return "kayıt yok"
+    if name == "crm_unanswered":
+        longest = max((float(r.get("bekleme_saat") or 0) for r in records), default=0)
+        channels = sorted({str(r.get("kanal")) for r in records if r.get("kanal")})
+        return (f"{len(records)} cevapsız konuşma, en uzun bekleme {longest:.1f} saat, "
+                f"kanallar: {', '.join(channels) or 'bilinmiyor'}")
+    if name == "advertising_performance":
+        window = [r for r in records if r.get("pencere") == 30] or records
+        spend = sum(float(r.get("harcama") or 0) for r in window)
+        unconfirmed = sum(1 for r in window
+                          if r.get("commercial_confirmation") == "NOT_AVAILABLE")
+        return (f"{len(window)} reklam kaydı, toplam harcama {spend:,.2f} TL, "
+                f"{unconfirmed} kaydın satış iddiası ticari olarak doğrulanmamış")
+    if name == "sales_orders":
+        paid = sum(1 for r in records if r.get("odeme_durumu") == "PAID")
+        cancelled = sum(1 for r in records if r.get("ciro_sinifi") == "IPTAL")
+        return f"{len(records)} sipariş, {paid} ödenmiş, {cancelled} iptal"
+    if name == "ecommerce_profitability":
+        top = max(records, key=lambda r: float(r.get("ciro_net") or 0), default=None)
+        return (f"{len(records)} ürün karlılık kaydı; en yüksek net ciro "
+                f"{top.get('urun_adi')} ({float(top.get('ciro_net') or 0):,.2f} TL, "
+                f"brüt marj %{top.get('brut_marj_yuzde')})" if top else f"{len(records)} kayıt")
+    if name == "operations_shipments":
+        alarms = sum(1 for r in records if r.get("alarm"))
+        return f"{len(records)} gönderi, {alarms} alarmlı"
+    if name == "open_work":
+        return f"{len(records)} açık iş kaydı"
+    return f"{len(records)} kayıt"
+
+
+def _gather(message: str, memory: Any) -> tuple[list[dict[str, Any]], list[str]]:
+    text = _normalize(message)
+    domains = [d for d, terms in _DOMAIN_TERMS.items() if _has(text, terms)]
+    queries: list[str] = []
+    for domain in domains:
+        for name in getattr(memory, "DOMAIN_QUERIES", {}).get(domain, ()):
+            if name not in queries:
+                queries.append(name)
+
+    evidence: list[dict[str, Any]] = []
+    missing: list[str] = []
+    for name in queries:
+        try:
+            got = memory._fetch(name)
+            evidence.append({"ref": got.source, "summary": _summarize(name, got.records)})
+        except Exception:
+            missing.append(name)
+
+    # No domain named, or none readable: fall back to the company-wide
+    # deterministic signals rather than to nothing.
+    if not evidence:
+        try:
+            from jarvis import business_signals
+
+            report = business_signals.run(memory)
+            for signal in report.signals:
+                evidence.append({"ref": "jarvis.business_signals",
+                                 "summary": f"[{signal.severity}] {signal.summary}"})
+            if not report.signals:
+                missing.append("business_signals")
+        except Exception:
+            missing.append("business_signals")
+    return evidence, missing
+
+
+def _synthesize(message: str, intent: str, memory: Any, started: float,
+                escalate: bool = False) -> dict[str, Any]:
+    evidence, missing = _gather(message, memory)
+    try:
+        result = _router().synthesize(message, evidence, missing_data=missing,
+                                      escalate=escalate)
+    except ModelUnavailable as exc:
+        # Never speechless: the deterministic surface still answers.
+        return _response(message, intent, "AI_PROVIDER_UNAVAILABLE",
+            "Bu soru serbest muhakeme gerektiriyor; şu anda hiçbir model provider "
+            "yanıt veremedi. Kanıtlar okundu ancak yorumlanamadı.",
+            evidence_refs=tuple(item["ref"] for item in evidence),
+            missing_data=tuple(missing), started=started,
+            provider_states=_router().provider_states(), error_detail=str(exc))
+    payload = result.to_dict()
+    return _response(message, intent, "ANSWERED", result.answer,
+                     evidence_refs=result.evidence_refs,
+                     missing_data=result.missing_data, started=started,
+                     model=result.model, model_calls=result.model_calls,
+                     confidence=result.confidence, tier=result.tier,
+                     context_chars=result.context_chars,
+                     prompt_tokens=payload["prompt_tokens"],
+                     completion_tokens=payload["completion_tokens"],
+                     provider_states=result.provider_states)
+
+
+def _action(message: str, started: float) -> dict[str, Any]:
+    plan = plan_request(message)
+    # The conversational classifier recognises inflected Turkish action
+    # wording more broadly than the existing planner. Fail closed at this
+    # boundary if the planner did not recognise that exact inflection.
+    if plan.status != STATUS_BLOCKED_EXTERNAL_ACTION:
+        plan = plan_request("fiyat değiştir: " + message)
+    return _response(message, ACTION_REQUEST, "PROPOSED",
+        "İşlem uygulanmadı. Action Firewall ve insan onayı yoluna gönderilmek üzere "
+        "proposal olarak durduruldu.",
+        started=started, model="deterministic-planner", plan=plan.to_dict(),
+        approval_required=True, execution_started=False)
+
+
 def route(message: str, runtime: Any) -> dict[str, Any]:
     started = perf_counter()
     decision = classify(message)
@@ -117,6 +267,17 @@ def route(message: str, runtime: Any) -> dict[str, Any]:
             "Merhaba, ben Jarvis. Şirket verilerini kanıtlarıyla okuyabilir, analiz planı hazırlayabilir, "
             "araştırma ihtiyacını belirleyebilir ve işlem taleplerini insan onayına yönlendirebilirim. "
             "Onay olmadan dış işlem yapmam.", started=started, model="deterministic-local")
+    # The action boundary is settled before any model can be reached. A
+    # request to change something must land on the firewall path whatever
+    # else it looks like.
+    if decision.intent == ACTION_REQUEST:
+        return _action(message, started)
+    # The deterministic gate comes next: a question Company Memory answers
+    # exactly must never cost a model call. Only genuinely open-ended wording
+    # gets past this line.
+    if decision.intent in (COMPANY_QUERY, ANALYSIS_REQUEST, GENERAL_REASONING) \
+            and should_use_model(message):
+        return _synthesize(message, decision.intent, _memory(runtime), started)
     if decision.intent == COMPANY_QUERY:
         return _company(message, decision.domain or "company", _memory(runtime), started)
     if decision.intent == ANALYSIS_REQUEST:
@@ -131,17 +292,4 @@ def route(message: str, runtime: Any) -> dict[str, Any]:
             "Araştırma isteği tanındı ancak production'da kullanılabilir araştırma capability'si yok.",
             missing_data=("fresh_research_source",), started=started,
             error_code="RESEARCH_CAPABILITY_UNAVAILABLE")
-    if decision.intent == ACTION_REQUEST:
-        plan = plan_request(message)
-        # The conversational classifier recognises inflected Turkish action
-        # wording more broadly than the existing planner. Fail closed at this
-        # boundary if the planner did not recognise that exact inflection.
-        if plan.status != STATUS_BLOCKED_EXTERNAL_ACTION:
-            plan = plan_request("fiyat değiştir: " + message)
-        return _response(message, decision.intent, "PROPOSED",
-            "İşlem uygulanmadı. Action Firewall ve insan onayı yoluna gönderilmek üzere proposal olarak durduruldu.",
-            started=started, model="deterministic-planner", plan=plan.to_dict(),
-            approval_required=True, execution_started=False)
-    return _response(message, decision.intent, "AI_PROVIDER_UNAVAILABLE",
-        "Bu soru serbest muhakeme gerektiriyor; yetkili bir konuşma modeli provider'ı henüz bağlı değil.",
-        missing_data=("conversational_model_provider",), started=started)
+    return _synthesize(message, decision.intent, _memory(runtime), started)

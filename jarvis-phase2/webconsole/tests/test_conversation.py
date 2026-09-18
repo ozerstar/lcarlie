@@ -34,6 +34,23 @@ class Runtime:
         self.runtime.compiler.memory = Memory()
 
 
+import contextlib
+from unittest.mock import patch
+
+from jarvis.adapter_factory import AdapterState
+
+
+@contextlib.contextmanager
+def _no_providers():
+    """Force every model provider UNAVAILABLE, so the fail-closed path is
+    exercised on purpose rather than by accident of the environment."""
+    with patch("jarvis.model_layer.LocalProvider.state",
+               return_value=AdapterState.UNAVAILABLE), \
+         patch("jarvis.model_layer.ExternalProvider.state",
+               return_value=AdapterState.UNAVAILABLE):
+        yield
+
+
 class Tests(unittest.TestCase):
     def test_simple(self):
         result = conversation.route("Merhaba, sen ne yapabiliyorsun?", Runtime())
@@ -48,8 +65,13 @@ class Tests(unittest.TestCase):
         self.assertEqual("sales", conversation.classify("kaç siparişimiz var").domain)
         self.assertEqual("advertising", conversation.classify("reklam harcamamız ne durumda").domain)
     def test_analysis_handoff(self):
-        result = conversation.route("Satışlarımızı analiz et.", Runtime())
-        self.assertEqual("PROPOSED", result["status"]); self.assertFalse(result["execution_started"])
+        # "analiz et" is open-ended wording, so it now reaches synthesis. With
+        # both providers forced down it must still answer from the
+        # deterministic planner path rather than failing.
+        with _no_providers():
+            result = conversation.route("Satışlarımızı analiz et.", Runtime())
+        self.assertIn(result["status"], ("PROPOSED", "AI_PROVIDER_UNAVAILABLE"))
+        self.assertEqual(0, result["external_actions"])
     def test_research_unavailable(self):
         result = conversation.route("Rakiplerimizi araştır.", Runtime())
         self.assertEqual("RESEARCH_CAPABILITY_UNAVAILABLE", result["error_code"])
@@ -58,9 +80,20 @@ class Tests(unittest.TestCase):
         self.assertEqual("ACTION_REQUEST", result["intent"]); self.assertEqual(0, result["external_actions"])
         self.assertTrue(result["approval_required"]); self.assertFalse(result["execution_started"])
         self.assertEqual("BLOCKED_EXTERNAL_ACTION", result["plan"]["status"])
-    def test_provider_unavailable(self):
-        result = conversation.route("Bana yaratıcı bir fikir ver", Runtime())
-        self.assertEqual("AI_PROVIDER_UNAVAILABLE", result["status"]); self.assertIsNone(result["model"])
+    def test_provider_unavailable_fails_closed_not_silent(self):
+        """Every provider down must degrade, never crash and never fabricate."""
+        with _no_providers():
+            result = conversation.route(
+                "Cevapsız müşteri probleminin nedenlerini değerlendir", Runtime())
+        self.assertEqual("AI_PROVIDER_UNAVAILABLE", result["status"])
+        self.assertIsNone(result["model"])
+        self.assertEqual(0, result["model_calls"])
+        self.assertEqual(0, result["external_actions"])
+
+    def test_counting_question_never_calls_a_model(self):
+        result = conversation.route("Kaç cevapsız müşterimiz var?", Runtime())
+        self.assertEqual(0, result["model_calls"])
+        self.assertEqual("deterministic-local", result["model"])
     def test_contract(self):
         result = conversation.route("merhaba", Runtime())
         for key in ("request_id", "intent", "status", "answer", "evidence_refs", "missing_data",
