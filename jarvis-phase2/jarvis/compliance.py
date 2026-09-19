@@ -60,7 +60,16 @@ FORBIDDEN_OBJECTS: tuple[tuple[str, tuple[str, ...], str], ...] = (
     ("fizyolojik fonksiyon",
      ("dolaşım", "dolasim", "kan akışı", "kan akisi", "kan gider", "kan gelir",
       "kanlanma", "mikrosirkülasyon", "mikrosirkulasyon", "vazodilat",
-      "damar genişle", "damar genisle", "kas", "sinir", "hormon", "metabolizma",
+      # "sinir" tek basina KULLANILMAZ: deaccent ı->i cevirdigi icin "sınır"
+      # (boundary) kelimesi "sinir"e donusuyor ve "iddia sınırı" gibi tamamen
+      # mesru bir ifade ihlal sayiliyordu -- ajans testinde olculdu.
+      "damar genişle", "damar genisle",
+      # "kas" tek basina ARANMAZ: uc harf oldugu icin "kasa", "kasım" ve
+      # "kasten" kelimelerine carpiyor. Olculen gercek ihlal cumleleri
+      # ("Kas zarı besleyici", "Kas lifleri", "Kas rahatlatıcı") hep bosluk
+      # veya ek ile devam ediyor; terim ona gore daraltildi.
+      "kas ", "kasları", "kasların", "kas dokusu", "kas zarı", "kas lif",
+      "sinir sistemi", "hormon", "metabolizma",
       "bağışıklık", "bagisiklik"),
      "saglik_beyani"),
     ("hastalık veya durum adı",
@@ -177,12 +186,28 @@ def _soften(term: str) -> str | None:
     return term[:-1] + _SOFTENING[term[-1]]
 
 
+# Bu uzunluga kadar olan terimler alt dize olarak degil, KELIME olarak aranir.
+# Sebebi olculdu: "kas" (muscle) alt dize arandiginda "kasa", "kasım" ve
+# "kasten" kelimelerini de yakaliyor. Uzun terimlerde bu risk yok ve kelime
+# siniri Turkce ekleri ("dolaşımı", "kolajeni") disarida birakirdi.
+_SHORT_TERM_CHARS = 5
+
+
 def _contains(haystack_folded: str, haystack_flat: str, needle: str) -> bool:
     for candidate in (needle, _soften(needle)):
         if not candidate:
             continue
         folded = fold(candidate)
-        if folded in haystack_folded or deaccent(folded) in haystack_flat:
+        flat = deaccent(folded)
+        if len(folded) <= _SHORT_TERM_CHARS and " " not in folded:
+            # Ek alabilsin diye sag tarafta sinir aranmaz; sol tarafta aranir
+            # ki "kasa" ve "kasım" gibi bagimsiz kelimeler eslesmesin.
+            pattern = r"(?<!\w)" + re.escape(folded)
+            flat_pattern = r"(?<!\w)" + re.escape(flat)
+            if re.search(pattern, haystack_folded) or re.search(flat_pattern, haystack_flat):
+                return True
+            continue
+        if folded in haystack_folded or flat in haystack_flat:
             return True
     return False
 

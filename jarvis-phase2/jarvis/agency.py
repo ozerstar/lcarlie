@@ -13,6 +13,7 @@ from dataclasses import asdict, dataclass
 from time import perf_counter
 from typing import Any
 
+from .compliance import review as compliance_review
 from .memory import CompanyMemory
 from .specialist_pool import DATA_UNAVAILABLE, PROPOSED
 
@@ -48,6 +49,8 @@ TASK_QUERIES = {
     TASK_CRO: ("ecommerce_funnel", "ecommerce_price", "sales_orders"),
 }
 
+# Geriye dönük uyumluluk için duruyor; denetim artık jarvis.compliance'te.
+# Ölçülen kusuru: nesne kuralını görmez, "dolaşımı destekler"i kaçırır.
 PROHIBITED_CLAIMS = (
     "tedavi", "ereksiyon", "geciktir", "performans garant", "garantili sonuç",
     "garantili sonuc", "cinsel güc", "cinsel guc", "senin cinsel", "kişisel cinsel",
@@ -236,20 +239,40 @@ def _enrich_concepts(concepts: list[dict[str, str]], baseline: dict[str, Any],
         item = dict(concept)
         item["why_this_might_work"] = why[index % len(why)]
         item["evidence_used"] = refs
-        item["regulatory_risk"] = "NONE_DETECTED"
+        # Eskiden burada sabit "NONE_DETECTED" yazıyordu: ajans hiçbir denetim
+        # yapmadan "risk yok" diyordu. Artık konseptin kendi metni taranır.
+        verdict = compliance_review("\n".join(
+            str(value) for value in concept.values() if isinstance(value, str)))
+        item["regulatory_risk"] = ("BLOCKED" if verdict.blocked
+                                   else "VERIFY_REQUIRED" if verdict.verify
+                                   else "NONE_DETECTED_TIER1")
+        item["regulatory_findings"] = [f.to_dict() for f in
+                                       (verdict.blocked + verdict.verify)]
         enriched.append(item)
     return enriched
 
 
 def _regulatory_review(concepts: list[dict[str, str]]) -> tuple[list[str], list[dict[str, str]]]:
+    """Gerçek mevzuat kapısı.
+
+    Eskiden PROHIBITED_CLAIMS listesindeki 11 ifade aranıyordu. O liste
+    ölçüldü ve "dolaşımı destekler" ile "Isıtıcı, dolaşımı artırıcı"
+    cümlelerinin ikisini de kaçırıyor: mevzuat fiili değil, fiil ile NESNENİN
+    birleşimini değerlendiriyor. Artık jarvis.compliance devrede -- 39 ürünün
+    kutu metninde 127 bloklu bulgu üretmiş, kalibre edilmiş kural seti.
+    """
     risks, objections = [], []
     for concept in concepts:
-        text = " ".join(str(value) for value in concept.values()).casefold()
-        for phrase in PROHIBITED_CLAIMS:
-            if phrase in text:
-                risks.append(phrase)
-                objections.append({"creative": concept["name"], "claim": phrase,
-                                    "reason": "Outside cosmetic care/support boundary"})
+        text = "\n".join(str(value) for value in concept.values()
+                         if isinstance(value, str))
+        verdict = compliance_review(text)
+        for finding in verdict.blocked:
+            risks.append(finding.matched)
+            objections.append({"creative": concept.get("name", "?"),
+                               "claim": finding.matched,
+                               "rule": finding.rule,
+                               "basis": finding.basis,
+                               "reason": finding.remedy})
     return list(dict.fromkeys(risks)), objections
 
 
