@@ -36,8 +36,13 @@ from typing import Any, Iterable
 
 from .adapter_factory import AdapterState
 
+# The GPU box reaches the server through a reverse SSH tunnel, so from
+# here it is just another loopback port. When the desktop is off the
+# tunnel is gone, the health check fails, and the chain moves on.
+GPU_URL = os.environ.get("JARVIS_GPU_MODEL_URL", "http://127.0.0.1:8098/v1")
 LOCAL_URL = os.environ.get("JARVIS_LOCAL_MODEL_URL", "http://127.0.0.1:8099/v1")
 LOCAL_MODEL = os.environ.get("JARVIS_LOCAL_MODEL", "Qwen3-4B-Instruct-2507-Q4_K_M")
+GPU_MODEL = os.environ.get("JARVIS_GPU_MODEL", LOCAL_MODEL)
 EXTERNAL_URL = os.environ.get("JARVIS_EXTERNAL_MODEL_URL", "https://openrouter.ai/api/v1")
 EXTERNAL_MODEL = os.environ.get("JARVIS_EXTERNAL_MODEL",
                                 "nvidia/nemotron-3-super-120b-a12b:free")
@@ -58,6 +63,7 @@ LOCAL_TIMEOUT_S = float(os.environ.get("JARVIS_LOCAL_MODEL_TIMEOUT_S", "240"))
 EXTERNAL_TIMEOUT_S = 90.0
 
 TIER_DETERMINISTIC = "DETERMINISTIC"
+TIER_GPU = "LOCAL_GPU"
 TIER_LOCAL = "LOCAL_MODEL"
 TIER_EXTERNAL = "EXTERNAL_MODEL"
 
@@ -177,6 +183,9 @@ class LocalProvider:
 
     name = "local"
     tier = TIER_LOCAL
+    # A dead tunnel must be discovered fast: the GPU box being off is the
+    # normal case at night, not an exception worth waiting on.
+    health_timeout_s = 3.0
 
     def __init__(self, url: str = LOCAL_URL, model: str = LOCAL_MODEL):
         self.url = url.rstrip("/")
@@ -185,7 +194,7 @@ class LocalProvider:
     def state(self) -> AdapterState:
         try:
             health = self.url.rsplit("/v1", 1)[0] + "/health"
-            with urllib.request.urlopen(health, timeout=3) as response:
+            with urllib.request.urlopen(health, timeout=self.health_timeout_s) as response:
                 ok = json.loads(response.read()).get("status") == "ok"
             return AdapterState.AVAILABLE if ok else AdapterState.DEGRADED
         except Exception:  # noqa: BLE001 - an unreachable provider is a state
@@ -324,16 +333,30 @@ def compile_context(evidence: Iterable[dict[str, Any]]) -> tuple[str, tuple[str,
 class ModelRouter:
     """Local first, external only on failure or explicit escalation."""
 
-    def __init__(self, local: Any | None = None, external: Any | None = None):
+    def __init__(self, local: Any | None = None, external: Any | None = None,
+                 gpu: Any | None = None):
+        # Same class, different endpoint: the GPU box is reached over the
+        # reverse tunnel and is otherwise an ordinary llama.cpp server.
+        if gpu is not None:
+            self.gpu = gpu
+        else:
+            self.gpu = LocalProvider(url=GPU_URL, model=GPU_MODEL)
+            self.gpu.name = "gpu"
+            self.gpu.tier = TIER_GPU
         self.local = local if local is not None else LocalProvider()
         self.external = external if external is not None else ExternalProvider()
 
     def provider_states(self) -> dict[str, str]:
-        return {"local": self.local.state().value,
+        return {"gpu": self.gpu.state().value,
+                "local": self.local.state().value,
                 "external": self.external.state().value}
 
     def _chain(self, escalate: bool) -> list[Any]:
-        return [self.external, self.local] if escalate else [self.local, self.external]
+        """GPU first because it is ten times faster, the VDS next because it is
+        always on, the external provider last -- or first when the task needs a
+        stronger model rather than a faster one."""
+        fast = [self.gpu, self.local]
+        return [self.external, *fast] if escalate else [*fast, self.external]
 
     def generate(self, messages: list[dict[str, str]], max_tokens: int,
                  escalate: bool = False) -> tuple[dict[str, Any], str, int]:
@@ -378,7 +401,7 @@ class ModelRouter:
 
         # An empty or stub-length answer from the small model is a failure, not
         # an answer. Try the stronger one before returning it.
-        if (not escalate and tier == TIER_LOCAL
+        if (not escalate and tier in (TIER_GPU, TIER_LOCAL)
                 and len((result.get("text") or "").strip()) < MIN_USEFUL_ANSWER_CHARS
                 and self.external.state() == AdapterState.AVAILABLE):
             try:
@@ -416,10 +439,12 @@ class ModelRouter:
         messages = ([{"role": "system", "content": system}]
                     + list(history or [])
                     + [{"role": "user", "content": question}])
-        if self.local.state() == AdapterState.AVAILABLE:
+        streamer = (self.gpu if self.gpu.state() == AdapterState.AVAILABLE
+                    else self.local)
+        if streamer.state() == AdapterState.AVAILABLE:
             produced = False
             try:
-                for delta in self.local.stream(messages, max_tokens):
+                for delta in streamer.stream(messages, max_tokens):
                     produced = True
                     yield delta
             except (urllib.error.URLError, TimeoutError, OSError, ValueError):
