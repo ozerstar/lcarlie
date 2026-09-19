@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import unicodedata
 from dataclasses import asdict, dataclass
 from time import perf_counter
@@ -121,17 +122,90 @@ def _load_snapshot(memory: Any, queries: tuple[str, ...]) -> EvidenceSnapshot:
                             round((perf_counter() - started) * 1000, 3))
 
 
-def _vireon_rows(rows: tuple[dict[str, Any], ...]) -> list[dict[str, Any]]:
-    def folded(value: Any) -> str:
-        decomposed = unicodedata.normalize("NFKD", json.dumps(value, ensure_ascii=False).casefold())
-        return "".join(char for char in decomposed if not unicodedata.combining(char)).replace("ı", "i")
-    return [row for row in rows if "vireon" in folded(row)]
+def _fold(value: Any) -> str:
+    """Aksansiz, kucuk harfli karsilastirma bicimi. Turkce i/I tuzagi burada
+    zararsiz: karsilastirilan iki taraf da ayni donusumden gecer."""
+    raw = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
+    decomposed = unicodedata.normalize("NFKD", raw.casefold())
+    return "".join(ch for ch in decomposed if not unicodedata.combining(ch)).replace("ı", "i")
 
 
-def _ad_baseline(snapshot: EvidenceSnapshot, product: str | None = None) -> dict[str, Any]:
+# Katalog adinda markayi aciklamadan ayiran isaretler. Olculen gercek adlar:
+#   "VIREON FOR MEN · Erkek Bakim Kremi"
+#   "INTIMBLANC (Hassas Bolge Ton Gorunumu Bakim Kremi)"
+#   "HYDRAVIE | Yogun Nemlendirici Yuz Kremi"
+_NAME_SPLIT = re.compile(r"\s*[(|·\-–]\s*")
+
+# Tek basina eslestirilmeyecek kadar genel ilk kelimeler. "HAIR NOURISHER"in
+# "hair"i bir gorev metninde kolayca yanlis eslesir; tam marka adi gerekir.
+_GENERIC_HEADS = frozenset({"hair", "baby", "easy", "bright", "for", "men"})
+
+
+@dataclass(frozen=True)
+class Product:
+    """Katalogdan bir urun. `category` sirketin kendi onayladigi tanimdir."""
+    brand: str
+    category: str
+    name: str
+    keys: tuple[str, ...]
+    rows: tuple[dict[str, Any], ...] = ()
+
+    @property
+    def label(self) -> str:
+        return f"{self.brand} ({self.category})" if self.category else self.brand
+
+
+def catalogue(rows: tuple[dict[str, Any], ...],
+              field: str = "urun_adi") -> tuple[Product, ...]:
+    """Satis satirlarindan urun katalogu. Adlar veriden gelir, kodda yazmaz."""
+    out: dict[str, Product] = {}
+    for row in rows:
+        name = str(row.get(field) or "").strip()
+        if not name:
+            continue
+        parts = [part.strip(" )") for part in _NAME_SPLIT.split(name) if part.strip(" )")]
+        brand = parts[0] if parts else name
+        category = " ".join(parts[1:]).strip() if len(parts) > 1 else ""
+        head = _fold(brand).split(" ")[0]
+        keys = [_fold(brand)]
+        if len(head) >= 5 and head not in _GENERIC_HEADS:
+            keys.append(head)
+        existing = out.get(name)
+        collected = (existing.rows if existing else ()) + (row,)
+        out[name] = Product(brand=brand, category=category, name=name,
+                            keys=tuple(dict.fromkeys(keys)), rows=collected)
+    return tuple(out.values())
+
+
+def detect_product(task: str, products: tuple[Product, ...]) -> Product | None:
+    """Gorevde adi gecen urun. Eslesme yoksa None -- varsayilan urun YOKTUR.
+
+    Onceden urun kodda sabitti ve hangi urun sorulursa sorulsun VIREON
+    rakamlari ve VIREON metinleri donuyordu. Bilinmeyen urun icin dogru
+    cevap uydurmak degil, bilmedigini soylemektir.
+    """
+    folded = _fold(task)
+    best: tuple[int, Product] | None = None
+    for product in products:
+        for key in product.keys:
+            if key and key in folded and (best is None or len(key) > best[0]):
+                best = (len(key), product)
+    return best[1] if best else None
+
+
+def _product_rows(rows: tuple[dict[str, Any], ...],
+                  product: Product | None) -> list[dict[str, Any]]:
+    if product is None:
+        return []
+    keys = [k for k in product.keys if k]
+    return [row for row in rows if any(k in _fold(row) for k in keys)]
+
+
+def _ad_baseline(snapshot: EvidenceSnapshot,
+                 product: Product | None = None) -> dict[str, Any]:
     rows = list(snapshot.records.get("advertising_performance", ()))
-    if product:
-        rows = _vireon_rows(tuple(rows))
+    if product is not None:
+        rows = _product_rows(tuple(rows), product)
     rows = [row for row in rows if row.get("pencere") == 30]
     spend = sum(float(row.get("harcama") or 0) for row in rows)
     impressions = sum(int(row.get("gosterim") or 0) for row in rows)
@@ -147,36 +221,99 @@ def _ad_baseline(snapshot: EvidenceSnapshot, product: str | None = None) -> dict
     }
 
 
-def _sales_baseline(snapshot: EvidenceSnapshot, product: str) -> dict[str, Any]:
-    rows = _vireon_rows(snapshot.records.get("sales_items", ())) if product.casefold() == "vireon" else []
+def _sales_baseline(snapshot: EvidenceSnapshot,
+                    product: Product | None) -> dict[str, Any]:
+    # Onceden burada `product.casefold() == "vireon"` kontrolu vardi ve baska
+    # her urun icin satis temeli KOSULSUZ bos donuyordu -- veri var olmasina
+    # ragmen. Artik hangi urun sorulduysa onun satirlari sayilir.
+    rows = _product_rows(snapshot.records.get("sales_items", ()), product)
     return {"rows": len(rows), "units": sum(int(row.get("adet") or 0) for row in rows),
             "net_revenue": round(sum(float(row.get("satir_ciro_net") or 0) for row in rows), 2),
             "measured_rows": sum(1 for row in rows if row.get("olcumde"))}
 
 
-def _concepts() -> list[dict[str, str]]:
-    shared = {"cta": "Daha Fazla Bilgi", "landing_page_message":
-              "Vireon'u kozmetik bakım rutininin bir parçası olarak keşfedin; içerik, kullanım ve ürün bilgilerini inceleyin."}
-    return [
-        {"name": "Bakım Rutini", "audience_context": "Kişisel bakım rutinine düzenli ve özenli yaklaşan yetişkinler",
-         "hook": "Bakım rutininizde kendinize ayırdığınız adım hangisi?",
-         "primary_text": "Vireon'u günlük kişisel bakım rutininize eklenebilecek kozmetik bakım seçeneği olarak keşfedin. Ürün bilgilerini inceleyin, size uygun kullanım kararını bilinçli verin.",
-         "headline": "Bakım rutinine özenli bir adım",
-         "visual_brief": "Temiz banyo rafında ürün, nötr ışık, ambalaj ve bakım ritüeli odağı; beden sonucu veya mahrem bölge görseli yok.",
-         "video_15s_brief": "0-3 sn sade bakım rafı; 3-8 sn ürün ve rutin adımı; 8-12 sn bilgi inceleme ekranı; 12-15 sn Daha Fazla Bilgi CTA.", **shared},
-        {"name": "Kendine Ayırdığın An", "audience_context": "Yoğun gün içinde kişisel bakımına zaman ayırmak isteyen yetişkinler",
-         "hook": "Günün içinde bakım için küçük bir alan açın.",
-         "primary_text": "Kişisel bakım yalnız sonuç iddiası değil, düzenli bir rutindir. Vireon'un kozmetik bakım yaklaşımını ve kullanım bilgilerini keşfedin.",
-         "headline": "Kendine ayırdığın bakım anı",
-         "visual_brief": "Akşam bakım atmosferi, havlu ve ürün yakın planı; sakin, premium fakat klinik olmayan anlatım.",
-         "video_15s_brief": "0-4 sn gün sonu geçişi; 4-9 sn bakım alanı hazırlığı; 9-12 sn ürün yakın planı; 12-15 sn bilgi CTA.", **shared},
-        {"name": "Açık ve Bakım Odaklı", "audience_context": "Ürün bilgisini ve iddia sınırlarını önemseyen bilinçli yetişkinler",
-         "hook": "Büyük vaatler yerine açık ürün bilgisi.",
-         "primary_text": "Vireon kozmetik bakım sınırında, açık ürün ve kullanım bilgileriyle anlatılır. Ayrıntıları inceleyerek bilinçli bir bakım tercihi yapın.",
-         "headline": "Bakım odaklı, açık iletişim",
-         "visual_brief": "Ambalaj, okunaklı bilgi katmanları ve sade tipografi; önce-sonra, medikal ikon veya sonuç grafiği yok.",
-         "video_15s_brief": "0-3 sn 'Büyük vaatler yerine bilgi'; 3-10 sn ambalaj ve bilgi başlıkları; 10-15 sn keşfet CTA.", **shared},
-    ]
+# Uc kreatif aci. Yapilari sabittir -- insan elinden cikmis ve mevzuata
+# uygun bulunmuslardir -- ama urun ve kategori veriden doldurulur.
+# {brand} = katalogdaki marka, {category} = katalogdaki onayli kategori.
+ANGLES: tuple[dict[str, str], ...] = (
+    {
+        "name": "Bakım Rutini",
+        "audience_context": "Kişisel bakım rutinine düzenli ve özenli yaklaşan yetişkinler",
+        "hook": "Bakım rutininizde kendinize ayırdığınız adım hangisi?",
+        "primary_text": "{brand}{category_clause} günlük kişisel bakım rutininize "
+                        "eklenebilecek bir seçenek olarak keşfedin. Ürün bilgilerini "
+                        "inceleyin, size uygun kullanım kararını bilinçli verin.",
+        "headline": "Bakım rutinine özenli bir adım",
+        "visual_brief": "Temiz banyo rafında ürün, nötr ışık, ambalaj ve bakım ritüeli "
+                        "odağı; beden sonucu veya mahrem bölge görseli yok.",
+        "video_15s_brief": "0-3 sn sade bakım rafı; 3-8 sn ürün ve rutin adımı; "
+                           "8-12 sn bilgi inceleme ekranı; 12-15 sn Daha Fazla Bilgi CTA.",
+    },
+    {
+        "name": "Kendine Ayırdığın An",
+        "audience_context": "Yoğun gün içinde kişisel bakımına zaman ayırmak isteyen yetişkinler",
+        "hook": "Günün içinde bakım için küçük bir alan açın.",
+        "primary_text": "Kişisel bakım yalnız sonuç iddiası değil, düzenli bir rutindir. "
+                        "{brand}{category_clause} bakım yaklaşımını ve kullanım "
+                        "bilgilerini keşfedin.",
+        "headline": "Kendine ayırdığın bakım anı",
+        "visual_brief": "Akşam bakım atmosferi, havlu ve ürün yakın planı; sakin, "
+                        "premium fakat klinik olmayan anlatım.",
+        "video_15s_brief": "0-4 sn gün sonu geçişi; 4-9 sn bakım alanı hazırlığı; "
+                           "9-12 sn ürün yakın planı; 12-15 sn bilgi CTA.",
+    },
+    {
+        "name": "Açık ve Bakım Odaklı",
+        "audience_context": "Ürün bilgisini ve iddia sınırlarını önemseyen bilinçli yetişkinler",
+        "hook": "Büyük vaatler yerine açık ürün bilgisi.",
+        "primary_text": "{brand}{category_clause} açık ürün ve kullanım bilgileriyle "
+                        "anlatılır. Ayrıntıları inceleyerek bilinçli bir bakım tercihi yapın.",
+        "headline": "Bakım odaklı, açık iletişim",
+        "visual_brief": "Ambalaj, okunaklı bilgi katmanları ve sade tipografi; "
+                        "önce-sonra, medikal ikon veya sonuç grafiği yok.",
+        "video_15s_brief": "0-3 sn 'Büyük vaatler yerine bilgi'; 3-10 sn ambalaj ve "
+                           "bilgi başlıkları; 10-15 sn keşfet CTA.",
+    },
+)
+
+
+def _fill(angle: dict[str, str], product: Product, with_category: bool) -> dict[str, str]:
+    clause = f", {product.category.casefold()} olarak," if (
+        with_category and product.category) else ","
+    filled = {key: value.format(brand=product.brand, category_clause=clause)
+              for key, value in angle.items()}
+    filled["cta"] = "Daha Fazla Bilgi"
+    filled["landing_page_message"] = (
+        f"{product.brand} ürününü kozmetik bakım rutininin bir parçası olarak "
+        f"keşfedin; içerik, kullanım ve ürün bilgilerini inceleyin.")
+    filled["product"] = product.name
+    return filled
+
+
+def _concepts(product: Product | None) -> list[dict[str, str]]:
+    """Ürün için kreatif konseptler. Ürün bilinmiyorsa BOŞ döner.
+
+    Bos donmek burada dogru cevaptir: hangi urunun reklami yazildigi
+    bilinmeden yazilan metin, en iyi ihtimalle baska bir urunun metnidir.
+    """
+    if product is None:
+        return []
+    out: list[dict[str, str]] = []
+    for angle in ANGLES:
+        candidate = _fill(angle, product, with_category=True)
+        if compliance_review(_concept_text(candidate)).blocked:
+            # Kategori ifadesi takildi: markayla sinirli asgari varyanti dene.
+            candidate = _fill(angle, product, with_category=False)
+            if compliance_review(_concept_text(candidate)).blocked:
+                continue  # bu aci gonderilemez
+        out.append(candidate)
+    return out
+
+
+def _concept_text(concept: dict[str, str]) -> str:
+    """Denetime girecek metin: konseptin musteriye ulasan tum string alanlari."""
+    return "\n".join(str(value) for key, value in concept.items()
+                      if key != "product" and isinstance(value, str))
 
 
 def _problems_and_opportunities(task_type: str, baseline: dict[str, Any],
@@ -300,7 +437,11 @@ class AgencyCapability:
         task_type = classify_task(task)
         roles = select_roles(task_type, task)
         snapshot = _load_snapshot(self.memory, TASK_QUERIES[task_type])
-        concepts = _concepts() if task_type == TASK_CAMPAIGN else []
+        # Urun GOREVDEN tespit edilir, katalog veriden gelir. Onceden urun adi
+        # kodda sabitti ve her soruya VIREON cevabi uretiliyordu.
+        products = catalogue(snapshot.records.get("sales_items", ()))
+        product = detect_product(task, products)
+        concepts = _concepts(product) if task_type == TASK_CAMPAIGN else []
         regulatory_risks, objections = _regulatory_review(concepts)
         data_gaps = list(snapshot.data_gaps)
         research_required = task_type == TASK_CAMPAIGN and COMPETITOR_CREATIVE in roles
@@ -310,8 +451,16 @@ class AgencyCapability:
             data_gaps.extend(("approved_brand_voice_guide", "approved_product_claims"))
         if task_type == TASK_CAMPAIGN:
             data_gaps.extend(("real_inventory", "gunluk_marj"))
-        baseline = _ad_baseline(snapshot, "vireon" if task_type == TASK_CAMPAIGN else None)
-        sales = _sales_baseline(snapshot, "vireon") if task_type == TASK_CAMPAIGN else {}
+        baseline = _ad_baseline(snapshot, product if task_type == TASK_CAMPAIGN else None)
+        sales = _sales_baseline(snapshot, product) if task_type == TASK_CAMPAIGN else {}
+        if task_type == TASK_CAMPAIGN and product is None:
+            # Urun bilinmeden yazilan reklam metni, en iyi ihtimalle baska bir
+            # urunun metnidir. Uydurmak yerine eksikligi bildir.
+            data_gaps.append("urun_belirtilmedi")
+            objections.append({
+                "creative": "brief", "claim": "ürün",
+                "reason": "Görevde katalogdaki hiçbir ürün adı geçmiyor; "
+                          "konsept üretilmedi. Ürün adını belirtin."})
         if baseline.get("commercially_confirmed_rows", 0) == 0 and baseline.get("rows", 0):
             objections.append({"creative": "campaign measurement", "claim": "Meta-reported sales",
                                 "reason": "Commercial confirmation is unavailable; do not treat as sales"})
@@ -333,6 +482,11 @@ class AgencyCapability:
             concepts = _enrich_concepts(concepts, baseline, sales)
         result = {
             "task": task, "objective": task_type, "evidence_refs": list(snapshot.evidence_refs),
+            "product": (product.name if product else None),
+            "product_state": ("IDENTIFIED" if product else
+                              ("PRODUCT_NOT_IDENTIFIED" if task_type == TASK_CAMPAIGN
+                               else "NOT_APPLICABLE")),
+            "catalogue_size": len(products),
             "current_evidence": {"advertising": baseline, "sales": sales,
                                  "queries": list(TASK_QUERIES[task_type]),
                                  "refs": list(snapshot.evidence_refs)},

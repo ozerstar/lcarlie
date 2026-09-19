@@ -15,7 +15,9 @@ from jarvis.model_layer import (LOCAL_MODEL as LOCAL_MODEL_NAME, ModelRouter,
                                 should_use_model)
 from jarvis import conversation_memory, turkish
 from jarvis.company_knowledge import shared as company_knowledge
-from jarvis.agency import AgencyCapability
+from jarvis import answer_guard
+from jarvis.agency import AgencyCapability, catalogue as product_catalogue
+from jarvis.agency_proposal import screen as screen_agency
 from jarvis.specialist_pool import SpecialistPool
 
 SIMPLE_CONVERSATION = "SIMPLE_CONVERSATION"
@@ -601,18 +603,31 @@ def _research(message: str, started: float) -> dict[str, Any]:
         research_stop_reason=report.get("stop_reason"))
 
 
+# 4 cumlelik resmi bir Turkce cevap ~180-220 token tutar; eski deger
+# 160'ti ve cumle bitmeden doluyordu. Amac uzun cevap degil, TAM cevap.
+CHAT_MAX_TOKENS = int(os.environ.get("JARVIS_CHAT_MAX_TOKENS", "380"))
+
 CHAT_SYSTEM = (
-    "Sen Jarvis'sin: L'CARLIÉ'nin yapay zekâ iş ortağısın. Doğal, sıcak ve kısa "
-    "Türkçe konuş -- sohbet eder gibi, rapor yazar gibi değil.\n"
-    "- Gerektiğinde karşı soru sor, merak et.\n"
-    "- Kullanıcı sadece konuşmak ya da dertleşmek istiyor olabilir; önce dinle, "
-    "hemen çözüm dayatma.\n"
-    "- Madde madde liste yapma, 2-4 cümle yeter.\n"
+    # Bu istem bir kez "sicak, sohbet eder gibi, dertlesme" tonu istiyordu ve
+    # kullanici hakli olarak "fazla laubali" dedi. Ton modelin kusuru degildi,
+    # buradaki talimatti. Yeni kayit: resmi, olculu, kisa.
+    "Sen Jarvis'sin: L'CARLIÉ'nin analiz ve operasyon asistanısın. Resmî, ölçülü "
+    "ve kısa Türkçe yazarsın.\n"
+    "- Kullanıcıya 'siz' diye hitap et.\n"
+    "- En fazla 4 cümle yaz. Önce cevabı ver; gerekçe gerekiyorsa tek cümle ekle.\n"
+    "- Giriş ve kapanış cümlesi yazma: 'Tabii ki', 'Elbette', 'Umarım yardımcı "
+    "olmuştur' gibi ifadeler kullanma.\n"
+    "- Şaka, emoji, ünlem işareti ve 'harika', 'süper', 'muhteşem' gibi abartı "
+    "sözcükler kullanma.\n"
+    "- Gereksiz karşı soru sorma. Soru ancak görevi yapmak için gereken bir bilgi "
+    "eksikse sorulur ve tek soru olur.\n"
+    "- Cümleni yarım bırakma. Söyleyeceğin sığmıyorsa daha az şey söyle, "
+    "cümlenin ortasında durma.\n"
     "Yeteneklerin: şirket verisini (satış, e-ticaret, reklam, CRM, operasyon) "
     "kanıtıyla okumak, analiz ve kampanya önerisi hazırlamak, web araştırması "
     "istemek. YAPAMADIKLARIN: kişisel veri veya telefon numarası bulmak, "
     "internette kişi aramak, sistemlere girmek, mesaj/reklam/fiyat değiştirmek. "
-    "Böyle bir şey istenirse dürüstçe yapamayacağını söyle.\n"
+    "Böyle bir şey istenirse yapamayacağını açıkça söyle.\n"
     "Sınırlar: Şirketle ilgili sayı, tarih, ürün veya müşteri bilgisi UYDURMA -- "
     "böyle bir şey sorulursa verilere bakman gerektiğini söyle. Hiçbir işlemi "
     "kendin uygulayamazsın; onay insanındır."
@@ -654,7 +669,46 @@ def _chat_system() -> str:
     return CHAT_SYSTEM + ("\n\n" + notes if notes else "")
 
 
-def _chat(message: str, intent: str, started: float) -> dict[str, Any]:
+# Urun listesi gun icinde degismez; her mesajda sorgu atmak gereksiz.
+_CATALOGUE_TTL_S = float(os.environ.get("JARVIS_CATALOGUE_TTL_S", "3600"))
+_catalogue_cache: dict[str, Any] = {"at": 0.0, "names": ()}
+
+
+def _known_products(runtime: Any) -> tuple[str, ...]:
+    """Katalogdaki ürün adları. Okunamazsa BOŞ döner ve ürün denetimi atlanır.
+
+    Bos donmek burada dogru davranistir: liste yokken her buyuk harfli adi
+    "uydurma" saymak, veri yoklugunu hataya cevirirdi.
+    """
+    import time as _time
+    now = _time.time()
+    if _catalogue_cache["names"] and now - _catalogue_cache["at"] < _CATALOGUE_TTL_S:
+        return _catalogue_cache["names"]  # type: ignore[return-value]
+    try:
+        memory = _memory(runtime)
+        rows = tuple(memory._fetch("sales_items").records)
+        names = tuple(p.brand for p in product_catalogue(rows))
+    except Exception:  # noqa: BLE001 - katalog yoklugu bir durumdur
+        names = ()
+    _catalogue_cache.update({"at": now, "names": names})
+    return names
+
+
+def _guarded(answer: str, runtime: Any) -> tuple[str, dict[str, Any]]:
+    """Model cevabını yayımlamadan önce denetler. Sıfır model çağrısı."""
+    try:
+        out = answer_guard.guard(answer, _known_products(runtime))
+    except Exception:  # noqa: BLE001 - denetim cevabi engelleyemez
+        return answer, {}
+    meta: dict[str, Any] = {}
+    if out["invented_products"]:
+        meta["invented_products"] = out["invented_products"]
+        meta["sentences_dropped"] = out["sentences_dropped"]
+    return str(out["text"]) or answer, meta
+
+
+def _chat(message: str, intent: str, started: float,
+          runtime: Any = None) -> dict[str, Any]:
     """An ordinary conversational turn.
 
     No evidence block is assembled: this is talk, not analysis. The model is
@@ -663,15 +717,16 @@ def _chat(message: str, intent: str, started: float) -> dict[str, Any]:
     introduction still stands so the user is never left without a reply.
     """
     try:
-        result = _router().synthesize(message, (), system=_system_for(message), max_tokens=160,
+        result = _router().synthesize(message, (), system=_system_for(message), max_tokens=CHAT_MAX_TOKENS,
                                       escalate=needs_escalation(message),
                                       history=conversation_memory.history())
     except ModelUnavailable:
         return _response(message, intent, "ANSWERED", FALLBACK_INTRO,
                          started=started, model="deterministic-local")
-    return _response(message, intent, "ANSWERED", result.answer, started=started,
+    cevap, uyari = _guarded(result.answer, runtime)
+    return _response(message, intent, "ANSWERED", cevap, started=started,
                      model=result.model, model_calls=result.model_calls,
-                     tier=result.tier)
+                     tier=result.tier, **uyari)
 
 
 def stream_chat(message: str, intent: str):
@@ -686,7 +741,7 @@ def stream_chat(message: str, intent: str):
     model = None
     calls = 0
     try:
-        for delta in _router().stream_text(message, _system_for(message), max_tokens=160,
+        for delta in _router().stream_text(message, _system_for(message), max_tokens=CHAT_MAX_TOKENS,
                                            history=conversation_memory.history()):
             chunks.append(delta)
             yield {"type": "token", "delta": delta}
@@ -712,6 +767,110 @@ def _agency(memory: Any) -> AgencyCapability:
     return _AGENCY
 
 
+def _agency_details(deliverable: dict[str, Any]) -> list[dict[str, Any]]:
+    """Teslimatı panelin açılır bloklarına çevirir.
+
+    Satiri olmayan blok eklenmez: bos bir "Konseptler" basligi, is yapilmis
+    izlenimi verir ama icinde bir sey yoktur.
+    """
+    blocks: list[dict[str, Any]] = []
+
+    concepts = deliverable.get("creative_concepts") or []
+    if concepts:
+        rows = []
+        for c in concepts:
+            risk = c.get("regulatory_risk") or ""
+            rows.append(f"{c.get('name', '?')} — {c.get('headline', '')}"
+                        + (f"  [{risk}]" if risk and risk != "NONE_DETECTED_TIER1" else ""))
+            rows.append(f"    {str(c.get('primary_text', ''))[:220]}")
+        blocks.append({"ref": "agency:concepts",
+                       "summary": f"Kreatif konseptler ({len(concepts)})",
+                       "total": len(concepts), "rows": rows})
+
+    proposals = deliverable.get("proposals") or {}
+    pconcepts = proposals.get("concepts") or []
+    if pconcepts:
+        rows = [f"{c.get('name', '?')} — {c.get('status')}"
+                + ("  (zarf üretildi)" if c.get("envelope") else "")
+                + (f"  hata: {str(c.get('error'))[:80]}" if c.get("error") else "")
+                for c in pconcepts]
+        rows.append(f"sözleşme: {proposals.get('contract_state')}")
+        rows.append(str(proposals.get("note") or ""))
+        blocks.append({"ref": "agency:proposals",
+                       "summary": (f"Öneri zarfları — {proposals.get('proposable', 0)} "
+                                   f"önerilebilir, {proposals.get('blocked', 0)} bloklu"),
+                       "total": len(pconcepts), "rows": rows})
+
+    risks = deliverable.get("regulatory_risks") or []
+    if risks:
+        blocks.append({"ref": "agency:regulatory",
+                       "summary": f"Mevzuat bulguları ({len(risks)})",
+                       "total": len(risks),
+                       "rows": [str(r)[:220] for r in risks]})
+
+    objections = deliverable.get("red_team_objections") or []
+    if objections:
+        blocks.append({"ref": "agency:redteam",
+                       "summary": f"Kırmızı takım itirazları ({len(objections)})",
+                       "total": len(objections),
+                       "rows": [f"{o.get('creative', '')}: {o.get('reason', '')}"
+                                for o in objections]})
+
+    plan = deliverable.get("test_plan") or []
+    if plan:
+        blocks.append({"ref": "agency:test_plan",
+                       "summary": f"Test planı ({len(plan)})", "total": len(plan),
+                       "rows": [f"{s.get('test', '')} — değişken: {s.get('variable', '')}"
+                                f" — sabit: {s.get('hold_constant', '')}" for s in plan]})
+
+    social = deliverable.get("social_plan") or []
+    if social:
+        blocks.append({"ref": "agency:social",
+                       "summary": f"Sosyal plan ({len(social)} gün)", "total": len(social),
+                       "rows": [f"Gün {d.get('day', '?')} · {d.get('objective', '')}"
+                                f" — {d.get('topic', d.get('hook', ''))}" for d in social]})
+    return blocks
+
+
+def _screen_agency(deliverable: dict[str, Any], memory: Any) -> dict[str, Any]:
+    """Konseptleri firewall sözleşmesine karşı tarar ve zarfları döndürür.
+
+    Sozlesme okunamazsa ajans cikti vermeye devam eder; yalnizca zarf
+    uretilmez. Sozlesmesiz uydurulmus bir zarf, zarf olmamasindan kotudur --
+    onaylanabilir gorunur ama arkasinda dogrulama yoktur.
+    """
+    contract = None
+    contract_state = "CONTRACT_UNAVAILABLE"
+    try:
+        from jarvis.action_contract import ContractCache
+        contract = ContractCache(memory).get()
+        contract_state = "VALID" if getattr(contract, "valid", False) else "INVALID"
+        if contract_state != "VALID":
+            contract = None
+    except Exception as exc:  # noqa: BLE001 - sozlesme yoklugu bir durumdur
+        contract_state = f"CONTRACT_UNAVAILABLE: {type(exc).__name__}"
+
+    try:
+        screened = screen_agency(deliverable, contract)
+    except Exception as exc:  # noqa: BLE001 - tarama ajansi durduramaz
+        return {"contract_state": contract_state, "error": str(exc)[:200],
+                "proposable": 0, "blocked": 0, "concepts": []}
+
+    payload = screened.to_dict() if hasattr(screened, "to_dict") else {}
+    rows = list(payload.get("concepts") or [])
+    payload.update({
+        "contract_state": contract_state,
+        "proposable": sum(1 for c in rows if c.get("status") == "PROPOSABLE"),
+        "blocked": sum(1 for c in rows if c.get("status") == "BLOCKED"),
+        # Zarf uretildi demek "gonderildi" demek DEGILDIR. Bu ayrimi cikti
+        # tasimazsa panel "onaya gitti" gibi okunur.
+        "submitted": False,
+        "note": ("Zarflar üretildi ve firewall doğrulamasından geçti; "
+                 "veritabanına YAZILMADI. Gönderim ayrı bir adımdır."),
+    })
+    return payload
+
+
 def _agency_request(message: str, memory: Any, started: float) -> dict[str, Any]:
     """The Agency produces a proposal and nothing else.
 
@@ -726,6 +885,13 @@ def _agency_request(message: str, memory: Any, started: float) -> dict[str, Any]
         return _response(message, AGENCY_REQUEST, "DATA_UNAVAILABLE",
             "Agency talebi tanındı ancak kanıt okunamadığı için çıktı üretilmedi.",
             started=started, error_detail=f"{type(exc).__name__}: {exc}")
+
+    # Kopru: her konsept mevzuat kapisindan ve firewall dogrulamasindan gecer.
+    # Bu adim daha once YAZILMIS ama hic cagrilmamisti; fikir firewall'a
+    # ugramadan cope gidiyordu. Zarf uretilir, veritabanina YAZILMAZ --
+    # gonderim ayri ve bilincli bir adimdir.
+    deliverable["proposals"] = _screen_agency(deliverable, memory)
+
     return _response(message, AGENCY_REQUEST, "PROPOSED",
         deliverable.get("summary") or "Agency önerisi hazırlandı.",
         evidence_refs=tuple(deliverable.get("evidence_refs") or ()),
@@ -734,6 +900,9 @@ def _agency_request(message: str, memory: Any, started: float) -> dict[str, Any]
         model_calls=deliverable.get("model_calls", 0),
         approval_required=True, execution_started=False,
         agency=deliverable, roles_used=deliverable.get("roles_used"),
+        details=_agency_details(deliverable),
+        product=deliverable.get("product"),
+        product_state=deliverable.get("product_state"),
         objective=deliverable.get("objective"))
 
 
@@ -755,7 +924,7 @@ def route(message: str, runtime: Any) -> dict[str, Any]:
     started = perf_counter()
     decision = classify(message)
     if decision.intent == SIMPLE_CONVERSATION:
-        return _chat(message, decision.intent, started)
+        return _chat(message, decision.intent, started, runtime)
     # The action boundary is settled before any model can be reached. A
     # request to change something must land on the firewall path whatever
     # else it looks like.

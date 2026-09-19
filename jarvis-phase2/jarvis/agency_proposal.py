@@ -30,8 +30,14 @@ from .firewall import ContractDriftError, FirewallError, validate_proposal
 
 # Konseptin yayımlanacak yüzü. name/id gibi iç alanlar denetlenmez: onlar
 # müşteriye görünmez ve taranırsa yanlış alarm üretirler.
+# OLCULEN ACIK: bu liste ajansin urettigi `primary_text`i icermiyordu --
+# reklamin ASIL GOVDE METNI. Kesisim yalnizca hook+headline+cta idi, yani
+# gonderilen metnin en buyuk parcasi denetime hic girmiyordu. Liste
+# genisletmek yalniz daha cok metni taramaya sokar, hicbir kurali gevsetmez.
 PUBLISHABLE_FIELDS = ("hook", "caption_direction", "headline", "body", "cta",
-                      "visual_direction", "topic", "angle")
+                      "visual_direction", "topic", "angle",
+                      "primary_text", "landing_page_message", "visual_brief",
+                      "video_15s_brief", "audience_context")
 
 PROPOSABLE = "PROPOSABLE"
 BLOCKED = "BLOCKED"

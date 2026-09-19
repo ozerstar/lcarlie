@@ -465,7 +465,15 @@ PUBLISHED_TEXT_ACTIONS = frozenset({
 # Yükte yayımlanabilir metin taşıyan alanlar. subject_ref bilerek dışarıda:
 # o bir kimliktir, metin değildir -- taranırsa "coding-task:akne-fix" gibi bir
 # referans hastalık adı sayılır.
-TEXT_FIELDS = ("reason", "text", "body", "message", "caption", "content", "draft")
+# Firewall payload'unda taranan metin alanlari. `primary_text` ve
+# `landing_page_message` OLCULEN bir acikti: ajans konsepti bu adlari
+# kullaniyor ve liste onlari icermedigi icin reklamin asil govdesi kapidan
+# denetlenmeden geciyordu. Yeni bir alan adi eklendiginde BURAYA da eklenmezse
+# o alan sessizce taranmaz -- bu listenin eksikligi hata vermez, sadece
+# denetimi atlatir.
+TEXT_FIELDS = ("reason", "text", "body", "message", "caption", "content", "draft",
+               "primary_text", "landing_page_message", "headline", "hook",
+               "visual_brief", "video_15s_brief")
 
 
 class ComplianceBlocked(ValueError):

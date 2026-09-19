@@ -53,7 +53,10 @@ KIMI_CONFIG = os.environ.get("JARVIS_KIMI_CONFIG", "/root/kimi-sandbox-home/conf
 # 4-core host answering in seconds rather than minutes.
 MAX_EVIDENCE_ITEMS = 12
 MAX_EVIDENCE_CHARS = 6000
-MAX_ANSWER_TOKENS = int(os.environ.get("JARVIS_MODEL_MAX_TOKENS", "320"))
+# 320 Turkce icin dardi (sondan eklemeli dil kelime basina daha cok token
+# yer) ve cevaplar cumle ortasinda kesiliyordu. Amac uzun cevap degil TAM
+# cevap; istem kisa yazmayi zaten soyluyor.
+MAX_ANSWER_TOKENS = int(os.environ.get("JARVIS_MODEL_MAX_TOKENS", "512"))
 # Below this a reply is not an answer; it is the small model giving up.
 MIN_USEFUL_ANSWER_CHARS = 24
 # A knowledge-backed answer on this CPU can legitimately take a minute.
@@ -76,6 +79,29 @@ GROUNDING_SYSTEM = (
     "4. Hiçbir işlemi uygulayamazsın; öneri üretirsin, kararı insan verir.\n"
     "5. Kısa, net, Türkçe yaz."
 )
+
+
+_SENTENCE_END = (".", "!", "?", "\u2026")
+
+
+def _end_cleanly(text: str, finish_reason: str | None) -> str:
+    """Token sınırında kesilen cevabı son TAM cümlede bitirir.
+
+    Siniri yukseltmek tek basina yetmez: her sinir bir gun dolar ve o gun
+    kullanici yine yarim kelime gorur. Burada kesilme TESPIT edilir ve cikti
+    son cumle sonuna kadar kirpilir.
+
+    Kirpma metnin %40'indan azini birakacaksa yapilmaz (tek uzun cumle
+    kesilmistir; kirpmak cevabi yok eder). O durumda metin korunur ve sonuna
+    acik bir isaret konur -- sessizce yarim birakmaktan iyidir.
+    """
+    if finish_reason != "length" or not text:
+        return text
+    stripped = text.rstrip()
+    cut = max(stripped.rfind(end) for end in _SENTENCE_END)
+    if cut > len(stripped) * 0.4:
+        return stripped[:cut + 1]
+    return stripped + " […]"
 
 
 class ModelUnavailable(RuntimeError):
@@ -208,8 +234,15 @@ class LocalProvider:
                       "temperature": 0.3, "stream": False, "cache_prompt": True},
                      timeout=LOCAL_TIMEOUT_S)
         usage = data.get("usage") or {}
-        return {"text": data["choices"][0]["message"]["content"],
+        choice = data["choices"][0]
+        # finish_reason HIC okunmuyordu: token siniri dolunca model cumlenin
+        # ortasinda duruyor, kod bunu normal bir cevap saniyordu. Kullanicinin
+        # "cevap yarida kesiliyor" sikayeti tam olarak buydu.
+        return {"text": _end_cleanly(choice["message"]["content"],
+                                     choice.get("finish_reason")),
                 "model": self.model,
+                "finish_reason": choice.get("finish_reason"),
+                "truncated": choice.get("finish_reason") == "length",
                 "prompt_tokens": usage.get("prompt_tokens"),
                 "completion_tokens": usage.get("completion_tokens")}
 
@@ -300,8 +333,15 @@ class ExternalProvider:
                 raise ModelUnavailable("external provider RATE_LIMITED") from None
             raise ModelUnavailable(f"external provider HTTP_{exc.code}") from None
         usage = data.get("usage") or {}
-        return {"text": data["choices"][0]["message"]["content"],
+        choice = data["choices"][0]
+        # finish_reason HIC okunmuyordu: token siniri dolunca model cumlenin
+        # ortasinda duruyor, kod bunu normal bir cevap saniyordu. Kullanicinin
+        # "cevap yarida kesiliyor" sikayeti tam olarak buydu.
+        return {"text": _end_cleanly(choice["message"]["content"],
+                                     choice.get("finish_reason")),
                 "model": self.model,
+                "finish_reason": choice.get("finish_reason"),
+                "truncated": choice.get("finish_reason") == "length",
                 "prompt_tokens": usage.get("prompt_tokens"),
                 "completion_tokens": usage.get("completion_tokens")}
 
