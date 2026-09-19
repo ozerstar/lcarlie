@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import hashlib
+import re
+from datetime import datetime, timezone
 import os
 from dataclasses import dataclass
 from time import perf_counter
@@ -331,6 +333,69 @@ def _summarize(name: str, records: list[dict[str, Any]]) -> str:
     return f"{len(records)} kayıt"
 
 
+# Kayıt basina gosterilecek en fazla satir. Panelde "16 acik dosya" yazip
+# kayitlari atmak, okuyana tiklanacak hicbir sey birakmiyordu -- sayinin
+# arkasindaki satirlar tasinmazsa detay ekrani yazilamaz.
+DETAIL_LIMIT = 12
+
+
+def _age_days(value: Any) -> float | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    text = value.strip().replace(" ", "T", 1)
+    text = re.sub(r"([+-]\d{2})$", r"\1:00", text)
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if not parsed.tzinfo:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - parsed).total_seconds() / 86400.0
+
+
+def _line(*parts: Any) -> str:
+    return " · ".join(str(p).strip() for p in parts if p not in (None, "", "None"))
+
+
+def _detail_rows(name: str, records: list[dict[str, Any]]) -> list[str]:
+    """Ozetin arkasindaki gercek satirlar.
+
+    Kisisel veri tasinmaz: musteri adi ve ham mesaj metni hicbir sorguda yok,
+    siparis satirinda customer_id yerine siparis_no gosterilir.
+    """
+    rows: list[str] = []
+    for record in records[:DETAIL_LIMIT]:
+        if name == "open_work":
+            age = _age_days(record.get("zaman"))
+            rows.append(_line(record.get("tur"), record.get("anahtar"),
+                              record.get("yapilacak"),
+                              f"{age:.0f} gun" if age is not None else None))
+        elif name == "crm_unanswered":
+            rows.append(_line(record.get("kanal"), record.get("musteri_takma"),
+                              f"{record.get('mesaj_sayisi')} mesaj",
+                              f"{record.get('bekleme_saat')} saat bekliyor"))
+        elif name == "sales_orders":
+            rows.append(_line(record.get("siparis_no"), record.get("gun"),
+                              record.get("kanal"), record.get("odeme_durumu"),
+                              record.get("toplam")))
+        elif name == "operations_shipments":
+            rows.append(_line(record.get("siparis_no"), record.get("durum"),
+                              record.get("tasiyici"), record.get("sehir"),
+                              "ALARM" if record.get("alarm") else None))
+        elif name == "advertising_performance":
+            rows.append(_line(record.get("kampanya_adi"), record.get("ad_adi"),
+                              f"harcama {record.get('harcama')}",
+                              f"CTR {record.get('ctr_yuzde')}"))
+        elif name == "ecommerce_profitability":
+            rows.append(_line(record.get("urun_adi"), f"ciro {record.get('ciro_net')}",
+                              f"marj %{record.get('brut_marj_yuzde')}"))
+        else:
+            first = {k: v for k, v in list(record.items())[:4]
+                     if k not in ("source", "entity_id", "source_record_id")}
+            rows.append(_line(*first.values()))
+    return [r for r in rows if r]
+
+
 def _gather(message: str, memory: Any) -> tuple[list[dict[str, Any]], list[str]]:
     text = _normalize(message)
     domains = [d for d, terms in _DOMAIN_TERMS.items() if _has(text, terms)]
@@ -345,7 +410,9 @@ def _gather(message: str, memory: Any) -> tuple[list[dict[str, Any]], list[str]]
     for name in queries:
         try:
             got = memory._fetch(name)
-            evidence.append({"ref": got.source, "summary": _summarize(name, got.records)})
+            evidence.append({"ref": got.source, "summary": _summarize(name, got.records),
+                             "rows": _detail_rows(name, got.records),
+                             "total": len(got.records)})
         except Exception:
             missing.append(name)
 
@@ -366,6 +433,13 @@ def _gather(message: str, memory: Any) -> tuple[list[dict[str, Any]], list[str]]
     return evidence, missing
 
 
+def _details_payload(evidence: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Panelin acilir listede gosterecegi bloklar. Satiri olmayan kanit atlanir."""
+    return [{"ref": item["ref"], "summary": item.get("summary", ""),
+             "total": item.get("total"), "rows": item.get("rows", [])}
+            for item in evidence if item.get("rows")]
+
+
 def _synthesize(message: str, intent: str, memory: Any, started: float,
                 escalate: bool | None = None) -> dict[str, Any]:
     if escalate is None:
@@ -382,6 +456,7 @@ def _synthesize(message: str, intent: str, memory: Any, started: float,
             "yanıt veremedi. Kanıtlar okundu ancak yorumlanamadı.",
             evidence_refs=tuple(item["ref"] for item in evidence),
             missing_data=tuple(missing), started=started,
+            details=_details_payload(evidence),
             provider_states=_router().provider_states(), error_detail=str(exc))
     payload = result.to_dict()
     return _response(message, intent, "ANSWERED", result.answer,
@@ -389,6 +464,7 @@ def _synthesize(message: str, intent: str, memory: Any, started: float,
                      missing_data=result.missing_data, started=started,
                      model=result.model, model_calls=result.model_calls,
                      confidence=result.confidence, tier=result.tier,
+                     details=_details_payload(evidence),
                      context_chars=result.context_chars,
                      prompt_tokens=payload["prompt_tokens"],
                      completion_tokens=payload["completion_tokens"],

@@ -23,6 +23,7 @@ import json
 import os
 import sys
 import time
+import pathlib
 import traceback
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -259,6 +260,20 @@ class Handler(BaseHTTPRequestHandler):
             findings = _tail_jsonl(STATE_DIR / "findings.jsonl", limit)
             self._send_json(200, {"audit": audit, "findings": findings})
             return
+        if path == "/api/panel":
+            # Bolum listesi: uc nokta kesfedilebilir olsun, arayuz sabit
+            # isim listesi tasimak zorunda kalmasin.
+            self._send_json(200, {"sections": ["veri", "ajanlar", "raporlar", "ayarlar"]})
+            return
+        if path.startswith("/api/panel/"):
+            section = path.rsplit("/", 1)[-1]
+            builder = {"veri": _panel_veri, "ajanlar": _panel_ajanlar,
+                       "raporlar": _panel_raporlar, "ayarlar": _panel_ayarlar}.get(section)
+            if builder is None:
+                self._send_json(404, {"error": "unknown panel"})
+                return
+            self._send_json(200, builder())
+            return
         if path == "/api/proposals":
             try:
                 pending = _operator.list_pending()
@@ -460,3 +475,168 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+# ==========================================================================
+# Panel bolumleri
+# ==========================================================================
+# Dort bolum de OLCULEN durumu gosterir. Okunamayan bir kaynak "yok" diye
+# gizlenmez, hatasiyla birlikte gosterilir: panelin iki yonde de yalan
+# soylememesi CR-001'in bulgusuydu.
+
+def _panel_error(exc: Exception) -> dict:
+    return {"status": "ERROR", "error": str(exc)[:300]}
+
+
+def _panel_veri() -> dict:
+    """Company Memory'nin gercek durumu: hangi sorgu calisiyor, kac satir."""
+    # Modul zaten bir CompanyMemory ornegi tutuyor; ikincisini kurmak
+    # transport ayarini ikiye bolerdi.
+    memory = _memory
+    domains = []
+    for domain, names in getattr(type(memory), "DOMAIN_QUERIES", {}).items():
+        queries = []
+        for name in names:
+            try:
+                evidence = memory._fetch(name)
+                queries.append({"name": name, "status": "OK",
+                                "rows": len(evidence.records),
+                                "latency_ms": evidence.latency_ms,
+                                "source": evidence.source})
+            except Exception as exc:  # noqa: BLE001
+                queries.append({"name": name, "status": "FAIL",
+                                "error": str(exc)[:160]})
+        domains.append({"domain": domain, "queries": queries,
+                        "ok": sum(1 for q in queries if q["status"] == "OK"),
+                        "total": len(queries)})
+
+    provenance, quality = [], []
+    try:
+        for row in memory.get_provenance().records:
+            provenance.append({"alan": row.get("entity_id"),
+                               "authority": row.get("authority"),
+                               "freshness": row.get("freshness"),
+                               "connection": row.get("current_connection"),
+                               "observed_at": row.get("observed_at")})
+    except Exception as exc:  # noqa: BLE001
+        provenance = [_panel_error(exc)]
+    try:
+        for row in memory.get_data_quality().records:
+            quality.append({"check": row.get("entity_id"),
+                            "passed": row.get("passed"),
+                            "detail": str(row.get("detail") or "")[:200]})
+    except Exception as exc:  # noqa: BLE001
+        quality = [_panel_error(exc)]
+
+    return {"domains": domains, "provenance": provenance, "quality": quality}
+
+
+def _panel_ajanlar() -> dict:
+    """Roller, saglayicilar ve motor adaylari -- hangisi gercekten kullanilabilir."""
+    roles, providers, engines = [], [], []
+    try:
+        from jarvis import agency
+        for role in agency.ROLES:
+            roles.append({"id": role, "kind": "agency"})
+    except Exception as exc:  # noqa: BLE001
+        roles.append(_panel_error(exc))
+    try:
+        from jarvis.specialist_pool import SPECIALISTS
+        for spec in SPECIALISTS:
+            roles.append({"id": getattr(spec, "specialist_id", str(spec)),
+                          "kind": "specialist",
+                          "domain": getattr(spec, "domain", None)})
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        from webconsole.conversation import _router
+        states = _router().provider_states()
+        providers = [{"provider": k, "state": v} for k, v in states.items()] \
+            if isinstance(states, dict) else [{"provider": str(states), "state": "?"}]
+    except Exception as exc:  # noqa: BLE001
+        providers = [_panel_error(exc)]
+    try:
+        from jarvis.adapter_factory import AdapterFactory
+        for candidate in AdapterFactory.candidates():
+            engines.append({"name": candidate.name, "version": candidate.version,
+                            "state": candidate.state.value,
+                            "evidence": candidate.evidence})
+    except Exception as exc:  # noqa: BLE001
+        engines = [_panel_error(exc)]
+    return {"roles": roles, "providers": providers, "engines": engines}
+
+
+def _panel_raporlar() -> dict:
+    """Bulgular ve dongu ozeti -- uretilmis gercek kayitlar."""
+    findings = _tail_jsonl(STATE_DIR / "findings.jsonl", 60)
+    audit = _tail_jsonl(STATE_DIR / "audit.jsonl", 60)
+
+    by_code: dict = {}
+    for row in findings:
+        key = row.get("signal_code") or row.get("signature") or "infra"
+        entry = by_code.setdefault(key, {"code": key, "count": 0,
+                                         "severity": row.get("severity"),
+                                         "last": None, "reason": row.get("reason")})
+        entry["count"] += 1
+        entry["last"] = row.get("observed_at") or entry["last"]
+
+    cycles = [r for r in audit if r.get("cycle")]
+    results: dict = {}
+    for row in cycles:
+        results[row.get("result", "?")] = results.get(row.get("result", "?"), 0) + 1
+    last = cycles[-1] if cycles else {}
+
+    return {
+        "findings": sorted(by_code.values(), key=lambda e: -e["count"]),
+        "finding_total": len(findings),
+        "cycle_results": [{"result": k, "count": v} for k, v in
+                          sorted(results.items(), key=lambda kv: -kv[1])],
+        "last_cycle": {"cycle": last.get("cycle"), "result": last.get("result"),
+                       "business": last.get("business"),
+                       "model_calls": last.get("model_calls"),
+                       "external_actions": last.get("external_actions"),
+                       "total_ms": last.get("total_ms")},
+    }
+
+
+def _panel_ayarlar() -> dict:
+    """Yonetisim anahtarlari -- SALT OKUNUR.
+
+    Panelden degistirilemez: EXTERNAL_ACTIONS ve kill switch sahibin kararidir
+    ve tarayicidan degistirilebilir olmasi Action Firewall'un anlamini bozar.
+    """
+    env = {}
+    try:
+        for line in pathlib.Path("/etc/lcarlie/jarvis-phase2.env").read_text(
+                encoding="utf-8").splitlines():
+            if "=" in line and not line.strip().startswith("#"):
+                key, _, value = line.partition("=")
+                if any(s in key.upper() for s in ("TOKEN", "KEY", "SECRET", "PASS")):
+                    continue  # sir degeri panele tasinmaz
+                env[key.strip()] = value.strip()
+    except Exception as exc:  # noqa: BLE001
+        env = {"error": str(exc)[:200]}
+
+    thresholds = {}
+    try:
+        from jarvis.business_signals import DEFAULT_THRESHOLDS
+        thresholds = dict(DEFAULT_THRESHOLDS)
+    except Exception:  # noqa: BLE001
+        pass
+
+    compliance = {}
+    try:
+        from jarvis.compliance import PUBLISHED_TEXT_ACTIONS, RULES_SOURCE
+        compliance = {"rules_source": RULES_SOURCE,
+                      "gated_actions": sorted(PUBLISHED_TEXT_ACTIONS)}
+    except Exception:  # noqa: BLE001
+        pass
+
+    return {
+        "env": env, "thresholds": thresholds, "compliance": compliance,
+        "readonly": True,
+        "note": ("Bu degerler panelden degistirilemez. EXTERNAL_ACTIONS ve kill "
+                 "switch sunucuda, sahibin karariyla degisir."),
+        "kill_switch": ("systemctl stop jarvis-phase2.timer && "
+                        "systemctl disable jarvis-phase2.timer"),
+    }
