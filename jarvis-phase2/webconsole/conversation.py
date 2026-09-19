@@ -16,6 +16,7 @@ from jarvis.model_layer import (LOCAL_MODEL as LOCAL_MODEL_NAME, ModelRouter,
 from jarvis import conversation_memory, turkish
 from jarvis.company_knowledge import shared as company_knowledge
 from jarvis.agency import AgencyCapability
+from jarvis.agency_proposal import screen as screen_agency
 from jarvis.specialist_pool import SpecialistPool
 
 SIMPLE_CONVERSATION = "SIMPLE_CONVERSATION"
@@ -712,6 +713,110 @@ def _agency(memory: Any) -> AgencyCapability:
     return _AGENCY
 
 
+def _agency_details(deliverable: dict[str, Any]) -> list[dict[str, Any]]:
+    """Teslimatı panelin açılır bloklarına çevirir.
+
+    Satiri olmayan blok eklenmez: bos bir "Konseptler" basligi, is yapilmis
+    izlenimi verir ama icinde bir sey yoktur.
+    """
+    blocks: list[dict[str, Any]] = []
+
+    concepts = deliverable.get("creative_concepts") or []
+    if concepts:
+        rows = []
+        for c in concepts:
+            risk = c.get("regulatory_risk") or ""
+            rows.append(f"{c.get('name', '?')} — {c.get('headline', '')}"
+                        + (f"  [{risk}]" if risk and risk != "NONE_DETECTED_TIER1" else ""))
+            rows.append(f"    {str(c.get('primary_text', ''))[:220]}")
+        blocks.append({"ref": "agency:concepts",
+                       "summary": f"Kreatif konseptler ({len(concepts)})",
+                       "total": len(concepts), "rows": rows})
+
+    proposals = deliverable.get("proposals") or {}
+    pconcepts = proposals.get("concepts") or []
+    if pconcepts:
+        rows = [f"{c.get('name', '?')} — {c.get('status')}"
+                + ("  (zarf üretildi)" if c.get("envelope") else "")
+                + (f"  hata: {str(c.get('error'))[:80]}" if c.get("error") else "")
+                for c in pconcepts]
+        rows.append(f"sözleşme: {proposals.get('contract_state')}")
+        rows.append(str(proposals.get("note") or ""))
+        blocks.append({"ref": "agency:proposals",
+                       "summary": (f"Öneri zarfları — {proposals.get('proposable', 0)} "
+                                   f"önerilebilir, {proposals.get('blocked', 0)} bloklu"),
+                       "total": len(pconcepts), "rows": rows})
+
+    risks = deliverable.get("regulatory_risks") or []
+    if risks:
+        blocks.append({"ref": "agency:regulatory",
+                       "summary": f"Mevzuat bulguları ({len(risks)})",
+                       "total": len(risks),
+                       "rows": [str(r)[:220] for r in risks]})
+
+    objections = deliverable.get("red_team_objections") or []
+    if objections:
+        blocks.append({"ref": "agency:redteam",
+                       "summary": f"Kırmızı takım itirazları ({len(objections)})",
+                       "total": len(objections),
+                       "rows": [f"{o.get('creative', '')}: {o.get('reason', '')}"
+                                for o in objections]})
+
+    plan = deliverable.get("test_plan") or []
+    if plan:
+        blocks.append({"ref": "agency:test_plan",
+                       "summary": f"Test planı ({len(plan)})", "total": len(plan),
+                       "rows": [f"{s.get('test', '')} — değişken: {s.get('variable', '')}"
+                                f" — sabit: {s.get('hold_constant', '')}" for s in plan]})
+
+    social = deliverable.get("social_plan") or []
+    if social:
+        blocks.append({"ref": "agency:social",
+                       "summary": f"Sosyal plan ({len(social)} gün)", "total": len(social),
+                       "rows": [f"Gün {d.get('day', '?')} · {d.get('objective', '')}"
+                                f" — {d.get('topic', d.get('hook', ''))}" for d in social]})
+    return blocks
+
+
+def _screen_agency(deliverable: dict[str, Any], memory: Any) -> dict[str, Any]:
+    """Konseptleri firewall sözleşmesine karşı tarar ve zarfları döndürür.
+
+    Sozlesme okunamazsa ajans cikti vermeye devam eder; yalnizca zarf
+    uretilmez. Sozlesmesiz uydurulmus bir zarf, zarf olmamasindan kotudur --
+    onaylanabilir gorunur ama arkasinda dogrulama yoktur.
+    """
+    contract = None
+    contract_state = "CONTRACT_UNAVAILABLE"
+    try:
+        from jarvis.action_contract import ContractCache
+        contract = ContractCache(memory).get()
+        contract_state = "VALID" if getattr(contract, "valid", False) else "INVALID"
+        if contract_state != "VALID":
+            contract = None
+    except Exception as exc:  # noqa: BLE001 - sozlesme yoklugu bir durumdur
+        contract_state = f"CONTRACT_UNAVAILABLE: {type(exc).__name__}"
+
+    try:
+        screened = screen_agency(deliverable, contract)
+    except Exception as exc:  # noqa: BLE001 - tarama ajansi durduramaz
+        return {"contract_state": contract_state, "error": str(exc)[:200],
+                "proposable": 0, "blocked": 0, "concepts": []}
+
+    payload = screened.to_dict() if hasattr(screened, "to_dict") else {}
+    rows = list(payload.get("concepts") or [])
+    payload.update({
+        "contract_state": contract_state,
+        "proposable": sum(1 for c in rows if c.get("status") == "PROPOSABLE"),
+        "blocked": sum(1 for c in rows if c.get("status") == "BLOCKED"),
+        # Zarf uretildi demek "gonderildi" demek DEGILDIR. Bu ayrimi cikti
+        # tasimazsa panel "onaya gitti" gibi okunur.
+        "submitted": False,
+        "note": ("Zarflar üretildi ve firewall doğrulamasından geçti; "
+                 "veritabanına YAZILMADI. Gönderim ayrı bir adımdır."),
+    })
+    return payload
+
+
 def _agency_request(message: str, memory: Any, started: float) -> dict[str, Any]:
     """The Agency produces a proposal and nothing else.
 
@@ -726,6 +831,13 @@ def _agency_request(message: str, memory: Any, started: float) -> dict[str, Any]
         return _response(message, AGENCY_REQUEST, "DATA_UNAVAILABLE",
             "Agency talebi tanındı ancak kanıt okunamadığı için çıktı üretilmedi.",
             started=started, error_detail=f"{type(exc).__name__}: {exc}")
+
+    # Kopru: her konsept mevzuat kapisindan ve firewall dogrulamasindan gecer.
+    # Bu adim daha once YAZILMIS ama hic cagrilmamisti; fikir firewall'a
+    # ugramadan cope gidiyordu. Zarf uretilir, veritabanina YAZILMAZ --
+    # gonderim ayri ve bilincli bir adimdir.
+    deliverable["proposals"] = _screen_agency(deliverable, memory)
+
     return _response(message, AGENCY_REQUEST, "PROPOSED",
         deliverable.get("summary") or "Agency önerisi hazırlandı.",
         evidence_refs=tuple(deliverable.get("evidence_refs") or ()),
@@ -734,6 +846,9 @@ def _agency_request(message: str, memory: Any, started: float) -> dict[str, Any]
         model_calls=deliverable.get("model_calls", 0),
         approval_required=True, execution_started=False,
         agency=deliverable, roles_used=deliverable.get("roles_used"),
+        details=_agency_details(deliverable),
+        product=deliverable.get("product"),
+        product_state=deliverable.get("product_state"),
         objective=deliverable.get("objective"))
 
 
