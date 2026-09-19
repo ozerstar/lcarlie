@@ -1,6 +1,6 @@
 ---
 konu: fiyat gerçeği ve tuzaklar
-anahtar: [fiyat, kaç para, ne kadar, ücret, kupon, indirim, kdv, maliyet, marj,
+anahtar: [fiyat, kaç para, ücret, kupon, indirim, kdv, maliyet, marj,
   2400, 1200, vireon fiyat, pahalı, rakip fiyat]
 gizlilik: serbest
 ---

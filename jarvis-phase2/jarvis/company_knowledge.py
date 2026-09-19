@@ -76,7 +76,17 @@ _WORD_RE = re.compile(r"[0-9a-zçğöşü]+")
 #: costs a couple of seconds of prompt evaluation, against 27-73 s of
 #: generation. The budget exists to stop the whole folder being pasted in, not
 #: because a second document is expensive.
-_MAX_CHARS = 9000
+# Measured on this host: prompt evaluation costs ~20-25 ms per token on four
+# CPU cores, so retrieved knowledge is expensive -- 3000 characters costs
+# ~57 s end to end, 6000 ~108 s, and the previous 9000 cost 136 s and blew the
+# client timeout, discarding a correct answer about IntimBlanc entirely.
+#
+# The documents are 2.6k-5.1k characters each, so a budget under ~4200 fits
+# none of them and retrieval silently returns nothing at all. 4200 is the
+# smallest budget that still buys ONE document -- the product's own file --
+# which is the entire point of having split them. A hardware-imposed number:
+# a GPU moves it by an order of magnitude.
+_MAX_CHARS = int(os.environ.get("JARVIS_KNOWLEDGE_MAX_CHARS", "4200"))
 _MAX_DOCS = 2
 
 #: Words that appear in a ``konu`` without identifying it.

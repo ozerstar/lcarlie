@@ -9,10 +9,16 @@ gizlilik: serbest
 `00-kimlik` **her turda** yüklenir. Diğer dosyalar `anahtar` alanındaki
 kelimelerle eşleşerek getirilir; eşleşme yoksa yüklenmez.
 
+Dosyalar küçük tutulur çünkü uzun bağlam pahalıdır: bu sunucuda her ~1500
+karakter, operatörün beklediği süreye yaklaşık 30 saniye ekler. Bir konu tek
+dosyaya sığmıyorsa **bölünür** — büyütülmez.
+
 | Dosya | Ne var içinde | Gizlilik |
 |---|---|---|
 | `00-kimlik` | Şirket, kim kimdir, kanallar, temel sınır | serbest |
-| `10-iddia-kurallari` | Mevzuat, izinli/izinsiz nesne, karşılık tablosu, kapanmış kararlar | serbest |
+| `10-iddia-kurallari` | Tek kural, izinli/izinsiz nesne, yasak listeleri | serbest |
+| `12-karsilik-tablosu` | Yasak ifade → uyumlu karşılığı | serbest |
+| `13-kapanmis-kararlar` | Tekrar açılmayacak konular, mevzuat dayanağı | serbest |
 | `11-marka-dili` | Müşteri yanıtı tonu, influencer tonu, Özer'in çıktı beklentisi, AI görsel yasağı, izinli kaynaklar | serbest |
 | `20-urunler` | 36 ürün, slug, kategori, bilinen katalog hataları | serbest |
 | `21-fiyat` | Fiyat listesi, VIREON 1.200/2.400 karışıklığı, kupon tuzağı, KDV/maliyet, pazar konumu | serbest |

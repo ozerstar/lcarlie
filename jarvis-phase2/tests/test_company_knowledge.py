@@ -67,8 +67,30 @@ class RetrieveTest(unittest.TestCase):
     def _names(self, query, **kw):
         return [d.name for d in self.k.retrieve(query, **kw)]
 
-    def test_price_question_retrieves_price(self):
-        self.assertIn("21-fiyat", self._names("Vireon kaç para?"))
+    def test_every_document_fits_the_budget(self):
+        # The failure this closes is invisible: a file larger than the budget
+        # is skipped silently and the model answers with no knowledge at all.
+        # A topic that outgrows one file is SPLIT, never allowed to exceed it.
+        from jarvis.company_knowledge import _MAX_CHARS
+        oversized = {name: len(doc.body)
+                     for name, doc in self.k.documents.items()
+                     if len(doc.body) > _MAX_CHARS}
+        self.assertEqual({}, oversized,
+                         f"larger than the {_MAX_CHARS}-char budget, so they "
+                         "would never be retrieved: split them")
+
+    def test_price_question_retrieves_the_price_correction(self):
+        # "Vireon kaç para?" matches both the price file and the product file,
+        # and only one fits the budget. Either is acceptable ONLY if it carries
+        # the correction -- the known failure is quoting 2.400, the struck-out
+        # reference price, as the amount due.
+        block = self.k.context("Vireon kaç para?")
+        self.assertIn("1.200", block)
+        self.assertIn("2.400", block)
+
+    def test_a_pure_price_question_retrieves_the_price_file(self):
+        # Where the coupon trap and the 146-question measurement live.
+        self.assertIn("21-fiyat", self._names("Kupon kodu ve indirim durumu ne?"))
 
     def test_product_question_retrieves_the_product(self):
         self.assertIn("30-urun-intimblanc", self._names("Intimblanc nedir?"))
@@ -77,17 +99,22 @@ class RetrieveTest(unittest.TestCase):
         self.assertIn("10-iddia-kurallari",
                       self._names("Bu cümleyi yazabilir miyim, mevzuat uygun mu?"))
 
+    def test_rewording_question_retrieves_the_substitution_table(self):
+        # Split out of the claim rules so the most-retrieved file stays small.
+        self.assertIn("12-karsilik-tablosu",
+                      self._names("Bunun yerine ne yazayım?"))
+
     def test_number_question_retrieves_measurement_truths(self):
         self.assertIn("50-olcum-gercekleri",
                       self._names("Ciro ve marj rakamları ölçümde güvenilir mi?"))
 
-    def test_measurement_truths_rank_for_a_plain_revenue_question(self):
-        # "Bu ay ciro ne kadar?" also hits the price file, and with only two
-        # slots the higher-scoring one can crowd this out -- but it must at
-        # least be in the ranking, never absent.
-        ranked = [doc.name for _score, doc in
-                  self.k.score("Bu ay ciro ne kadar?")]
-        self.assertIn("50-olcum-gercekleri", ranked)
+    def test_a_revenue_question_gets_the_traps_not_the_price_list(self):
+        # A number question must arrive with the caveats attached -- KDV, the
+        # 18.8% inflated revenue, the estimated cost. The price file used to
+        # win this on the generic keyword "ne kadar", which was removed from
+        # it for exactly that reason; "kaç para" still carries price intent.
+        self.assertEqual(["50-olcum-gercekleri"],
+                         self._names("Bu ay ciro ne kadar?"))
 
     def test_identity_is_never_retrieved(self):
         # It is loaded unconditionally; retrieving it too would double it.
@@ -100,9 +127,10 @@ class RetrieveTest(unittest.TestCase):
         self.assertEqual(self._names("bugün hava nasıl olacak"), [])
 
     def test_budget_is_respected(self):
-        docs = self.k.retrieve("vireon fiyat iddia ürün ciro", limit=2)
-        self.assertLessEqual(len(docs), 2)
-        self.assertLessEqual(sum(len(d.body) for d in docs), 9000)
+        from jarvis.company_knowledge import _MAX_CHARS, _MAX_DOCS
+        docs = self.k.retrieve("vireon fiyat iddia ürün ciro")
+        self.assertLessEqual(len(docs), _MAX_DOCS)
+        self.assertLessEqual(sum(len(d.body) for d in docs), _MAX_CHARS)
 
     def test_subject_beats_a_passing_mention(self):
         # The 36-product list mentions every product; the product's own file

@@ -51,7 +51,10 @@ MAX_EVIDENCE_CHARS = 6000
 MAX_ANSWER_TOKENS = int(os.environ.get("JARVIS_MODEL_MAX_TOKENS", "320"))
 # Below this a reply is not an answer; it is the small model giving up.
 MIN_USEFUL_ANSWER_CHARS = 24
-LOCAL_TIMEOUT_S = float(os.environ.get("JARVIS_LOCAL_MODEL_TIMEOUT_S", "120"))
+# A knowledge-backed answer on this CPU can legitimately take a minute.
+# Timing out and serving the canned fallback after that much work is the
+# worst outcome available: slow is recoverable, discarded is not.
+LOCAL_TIMEOUT_S = float(os.environ.get("JARVIS_LOCAL_MODEL_TIMEOUT_S", "240"))
 EXTERNAL_TIMEOUT_S = 90.0
 
 TIER_DETERMINISTIC = "DETERMINISTIC"
