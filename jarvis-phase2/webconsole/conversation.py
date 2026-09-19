@@ -15,7 +15,7 @@ from jarvis.model_layer import (LOCAL_MODEL as LOCAL_MODEL_NAME, ModelRouter,
                                 should_use_model)
 from jarvis import conversation_memory, turkish
 from jarvis.company_knowledge import shared as company_knowledge
-from jarvis import answer_guard
+from jarvis import answer_guard, consensus
 from jarvis.agency import AgencyCapability, catalogue as product_catalogue
 from jarvis.agency_proposal import screen as screen_agency
 from jarvis.specialist_pool import SpecialistPool
@@ -216,6 +216,13 @@ def classify(message: str) -> RouteDecision:
         return RouteDecision(COMPANY_QUERY, "sales")
     if _has(text, ("bugün şirket", "bugun sirket")):
         return RouteDecision(COMPANY_QUERY, "company")
+    # Cekimli bicimler: yukaridaki sabit dizgiler "sattik", "satildi",
+    # "harcadik", "urunlerimiz" gibi bicimleri GORMEZ. OLCULDU: "Son 30
+    # gunde kac adet urun sattik?" bu satira gelmeden GENERAL_REASONING'e
+    # dusuyor ve veriye hic bakilmadan "erisimim yok" cevabi doniyordu.
+    domains = _domains_of(raw)
+    if domains:
+        return RouteDecision(COMPANY_QUERY, domains[0])
     return RouteDecision(GENERAL_REASONING)
 
 
@@ -282,6 +289,74 @@ def _company(message: str, domain: str, memory: Any, started: float) -> dict[str
 # Which Company Memory queries bear on a question. Deliberately narrow: the
 # model gets the evidence for the domains the question names, never the whole
 # fabric. An unnamed domain contributes nothing rather than everything.
+# Alan kokleri. Kelime bu koklerden biriyle BASLIYORSA o alana sayilir.
+# Lemma tek basina yetmiyor: zeyrek "satan" ve "satildi" icin `unk` donuyor
+# (olculdu), ama ikisi de acikca satisla ilgilidir.
+_DOMAIN_ROOTS = {
+    "crm": ("musteri", "cevapsiz", "konusma", "crm", "abone"),
+    "advertising": ("reklam", "harca", "roas", "ctr", "cpa", "cpc", "kampanya",
+                    "gosterim", "tiklama", "butce"),
+    "sales": ("sat", "siparis", "ciro", "gelir", "kazanc", "adet"),
+    "ecommerce": ("urun", "fiyat", "marj", "stok", "katalog", "indirim",
+                  "eticaret", "sepet", "donusum"),
+    "operations": ("operasyon", "kargo", "gonderi", "teslimat", "iade"),
+}
+
+# Bilinen lemmalar. "sattik" -> satmak, "harcadik" -> harcamak (olculdu).
+_DOMAIN_LEMMAS = {
+    "crm": ("müşteri", "konuşmak", "abone"),
+    "advertising": ("harcamak", "reklam", "kampanya", "tıklamak", "göstermek"),
+    "sales": ("satmak", "satış", "sipariş", "ciro", "gelir", "adet"),
+    "ecommerce": ("ürün", "fiyat", "stok", "katalog", "indirim"),
+    "operations": ("kargo", "gönderi", "teslimat", "iade"),
+}
+
+# Kok onekinin uygulanmasi icin en az kelime uzunlugu. "sat" koku 3 harf;
+# 4 harften kisa kelimelerde ("sat" emri gibi) aramak gereksiz gurultu uretir.
+_MIN_ROOT_WORD = 4
+
+
+def _domains_of(message: str) -> list[str]:
+    """Mesajın dokunduğu veri alanları. Çekimli biçimleri de yakalar.
+
+    Iki olcut birlikte calisir: kelimenin LEMMASI bilinen bir lemma mi, ya
+    da kelime bilinen bir KOKLE mi basliyor. Ikisi de gerekli -- olculdu:
+    lemma "sattik"i yakalar ama "satan"i kaciririr; kok oneki ikisini de
+    yakalar ama "satir" gibi nadir bir yanlis pozitif uretir.
+    """
+    try:
+        from jarvis.turkish import deasciify as _deasc, lemmas as _lemmas, words as _words
+        raw = _deasc(message)
+    except Exception:  # noqa: BLE001 - bicimbilgisi istege baglidir
+        _lemmas = None  # type: ignore[assignment]
+        raw = message
+        _words = None  # type: ignore[assignment]
+
+    tokens = _words(raw) if _words else raw.split()
+    folded = [_ascii_fold(w) for w in tokens]
+    lemma_set: set[str] = set()
+    if _lemmas is not None:
+        for word in tokens:
+            lemma_set |= {lem.casefold() for lem in _lemmas(word)}
+
+    found: list[str] = []
+    for domain in _DOMAIN_ROOTS:
+        roots = _DOMAIN_ROOTS[domain]
+        hit = any(len(w) >= _MIN_ROOT_WORD and w.startswith(roots) for w in folded)
+        if not hit and lemma_set:
+            hit = bool(lemma_set & set(_DOMAIN_LEMMAS.get(domain, ())))
+        if hit:
+            found.append(domain)
+    return found
+
+
+def _ascii_fold(word: str) -> str:
+    import unicodedata as _ud
+    lowered = word.replace("İ", "i").replace("I", "ı").casefold()
+    return "".join(c for c in _ud.normalize("NFKD", lowered)
+                   if not _ud.combining(c)).replace("ı", "i")
+
+
 _DOMAIN_TERMS = {
     "crm": ("cevapsız", "cevapsiz", "müşteri", "musteri", "crm", "konuşma", "konusma"),
     "advertising": ("reklam", "meta", "harcama", "roas", "ctr", "kampanya"),
@@ -442,6 +517,35 @@ def _details_payload(evidence: list[dict[str, Any]]) -> list[dict[str, Any]]:
             for item in evidence if item.get("rows")]
 
 
+# Dogrulama ornek sayisi. Tek sayi secilir ki cogunluk her zaman belirli olsun.
+CONSENSUS_SAMPLES = int(os.environ.get("JARVIS_CONSENSUS_SAMPLES", "3"))
+CONSENSUS_ON = os.environ.get("JARVIS_CONSENSUS", "1") != "0"
+
+
+def _verify(message: str, first: str, evidence: list[dict[str, Any]],
+            missing: list[str], escalate: bool) -> dict[str, Any]:
+    """Cevabı birkaç kez tekrar üretip sayısal iddiaları karşılaştırır.
+
+    KOSULLU: ilk cevapta sirket sayisi yoksa hic calismaz. Olculdu -- bir
+    analiz cevabi 24,6 saniye suruyor; her cevabi uc kez uretmek sohbeti
+    kullanilamaz yapardi ve sayisiz bir cevapta korunacak bir sey de yok.
+    """
+    if not CONSENSUS_ON or not consensus.has_company_numbers(first):
+        return {}
+
+    def ask() -> str:
+        result = _router().synthesize(message, evidence, missing_data=missing,
+                                      escalate=escalate)
+        return result.answer
+
+    out = consensus.run(ask, first=first, samples=CONSENSUS_SAMPLES)
+    if out.samples < 2:
+        return {}
+    payload = out.to_dict()
+    payload["selected_differs"] = out.answer.strip() != first.strip()
+    return payload
+
+
 def _synthesize(message: str, intent: str, memory: Any, started: float,
                 escalate: bool | None = None) -> dict[str, Any]:
     if escalate is None:
@@ -461,7 +565,26 @@ def _synthesize(message: str, intent: str, memory: Any, started: float,
             details=_details_payload(evidence),
             provider_states=_router().provider_states(), error_detail=str(exc))
     payload = result.to_dict()
-    return _response(message, intent, "ANSWERED", result.answer,
+
+    cevap = result.answer
+    dogrulama: dict[str, Any] = {}
+    try:
+        dogrulama = _verify(message, cevap, evidence, list(missing), bool(escalate))
+    except Exception:  # noqa: BLE001 - dogrulama cevabi engelleyemez
+        dogrulama = {}
+    if dogrulama:
+        cevap = str(dogrulama.get("answer") or cevap)
+        if dogrulama.get("disputed_claims"):
+            # Ayrisma GIZLENMEZ. Kararsizken kendinden emin konusmak, yanlis
+            # cevaptan daha tehlikelidir: kullanici kontrol etmez.
+            cekismeli = ", ".join(d["claim"] for d in dogrulama["disputed_claims"][:4])
+            cevap = (cevap.rstrip()
+                     + f"\n\n⚠ Doğrulama: {dogrulama['samples']} denemede şu rakamlar "
+                       f"tutarsız çıktı ({cekismeli}). Bu sayılar kaynağından "
+                       f"teyit edilmeden kullanılmamalıdır.")
+
+    return _response(message, intent, "ANSWERED", cevap,
+                     verification=dogrulama or None,
                      evidence_refs=result.evidence_refs,
                      missing_data=result.missing_data, started=started,
                      model=result.model, model_calls=result.model_calls,
@@ -958,5 +1081,7 @@ def route(message: str, runtime: Any) -> dict[str, Any]:
         return _analysis(message, _memory(runtime), started)
     if decision.intent == COMPANY_QUERY:
         return _company(message, decision.domain or "company", _memory(runtime), started)
-    # Anything left is ordinary conversation, not company analysis.
-    return _chat(message, decision.intent, started)
+    # Geriye kalan siradan sohbettir. `runtime` GECILIR: gecilmedigi surece
+    # cevap denetimi urun katalogunu okuyamiyor ve gercek urun adlarini
+    # uydurma sanabiliyordu.
+    return _chat(message, decision.intent, started, runtime)
