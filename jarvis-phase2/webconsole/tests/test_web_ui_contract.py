@@ -250,3 +250,45 @@ class PreservesTheExistingOperatorControls(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class ModuleRunsAsMainTests(unittest.TestCase):
+    """app.py __main__ olarak calisirken de butun isleyicileri tanimali.
+
+    Yasanan hata: panel fonksiyonlari dosyanin SONUNA, yani
+    `if __name__ == "__main__": main()` satirindan SONRA eklenmisti.
+    main() icindeki serve_forever() blokladigi icin o tanimlara hic
+    ulasilmiyordu; servis calisiyor ama her istek NameError veriyordu.
+
+    Testler bunu gormemisti cunku modulu IMPORT ediyorlar -- import sirasinda
+    dosyanin tamami calisir ve tanimlar olusur. Fark yalnizca __main__
+    yolunda ortaya cikiyor, o yuzden bu test satir sirasini olcer.
+    """
+
+    @property
+    def _source(self) -> str:
+        return APP_PY.read_text(encoding="utf-8")
+
+    def _line_of(self, prefix: str) -> int:
+        for index, line in enumerate(self._source.split("\n"), 1):
+            if line.startswith(prefix):
+                return index
+        return -1
+
+    def test_every_handler_is_defined_before_the_main_guard(self):
+        guard = self._line_of('if __name__ == "__main__"')
+        self.assertGreater(guard, 0, "__main__ korumasi bulunamadi")
+        for name in ("_panel_veri", "_panel_ajanlar", "_panel_raporlar",
+                     "_panel_ayarlar", "_panel_error", "_tail_jsonl", "def main"):
+            prefix = name if name.startswith("def ") else f"def {name}"
+            line = self._line_of(prefix)
+            self.assertGreater(line, 0, f"{name} tanimli degil")
+            self.assertLess(line, guard,
+                            f"{name} __main__ korumasindan SONRA tanimli -- "
+                            "servis calisirken NameError verir")
+
+    def test_main_guard_is_the_last_statement(self):
+        """Korumadan sonra calisabilir kod kalmamali."""
+        after = self._source.split('if __name__ == "__main__":', 1)[1]
+        kalan = [line for line in after.split("\n")[1:]
+                 if line.strip() and not line.startswith((" ", "\t", "#"))]
+        self.assertEqual(kalan, [], f"korumadan sonra kod var: {kalan[:3]}")

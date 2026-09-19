@@ -473,10 +473,6 @@ def main() -> None:
     server.serve_forever()
 
 
-if __name__ == "__main__":
-    main()
-
-
 # ==========================================================================
 # Panel bolumleri
 # ==========================================================================
@@ -640,3 +636,7 @@ def _panel_ayarlar() -> dict:
         "kill_switch": ("systemctl stop jarvis-phase2.timer && "
                         "systemctl disable jarvis-phase2.timer"),
     }
+
+
+if __name__ == "__main__":
+    main()
