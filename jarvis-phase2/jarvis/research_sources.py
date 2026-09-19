@@ -99,6 +99,55 @@ def extract_text(html: str) -> str:
     return _BLANK.sub("\n\n", "\n".join(line.strip() for line in text.splitlines())).strip()
 
 
+# --- istege bagli: daha iyi ana metin ve YAYIN TARIHI -------------------
+# Yoklugu bir hata degil, bir durumdur: kurulu degilse asagidaki iki yardimci
+# eski davranisi aynen surdurur.
+try:  # pragma: no cover - yorumlayiciya gore degisir
+    import trafilatura as _TRAFILATURA
+except Exception:  # noqa: BLE001
+    _TRAFILATURA = None
+
+# trafilatura'nin donusu bu esigin altindaysa guvenilmez sayilir ve mevcut
+# cikariciya dusulur. OLCULDU: teis.org.tr'de 0 karakter dondu; o sayfa
+# olcumde gelen en degerli kaynaklardan biriydi.
+_MIN_MAIN_TEXT = 200
+
+
+def best_text(html: str) -> str:
+    """Ana metin. trafilatura kullanilabiliyorsa o, degilse mevcut cikarici.
+
+    trafilatura menu/altbilgi/urun listesi gurultusunu temizler -- olcumde
+    bir magaza sayfasinin sisirilmis alaka puani 0,430'dan 0,052'ye indi,
+    yani dogru yere. Ama bazi sayfalarda hic metin dondurmuyor; o yuzden
+    donusu dogrulanmadan kullanilmaz.
+    """
+    if _TRAFILATURA is not None:
+        try:
+            main = _TRAFILATURA.extract(html, include_comments=False,
+                                        include_tables=True) or ""
+        except Exception:  # noqa: BLE001 - cikarim asla arastirmayi durdurmaz
+            main = ""
+        if len(main) >= _MIN_MAIN_TEXT:
+            return main
+    return extract_text(html)
+
+
+def published_date(html: str) -> str:
+    """Sayfanin yayin tarihi (YYYY-MM-DD) veya bos.
+
+    OLCULDU: mevcut _MetaParser 6 sayfanin 0'inda tarih buluyordu,
+    trafilatura 5'inde buldu. Tarihsiz kaynak "guncel mi" sorusuna cevap
+    veremez ve 2023 tarihli bir pazar raporu bugunku gibi sunulur.
+    """
+    if _TRAFILATURA is None:
+        return ""
+    try:
+        meta = _TRAFILATURA.extract_metadata(html)
+    except Exception:  # noqa: BLE001
+        return ""
+    return (getattr(meta, "date", None) or "") if meta else ""
+
+
 def _token_set(text: str) -> set[str]:
     return set(_WORD.findall(text.casefold()))
 
@@ -281,18 +330,30 @@ def _decompose_best(request: str, max_queries: int = 5) -> tuple[str, ...]:
     """
     try:
         from .model_layer import ModelRouter
-        from .query_planner import plan
 
-        # decompose_query yerine planlayici: o metot ciktiyi HIC dogrulamiyordu
-        # ve olculdugunde arama sorgusu degil gorev cumlesi uretiyordu
-        # ("...son gelismeleri arastir", "Bulgulari kaynaklariyla dondur").
-        # Bir arama motoruna gorev cumlesi verilince bos donmesi normaldi;
-        # arastirma veriminin sifira yakin olmasinin sebebi buydu.
-        result = plan(request, ModelRouter(), max_queries=max_queries)
-        LAST_PLAN.clear()
-        LAST_PLAN.update(result)
-        if result["queries"]:
-            return tuple(result["queries"])[:max_queries]
+        # OLCULDU: sorgulari kisa anahtar kelimelere cevirmek ZARAR VERDI.
+        # Iki bagimsiz kosuda bilgi kaynagi ortalamasi 2,17'den 1,17'ye dustu.
+        # (Ucuncu bir kosu gurultu tabanini +-0,2 olarak olctu; bu fark onun
+        # bes kati ve iki kosuda da ayni yonde.) Arama motoru uzun tarif
+        # cumlesini MAKALE metniyle eslestiriyor, kisa urun ismini ise
+        # alisveris niyeti gibi okuyup MAGAZA getiriyor.
+        #
+        # Verimdeki asil kazanc Turkce govde eslesmesindendi (score_source,
+        # _stem) ve o, buradaki cumleleri de ayni sekilde iyilestirdi.
+        # Rakamlar ve gerekce: jarvis/query_planner.py.
+        if os.environ.get("RESEARCH_QUERY_PLANNER") == "1":
+            from .query_planner import plan
+            result = plan(request, ModelRouter(), max_queries=max_queries)
+            LAST_PLAN.clear()
+            LAST_PLAN.update(result)
+            if result["queries"]:
+                return tuple(result["queries"])[:max_queries]
+        else:
+            queries = ModelRouter().decompose_query(request, count=max_queries)
+            usable = tuple(q.strip() for q in queries
+                           if isinstance(q, str) and q.strip())
+            if usable:
+                return usable[:max_queries]
     except Exception:  # noqa: BLE001 - decomposition must never break research
         pass
     return decompose(request, max_queries)
@@ -816,7 +877,7 @@ class WebSearchCrawlAdapter(CapabilityAdapter):
                 stats["failed"] += 1
                 continue
             stats["fetched"] += 1
-            text = extract_text(html)
+            text = best_text(html)
             if len(text) < 200:
                 continue
             if any(near_duplicate(text, seen) for seen in texts):
@@ -844,7 +905,9 @@ class WebSearchCrawlAdapter(CapabilityAdapter):
                 "origin_id": canonical_host,
                 "title": " ".join(meta.title.split())[:300],
                 "content": text[:budget],
-                "observed_at": meta.published or "",
+                # Sayfanin kendi bildirdigi tarih once; yoksa trafilatura'nin
+                # cikarimi. Ikisi de yoksa bos kalir -- uydurulmaz.
+                "observed_at": meta.published or published_date(html),
                 # Authority is not a reputation score -- we have no ground
                 # truth for that. It is how much of the question the page
                 # actually addresses, discounted for plain HTTP and for a
