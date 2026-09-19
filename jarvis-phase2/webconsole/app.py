@@ -582,7 +582,16 @@ def _panel_raporlar() -> dict:
         results[row.get("result", "?")] = results.get(row.get("result", "?"), 0) + 1
     last = cycles[-1] if cycles else {}
 
+    # Gecmis kararlarin sonucundan cikan dersler. Okunamazsa uydurulmaz:
+    # learning.run zaten status=UNAVAILABLE dondurur ve panel onu gosterir.
+    try:
+        from jarvis import learning
+        lessons = learning.run(_memory)
+    except Exception as exc:  # noqa: BLE001
+        lessons = {"status": "ERROR", "error": str(exc)[:200]}
+
     return {
+        "lessons": lessons,
         "findings": sorted(by_code.values(), key=lambda e: -e["count"]),
         "finding_total": len(findings),
         "cycle_results": [{"result": k, "count": v} for k, v in

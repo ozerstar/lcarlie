@@ -1324,6 +1324,27 @@ function renderAjanlar(d) {
     + card('ROLLER', roles, `${(d.roles || []).length}`);
 }
 
+/* Dersler: sayimdir, neden-sonuc degil. Karara hic baglanmamis kumeler once
+ * gelir -- dusuk onay oranindan daha acil olan odur. */
+function renderLessons(block) {
+  if (!block || block.status === 'UNAVAILABLE' || block.status === 'ERROR') {
+    const reason = escapeHtml(String((block && (block.note || block.error)) || 'okunamadı'));
+    return card('DERSLER', `<p class="sect-note">Ders üretilemedi: ${reason}</p>`, '');
+  }
+  const rows = (block.lessons || []).slice(0, 10).map((lesson) => {
+    const stuck = lesson.decided === 0 && lesson.stuck > 0;
+    const rate = lesson.approval_rate === null || lesson.approval_rate === undefined
+      ? '—' : `%${Math.round(lesson.approval_rate * 100)}`;
+    return `<div class="kv${stuck ? ' is-bad' : ''}">
+      <span class="kv-k">${escapeHtml(String(lesson.summary))}</span>
+      <span class="kv-v">${stuck ? 'BEKLEMEDE' : rate} · ${lesson.sample} vaka</span>
+    </div>`;
+  }).join('');
+  const meta = `${block.decisions || 0} karar · ${block.model_calls || 0} model çağrısı`;
+  return card('DERSLER', rows || '<p class="sect-note">Yeterli örneklem yok.</p>', meta)
+    + `<p class="sect-note">${escapeHtml(String(block.note || ''))}</p>`;
+}
+
 function renderRaporlar(d) {
   const f = (d.findings || []).map((x) => `<div class="kv">
       <span class="kv-k">${escapeHtml(String(x.code))}</span>
@@ -1336,7 +1357,8 @@ function renderRaporlar(d) {
     + kvRow('iş zekâsı', b.status ? `${b.status} · ${b.signals} sinyal` : '—')
     + kvRow('model çağrısı', last.model_calls) + kvRow('dış aksiyon', last.external_actions)
     + kvRow('süre', last.total_ms ? `${last.total_ms} ms` : '—');
-  return card('SON DÖNGÜ', lastRows, '')
+  return renderLessons(d.lessons)
+    + card('SON DÖNGÜ', lastRows, '')
     + card('BULGULAR', f, `${d.finding_total || 0} kayıt`)
     + card('DÖNGÜ SONUÇLARI', c, '');
 }
