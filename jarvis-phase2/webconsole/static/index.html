@@ -47,10 +47,10 @@
       <button type="button" class="nav-item is-active" data-view="home">ANA SAYFA</button>
       <button type="button" class="nav-item" data-view="analiz">ANALİZ</button>
       <button type="button" class="nav-item" data-view="gorevler">GÖREVLER</button>
-      <button type="button" class="nav-item" data-view="veri" disabled title="Bu bölümün arka uç servisi henüz yok">VERİ</button>
-      <button type="button" class="nav-item" data-view="ajanlar" disabled title="Bu bölümün arka uç servisi henüz yok">AJANLAR</button>
-      <button type="button" class="nav-item" data-view="raporlar" disabled title="Bu bölümün arka uç servisi henüz yok">RAPORLAR</button>
-      <button type="button" class="nav-item" data-view="ayarlar" disabled title="Bu bölümün arka uç servisi henüz yok">AYARLAR</button>
+      <button type="button" class="nav-item" data-view="veri">VERİ</button>
+      <button type="button" class="nav-item" data-view="ajanlar">AJANLAR</button>
+      <button type="button" class="nav-item" data-view="raporlar">RAPORLAR</button>
+      <button type="button" class="nav-item" data-view="ayarlar">AYARLAR</button>
     </nav>
 
     <div class="tb-meta">
@@ -226,7 +226,55 @@
   </main>
 
   <!-- -------------------------- ANALİZ --------------------------- -->
-  <main class="stage stage-single view-panel" id="viewAnaliz" hidden>
+  <main class="stage stage-single view-panel" id="viewVeri" hidden>
+  <section class="panel" aria-label="VERİ KAYNAKLARI">
+    <div class="panel-head">
+      <h2 class="panel-title">VERİ KAYNAKLARI</h2>
+      <span class="panel-count" id="veriCount">—</span>
+    </div>
+    <div class="panel-body sect-body" id="veriBody">
+      <p class="sect-empty">Yükleniyor…</p>
+    </div>
+  </section>
+</main>
+
+<main class="stage stage-single view-panel" id="viewAjanlar" hidden>
+  <section class="panel" aria-label="AJANLAR VE MOTORLAR">
+    <div class="panel-head">
+      <h2 class="panel-title">AJANLAR VE MOTORLAR</h2>
+      <span class="panel-count" id="ajanlarCount">—</span>
+    </div>
+    <div class="panel-body sect-body" id="ajanlarBody">
+      <p class="sect-empty">Yükleniyor…</p>
+    </div>
+  </section>
+</main>
+
+<main class="stage stage-single view-panel" id="viewRaporlar" hidden>
+  <section class="panel" aria-label="RAPORLAR">
+    <div class="panel-head">
+      <h2 class="panel-title">RAPORLAR</h2>
+      <span class="panel-count" id="raporlarCount">—</span>
+    </div>
+    <div class="panel-body sect-body" id="raporlarBody">
+      <p class="sect-empty">Yükleniyor…</p>
+    </div>
+  </section>
+</main>
+
+<main class="stage stage-single view-panel" id="viewAyarlar" hidden>
+  <section class="panel" aria-label="AYARLAR">
+    <div class="panel-head">
+      <h2 class="panel-title">AYARLAR</h2>
+      <span class="panel-count" id="ayarlarCount">—</span>
+    </div>
+    <div class="panel-body sect-body" id="ayarlarBody">
+      <p class="sect-empty">Yükleniyor…</p>
+    </div>
+  </section>
+</main>
+
+<main class="stage stage-single view-panel" id="viewAnaliz" hidden>
     <section class="panel p-wide" aria-label="Yürütme planı analizi">
       <div class="panel-head">
         <h2 class="panel-title">ANALİZ · YÜRÜTME PLANI</h2>

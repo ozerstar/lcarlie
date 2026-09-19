@@ -1287,3 +1287,87 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
 @media (max-width: 420px) {
   .dom-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* -- acilir kayit listesi (mobil once) --------------------------------- */
+/* Dokunma hedefi 44px'in altina dusmez; satirlar tasmak yerine kirilir. */
+.detail-block {
+  margin-top: 10px;
+  border: 1px solid var(--line, #2a332a);
+  border-radius: 8px;
+  background: rgba(127, 127, 127, 0.06);
+  overflow: hidden;
+}
+.detail-block > summary {
+  cursor: pointer;
+  padding: 12px 14px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+  list-style: none;
+}
+.detail-block > summary::-webkit-details-marker { display: none; }
+.detail-block > summary::before {
+  content: "▸";
+  margin-right: 8px;
+  transition: transform 0.15s ease;
+}
+.detail-block[open] > summary::before { transform: rotate(90deg); }
+.detail-block > summary:focus-visible { outline: 2px solid currentColor; outline-offset: -2px; }
+.detail-rows {
+  margin: 0;
+  padding: 0 14px 10px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.detail-rows li {
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+  font-size: 0.94em;
+}
+.detail-more, .detail-ref {
+  margin: 0;
+  padding: 0 14px 10px;
+  font-size: 0.82em;
+  opacity: 0.7;
+}
+@media (max-width: 520px) {
+  .detail-rows { padding-left: 24px; }
+  .detail-rows li { font-size: 0.9em; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .detail-block > summary::before { transition: none; }
+}
+
+/* -- bolum panelleri (VERI / AJANLAR / RAPORLAR / AYARLAR) -------------- */
+.sect-body { display: flex; flex-direction: column; gap: 14px; padding: 14px; overflow-y: auto; }
+.sect-card { border: 1px solid var(--line, #2a332a); border-radius: 10px; overflow: hidden; }
+.sect-card-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 14px; background: rgba(127,127,127,0.07);
+}
+.sect-card-head h3 { margin: 0; font-size: 0.82rem; letter-spacing: 0.08em; }
+.sect-meta { font-size: 0.75rem; opacity: 0.75; }
+.kv {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 9px 14px; border-top: 1px solid var(--line, #2a332a); min-height: 40px;
+}
+.kv-k { overflow-wrap: anywhere; font-size: 0.86rem; }
+.kv-v { text-align: right; overflow-wrap: anywhere; font-size: 0.84rem; opacity: 0.9; }
+.kv.is-bad .kv-v { color: #e2695a; }
+.kv.is-warn .kv-v { opacity: 0.7; }
+.chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; }
+.chip-good { background: rgba(95,187,160,0.18); color: #5fbba0; }
+.chip-bad  { background: rgba(226,105,90,0.18); color: #e2695a; }
+.chip-warn { background: rgba(227,174,94,0.18); color: #e3ae5e; }
+.chip-flat { background: rgba(127,127,127,0.15); }
+.sect-note { margin: 0; padding: 8px 14px; font-size: 0.78rem; opacity: 0.72; }
+.sect-empty { padding: 18px 14px; opacity: 0.7; }
+.sect-empty.is-bad { color: #e2695a; }
+.sect-pre { margin: 0; padding: 12px 14px; font-size: 0.76rem; overflow-x: auto; }
+@media (max-width: 520px) {
+  .sect-body { padding: 10px; gap: 10px; }
+  .kv { flex-direction: column; align-items: flex-start; gap: 3px; }
+  .kv-v { text-align: left; }
+}

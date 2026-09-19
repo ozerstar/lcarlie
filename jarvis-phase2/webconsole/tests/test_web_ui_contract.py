@@ -24,8 +24,13 @@ SERVER = APP_PY.read_text(encoding="utf-8")
 KNOWN_ROUTES = {
     "/api/session", "/api/login", "/api/logout", "/api/status",
     "/api/activity", "/api/proposals", "/api/chat", "/api/chat/stream",
-    "/api/plan",
+    "/api/plan", "/api/panel",
 }
+
+# Arka ucu olan bolumler. Bu kume, navigasyonun neyi sunabilecegini belirler:
+# bir sekme ancak buraya girdikten sonra etkinlestirilebilir.
+BACKED_VIEWS = {"home", "analiz", "gorevler", "veri", "ajanlar", "raporlar", "ayarlar"}
+PANEL_VIEWS = {"veri", "ajanlar", "raporlar", "ayarlar"}
 
 
 class FrontendCallsOnlyRealEndpoints(unittest.TestCase):
@@ -180,17 +185,39 @@ class ExecutionSurfaceStaysHonest(unittest.TestCase):
 
 
 class NavigationOnlyOffersBackedViews(unittest.TestCase):
-    def test_placeholder_sections_are_disabled(self):
-        for view in ("veri", "ajanlar", "raporlar", "ayarlar"):
-            match = re.search(rf'<button[^>]*data-view="{view}"[^>]*>', INDEX)
-            self.assertIsNotNone(match, f"{view} nav item missing")
-            self.assertIn("disabled", match.group(0), f"{view} has no backend but is enabled")
+    """Kural degismedi: arka ucu olmayan sekme etkinlestirilemez.
+
+    Degisen, hangi bolumlerin arka ucu oldugu. VERI/AJANLAR/RAPORLAR/AYARLAR
+    artik /api/panel/<bolum> uzerinden gercek olcum donduruyor, bu yuzden
+    BACKED_VIEWS kumesine girdiler. Kume disinda kalan her yeni sekme
+    disabled kalmak zorunda -- bu testin asil isi bu.
+    """
+
+    def test_unbacked_sections_stay_disabled(self):
+        for match in re.finditer(r'<button[^>]*data-view="([a-z]+)"[^>]*>', INDEX):
+            view = match.group(1)
+            if view in BACKED_VIEWS:
+                continue
+            self.assertIn("disabled", match.group(0),
+                          f"{view} has no backend but is enabled")
 
     def test_backed_sections_are_enabled(self):
-        for view in ("home", "analiz", "gorevler"):
+        for view in sorted(BACKED_VIEWS):
             match = re.search(rf'<button[^>]*data-view="{view}"[^>]*>', INDEX)
             self.assertIsNotNone(match, f"{view} nav item missing")
             self.assertNotIn("disabled", match.group(0))
+
+    def test_every_panel_view_has_a_container_and_renderer(self):
+        """Etkin bir sekme, govdesi ve cizicisi olmadan acilamaz."""
+        for view in sorted(PANEL_VIEWS):
+            self.assertIn(f'id="view{view.capitalize()}"', INDEX, f"{view} view eksik")
+            self.assertIn(f'id="{view}Body"', INDEX, f"{view} govdesi eksik")
+            self.assertIn(f"render{view.capitalize()}", APP_JS, f"{view} cizicisi eksik")
+
+    def test_panel_sections_are_registered_in_the_view_map(self):
+        for view in sorted(PANEL_VIEWS):
+            self.assertRegex(APP_JS, rf"{view}:\s*'view{view.capitalize()}'",
+                             f"{view} VIEWS haritasinda yok")
 
     def test_quick_actions_map_onto_real_capabilities(self):
         # Each quick action is either a refresh of existing GETs or a chat turn.

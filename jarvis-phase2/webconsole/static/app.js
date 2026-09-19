@@ -125,7 +125,9 @@ qs('logoutBtn').addEventListener('click', async () => {
  * VERİ / AJANLAR / RAPORLAR / AYARLAR carry the disabled attribute in the
  * markup: they are placeholders for capabilities the backend does not have
  * yet, and clicking them must not pretend otherwise. */
-const VIEWS = { home: 'viewHome', analiz: 'viewAnaliz', gorevler: 'viewGorevler' };
+const VIEWS = { home: 'viewHome', analiz: 'viewAnaliz', gorevler: 'viewGorevler',
+                veri: 'viewVeri', ajanlar: 'viewAjanlar',
+                raporlar: 'viewRaporlar', ayarlar: 'viewAyarlar' };
 
 function setView(name) {
   if (!VIEWS[name]) return;
@@ -135,6 +137,7 @@ function setView(name) {
     btn.classList.toggle('is-active', btn.dataset.view === name);
   });
   if (name === 'gorevler') { refreshActivity(); refreshProposals(); }
+  if (PANEL_SECTIONS[name]) loadSection(name);
 }
 
 qs('mainNav').addEventListener('click', (event) => {
@@ -631,6 +634,30 @@ function renderProposalCard(p) {
     ${p.payload ? `<div class="evidence-block">${escapeHtml(JSON.stringify(p.payload, null, 2))}</div>` : ''}
   </div>`;
 }
+/* Ozetin arkasindaki satirlar. Native <details> kullaniliyor: mobilde
+ * dokunmatik hedefi tarayicidan gelir, JS gerektirmez, klavye ve ekran
+ * okuyucu ile calisir. "16 acik dosya" artik acilip 16 satirin kendisini
+ * gosterir. */
+function renderDetailBlocks(details) {
+  if (!Array.isArray(details) || !details.length) return '';
+  return details.map((block) => {
+    const rows = (block.rows || []).map(
+      (row) => `<li>${escapeHtml(String(row))}</li>`).join('');
+    if (!rows) return '';
+    const total = Number(block.total);
+    const shown = (block.rows || []).length;
+    const more = Number.isFinite(total) && total > shown
+      ? `<p class="detail-more">${total - shown} kayıt daha var</p>` : '';
+    const head = escapeHtml(block.summary || block.ref || 'kayıtlar');
+    return `<details class="detail-block">
+      <summary>${head}</summary>
+      <ul class="detail-rows">${rows}</ul>
+      ${more}
+      <p class="detail-ref">kaynak: ${escapeHtml(block.ref || '')}</p>
+    </details>`;
+  }).join('');
+}
+
 function renderAnswerBody(body) {
   if (body.source === 'operator.list_pending' && Array.isArray(body.data) && body.data.length) {
     return `<p>${escapeHtml(body.text)}</p>` + body.data.map(renderProposalCard).join('');
@@ -638,7 +665,7 @@ function renderAnswerBody(body) {
   if (body.source === 'operator.inspect' && body.data) {
     return renderProposalCard(body.data);
   }
-  return renderMarkdownLite(body.text || '(boş yanıt)');
+  return renderMarkdownLite(body.text || '(boş yanıt)') + renderDetailBlocks(body.details);
 }
 
 /* ---------------- chat: send / stream / stop / retry / copy ----------------
@@ -1235,3 +1262,118 @@ function renderExecutionSurface() {
 
 renderExecutionSurface();
 checkSession();
+
+/* ---------------- VERİ / AJANLAR / RAPORLAR / AYARLAR ----------------
+ * Bu dört bölüm markup'ta disabled duruyordu: arka uç servisi yoktu ve
+ * tıklayınca bir şey varmış gibi davranmamaları doğruydu. Artık
+ * /api/panel/<bölüm> gerçek ölçüm döndürüyor, o yüzden açıldılar.
+ * Okunamayan bir kaynak gizlenmez -- hatasıyla gösterilir. */
+const PANEL_SECTIONS = { veri: 1, ajanlar: 1, raporlar: 1, ayarlar: 1 };
+
+function kvRow(label, value, cls) {
+  return `<div class="kv${cls ? ' ' + cls : ''}">
+    <span class="kv-k">${escapeHtml(String(label))}</span>
+    <span class="kv-v">${escapeHtml(value === undefined || value === null ? '—' : String(value))}</span>
+  </div>`;
+}
+function stateChip(value) {
+  const v = String(value || '').toUpperCase();
+  const tone = /OK|AVAILABLE|CONNECTED|TRUE|PASS/.test(v) ? 'good'
+    : /FAIL|UNAVAILABLE|ERROR|BLOCKED/.test(v) ? 'bad'
+    : /DEGRADED|PARTIAL|WARN|UPGRADE/.test(v) ? 'warn' : 'flat';
+  return `<span class="chip chip-${tone}">${escapeHtml(String(value))}</span>`;
+}
+function card(title, bodyHtml, meta) {
+  return `<article class="sect-card">
+    <header class="sect-card-head">
+      <h3>${escapeHtml(title)}</h3>${meta ? `<span class="sect-meta">${meta}</span>` : ''}
+    </header>
+    ${bodyHtml}
+  </article>`;
+}
+
+function renderVeri(d) {
+  const domains = (d.domains || []).map((dom) => {
+    const rows = (dom.queries || []).map((q) => kvRow(
+      q.name, q.status === 'OK' ? `${q.rows} kayıt · ${q.latency_ms} ms`
+        : (q.error || 'okunamadı'), q.status === 'OK' ? '' : 'is-bad')).join('');
+    return card(dom.domain.toUpperCase(), rows,
+                stateChip(`${dom.ok}/${dom.total}`));
+  }).join('');
+  const prov = (d.provenance || []).map((p) => kvRow(
+    p.alan || p.error || '?', `${p.connection || '—'} · ${p.freshness || '—'}`,
+    p.connection === 'CONNECTED' ? '' : 'is-warn')).join('');
+  const qual = (d.quality || []).map((q) => kvRow(
+    q.check || q.error || '?', q.passed === true ? 'GEÇTİ' : q.passed === false ? 'KALDI' : (q.detail || '—'),
+    q.passed === false ? 'is-bad' : '')).join('');
+  return domains + card('KAYNAK OTORİTESİ', prov, `${(d.provenance || []).length} alan`)
+    + card('VERİ KALİTESİ', qual, '');
+}
+
+function renderAjanlar(d) {
+  const roles = (d.roles || []).map((r) => kvRow(
+    r.id || r.error || '?', r.kind || r.domain || '')).join('');
+  const provs = (d.providers || []).map((p) => kvRow(
+    p.provider || p.error || '?', p.state)).join('');
+  const engines = (d.engines || []).map((e) => `<div class="kv">
+      <span class="kv-k">${escapeHtml(String(e.name || e.error || '?'))}</span>
+      <span class="kv-v">${stateChip(e.state || '—')} ${escapeHtml(String(e.version || ''))}</span>
+    </div>`).join('');
+  return card('MODEL SAĞLAYICILARI', provs, `${(d.providers || []).length}`)
+    + card('MOTORLAR', engines, `${(d.engines || []).length}`)
+    + card('ROLLER', roles, `${(d.roles || []).length}`);
+}
+
+function renderRaporlar(d) {
+  const f = (d.findings || []).map((x) => `<div class="kv">
+      <span class="kv-k">${escapeHtml(String(x.code))}</span>
+      <span class="kv-v">${stateChip(x.severity || '—')} ${x.count}×</span>
+    </div>${x.reason ? `<p class="sect-note">${escapeHtml(String(x.reason))}</p>` : ''}`).join('');
+  const c = (d.cycle_results || []).map((x) => kvRow(x.result, `${x.count} döngü`)).join('');
+  const last = d.last_cycle || {};
+  const b = last.business || {};
+  const lastRows = kvRow('döngü', last.cycle) + kvRow('sonuç', last.result)
+    + kvRow('iş zekâsı', b.status ? `${b.status} · ${b.signals} sinyal` : '—')
+    + kvRow('model çağrısı', last.model_calls) + kvRow('dış aksiyon', last.external_actions)
+    + kvRow('süre', last.total_ms ? `${last.total_ms} ms` : '—');
+  return card('SON DÖNGÜ', lastRows, '')
+    + card('BULGULAR', f, `${d.finding_total || 0} kayıt`)
+    + card('DÖNGÜ SONUÇLARI', c, '');
+}
+
+function renderAyarlar(d) {
+  const env = Object.entries(d.env || {}).map(([k, v]) => kvRow(k, v,
+    k === 'EXTERNAL_ACTIONS' && String(v) !== 'false' ? 'is-bad' : '')).join('');
+  const th = Object.entries(d.thresholds || {}).map(([k, v]) => kvRow(k, v)).join('');
+  const gated = (d.compliance?.gated_actions || []).map((a) => kvRow(a, 'mevzuat kapısı açık')).join('');
+  return card('YÖNETİŞİM', env, d.readonly ? stateChip('SALT OKUNUR') : '')
+    + `<p class="sect-note">${escapeHtml(String(d.note || ''))}</p>`
+    + card('MEVZUAT KAPISI', gated, escapeHtml(String(d.compliance?.rules_source || '')))
+    + card('İŞ ZEKÂSI EŞİKLERİ', th, '')
+    + card('KILL SWITCH', `<pre class="sect-pre">${escapeHtml(String(d.kill_switch || ''))}</pre>`, '');
+}
+
+const SECTION_RENDERERS = { veri: renderVeri, ajanlar: renderAjanlar,
+                            raporlar: renderRaporlar, ayarlar: renderAyarlar };
+
+async function loadSection(name) {
+  const body = qs(name + 'Body');
+  const count = qs(name + 'Count');
+  if (!body) return;
+  body.innerHTML = '<p class="sect-empty">Yükleniyor…</p>';
+  try {
+    const res = await fetch('/api/panel/' + name, { credentials: 'same-origin' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    body.innerHTML = SECTION_RENDERERS[name](data);
+    if (count) {
+      count.textContent = name === 'veri'
+        ? `${(data.domains || []).reduce((a, d) => a + d.ok, 0)} sorgu`
+        : name === 'ajanlar' ? `${(data.engines || []).length} motor`
+        : name === 'raporlar' ? `${data.finding_total || 0} kayıt` : 'salt okunur';
+    }
+  } catch (err) {
+    body.innerHTML = `<p class="sect-empty is-bad">Bölüm yüklenemedi: ${escapeHtml(String(err.message || err))}</p>`;
+    if (count) count.textContent = 'hata';
+  }
+}
