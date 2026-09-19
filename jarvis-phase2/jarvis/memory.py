@@ -168,6 +168,33 @@ class CompanyMemory:
         ),
 
         # --- operations (ai_reader already held this grant) -----------------
+        # --- ogrenme: gecmis kararlarin sonucu ---------------------------
+        # Bu uc gorunum ai_reader'a ZATEN acikti (olculdu); yeni grant
+        # gerekmedi. Jarvis'in KENDI onerileri (core.ai_action_proposal)
+        # hala kapali -- ogrenme dongusunun o yarisi ayri bir izin isi.
+        "decision_outcomes": (
+            "SELECT row_to_json(x) FROM (SELECT karar_id AS entity_id,"
+            "'mart.ai_human_approval_dashboard' AS source,"
+            "karar_id AS source_record_id,olusturma AS observed_at,"
+            "karar_tipi,durum,onay_hazirligi,red_team_sonucu,kanit_kalitesi,"
+            "kanal,urun FROM mart.ai_human_approval_dashboard "
+            "ORDER BY olusturma DESC LIMIT 200) x;"
+        ),
+        "learning_loop": (
+            "SELECT row_to_json(x) FROM (SELECT provider AS entity_id,"
+            "'mart.ai_learning_loop' AS source,model AS source_record_id,"
+            "provider,model,karar_sayisi,olumlu,olumsuz,basari_orani,"
+            "is_puani,deneme FROM mart.ai_learning_loop "
+            "ORDER BY karar_sayisi DESC NULLS LAST) x;"
+        ),
+        "evidence_readiness": (
+            "SELECT row_to_json(x) FROM (SELECT karar_id AS entity_id,"
+            "'mart.ai_evidence_readiness' AS source,"
+            "karar_id AS source_record_id,karar_tipi,readiness,kanit_sinifi,"
+            "kanit_puani,veri_kalitesi,eksik_kaynak FROM mart.ai_evidence_readiness "
+            "ORDER BY karar_id DESC LIMIT 100) x;"
+        ),
+
         "operations_shipments": (
             "SELECT row_to_json(x) FROM (SELECT gonderi_id AS entity_id,"
             "'mart.gonderi' AS source,siparis_no AS source_record_id,"
@@ -257,6 +284,15 @@ class CompanyMemory:
 
     def get_open_work(self) -> Evidence:
         return self._fetch("open_work")
+
+    def get_decision_outcomes(self) -> Evidence:
+        return self._fetch("decision_outcomes")
+
+    def get_learning_loop(self) -> Evidence:
+        return self._fetch("learning_loop")
+
+    def get_evidence_readiness(self) -> Evidence:
+        return self._fetch("evidence_readiness")
 
     def get_provenance(self) -> Evidence:
         return self._fetch("provenance")
