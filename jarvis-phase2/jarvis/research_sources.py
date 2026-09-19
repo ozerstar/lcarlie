@@ -356,7 +356,69 @@ SOURCE_TYPES = ("OFFICIAL", "REGULATOR", "COMPANY", "NEWS", "TRADE_PUBLICATION",
                 "RETAILER", "MARKETPLACE", "COMMUNITY", "UNKNOWN")
 
 
-def classify_source(host: str, title: str, text: str) -> str:
+# Meslek birligi / oda / dernek. Turkiye'de bu sonek tahsislidir: teis.org.tr
+# (eczacilar), uste.org.tr. Bu kaynaklar sektor verisi yayimlar ve olcumde
+# gelen en degerli sayfalar bunlardi -- ama hepsi UNKNOWN donuyordu.
+ASSOCIATION_SUFFIXES = (".org.tr", ".edu.tr", ".bel.tr", ".tsk.tr")
+
+# schema.org tipleri -> bizim sinifimiz. Sayfanin KENDI beyanidir; bir
+# magazanin "Product" basmasi kelime listesinden cok daha guvenilirdir.
+_LD_TYPE_MAP = {
+    "product": "RETAILER", "offer": "RETAILER", "aggregateoffer": "RETAILER",
+    "itemlist": "RETAILER", "onlinestore": "RETAILER",
+    "newsarticle": "NEWS", "reportagenewsarticle": "NEWS",
+    "article": "NEWS", "blogposting": "NEWS", "techarticle": "NEWS",
+    "governmentorganization": "REGULATOR", "govermentservice": "REGULATOR",
+    "legislation": "OFFICIAL", "medicalwebpage": "NEWS",
+    "discussionforumposting": "COMMUNITY", "qapage": "COMMUNITY",
+}
+
+_LD_BLOCK = re.compile(
+    r"<script[^>]+type=[\"']application/ld\+json[\"'][^>]*>(.*?)</script>",
+    re.IGNORECASE | re.DOTALL)
+_OG_TYPE = re.compile(
+    r"<meta[^>]+property=[\"']og:type[\"'][^>]+content=[\"']([^\"']+)",
+    re.IGNORECASE)
+
+
+def _ld_types(html: str) -> set[str]:
+    found: set[str] = set()
+    for blob in _LD_BLOCK.findall(html or "")[:12]:
+        try:
+            data = json.loads(blob.strip())
+        except Exception:  # noqa: BLE001 - bozuk JSON-LD yaygin, sinyal yok demektir
+            continue
+        nodes = data if isinstance(data, list) else [data]
+        for node in nodes:
+            if not isinstance(node, dict):
+                continue
+            graph = node.get("@graph")
+            for item in [node] + (graph if isinstance(graph, list) else []):
+                if not isinstance(item, dict):
+                    continue
+                declared = item.get("@type")
+                if not declared:
+                    continue
+                for name in (declared if isinstance(declared, list) else [declared]):
+                    if isinstance(name, str):
+                        found.add(name.casefold())
+    return found
+
+
+def structural_signals(html: str) -> dict[str, object]:
+    """Sayfanin kendi beyan ettigi tip sinyalleri. Dilden bagimsiz."""
+    types = _ld_types(html)
+    og = _OG_TYPE.search(html or "")
+    return {"ld_types": sorted(types),
+            "og_type": (og.group(1).casefold() if og else "")}
+
+
+def prices_declared(body: str) -> bool:
+    """Sayfa fiyat listeliyor mu? Magaza ile sirket tanitimini ayirir."""
+    return len(PRICE_TAG.findall(body)) >= 4
+
+
+def classify_source(host: str, title: str, text: str, html: str = "") -> str:
     """Deterministic source class from host and page markers.
 
     Used as reliability metadata, and to keep a company's own statement from
@@ -373,6 +435,34 @@ def classify_source(host: str, title: str, text: str) -> str:
         return "MARKETPLACE"
     if any(marker in host for marker in COMMUNITY_HOSTS):
         return "COMMUNITY"
+    if host.endswith(ASSOCIATION_SUFFIXES):
+        # Meslek birligi: sektor verisi yayimlar, sirketin kendi beyani degil.
+        return "TRADE_PUBLICATION"
+
+    # --- sayfanin KENDI beyani: kelime listesinden once, cunku dilden
+    # bagimsiz ve Turkce ek tuzagina girmez. Olculdu: 7 sayfanin 6'sinda var.
+    signals = structural_signals(html) if html else {"ld_types": [], "og_type": ""}
+    ld_types = set(signals["ld_types"])  # type: ignore[arg-type]
+    # Magaza once: bir sayfa hem Product hem Article basiyorsa magazadir.
+    for name in ("product", "offer", "aggregateoffer", "onlinestore"):
+        if name in ld_types:
+            return "RETAILER"
+    for name in sorted(ld_types):
+        mapped = _LD_TYPE_MAP.get(name)
+        if mapped:
+            return mapped
+    # Kurumsal site sekli: Organization + WebSite (+BreadcrumbList) var ama
+    # makale de urun de yok. OLCULDU -- dermoeczanem.com ve dermo.com.tr tam
+    # bu sekli veriyor. Onemli olan haber mi magaza mi degil, BAGIMSIZ kaynak
+    # olup olmadigi: ikisi de degil, ikisi de NON_INDEPENDENT_TYPES icinde.
+    SELF_DECLARED_SITE = {"organization", "website"}
+    if SELF_DECLARED_SITE <= ld_types and signals["og_type"] != "article":
+        return "RETAILER" if prices_declared(body) else "COMPANY"
+
+    if signals["og_type"] == "article":
+        # OLCULDU: magaza ve acilis sayfalari og:type basmiyor, gercek
+        # icerik basiyor -- bu ikisini ayiran en net tek sinyaldi.
+        return "NEWS"
 
     prices = len(PRICE_TAG.findall(body))
     shop = sum(marker in body for marker in SHOP_MARKERS) + (2 if prices >= 8 else 0)
@@ -743,7 +833,7 @@ class WebSearchCrawlAdapter(CapabilityAdapter):
                 continue
             texts.append(text)
             host = (urllib.parse.urlsplit(final_url).hostname or "").casefold()
-            source_type = classify_source(host, meta.title, text)
+            source_type = classify_source(host, meta.title, text, html)
             canonical_host = host
             if meta.canonical:
                 canonical_host = (urllib.parse.urlsplit(

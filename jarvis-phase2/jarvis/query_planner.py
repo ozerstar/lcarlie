@@ -70,9 +70,9 @@ _EXAMPLES = (
     "Istek: Turkiye premium dermokozmetik pazarindaki son gelismeleri ve rakip "
     "markalarin yeni urun lansmanlarini arastir, fiyat kampanyalarini da dahil et.\n"
     "Sorgular:\n"
-    "dermokozmetik pazar raporu Turkiye 2026\n"
-    "dermokozmetik sektor buyume orani\n"
-    "dermokozmetik marka lansman haberi\n\n"
+    "dermokozmetik pazari Turkiye 2026\n"
+    "dermokozmetik marka yeni urun lansmani\n"
+    "dermokozmetik fiyat kampanyasi eczane\n\n"
     "ORNEK 2\n"
     "Istek: Kozmetik urun etiketlerinde hangi iddialar yasak, mevzuati "
     "kaynaklariyla getir.\n"
@@ -88,11 +88,11 @@ SYSTEM = (
     "konu adi, yer, yil, kategori.\n"
     "Fiil kullanma: 'ara', 'topla', 'analiz et', 'incele', 'dogrula' yazma.\n"
     "'kaynaklariyla', 'bagimsiz', 'bulgulari' gibi talimat kelimeleri yazma.\n"
-    # Olculdu: sade urun ismi ("dermokozmetik fiyat kampanyasi eczane")
-    # arama motorundan MAGAZA sayfasi getiriyor -- 4 kaynagin dordu de online
-    # eczaneydi. Belge turu kelimesi sonucu magazadan bilgi kaynagina cevirir.
-    "Her sorguya BELGE TURU ekle: raporu, analizi, istatistik, haberi, "
-    "arastirmasi, pazar payi. Boylece magaza sayfasi yerine bilgi kaynagi gelir.\n"
+    # NOT: burada bir zamanlar "her sorguya belge turu ekle (raporu, analizi,
+    # istatistik)" talimati vardi. OLCULDU ve ZARAR VERDI: bilgi kaynagi
+    # ortalamasi 2,00'den 1,17'ye dustu -- "analizi"/"raporu" kelimeleri
+    # danismanlik ve pazarlama sayfalarini cekiyor. Olcmeden eklenmisti,
+    # olculunce kaldirildi.
     "Her satira bir sorgu. En fazla 4 satir. Numara, tire, aciklama yok.\n\n"
     + _EXAMPLES
 )
