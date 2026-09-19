@@ -45,7 +45,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
-from time import perf_counter
+from time import perf_counter, time
 from typing import Any
 
 from . import business_signals
@@ -234,6 +234,17 @@ def analyze(observation: Observation) -> Analysis:
 # --------------------------------------------------------------------------
 # business signal layer (deterministic, advisory, zero model calls)
 # --------------------------------------------------------------------------
+# İş zekâsı katmanının yeniden okuma aralığı. Döngü 5 dakikada bir çalışıyor
+# ve her turda 3 sorgu atıyordu: günde 864 sorgu. Oysa okuduğu üç görünüm
+# (karar_ozet, sirket_gundemi, acik_isler) insan hızında değişir -- onay
+# bekleyen karar sayısı beş dakikada bir değişmez.
+#
+# TAKAS AÇIK: yeni bir koşul en fazla bu süre kadar geç görünür. Onay
+# darboğazı ve iş yaşlanması için bir saat fazlasıyla yeterli; anlık
+# tepki gereken altyapı kuralları (failed_executions) zaten analyze()'de ve
+# her turda çalışmaya devam ediyor.
+BUSINESS_TTL_S = float(os.environ.get("JARVIS_BUSINESS_TTL_S", "3600"))
+
 BUSINESS_FINDING_NOTE = (
     "Deterministic business signal. Jarvis cannot enqueue its own task "
     "(ai_enqueue_task is granted to human_approver only, by design). This "
@@ -251,6 +262,19 @@ def _business_signals(memory: Any, state: dict[str, Any]) -> dict[str, Any]:
     """
     if not hasattr(memory, "get_open_work"):
         return {"status": "SKIPPED", "reason": "adapter has no get_open_work", "new": 0}
+
+    # TTL içindeyse hiç sorgu atılmaz. Atlanan tur sessiz değil: durumu ve
+    # kalan süresi cycle raporunda görünür, yoksa katmanın çalışıp
+    # çalışmadığı anlaşılmaz.
+    now = time()
+    last = float(state.get("business_last_run_at") or 0.0)
+    age = now - last
+    if last and age < BUSINESS_TTL_S:
+        return {"status": "CACHED", "new": 0,
+                "age_s": round(age, 1),
+                "next_in_s": round(BUSINESS_TTL_S - age, 1),
+                "codes": list(state.get("business_signal_codes") or ()),
+                "signals": len(state.get("business_signatures") or ())}
     try:
         report = business_signals.run(memory)
     except Exception as exc:  # advisory layer must never break the cycle
@@ -266,6 +290,8 @@ def _business_signals(memory: Any, state: dict[str, Any]) -> dict[str, Any]:
             "note": BUSINESS_FINDING_NOTE,
         })
     state["business_signatures"] = [signal.signature for signal in report.signals]
+    state["business_signal_codes"] = [signal.code for signal in report.signals]
+    state["business_last_run_at"] = now
     if fresh:
         state["business_finding_count"] = state.get("business_finding_count", 0) + len(fresh)
     return {"status": report.status, "signals": len(report.signals), "new": len(fresh),
