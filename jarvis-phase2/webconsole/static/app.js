@@ -1361,10 +1361,19 @@ async function loadSection(name) {
   const count = qs(name + 'Count');
   if (!body) return;
   body.innerHTML = '<p class="sect-empty">Yükleniyor…</p>';
+  // api() kullanılır, ham fetch değil: 401'i orası yakalayıp giriş ekranına
+  // döndürür. Ham fetch ile yazıldığında servis yeniden başlatılıp oturumlar
+  // düşünce panel "Bölüm yüklenemedi" diyordu -- kullanıcı hatanın bölümde
+  // olduğunu sanıyor, oysa sadece yeniden giriş yapması gerekiyor.
+  const { ok, status, body: data } = await api('/api/panel/' + name);
+  if (!ok) {
+    body.innerHTML = status === 401
+      ? '<p class="sect-empty">Oturum düştü. Giriş ekranına yönlendiriliyorsunuz…</p>'
+      : `<p class="sect-empty is-bad">Bölüm yüklenemedi (HTTP ${status}). ${escapeHtml(String((data && data.error) || ''))}</p>`;
+    if (count) count.textContent = status === 401 ? 'oturum yok' : 'hata';
+    return;
+  }
   try {
-    const res = await fetch('/api/panel/' + name, { credentials: 'same-origin' });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
     body.innerHTML = SECTION_RENDERERS[name](data);
     if (count) {
       count.textContent = name === 'veri'
@@ -1373,7 +1382,7 @@ async function loadSection(name) {
         : name === 'raporlar' ? `${data.finding_total || 0} kayıt` : 'salt okunur';
     }
   } catch (err) {
-    body.innerHTML = `<p class="sect-empty is-bad">Bölüm yüklenemedi: ${escapeHtml(String(err.message || err))}</p>`;
+    body.innerHTML = `<p class="sect-empty is-bad">Bölüm çizilemedi: ${escapeHtml(String(err.message || err))}</p>`;
     if (count) count.textContent = 'hata';
   }
 }
