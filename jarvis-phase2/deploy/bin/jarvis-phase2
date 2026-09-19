@@ -11,14 +11,21 @@ if [ "${EXTERNAL_ACTIONS:-true}" != "false" ]; then
   exit 78
 fi
 
+# Istege bagli kutuphaneler (zeyrek morfolojisi, trafilatura tarih cikarimi)
+# venv'de kurulu. Sistem python'u onlari goremez ve servis sessizce daha az
+# yetenekli calisir -- jarvis-web venv kullandigi icin panel ile dongu
+# farkli davraniyordu. venv yoksa python3'e dusulur.
+JARVIS_PY=/opt/lcarlie/jarvis-phase2/venv/bin/python
+[ -x "$JARVIS_PY" ] || JARVIS_PY=python3
+
 cd /opt/lcarlie/jarvis-phase2
 
 case "${JARVIS_MODE:-}" in
   SHADOW)
-    exec python3 -m jarvis.shadow "$@"
+    exec "$JARVIS_PY" -m jarvis.shadow "$@"
     ;;
   OPERATIONAL)
-    exec python3 -m jarvis.loop_cli "$@"
+    exec "$JARVIS_PY" -m jarvis.loop_cli "$@"
     ;;
   *)
     printf '%s\n' '{"status":"BLOCKED","reason":"JARVIS_MODE must be SHADOW or OPERATIONAL"}' >&2
