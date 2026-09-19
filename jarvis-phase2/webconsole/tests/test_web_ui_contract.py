@@ -292,3 +292,24 @@ class ModuleRunsAsMainTests(unittest.TestCase):
         kalan = [line for line in after.split("\n")[1:]
                  if line.strip() and not line.startswith((" ", "\t", "#"))]
         self.assertEqual(kalan, [], f"korumadan sonra kod var: {kalan[:3]}")
+
+
+class PanelCallsGoThroughApiTests(unittest.TestCase):
+    """Panel istekleri api() uzerinden gitmeli, ham fetch ile degil.
+
+    api() 401'i yakalayip giris ekranina donuyor. Ham fetch ile yazildiginda
+    servis yeniden baslatilip oturumlar dusunce panel "Bolum yuklenemedi"
+    diyordu: kullanici hatanin bolumde oldugunu saniyor, oysa yalnizca
+    yeniden giris yapmasi gerekiyor. Bir kez yasandi.
+    """
+
+    def test_load_section_uses_api_helper(self):
+        source = APP_JS[APP_JS.index("async function loadSection"):]
+        source = source[:source.index("\n}")]
+        self.assertIn("await api(", source)
+        self.assertNotIn("fetch(", source)
+
+    def test_load_section_names_the_lapsed_session(self):
+        source = APP_JS[APP_JS.index("async function loadSection"):]
+        source = source[:source.index("\n}")]
+        self.assertIn("401", source)
