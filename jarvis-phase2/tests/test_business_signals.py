@@ -227,6 +227,10 @@ class CycleIntegrationTests(unittest.TestCase):
         self.enterContext(patch.object(loop, "STATE_FILE", tmp / "loop-state.json"))
         self.enterContext(patch.object(loop, "FINDINGS_LOG", tmp / "findings.jsonl"))
         self.enterContext(patch.object(loop, "AUDIT_LOG", tmp / "audit.jsonl"))
+        # Bu sinif dedup'i olcuyor, TTL'i degil: arka arkaya iki tur
+        # calistirdigi icin onbellek devredeyse ikinci tur hic sorgu atmaz ve
+        # test kendi konusunu olcemez. TTL'in kendi testleri asagida.
+        self.enterContext(patch.object(loop, "BUSINESS_TTL_S", 0.0))
 
     def _memory(self, waiting=8, work=None):
         rows = decision(insan_onayi_bekleyen=waiting)
@@ -344,6 +348,109 @@ class CycleIntegrationTests(unittest.TestCase):
              self.patch.object(self.loop, "_propose_action") as propose:
             self.loop.run_cycle(host=None)
         propose.assert_not_called()
+
+
+class BusinessTtlTests(unittest.TestCase):
+    """Katman her turda degil, TTL dolunca yeniden okur.
+
+    Olculen sorun: dongu 5 dakikada bir calisiyor ve her turda 3 sorgu
+    atiyordu -- gunde 864 sorgu. Okudugu gorunumler insan hizinda degisir.
+    """
+
+    def setUp(self):
+        import pathlib as _pathlib
+        import tempfile
+        from unittest.mock import patch
+
+        from jarvis import loop
+        self.loop = loop
+        self.patch = patch
+        tmp = _pathlib.Path(tempfile.mkdtemp())
+        self.enterContext(patch.object(loop, "STATE_DIR", tmp))
+        self.enterContext(patch.object(loop, "STATE_FILE", tmp / "loop-state.json"))
+        self.enterContext(patch.object(loop, "FINDINGS_LOG", tmp / "findings.jsonl"))
+        self.enterContext(patch.object(loop, "AUDIT_LOG", tmp / "audit.jsonl"))
+
+    def _memory(self):
+        rows = decision(insan_onayi_bekleyen=8)
+
+        class M:
+            reads = 0
+
+            def get_system_status(self):
+                return Evidence("postgres:system", "C", "t",
+                                [{"open_tasks": 0, "failed_executions": 0}], 1.0)
+
+            def get_company_agenda(self):
+                return Evidence("postgres:agenda", "C", "t", [agenda_row()], 1.0)
+
+            def get_company_context(self):
+                M.reads += 1
+                return Evidence("postgres:decision_summary", "C", "t", rows, 1.0)
+
+            def get_open_work(self):
+                return Evidence("postgres:open_work", "C", "t", [work_row()], 1.0)
+
+        return M()
+
+    def _run(self, memory):
+        with self.patch.object(self.loop, "CompanyMemory", return_value=memory), \
+             self.patch.object(self.loop, "_claim_task", return_value=None):
+            return self.loop.run_cycle(host=None)
+
+    def test_ttl_icinde_ikinci_tur_sorgu_atmaz(self):
+        memory = self._memory()
+        with self.patch.object(self.loop, "BUSINESS_TTL_S", 3600.0):
+            self._run(memory)
+            okuma_birinci = type(memory).reads
+            report = self._run(memory)
+        self.assertEqual(report["business"]["status"], "CACHED")
+        self.assertEqual(type(memory).reads, okuma_birinci,
+                         "TTL icindeyken yeniden sorgu atildi")
+
+    def test_ttl_dolunca_yeniden_okur(self):
+        memory = self._memory()
+        with self.patch.object(self.loop, "BUSINESS_TTL_S", 0.0):
+            self._run(memory)
+            okuma_birinci = type(memory).reads
+            report = self._run(memory)
+        self.assertNotEqual(report["business"]["status"], "CACHED")
+        self.assertGreater(type(memory).reads, okuma_birinci)
+
+    def test_atlanan_tur_sessiz_degil(self):
+        """Onbellekten donen tur raporda gorunur, yoksa katman calisiyor mu
+        anlasilmaz."""
+        memory = self._memory()
+        with self.patch.object(self.loop, "BUSINESS_TTL_S", 3600.0):
+            self._run(memory)
+            report = self._run(memory)
+        business = report["business"]
+        self.assertIn("age_s", business)
+        self.assertIn("next_in_s", business)
+        self.assertGreater(business["next_in_s"], 0)
+
+    def test_onbellek_bulguyu_yeniden_kaydetmez(self):
+        memory = self._memory()
+        with self.patch.object(self.loop, "BUSINESS_TTL_S", 3600.0):
+            self._run(memory)
+            report = self._run(memory)
+        self.assertEqual(report["business"]["new"], 0)
+
+    def test_altyapi_kurallari_her_turda_calisir(self):
+        """TTL yalniz is zekasini geciktirir; failed_executions beklemez."""
+        rows = [{"open_tasks": 0, "failed_executions": 3}]
+
+        class M:
+            def get_system_status(self):
+                return Evidence("postgres:system", "C", "t", rows, 1.0)
+
+            def get_company_agenda(self):
+                return Evidence("postgres:agenda", "C", "t", [], 1.0)
+
+        with self.patch.object(self.loop, "BUSINESS_TTL_S", 3600.0):
+            report = self._run(M())
+        self.assertEqual(report["analysis_status"], "ISSUE")
+        self.assertIn("failed execution", report["analysis_reason"])
 
 
 if __name__ == "__main__":
