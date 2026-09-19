@@ -128,6 +128,43 @@ class UrunTuzagiTests(unittest.TestCase):
         self.assertIn("INCI", result.blocked[0].remedy)
 
 
+class IcerikBeyaniTests(unittest.TestCase):
+    """Kılavuz kural 3 — içerik beyanı pazarlama değildir, silinmez.
+
+    Gerçek kutu metinlerinde ölçüldü: bu ayrım yapılmadan 39 üründe onlarca
+    yanlış alarm çıkıyor, çünkü INCI listesi yasal zorunluluk olduğu hâlde
+    ihlal sayılıyordu.
+    """
+
+    def test_inci_listesindeki_bilesen_ihlal_degil(self):
+        satir = ("İçindekiler: Saf Su, Haşhaş Yağı, Jojoba Yağı, "
+                 "Epimedium Ekstresi, Tribulus Ekstresi")
+        result = review(satir)
+        self.assertNotIn("VIREON/FEMISIA bileşen tuzağı", rules(result))
+
+    def test_ingilizce_ingredients_satiri_da_muaf(self):
+        satir = "Ingredients: Aqua, Epimedium Grandiflorum Leaf Extract, Arginine"
+        self.assertNotIn("VIREON/FEMISIA bileşen tuzağı", rules(review(satir)))
+
+    def test_formul_tablosu_satiri_muaf(self):
+        self.assertNotIn("VIREON/FEMISIA bileşen tuzağı",
+                         rules(review("L-Arginin | L-Arginine | 5.")))
+
+    def test_ama_pazarlama_cumlesinde_anilirsa_bloklu(self):
+        """Muafiyet yalnız beyan satırına ait; cümlede anmak hâlâ ihlal."""
+        result = review("Epimedium özü ile güçlendirilmiş özel formül.")
+        self.assertIn("VIREON/FEMISIA bileşen tuzağı", rules(result))
+
+    def test_tablo_satirindaki_islev_iddiasi_hala_yakalanir(self):
+        """Nesne kuralı susmaz: tablo satırı olması iddiayı masum yapmaz."""
+        result = review("0 | Isıtıcı, dolaşımı artırıcı")
+        self.assertIn("yasak nesne — fizyolojik fonksiyon", rules(result))
+
+    def test_icerik_satirinda_bile_hastalik_adi_bloklu(self):
+        result = review("İçindekiler: bitki özleri, egzama bakım kompleksi")
+        self.assertTrue(result.blocked)
+
+
 class GunesKoruyucuTests(unittest.TestCase):
     """Belge §5 — zorunlu ibare seti."""
 

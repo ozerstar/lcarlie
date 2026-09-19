@@ -128,6 +128,17 @@ SUNSCREEN_REQUIRED = (
 HASHTAG_CAP = 5
 
 # Birim ek alır: "14 günde", "2 haftada", "96 saatte". Sondaki \b bunları kaçırıyordu.
+# İçerik beyanı (INCI) ile pazarlama cümlesini ayırmak için. Kılavuzun 3.
+# kuralı: "İçerik beyanı pazarlama değildir, silinmez -- Epimedium INCI'de
+# kalır, cümlede anılmaz." Bu ayrımı yapmayan bir tarama, ürünün yasal
+# zorunluluğu olan içerik listesini ihlal sayar ve 39 üründe onlarca yanlış
+# alarm üretir -- ölçüldü.
+_INGREDIENT_HEADERS = ("içindekiler", "icindekiler", "ingredients", "inci",
+                       "bileşenler", "bilesenler", "içerik", "icerik")
+# "L-Arginin | L-Arginine | 5." gibi formül tablosu satırı: boru işaretiyle
+# ayrılmış ve sayı ile biten.
+_FORMULA_ROW = re.compile(r"\|.*\|\s*\d+[.,]?\d*\s*%?\s*$")
+
 _DURATION = re.compile(r"\b\d+\s*(gün|gun|hafta|saat|ay)\w*", re.IGNORECASE)
 _PERCENT = re.compile(r"[%‰]\s?\d+|\b\d+\s?%")
 _HASHTAG = re.compile(r"#\w+", re.UNICODE)
@@ -227,9 +238,28 @@ def sentences(text: str) -> list[str]:
     return [" ".join(part.split()) for part in _SENTENCE.findall(text) if part.strip()]
 
 
+def _is_ingredient_declaration(sentence: str, folded: str) -> bool:
+    """Bu cümle bir içerik beyanı mı, yoksa pazarlama cümlesi mi?
+
+    Yalnız bileşen ADINA dayanan kurallar bu satırlarda susar. Nesne kuralı
+    susmaz: "Isıtıcı, dolaşımı artırıcı" bir tablo satırında da olsa işlev
+    iddiasıdır ve yakalanmalıdır.
+    """
+    # İki biçime de bakılır: fold() Türkçe için doğru davranıp büyük "I"yı "ı"
+    # yapar, ama bu İngilizce "Ingredients" kelimesini "ıngredients"e çevirip
+    # eşleşmeyi kaçırır. Türkçe doğru olan kural, İngilizce başlıkta yanlış
+    # negatif üretiyor -- ikisi birlikte aranır.
+    ascii_lower = sentence.lower()
+    if any(header in folded or header in ascii_lower
+           for header in _INGREDIENT_HEADERS):
+        return True
+    return bool(_FORMULA_ROW.search(sentence.strip()))
+
+
 def _scan_sentence(sentence: str) -> list[Finding]:
     folded = fold(sentence)
     flat = deaccent(folded)
+    ingredient_line = _is_ingredient_declaration(sentence, folded)
     found: list[Finding] = []
 
     def add(label, rule, matched, basis_key, remedy):
@@ -252,6 +282,8 @@ def _scan_sentence(sentence: str) -> list[Finding]:
                 break
 
     for label, terms, basis_key in PRODUCT_TRAPS:
+        if ingredient_line:
+            break  # INCI'de kalması zorunlu; ihlal cümlede anılmasıdır
         for term in terms:
             if _contains(folded, flat, term):
                 add(BLOCKED, label, term, basis_key,
