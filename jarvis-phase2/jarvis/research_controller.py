@@ -21,6 +21,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 from .adapter_factory import AdapterFactory, AdapterState, CapabilityAdapter
 from .cache import ResearchCache
+from .confidence import score as score_confidence
 from .research import SourceRecord, fuse
 
 
@@ -332,6 +333,14 @@ class ResearchController:
             "evidence_refs": list(dict.fromkeys(source.evidence_ref for source in fused["sources"])),
             "freshness": round(sum(source.freshness for source in fused["sources"]) / max(1, len(fused["sources"])), 3),
             "contradictions": fused["contradictions"], "confidence": fused["confidence"],
+            # Tek sayı neyin eksik olduğunu söylemiyordu: ölçülen iki koşuda
+            # (alakasız mağaza sayfaları / gerçek sektör raporu) skor neredeyse
+            # aynıydı. Parçalı skor sınırlayan boyutu adıyla bildirir.
+            "confidence_breakdown": score_confidence(
+                fused["sources"], contradictions=fused["contradictions"],
+                required_claims=required_claims,
+                min_independent_sources=self.policy.min_independent_sources,
+                model_calls=telemetry.model_calls).to_dict(),
             "coverage": fused["coverage"], "stop_reason": stop_reason,
             "duration": {"ms": telemetry.duration_ms, "fetch_ms": round(telemetry.fetch_ms, 3)},
             "cost": round(telemetry.cost, 6), "model_calls": telemetry.model_calls,
