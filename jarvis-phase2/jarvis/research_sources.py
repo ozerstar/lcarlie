@@ -471,14 +471,20 @@ class WebSearchCrawlAdapter(CapabilityAdapter):
 
     def __init__(self, searxng_url: str | None = None, max_results: int = 6,
                  max_pages: int = 4, resolver: Any = socket.getaddrinfo,
-                 timeout: float = 10.0, min_relevance: float = 0.34,
+                 timeout: float = 10.0, min_relevance: float | None = None,
                  max_queries: int = 4, search_concurrency: int = 3) -> None:
         self.searxng_url = searxng_url if searxng_url is not None else os.environ.get("RESEARCH_SEARXNG_URL", "")
         self.max_results = max_results
         self.max_pages = max_pages
         self.resolver = resolver
         self.timeout = timeout
-        self.min_relevance = min_relevance
+        # Alaka esigi ise gore degisir ve bu bilerek ayarlanabilir:
+        # SORU CEVAPLAMADA yuksek esik dogru -- alakasiz kaynak cevabi kirletir.
+        # BILGI BIRIKTIRMEDE dusuk esik dogru -- aday malzeme toplanir, alaka
+        # puani kayitta durur ve sonra filtrelenebilir. Olculdu: 0.34'te ayni
+        # konu bir kosuda 0, digerinde 1 kaynak veriyor; esik tam sinirda.
+        self.min_relevance = (min_relevance if min_relevance is not None
+                              else float(os.environ.get("RESEARCH_MIN_RELEVANCE", "0.34")))
         self.max_queries = max_queries
         self.search_concurrency = search_concurrency
         self._last: dict[str, Any] = {}
