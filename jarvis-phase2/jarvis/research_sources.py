@@ -26,6 +26,7 @@ import gzip
 import json
 import os
 import re
+import unicodedata
 import socket
 import urllib.error
 import urllib.parse
@@ -102,6 +103,89 @@ def _token_set(text: str) -> set[str]:
     return set(_WORD.findall(text.casefold()))
 
 
+# Turkce sondan eklemelidir: sorgudaki "etiketlerinde" ile sayfadaki "etiket"
+# ayni seydir, ama tam kelime esitligi bunu goremez. OLCULDU: bu yuzden
+# "titck kozmetik iddia yasaklari" aramasinda TITCK kilavuzunun kendisi dahil
+# cekilen 12 sayfanin 12'si "konu disi" diye atildi; geriye yalniz eksiz
+# kelime tasiyan magaza sayfalari kaldi.
+#
+# Sabit uzunlukta govde (ilk 5 harf) Turkce bilgi erisiminde yerlesik bir
+# yontemdir; tam bicimbirim cozumlemesine yakin sonuc verir ve hicbir
+# bagimlilik gerektirmez. Kisa kelimeler oldugu gibi kalir.
+STEM_LEN = 5
+
+_TR_FOLD = str.maketrans(
+    "\u0131\u0130\u015f\u015e\u011f\u011e\u00fc\u00dc\u00f6\u00d6\u00e7\u00c7",
+    "iissgguuoocc")
+
+
+def _fold_tr(word: str) -> str:
+    """Aksansiz karsilastirma govdesi.
+
+    Cevirme casefold'dan ONCE yapilir: "\u0130".casefold() birlesik nokta
+    tasiyan iki karakter uretir ve duz "i" ile ESLESMEZ -- bu tuzak bu
+    kod tabaninda daha once uyumluluk taramasini da yanlis calistirmisti.
+    Kalan birlesik isaretler NFD ile ayiklanir.
+    """
+    folded = unicodedata.normalize("NFD", word.translate(_TR_FOLD).casefold())
+    return "".join(ch for ch in folded if not unicodedata.combining(ch))
+
+
+def _stem(word: str) -> str:
+    return _fold_tr(word)[:STEM_LEN]
+
+
+def _stem_set(text: str, min_len: int = 4) -> set[str]:
+    return {_stem(word) for word in _WORD.findall(text.casefold())
+            if len(word) >= min_len}
+
+
+def _query_groups(text: str, min_len: int = 4) -> tuple[frozenset[str], ...]:
+    """Her sorgu kelimesi icin bir govde KUMESI -- duzlestirilmis tek kume degil.
+
+    "urunlerin" hem "urunl" hem (bicimbilgisi varsa) "urun" verir; ikisi ayni
+    kelimenin bicimleridir, iki ayri terim degil. Kelime, kumesinden herhangi
+    biri sayfada geciyorsa eslesmis sayilir ve payda kelime sayisi olarak
+    kalir.
+
+    Duzlestirme OLCULDU ve zarar verdi: varyantlar terim sayisini sisirince
+    ayni sayfalarin puani dustu, tutulan kaynak 3'ten 1'e indi.
+
+    Bicimbilgisi yoksa (test yorumlayicisinda zeyrek kurulu degil) her grup
+    tek govdeye iner ve davranis eski haliyle ayni kalir.
+    """
+    try:
+        from .turkish import lemmas
+    except Exception:  # noqa: BLE001 - bicimbilgisi istege baglidir
+        lemmas = None  # type: ignore[assignment]
+
+    groups: list[frozenset[str]] = []
+    seen: set[frozenset[str]] = set()
+    for word in _WORD.findall(text.casefold()):
+        if len(word) < min_len:
+            continue
+        stems = {_stem(word)}
+        if lemmas is not None:
+            stems.update(_stem(lemma) for lemma in lemmas(word) if len(lemma) >= 3)
+        group = frozenset(stems)
+        if group not in seen:
+            seen.add(group)
+            groups.append(group)
+    return tuple(groups)
+
+
+def _hit_ratio(groups: tuple[frozenset[str], ...], stems: set[str]) -> float:
+    """Kac sorgu kelimesi bu metinde gecti? Varyant sayisi degil, KELIME sayisi."""
+    if not groups:
+        return 0.0
+    return sum(1 for group in groups if group & stems) / len(groups)
+
+
+def _stem_list(text: str, min_len: int = 4) -> list[str]:
+    return [_stem(word) for word in _WORD.findall(text.casefold())
+            if len(word) >= min_len]
+
+
 def near_duplicate(a: str, b: str, threshold: float = 0.9) -> bool:
     """Jaccard overlap on word tokens. Catches the same wire story republished
     with a different headline, which must not count as independent evidence."""
@@ -157,7 +241,10 @@ _NON_SUBJECT_STEMS = frozenset(
        "kaynak", "kanıtl", "kanitl", "kopya", "çeliş", "celis",
        "doğrul", "dogrul", "kullan", "döndür", "dondur", "ayrı",
        "ayri", "sayma", "bilgi", "durum", "bağıms", "bagims",
-       "orijin", "haberi", "yapmak", "olarak"}
+       "orijin", "haberi", "yapmak", "olarak",
+       # Olculdu: bu ikisi uzunluk olcutunu gecip konu sanildi --
+       # "dermokozmetik birbirinden pazar raporu", "dermokozmetik bulgulari".
+       "birbir", "bulgul"}
 )
 
 
@@ -179,6 +266,11 @@ def research_subject(request: str, count: int = 3) -> tuple[str, ...]:
     return tuple(terms[:count]) or anchor_terms(request, count=count)
 
 
+# Son sorgu planinin teshis kaydi (kaynak: model/deterministik, elenenler).
+# Arastirma ciktisinda raporlanir; sorgu kalitesi boyle izlenir.
+LAST_PLAN: dict[str, object] = {}
+
+
 def _decompose_best(request: str, max_queries: int = 5) -> tuple[str, ...]:
     """Model decomposition when the model layer has it, deterministic otherwise.
 
@@ -189,11 +281,18 @@ def _decompose_best(request: str, max_queries: int = 5) -> tuple[str, ...]:
     """
     try:
         from .model_layer import ModelRouter
+        from .query_planner import plan
 
-        queries = ModelRouter().decompose_query(request, count=max_queries)
-        usable = tuple(q.strip() for q in queries if isinstance(q, str) and q.strip())
-        if usable:
-            return usable[:max_queries]
+        # decompose_query yerine planlayici: o metot ciktiyi HIC dogrulamiyordu
+        # ve olculdugunde arama sorgusu degil gorev cumlesi uretiyordu
+        # ("...son gelismeleri arastir", "Bulgulari kaynaklariyla dondur").
+        # Bir arama motoruna gorev cumlesi verilince bos donmesi normaldi;
+        # arastirma veriminin sifira yakin olmasinin sebebi buydu.
+        result = plan(request, ModelRouter(), max_queries=max_queries)
+        LAST_PLAN.clear()
+        LAST_PLAN.update(result)
+        if result["queries"]:
+            return tuple(result["queries"])[:max_queries]
     except Exception:  # noqa: BLE001 - decomposition must never break research
         pass
     return decompose(request, max_queries)
@@ -312,23 +411,35 @@ def score_source(title: str, text: str, query: str) -> dict[str, float]:
     confirms it. So they are weighted separately and the anchor term has to
     show up where a page states what it is about.
     """
-    terms = {term for term in _token_set(query) if len(term) > 3}
-    if not terms:
+    # Her sorgu kelimesi icin bir govde kumesi. Sorgu tarafi bicimbilgisiyle
+    # genisletilir -- maliyeti arama basina birkac kelime, sayfa basina degil.
+    groups = _query_groups(query)
+    if not groups:
         return {"relevance": 1.0, "title": 1.0, "lead": 1.0, "density": 1.0, "anchor_hits": 0.0}
+    terms = frozenset().union(*groups)
 
     anchors = anchor_terms(query, count=1)
-    anchor = anchors[0] if anchors else ""
+    # Capa tek govde degil KUME: "etiketlerinde" hem kendi kesmesini hem
+    # lemmasinin kesmesini verir, ikisi de sayfada gecerli bir capadir.
+    anchor_groups = _query_groups(anchors[0]) if anchors else ()
+    anchor_set = set(frozenset().union(*anchor_groups)) if anchor_groups else set()
+    anchor = sorted(anchor_set)[0] if anchor_set else ""
     title_l, lead_l = title.casefold(), text[:1500].casefold()
     body_l = (title + " " + text).casefold()
 
-    title_score = len(terms & _token_set(title_l)) / len(terms)
-    lead_score = len(terms & _token_set(lead_l)) / len(terms)
-    words = _WORD.findall(body_l)
-    density = (sum(1 for word in words if word in terms) / len(words)) if words else 0.0
+    # Oran KELIME uzerinden: bir kelimenin iki bicimi iki eslesme saymaz.
+    title_score = _hit_ratio(groups, _stem_set(title_l))
+    lead_score = _hit_ratio(groups, _stem_set(lead_l))
+    body_stems = _stem_list(body_l)
+    density = (sum(1 for stem in body_stems if stem in terms) / len(body_stems)
+               ) if body_stems else 0.0
     density_score = min(1.0, density / 0.02)
-    anchor_hits = float(body_l.count(anchor)) if anchor else 0.0
+    # Govde sayimi: "etiket", "etiketleme", "etiketlerinde" ayni cengele sayilir.
+    anchor_hits = float(sum(1 for stem in body_stems if stem in anchor_set)
+                        ) if anchor_set else 0.0
 
-    declared = bool(anchor) and (anchor in title_l or anchor in lead_l)
+    declared = bool(anchor_set) and bool(
+        anchor_set & (_stem_set(title_l) | _stem_set(lead_l)))
     if anchor and anchor_hits < 2:
         relevance = 0.0
     elif anchor and not declared and anchor_hits < 4:
