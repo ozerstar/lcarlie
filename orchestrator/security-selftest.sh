@@ -1,6 +1,6 @@
 #!/bin/sh
 set -eu
-export DOCKER_API_VERSION=1.43
+export DOCKER_API_VERSION=1.44
 violations=$(docker exec lcarlie-postgres psql -U n8n -d n8n -Atqc "
 WITH checks AS(
  SELECT 'function_owner_login' n,(SELECT rolcanlogin FROM pg_roles WHERE rolname='function_owner') bad
