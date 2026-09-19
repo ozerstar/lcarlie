@@ -13,7 +13,7 @@ Environment=JARVIS_STATE_DIR=/opt/lcarlie/jarvis-phase2/state
 Environment=JARVIS_WEB_STATE_DIR=/opt/lcarlie/jarvis-phase2/state/webconsole
 Environment=JARVIS_WEB_BIND=0.0.0.0
 Environment=JARVIS_WEB_PORT=8091
-Environment=DOCKER_API_VERSION=1.43
+Environment=DOCKER_API_VERSION=1.44
 Environment=DOCKER_CONFIG=/tmp
 ExecStart=/usr/bin/python3 /opt/lcarlie/jarvis-phase2/webconsole/app.py
 Restart=on-failure

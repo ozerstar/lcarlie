@@ -6,7 +6,7 @@ Requires=docker.service
 [Service]
 Type=oneshot
 Environment=JARVIS_ENABLED=false
-Environment=DOCKER_API_VERSION=1.43
+Environment=DOCKER_API_VERSION=1.44
 Environment=DOCKER_CONFIG=/tmp
 EnvironmentFile=-/etc/lcarlie/jarvis-phase2.env
 ExecStart=/opt/lcarlie/jarvis-phase2/bin/jarvis-phase2
