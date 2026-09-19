@@ -684,12 +684,26 @@ def _known_products(runtime: Any) -> tuple[str, ...]:
     now = _time.time()
     if _catalogue_cache["names"] and now - _catalogue_cache["at"] < _CATALOGUE_TTL_S:
         return _catalogue_cache["names"]  # type: ignore[return-value]
+    # DIKKAT: burada bir kez `sales_items` kullanildi ve bu bir HATAYDI.
+    # O gorunum SATILAN urunleri verir (22 marka), katalogu degil (36).
+    # Sonuc: denetim gercek bir urunu ("FEMISIA for WOMEN") uydurma sanip
+    # dogru cumleyi silecekti. Bir hallusinasyon denetiminin en tehlikeli
+    # hatasi yanlis pozitiftir: kullanici dogru cevabi da goremez ve
+    # silinen sey ortada olmadigi icin fark edemez.
+    names: tuple[str, ...] = ()
     try:
         memory = _memory(runtime)
-        rows = tuple(memory._fetch("sales_items").records)
+        rows = tuple(memory._fetch("ecommerce_price").records)
         names = tuple(p.brand for p in product_catalogue(rows))
     except Exception:  # noqa: BLE001 - katalog yoklugu bir durumdur
         names = ()
+    if not names:
+        # Fiyat listesi okunamadi: satis kaydi eksik ama yanlis degildir.
+        try:
+            rows = tuple(_memory(runtime)._fetch("sales_items").records)
+            names = tuple(p.brand for p in product_catalogue(rows))
+        except Exception:  # noqa: BLE001
+            names = ()
     _catalogue_cache.update({"at": now, "names": names})
     return names
 
