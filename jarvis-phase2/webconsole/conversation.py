@@ -15,7 +15,8 @@ from jarvis.model_layer import (LOCAL_MODEL as LOCAL_MODEL_NAME, ModelRouter,
                                 should_use_model)
 from jarvis import conversation_memory, turkish
 from jarvis.company_knowledge import shared as company_knowledge
-from jarvis.agency import AgencyCapability
+from jarvis import answer_guard
+from jarvis.agency import AgencyCapability, catalogue as product_catalogue
 from jarvis.agency_proposal import screen as screen_agency
 from jarvis.specialist_pool import SpecialistPool
 
@@ -602,18 +603,31 @@ def _research(message: str, started: float) -> dict[str, Any]:
         research_stop_reason=report.get("stop_reason"))
 
 
+# 4 cumlelik resmi bir Turkce cevap ~180-220 token tutar; eski deger
+# 160'ti ve cumle bitmeden doluyordu. Amac uzun cevap degil, TAM cevap.
+CHAT_MAX_TOKENS = int(os.environ.get("JARVIS_CHAT_MAX_TOKENS", "380"))
+
 CHAT_SYSTEM = (
-    "Sen Jarvis'sin: L'CARLIÉ'nin yapay zekâ iş ortağısın. Doğal, sıcak ve kısa "
-    "Türkçe konuş -- sohbet eder gibi, rapor yazar gibi değil.\n"
-    "- Gerektiğinde karşı soru sor, merak et.\n"
-    "- Kullanıcı sadece konuşmak ya da dertleşmek istiyor olabilir; önce dinle, "
-    "hemen çözüm dayatma.\n"
-    "- Madde madde liste yapma, 2-4 cümle yeter.\n"
+    # Bu istem bir kez "sicak, sohbet eder gibi, dertlesme" tonu istiyordu ve
+    # kullanici hakli olarak "fazla laubali" dedi. Ton modelin kusuru degildi,
+    # buradaki talimatti. Yeni kayit: resmi, olculu, kisa.
+    "Sen Jarvis'sin: L'CARLIÉ'nin analiz ve operasyon asistanısın. Resmî, ölçülü "
+    "ve kısa Türkçe yazarsın.\n"
+    "- Kullanıcıya 'siz' diye hitap et.\n"
+    "- En fazla 4 cümle yaz. Önce cevabı ver; gerekçe gerekiyorsa tek cümle ekle.\n"
+    "- Giriş ve kapanış cümlesi yazma: 'Tabii ki', 'Elbette', 'Umarım yardımcı "
+    "olmuştur' gibi ifadeler kullanma.\n"
+    "- Şaka, emoji, ünlem işareti ve 'harika', 'süper', 'muhteşem' gibi abartı "
+    "sözcükler kullanma.\n"
+    "- Gereksiz karşı soru sorma. Soru ancak görevi yapmak için gereken bir bilgi "
+    "eksikse sorulur ve tek soru olur.\n"
+    "- Cümleni yarım bırakma. Söyleyeceğin sığmıyorsa daha az şey söyle, "
+    "cümlenin ortasında durma.\n"
     "Yeteneklerin: şirket verisini (satış, e-ticaret, reklam, CRM, operasyon) "
     "kanıtıyla okumak, analiz ve kampanya önerisi hazırlamak, web araştırması "
     "istemek. YAPAMADIKLARIN: kişisel veri veya telefon numarası bulmak, "
     "internette kişi aramak, sistemlere girmek, mesaj/reklam/fiyat değiştirmek. "
-    "Böyle bir şey istenirse dürüstçe yapamayacağını söyle.\n"
+    "Böyle bir şey istenirse yapamayacağını açıkça söyle.\n"
     "Sınırlar: Şirketle ilgili sayı, tarih, ürün veya müşteri bilgisi UYDURMA -- "
     "böyle bir şey sorulursa verilere bakman gerektiğini söyle. Hiçbir işlemi "
     "kendin uygulayamazsın; onay insanındır."
@@ -655,7 +669,46 @@ def _chat_system() -> str:
     return CHAT_SYSTEM + ("\n\n" + notes if notes else "")
 
 
-def _chat(message: str, intent: str, started: float) -> dict[str, Any]:
+# Urun listesi gun icinde degismez; her mesajda sorgu atmak gereksiz.
+_CATALOGUE_TTL_S = float(os.environ.get("JARVIS_CATALOGUE_TTL_S", "3600"))
+_catalogue_cache: dict[str, Any] = {"at": 0.0, "names": ()}
+
+
+def _known_products(runtime: Any) -> tuple[str, ...]:
+    """Katalogdaki ürün adları. Okunamazsa BOŞ döner ve ürün denetimi atlanır.
+
+    Bos donmek burada dogru davranistir: liste yokken her buyuk harfli adi
+    "uydurma" saymak, veri yoklugunu hataya cevirirdi.
+    """
+    import time as _time
+    now = _time.time()
+    if _catalogue_cache["names"] and now - _catalogue_cache["at"] < _CATALOGUE_TTL_S:
+        return _catalogue_cache["names"]  # type: ignore[return-value]
+    try:
+        memory = _memory(runtime)
+        rows = tuple(memory._fetch("sales_items").records)
+        names = tuple(p.brand for p in product_catalogue(rows))
+    except Exception:  # noqa: BLE001 - katalog yoklugu bir durumdur
+        names = ()
+    _catalogue_cache.update({"at": now, "names": names})
+    return names
+
+
+def _guarded(answer: str, runtime: Any) -> tuple[str, dict[str, Any]]:
+    """Model cevabını yayımlamadan önce denetler. Sıfır model çağrısı."""
+    try:
+        out = answer_guard.guard(answer, _known_products(runtime))
+    except Exception:  # noqa: BLE001 - denetim cevabi engelleyemez
+        return answer, {}
+    meta: dict[str, Any] = {}
+    if out["invented_products"]:
+        meta["invented_products"] = out["invented_products"]
+        meta["sentences_dropped"] = out["sentences_dropped"]
+    return str(out["text"]) or answer, meta
+
+
+def _chat(message: str, intent: str, started: float,
+          runtime: Any = None) -> dict[str, Any]:
     """An ordinary conversational turn.
 
     No evidence block is assembled: this is talk, not analysis. The model is
@@ -664,15 +717,16 @@ def _chat(message: str, intent: str, started: float) -> dict[str, Any]:
     introduction still stands so the user is never left without a reply.
     """
     try:
-        result = _router().synthesize(message, (), system=_system_for(message), max_tokens=160,
+        result = _router().synthesize(message, (), system=_system_for(message), max_tokens=CHAT_MAX_TOKENS,
                                       escalate=needs_escalation(message),
                                       history=conversation_memory.history())
     except ModelUnavailable:
         return _response(message, intent, "ANSWERED", FALLBACK_INTRO,
                          started=started, model="deterministic-local")
-    return _response(message, intent, "ANSWERED", result.answer, started=started,
+    cevap, uyari = _guarded(result.answer, runtime)
+    return _response(message, intent, "ANSWERED", cevap, started=started,
                      model=result.model, model_calls=result.model_calls,
-                     tier=result.tier)
+                     tier=result.tier, **uyari)
 
 
 def stream_chat(message: str, intent: str):
@@ -687,7 +741,7 @@ def stream_chat(message: str, intent: str):
     model = None
     calls = 0
     try:
-        for delta in _router().stream_text(message, _system_for(message), max_tokens=160,
+        for delta in _router().stream_text(message, _system_for(message), max_tokens=CHAT_MAX_TOKENS,
                                            history=conversation_memory.history()):
             chunks.append(delta)
             yield {"type": "token", "delta": delta}
@@ -870,7 +924,7 @@ def route(message: str, runtime: Any) -> dict[str, Any]:
     started = perf_counter()
     decision = classify(message)
     if decision.intent == SIMPLE_CONVERSATION:
-        return _chat(message, decision.intent, started)
+        return _chat(message, decision.intent, started, runtime)
     # The action boundary is settled before any model can be reached. A
     # request to change something must land on the firewall path whatever
     # else it looks like.
