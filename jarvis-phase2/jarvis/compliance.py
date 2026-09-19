@@ -422,3 +422,60 @@ def approval_record(content_code: str, product: str, channel: str,
         "onaylayan": "INSAN DOLDURUR",
         "yayin_durumu": "BLOCKED" if result.blocked else "PENDING_HUMAN_REVIEW",
     }
+
+
+# --------------------------------------------------------------------------
+# Action Firewall kapısı
+# --------------------------------------------------------------------------
+# Müşteriye ulaşan metin taşıyan kanonik aksiyon tipleri. Bu listede OLMAYAN
+# tipler taranmaz: PRICE_CHANGE'in yükü pazarlama metni değildir ve onu iddia
+# gibi denetlemek yalnız gürültü üretir.
+PUBLISHED_TEXT_ACTIONS = frozenset({
+    "DRAFT_CUSTOMER_REPLY",
+    "WHATSAPP_SEND_TEMPLATE",
+    "WIX_PUBLISH",
+    "META_CAMPAIGN_CHANGE",
+})
+
+# Yükte yayımlanabilir metin taşıyan alanlar. subject_ref bilerek dışarıda:
+# o bir kimliktir, metin değildir -- taranırsa "coding-task:akne-fix" gibi bir
+# referans hastalık adı sayılır.
+TEXT_FIELDS = ("reason", "text", "body", "message", "caption", "content", "draft")
+
+
+class ComplianceBlocked(ValueError):
+    """Yayımlanacak metin kademe 1'de bloklu bir iddia taşıyor."""
+
+    def __init__(self, findings):
+        self.findings = tuple(findings)
+        detail = "; ".join(f"{f.rule} <- {f.matched}" for f in self.findings[:4])
+        super().__init__(f"COMPLIANCE_BLOCKED: {detail}")
+
+
+def gate_payload(action_type: str, payload: dict[str, Any],
+                 checked_at: str = "") -> dict[str, Any]:
+    """Öneri yükünü mevzuat kapısından geçirir.
+
+    BLOCKED bulgusu varsa ComplianceBlocked yükselir ve öneri hiç oluşmaz --
+    firewall'un diğer her kuralı gibi fail-closed. VERIFY bulguları önermeyi
+    durdurmaz ama zarfa iliştirilir, çünkü onları insan görmeli.
+    """
+    if action_type not in PUBLISHED_TEXT_ACTIONS:
+        return {"checked": False, "reason": "aksiyon tipi metin yayımlamıyor"}
+
+    parts = [str(payload[field]) for field in TEXT_FIELDS
+             if isinstance(payload.get(field), str) and payload[field].strip()]
+    if not parts:
+        return {"checked": False, "reason": "yükte yayımlanabilir metin alanı yok"}
+
+    result = review("\n".join(parts), checked_at=checked_at)
+    if result.blocked:
+        raise ComplianceBlocked(result.blocked)
+    return {
+        "checked": True,
+        "clean_tier1": result.clean,
+        "verify": [f.to_dict() for f in result.verify],
+        "rules_source": result.rules_source,
+        "note": ("Kademe 1 mekanik tarama geçti. Görsel yargı ve konumlandırma "
+                 "onayı hâlâ insana ait."),
+    }

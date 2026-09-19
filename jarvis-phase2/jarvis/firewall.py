@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from .compliance import ComplianceBlocked, gate_payload
 from .action_contract import ActionContract, ContractError, INTENT_TO_CANONICAL
 
 # Same forbidden set as core.ai_jsonb_has_forbidden_key guards against.
@@ -86,6 +87,16 @@ def validate_proposal(
     if idempotency_key is not None and not idempotency_key.startswith(IDEMPOTENCY_PREFIX):
         raise FirewallError(f"idempotency key must start with {IDEMPOTENCY_PREFIX!r}")
 
+    # Mevzuat kapısı. Sözleşme ve yük ŞEKLİ denetleniyordu, metnin İÇERİĞİ
+    # denetlenmiyordu: {"reason": "dolaşımı destekler"} buradan sorunsuz
+    # geçiyordu. Yalnız müşteriye metin ulaştıran tipler taranır ve bloklu
+    # iddia FirewallError'a çevrilir -- çağıran taraf zaten onu yakalıyor,
+    # görev FAILED olur ve öneri hiç oluşmaz.
+    try:
+        compliance = gate_payload(canonical, payload)
+    except ComplianceBlocked as exc:
+        raise FirewallError(str(exc)) from exc
+
     return {
         "internal_intent": internal_intent,
         "action_type": canonical,
@@ -99,4 +110,5 @@ def validate_proposal(
         "status": "PROPOSED",
         "contract_hash": contract.contract_hash,
         "human_approval_required": True,
+        "compliance": compliance,
     }
