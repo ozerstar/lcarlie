@@ -70,6 +70,38 @@ def deasciify(text: str) -> str:
         return text
 
 
+@lru_cache(maxsize=32768)
+def lemmas(word: str) -> frozenset[str]:
+    """Every lemma this word can analyse to, lowercased.
+
+    For search matching, not for grammar. A Turkish word is often ambiguous --
+    "marka" parses both as "mark"+dative and as "marka" -- and picking the
+    first parse was MEASURED to miss the "markaların"/"marka" pair. Returning
+    the whole set and intersecting is what makes the match work.
+
+    Returns the folded word itself when morphology is unavailable, so a caller
+    gets a usable set either way and never has to branch on availability.
+    """
+    if not word:
+        return frozenset()
+    fallback = frozenset({word.casefold()})
+    if _ANALYZER is None:
+        return fallback
+    try:
+        # zeyrek prints its parse trace to stdout; keep it out of the logs.
+        with contextlib.redirect_stdout(io.StringIO()):
+            parses = _ANALYZER.analyze(word)
+    except Exception:  # noqa: BLE001
+        return fallback
+    found = set()
+    for group in parses or ():
+        for parse in (group if isinstance(group, list) else [group]):
+            lemma = (getattr(parse, "lemma", "") or "").casefold()
+            if lemma:
+                found.add(lemma)
+    return frozenset(found) or fallback
+
+
 @lru_cache(maxsize=4096)
 def imperative_stem(word: str) -> str | None:
     """The verb stem if this word is a POSITIVE imperative, else None.

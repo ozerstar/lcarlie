@@ -26,6 +26,7 @@ import gzip
 import json
 import os
 import re
+import unicodedata
 import socket
 import urllib.error
 import urllib.parse
@@ -98,8 +99,140 @@ def extract_text(html: str) -> str:
     return _BLANK.sub("\n\n", "\n".join(line.strip() for line in text.splitlines())).strip()
 
 
+# --- istege bagli: daha iyi ana metin ve YAYIN TARIHI -------------------
+# Yoklugu bir hata degil, bir durumdur: kurulu degilse asagidaki iki yardimci
+# eski davranisi aynen surdurur.
+try:  # pragma: no cover - yorumlayiciya gore degisir
+    import trafilatura as _TRAFILATURA
+except Exception:  # noqa: BLE001
+    _TRAFILATURA = None
+
+# trafilatura'nin donusu bu esigin altindaysa guvenilmez sayilir ve mevcut
+# cikariciya dusulur. OLCULDU: teis.org.tr'de 0 karakter dondu; o sayfa
+# olcumde gelen en degerli kaynaklardan biriydi.
+_MIN_MAIN_TEXT = 200
+
+
+def best_text(html: str) -> str:
+    """Ana metin. trafilatura kullanilabiliyorsa o, degilse mevcut cikarici.
+
+    trafilatura menu/altbilgi/urun listesi gurultusunu temizler -- olcumde
+    bir magaza sayfasinin sisirilmis alaka puani 0,430'dan 0,052'ye indi,
+    yani dogru yere. Ama bazi sayfalarda hic metin dondurmuyor; o yuzden
+    donusu dogrulanmadan kullanilmaz.
+    """
+    if _TRAFILATURA is not None:
+        try:
+            main = _TRAFILATURA.extract(html, include_comments=False,
+                                        include_tables=True) or ""
+        except Exception:  # noqa: BLE001 - cikarim asla arastirmayi durdurmaz
+            main = ""
+        if len(main) >= _MIN_MAIN_TEXT:
+            return main
+    return extract_text(html)
+
+
+def published_date(html: str) -> str:
+    """Sayfanin yayin tarihi (YYYY-MM-DD) veya bos.
+
+    OLCULDU: mevcut _MetaParser 6 sayfanin 0'inda tarih buluyordu,
+    trafilatura 5'inde buldu. Tarihsiz kaynak "guncel mi" sorusuna cevap
+    veremez ve 2023 tarihli bir pazar raporu bugunku gibi sunulur.
+    """
+    if _TRAFILATURA is None:
+        return ""
+    try:
+        meta = _TRAFILATURA.extract_metadata(html)
+    except Exception:  # noqa: BLE001
+        return ""
+    return (getattr(meta, "date", None) or "") if meta else ""
+
+
 def _token_set(text: str) -> set[str]:
     return set(_WORD.findall(text.casefold()))
+
+
+# Turkce sondan eklemelidir: sorgudaki "etiketlerinde" ile sayfadaki "etiket"
+# ayni seydir, ama tam kelime esitligi bunu goremez. OLCULDU: bu yuzden
+# "titck kozmetik iddia yasaklari" aramasinda TITCK kilavuzunun kendisi dahil
+# cekilen 12 sayfanin 12'si "konu disi" diye atildi; geriye yalniz eksiz
+# kelime tasiyan magaza sayfalari kaldi.
+#
+# Sabit uzunlukta govde (ilk 5 harf) Turkce bilgi erisiminde yerlesik bir
+# yontemdir; tam bicimbirim cozumlemesine yakin sonuc verir ve hicbir
+# bagimlilik gerektirmez. Kisa kelimeler oldugu gibi kalir.
+STEM_LEN = 5
+
+_TR_FOLD = str.maketrans(
+    "\u0131\u0130\u015f\u015e\u011f\u011e\u00fc\u00dc\u00f6\u00d6\u00e7\u00c7",
+    "iissgguuoocc")
+
+
+def _fold_tr(word: str) -> str:
+    """Aksansiz karsilastirma govdesi.
+
+    Cevirme casefold'dan ONCE yapilir: "\u0130".casefold() birlesik nokta
+    tasiyan iki karakter uretir ve duz "i" ile ESLESMEZ -- bu tuzak bu
+    kod tabaninda daha once uyumluluk taramasini da yanlis calistirmisti.
+    Kalan birlesik isaretler NFD ile ayiklanir.
+    """
+    folded = unicodedata.normalize("NFD", word.translate(_TR_FOLD).casefold())
+    return "".join(ch for ch in folded if not unicodedata.combining(ch))
+
+
+def _stem(word: str) -> str:
+    return _fold_tr(word)[:STEM_LEN]
+
+
+def _stem_set(text: str, min_len: int = 4) -> set[str]:
+    return {_stem(word) for word in _WORD.findall(text.casefold())
+            if len(word) >= min_len}
+
+
+def _query_groups(text: str, min_len: int = 4) -> tuple[frozenset[str], ...]:
+    """Her sorgu kelimesi icin bir govde KUMESI -- duzlestirilmis tek kume degil.
+
+    "urunlerin" hem "urunl" hem (bicimbilgisi varsa) "urun" verir; ikisi ayni
+    kelimenin bicimleridir, iki ayri terim degil. Kelime, kumesinden herhangi
+    biri sayfada geciyorsa eslesmis sayilir ve payda kelime sayisi olarak
+    kalir.
+
+    Duzlestirme OLCULDU ve zarar verdi: varyantlar terim sayisini sisirince
+    ayni sayfalarin puani dustu, tutulan kaynak 3'ten 1'e indi.
+
+    Bicimbilgisi yoksa (test yorumlayicisinda zeyrek kurulu degil) her grup
+    tek govdeye iner ve davranis eski haliyle ayni kalir.
+    """
+    try:
+        from .turkish import lemmas
+    except Exception:  # noqa: BLE001 - bicimbilgisi istege baglidir
+        lemmas = None  # type: ignore[assignment]
+
+    groups: list[frozenset[str]] = []
+    seen: set[frozenset[str]] = set()
+    for word in _WORD.findall(text.casefold()):
+        if len(word) < min_len:
+            continue
+        stems = {_stem(word)}
+        if lemmas is not None:
+            stems.update(_stem(lemma) for lemma in lemmas(word) if len(lemma) >= 3)
+        group = frozenset(stems)
+        if group not in seen:
+            seen.add(group)
+            groups.append(group)
+    return tuple(groups)
+
+
+def _hit_ratio(groups: tuple[frozenset[str], ...], stems: set[str]) -> float:
+    """Kac sorgu kelimesi bu metinde gecti? Varyant sayisi degil, KELIME sayisi."""
+    if not groups:
+        return 0.0
+    return sum(1 for group in groups if group & stems) / len(groups)
+
+
+def _stem_list(text: str, min_len: int = 4) -> list[str]:
+    return [_stem(word) for word in _WORD.findall(text.casefold())
+            if len(word) >= min_len]
 
 
 def near_duplicate(a: str, b: str, threshold: float = 0.9) -> bool:
@@ -157,7 +290,10 @@ _NON_SUBJECT_STEMS = frozenset(
        "kaynak", "kanıtl", "kanitl", "kopya", "çeliş", "celis",
        "doğrul", "dogrul", "kullan", "döndür", "dondur", "ayrı",
        "ayri", "sayma", "bilgi", "durum", "bağıms", "bagims",
-       "orijin", "haberi", "yapmak", "olarak"}
+       "orijin", "haberi", "yapmak", "olarak",
+       # Olculdu: bu ikisi uzunluk olcutunu gecip konu sanildi --
+       # "dermokozmetik birbirinden pazar raporu", "dermokozmetik bulgulari".
+       "birbir", "bulgul"}
 )
 
 
@@ -179,6 +315,11 @@ def research_subject(request: str, count: int = 3) -> tuple[str, ...]:
     return tuple(terms[:count]) or anchor_terms(request, count=count)
 
 
+# Son sorgu planinin teshis kaydi (kaynak: model/deterministik, elenenler).
+# Arastirma ciktisinda raporlanir; sorgu kalitesi boyle izlenir.
+LAST_PLAN: dict[str, object] = {}
+
+
 def _decompose_best(request: str, max_queries: int = 5) -> tuple[str, ...]:
     """Model decomposition when the model layer has it, deterministic otherwise.
 
@@ -190,10 +331,29 @@ def _decompose_best(request: str, max_queries: int = 5) -> tuple[str, ...]:
     try:
         from .model_layer import ModelRouter
 
-        queries = ModelRouter().decompose_query(request, count=max_queries)
-        usable = tuple(q.strip() for q in queries if isinstance(q, str) and q.strip())
-        if usable:
-            return usable[:max_queries]
+        # OLCULDU: sorgulari kisa anahtar kelimelere cevirmek ZARAR VERDI.
+        # Iki bagimsiz kosuda bilgi kaynagi ortalamasi 2,17'den 1,17'ye dustu.
+        # (Ucuncu bir kosu gurultu tabanini +-0,2 olarak olctu; bu fark onun
+        # bes kati ve iki kosuda da ayni yonde.) Arama motoru uzun tarif
+        # cumlesini MAKALE metniyle eslestiriyor, kisa urun ismini ise
+        # alisveris niyeti gibi okuyup MAGAZA getiriyor.
+        #
+        # Verimdeki asil kazanc Turkce govde eslesmesindendi (score_source,
+        # _stem) ve o, buradaki cumleleri de ayni sekilde iyilestirdi.
+        # Rakamlar ve gerekce: jarvis/query_planner.py.
+        if os.environ.get("RESEARCH_QUERY_PLANNER") == "1":
+            from .query_planner import plan
+            result = plan(request, ModelRouter(), max_queries=max_queries)
+            LAST_PLAN.clear()
+            LAST_PLAN.update(result)
+            if result["queries"]:
+                return tuple(result["queries"])[:max_queries]
+        else:
+            queries = ModelRouter().decompose_query(request, count=max_queries)
+            usable = tuple(q.strip() for q in queries
+                           if isinstance(q, str) and q.strip())
+            if usable:
+                return usable[:max_queries]
     except Exception:  # noqa: BLE001 - decomposition must never break research
         pass
     return decompose(request, max_queries)
@@ -257,7 +417,69 @@ SOURCE_TYPES = ("OFFICIAL", "REGULATOR", "COMPANY", "NEWS", "TRADE_PUBLICATION",
                 "RETAILER", "MARKETPLACE", "COMMUNITY", "UNKNOWN")
 
 
-def classify_source(host: str, title: str, text: str) -> str:
+# Meslek birligi / oda / dernek. Turkiye'de bu sonek tahsislidir: teis.org.tr
+# (eczacilar), uste.org.tr. Bu kaynaklar sektor verisi yayimlar ve olcumde
+# gelen en degerli sayfalar bunlardi -- ama hepsi UNKNOWN donuyordu.
+ASSOCIATION_SUFFIXES = (".org.tr", ".edu.tr", ".bel.tr", ".tsk.tr")
+
+# schema.org tipleri -> bizim sinifimiz. Sayfanin KENDI beyanidir; bir
+# magazanin "Product" basmasi kelime listesinden cok daha guvenilirdir.
+_LD_TYPE_MAP = {
+    "product": "RETAILER", "offer": "RETAILER", "aggregateoffer": "RETAILER",
+    "itemlist": "RETAILER", "onlinestore": "RETAILER",
+    "newsarticle": "NEWS", "reportagenewsarticle": "NEWS",
+    "article": "NEWS", "blogposting": "NEWS", "techarticle": "NEWS",
+    "governmentorganization": "REGULATOR", "govermentservice": "REGULATOR",
+    "legislation": "OFFICIAL", "medicalwebpage": "NEWS",
+    "discussionforumposting": "COMMUNITY", "qapage": "COMMUNITY",
+}
+
+_LD_BLOCK = re.compile(
+    r"<script[^>]+type=[\"']application/ld\+json[\"'][^>]*>(.*?)</script>",
+    re.IGNORECASE | re.DOTALL)
+_OG_TYPE = re.compile(
+    r"<meta[^>]+property=[\"']og:type[\"'][^>]+content=[\"']([^\"']+)",
+    re.IGNORECASE)
+
+
+def _ld_types(html: str) -> set[str]:
+    found: set[str] = set()
+    for blob in _LD_BLOCK.findall(html or "")[:12]:
+        try:
+            data = json.loads(blob.strip())
+        except Exception:  # noqa: BLE001 - bozuk JSON-LD yaygin, sinyal yok demektir
+            continue
+        nodes = data if isinstance(data, list) else [data]
+        for node in nodes:
+            if not isinstance(node, dict):
+                continue
+            graph = node.get("@graph")
+            for item in [node] + (graph if isinstance(graph, list) else []):
+                if not isinstance(item, dict):
+                    continue
+                declared = item.get("@type")
+                if not declared:
+                    continue
+                for name in (declared if isinstance(declared, list) else [declared]):
+                    if isinstance(name, str):
+                        found.add(name.casefold())
+    return found
+
+
+def structural_signals(html: str) -> dict[str, object]:
+    """Sayfanin kendi beyan ettigi tip sinyalleri. Dilden bagimsiz."""
+    types = _ld_types(html)
+    og = _OG_TYPE.search(html or "")
+    return {"ld_types": sorted(types),
+            "og_type": (og.group(1).casefold() if og else "")}
+
+
+def prices_declared(body: str) -> bool:
+    """Sayfa fiyat listeliyor mu? Magaza ile sirket tanitimini ayirir."""
+    return len(PRICE_TAG.findall(body)) >= 4
+
+
+def classify_source(host: str, title: str, text: str, html: str = "") -> str:
     """Deterministic source class from host and page markers.
 
     Used as reliability metadata, and to keep a company's own statement from
@@ -274,6 +496,34 @@ def classify_source(host: str, title: str, text: str) -> str:
         return "MARKETPLACE"
     if any(marker in host for marker in COMMUNITY_HOSTS):
         return "COMMUNITY"
+    if host.endswith(ASSOCIATION_SUFFIXES):
+        # Meslek birligi: sektor verisi yayimlar, sirketin kendi beyani degil.
+        return "TRADE_PUBLICATION"
+
+    # --- sayfanin KENDI beyani: kelime listesinden once, cunku dilden
+    # bagimsiz ve Turkce ek tuzagina girmez. Olculdu: 7 sayfanin 6'sinda var.
+    signals = structural_signals(html) if html else {"ld_types": [], "og_type": ""}
+    ld_types = set(signals["ld_types"])  # type: ignore[arg-type]
+    # Magaza once: bir sayfa hem Product hem Article basiyorsa magazadir.
+    for name in ("product", "offer", "aggregateoffer", "onlinestore"):
+        if name in ld_types:
+            return "RETAILER"
+    for name in sorted(ld_types):
+        mapped = _LD_TYPE_MAP.get(name)
+        if mapped:
+            return mapped
+    # Kurumsal site sekli: Organization + WebSite (+BreadcrumbList) var ama
+    # makale de urun de yok. OLCULDU -- dermoeczanem.com ve dermo.com.tr tam
+    # bu sekli veriyor. Onemli olan haber mi magaza mi degil, BAGIMSIZ kaynak
+    # olup olmadigi: ikisi de degil, ikisi de NON_INDEPENDENT_TYPES icinde.
+    SELF_DECLARED_SITE = {"organization", "website"}
+    if SELF_DECLARED_SITE <= ld_types and signals["og_type"] != "article":
+        return "RETAILER" if prices_declared(body) else "COMPANY"
+
+    if signals["og_type"] == "article":
+        # OLCULDU: magaza ve acilis sayfalari og:type basmiyor, gercek
+        # icerik basiyor -- bu ikisini ayiran en net tek sinyaldi.
+        return "NEWS"
 
     prices = len(PRICE_TAG.findall(body))
     shop = sum(marker in body for marker in SHOP_MARKERS) + (2 if prices >= 8 else 0)
@@ -312,23 +562,35 @@ def score_source(title: str, text: str, query: str) -> dict[str, float]:
     confirms it. So they are weighted separately and the anchor term has to
     show up where a page states what it is about.
     """
-    terms = {term for term in _token_set(query) if len(term) > 3}
-    if not terms:
+    # Her sorgu kelimesi icin bir govde kumesi. Sorgu tarafi bicimbilgisiyle
+    # genisletilir -- maliyeti arama basina birkac kelime, sayfa basina degil.
+    groups = _query_groups(query)
+    if not groups:
         return {"relevance": 1.0, "title": 1.0, "lead": 1.0, "density": 1.0, "anchor_hits": 0.0}
+    terms = frozenset().union(*groups)
 
     anchors = anchor_terms(query, count=1)
-    anchor = anchors[0] if anchors else ""
+    # Capa tek govde degil KUME: "etiketlerinde" hem kendi kesmesini hem
+    # lemmasinin kesmesini verir, ikisi de sayfada gecerli bir capadir.
+    anchor_groups = _query_groups(anchors[0]) if anchors else ()
+    anchor_set = set(frozenset().union(*anchor_groups)) if anchor_groups else set()
+    anchor = sorted(anchor_set)[0] if anchor_set else ""
     title_l, lead_l = title.casefold(), text[:1500].casefold()
     body_l = (title + " " + text).casefold()
 
-    title_score = len(terms & _token_set(title_l)) / len(terms)
-    lead_score = len(terms & _token_set(lead_l)) / len(terms)
-    words = _WORD.findall(body_l)
-    density = (sum(1 for word in words if word in terms) / len(words)) if words else 0.0
+    # Oran KELIME uzerinden: bir kelimenin iki bicimi iki eslesme saymaz.
+    title_score = _hit_ratio(groups, _stem_set(title_l))
+    lead_score = _hit_ratio(groups, _stem_set(lead_l))
+    body_stems = _stem_list(body_l)
+    density = (sum(1 for stem in body_stems if stem in terms) / len(body_stems)
+               ) if body_stems else 0.0
     density_score = min(1.0, density / 0.02)
-    anchor_hits = float(body_l.count(anchor)) if anchor else 0.0
+    # Govde sayimi: "etiket", "etiketleme", "etiketlerinde" ayni cengele sayilir.
+    anchor_hits = float(sum(1 for stem in body_stems if stem in anchor_set)
+                        ) if anchor_set else 0.0
 
-    declared = bool(anchor) and (anchor in title_l or anchor in lead_l)
+    declared = bool(anchor_set) and bool(
+        anchor_set & (_stem_set(title_l) | _stem_set(lead_l)))
     if anchor and anchor_hits < 2:
         relevance = 0.0
     elif anchor and not declared and anchor_hits < 4:
@@ -615,7 +877,7 @@ class WebSearchCrawlAdapter(CapabilityAdapter):
                 stats["failed"] += 1
                 continue
             stats["fetched"] += 1
-            text = extract_text(html)
+            text = best_text(html)
             if len(text) < 200:
                 continue
             if any(near_duplicate(text, seen) for seen in texts):
@@ -632,7 +894,7 @@ class WebSearchCrawlAdapter(CapabilityAdapter):
                 continue
             texts.append(text)
             host = (urllib.parse.urlsplit(final_url).hostname or "").casefold()
-            source_type = classify_source(host, meta.title, text)
+            source_type = classify_source(host, meta.title, text, html)
             canonical_host = host
             if meta.canonical:
                 canonical_host = (urllib.parse.urlsplit(
@@ -643,7 +905,9 @@ class WebSearchCrawlAdapter(CapabilityAdapter):
                 "origin_id": canonical_host,
                 "title": " ".join(meta.title.split())[:300],
                 "content": text[:budget],
-                "observed_at": meta.published or "",
+                # Sayfanin kendi bildirdigi tarih once; yoksa trafilatura'nin
+                # cikarimi. Ikisi de yoksa bos kalir -- uydurulmaz.
+                "observed_at": meta.published or published_date(html),
                 # Authority is not a reputation score -- we have no ground
                 # truth for that. It is how much of the question the page
                 # actually addresses, discounted for plain HTTP and for a
