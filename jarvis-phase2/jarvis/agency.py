@@ -170,6 +170,10 @@ def catalogue(rows: tuple[dict[str, Any], ...],
         keys = [_fold(brand)]
         if len(head) >= 5 and head not in _GENERIC_HEADS:
             keys.append(head)
+        # Ayni marka farkli yazimla iki kez gelmesin: veride "DERMANOVA" ve
+        # "Dermanova" ayri satirlar olarak duruyor ve iki urun gibi sayiliyordu.
+        name = next((k for k in out if _fold(brand) == _fold(k.split("(")[0].strip())),
+                    name)
         existing = out.get(name)
         collected = (existing.rows if existing else ()) + (row,)
         out[name] = Product(brand=brand, category=category, name=name,
@@ -439,7 +443,11 @@ class AgencyCapability:
         snapshot = _load_snapshot(self.memory, TASK_QUERIES[task_type])
         # Urun GOREVDEN tespit edilir, katalog veriden gelir. Onceden urun adi
         # kodda sabitti ve her soruya VIREON cevabi uretiliyordu.
-        products = catalogue(snapshot.records.get("sales_items", ()))
+        # Tam katalog fiyat listesindedir (36 urun); sales_items yalniz
+        # SATILMIS olanlari verir (22). Ikincisiyle "DERMABED kampanyasi
+        # hazirla" gercek bir urun icin PRODUCT_NOT_IDENTIFIED derdi.
+        products = catalogue(snapshot.records.get("ecommerce_price", ())) \
+            or catalogue(snapshot.records.get("sales_items", ()))
         product = detect_product(task, products)
         concepts = _concepts(product) if task_type == TASK_CAMPAIGN else []
         regulatory_risks, objections = _regulatory_review(concepts)
