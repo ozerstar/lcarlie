@@ -534,8 +534,13 @@ def _verify(message: str, first: str, evidence: list[dict[str, Any]],
         return {}
 
     def ask() -> str:
+        # Dogrulama YEREL modele sorulur, dis modele degil. Iki sebep:
+        # (1) Ayni modele uc kez sormak kararliligi olcer; FARKLI modele
+        #     sormak uydurmayi yakalar -- capraz kontrol daha guclu.
+        # (2) Dis saglayicinin gunluk 50 isteklik kotasini dogrulama
+        #     tuketmemeli; o kota asil cevaplar icindir.
         result = _router().synthesize(message, evidence, missing_data=missing,
-                                      escalate=escalate)
+                                      escalate=False)
         return result.answer
 
     out = consensus.run(ask, first=first, samples=CONSENSUS_SAMPLES)
@@ -546,10 +551,24 @@ def _verify(message: str, first: str, evidence: list[dict[str, Any]],
     return payload
 
 
+# Buraya gelen her soru zaten should_use_model() suzgecinden gecmistir:
+# sayim ve rapor sorulari veritabanindan, model cagrisi olmadan cevaplanir
+# ve buraya HIC gelmez. Dolayisiyla buradaki her soru serbest muhakemedir
+# ve guclu modeli hak eder.
+#
+# OLCULDU: eski kural (280 karakter veya 18 sabit kelime) neredeyse hic
+# tetiklenmiyordu -- dis saglayici hesabinda usage: 0 idi. Ayni olcumde
+# 550B model 2,6 saniyede yerel 4B'den daha iyi cevap verdi.
+#
+# Sahip karari (20.09.2026): muhakeme sorularinda kullanilsin. Bu, sirket
+# kanitinin dis saglayiciya gitmesi demektir; sohbet yerel modelde kalir.
+ESCALATE_REASONING = os.environ.get("JARVIS_ESCALATE_REASONING", "1") != "0"
+
+
 def _synthesize(message: str, intent: str, memory: Any, started: float,
                 escalate: bool | None = None) -> dict[str, Any]:
     if escalate is None:
-        escalate = needs_escalation(message)
+        escalate = ESCALATE_REASONING or needs_escalation(message)
     evidence, missing = _gather(message, memory)
     try:
         result = _router().synthesize(message, evidence, missing_data=missing,
