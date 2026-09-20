@@ -54,12 +54,17 @@ from jarvis.shadow import ShadowRunner  # noqa: E402
 from jarvis.transport import memory_host  # noqa: E402
 
 import auth  # noqa: E402
+import meta_webhook  # noqa: E402
 import chat  # noqa: E402
 
 STATE_DIR = Path(os.environ.get("JARVIS_STATE_DIR", "/opt/lcarlie/jarvis-phase2/state"))
 STATIC_DIR = HERE / "static"
 BIND_HOST = os.environ.get("JARVIS_WEB_BIND", "0.0.0.0")
 BIND_PORT = int(os.environ.get("JARVIS_WEB_PORT", "8091"))
+
+# Meta olay kuyruğu. STATE_DIR altında: `jarvis-web.service`'in
+# ReadWritePaths'i zaten burayı kapsıyor, yeni yazma izni açılmıyor.
+META_KUYRUK = STATE_DIR / "meta_webhook" / "gelen.jsonl"
 
 SESSION_COOKIE = "jarvis_session"
 CSRF_COOKIE = "jarvis_csrf"
@@ -334,7 +339,12 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         try:
-            if path.startswith("/api/"):
+            # Meta webhook'u oturum AÇAMAZ; bu yol kimlik kapısından önce
+            # gelir. Karşılığında kendi kapısı var: doğrulama anahtarı (GET)
+            # ve HMAC imzası (POST). Başka hiçbir yol bu istisnayı almaz.
+            if path == meta_webhook.WEBHOOK_PATH:
+                self._meta_dogrulama(parse_qs(parsed.query))
+            elif path.startswith("/api/"):
                 self._route_api_get(path, parse_qs(parsed.query))
             else:
                 self._route_static(path)
@@ -345,10 +355,59 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         try:
-            self._route_api_post(parsed.path)
+            if parsed.path == meta_webhook.WEBHOOK_PATH:
+                self._meta_olay()
+            else:
+                self._route_api_post(parsed.path)
         except Exception:  # noqa: BLE001
             traceback.print_exc()
             self._send_json(500, {"error": "internal error"})
+
+    # -- Meta webhook -------------------------------------------------------
+    def _meta_dogrulama(self, query: dict) -> None:
+        """Meta'nın ilk GET el sıkışması. Gövde DÜZ METİN döner, JSON değil."""
+        kod, govde = meta_webhook.dogrulama_yanit_ver(query)
+        ham = govde.encode("utf-8")
+        self.send_response(kod)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(ham)))
+        self.end_headers()
+        self.wfile.write(ham)
+
+    def _meta_olay(self) -> None:
+        """Gelen mesaj olayı: imzayı doğrula, kuyruğa yaz, HIZLI 200 dön.
+
+        🔴 Gövde her hâlükârda OKUNUR -- imza geçersiz olsa bile. Okumadan
+        yanıt dönmek keep-alive bağlantısını bozuyor ve sonraki istek
+        gövdenin içinden ayrıştırılıp 501 veriyordu; bu hata bu serviste
+        daha önce yaşandı.
+        """
+        uzunluk = int(self.headers.get("Content-Length", 0) or 0)
+        govde = self.rfile.read(uzunluk) if 0 < uzunluk <= 1_048_576 else b""
+
+        giz = meta_webhook.uygulama_gizi()
+        if not giz:
+            # Sessizce güvensiz çalışmaktansa açıkça durmak: giz olmadan
+            # bu uç, isteyen herkesin sahte müşteri mesajı yazabildiği bir
+            # kapıdır.
+            sys.stderr.write("[meta-webhook] META_APP_SECRET yok; olay reddedildi\n")
+            self._send_json(503, {"error": "META_APP_SECRET tanimli degil"})
+            return
+        if not meta_webhook.imza_gecerli(
+                govde, self.headers.get("X-Hub-Signature-256", ""), giz):
+            self._send_json(403, {"error": "imza gecersiz"})
+            return
+        try:
+            yuk = json.loads(govde.decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            self._send_json(400, {"error": "gecersiz json"})
+            return
+
+        olaylar = meta_webhook.olaylari_ayristir(yuk)
+        yazilan = meta_webhook.kuyruga_yaz(olaylar, META_KUYRUK)
+        # Meta yanıt gecikirse AYNI olayı tekrar gönderir; burada iş
+        # yapılmaz, yalnız kuyruğa alınır.
+        self._send_json(200, {"alindi": yazilan})
 
     # -- static frontend --------------------------------------------------
     def _route_static(self, path: str) -> None:
