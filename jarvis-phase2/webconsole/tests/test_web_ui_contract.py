@@ -36,12 +36,16 @@ KNOWN_ROUTES = {
     "/api/kreatif",
     # Kisisel asistan hafizasi -- okuma, ekleme ve unutma; app.py sunuyor.
     "/api/hafiza", "/api/hafiza/sil",
+    # Ekip ekrani -- app.py `/api/ekip/sor` sunuyor (_ekip_sor).
+    "/api/ekip/sor",
+    # Pazar gozlemi -- app.py `/api/pazar/bulgu` sunuyor.
+    "/api/pazar/bulgu",
 }
 
 # Arka ucu olan bolumler. Bu kume, navigasyonun neyi sunabilecegini belirler:
 # bir sekme ancak buraya girdikten sonra etkinlestirilebilir.
 BACKED_VIEWS = {"home", "analiz", "gorevler", "veri", "ajanlar", "raporlar",
-                "ayarlar", "fiyat", "eticaret", "reklam", "hafiza"}
+                "ayarlar", "fiyat", "eticaret", "reklam", "hafiza", "ekip"}
 PANEL_VIEWS = {"veri", "ajanlar", "raporlar", "ayarlar"}
 
 
