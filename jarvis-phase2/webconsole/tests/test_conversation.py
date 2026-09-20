@@ -139,4 +139,29 @@ class Tests(unittest.TestCase):
         self.assertEqual("ANALYSIS_REQUEST", result["intent"]); self.assertEqual(0, result["external_actions"])
 
 
+
+class CevapDiliTurkceSabit(unittest.TestCase):
+    """Cevap dili istemde SABIT tutulur.
+
+    20.09.2026 sahip kararı: "türkçe konuşmasını istiyorum". İstem zaten
+    "Türkçe yazarsın" diyordu ama bunu ton kaydının içinde söylüyordu;
+    kullanıcının dili değişince modelin ona uyması serbest kalıyordu.
+    Kural artık açık ve tek başına duruyor -- bu test onu orada tutar.
+
+    Modelin çıktısı ölçülmüyor: model her koşuda farklı cümle kurar ve
+    böyle bir test ağ ya da GPU yüzünden ilgisiz sebeplerle kırmızı
+    yanardı. Ölçülen şey SÖZLEŞME: talimat istemde duruyor mu.
+    """
+
+    def test_istem_her_zaman_turkce_diyor(self):
+        self.assertIn("HER ZAMAN Türkçe", conversation.CHAT_SYSTEM)
+
+    def test_baska_dilde_sorulsa_bile_kurali_var(self):
+        self.assertIn("İngilizce", conversation.CHAT_SYSTEM)
+
+    def test_ton_kaydi_korundu(self):
+        # Dil kuralı eklenirken ton kaydı düşmemeli: ikisi ayrı kararlar.
+        for kural in ("Resmî", "siz", "En fazla 4 cümle"):
+            self.assertIn(kural, conversation.CHAT_SYSTEM)
+
 if __name__ == "__main__": unittest.main()
