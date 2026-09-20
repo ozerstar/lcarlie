@@ -200,4 +200,77 @@ class DilNotuSoruyaBitisik(unittest.TestCase):
         soru = "Bu ay satışlar nasıl?"
         self.assertTrue(conversation._dil_notlu(soru).startswith(soru))
 
+
+class KelimeSiniriKoyanKalip(unittest.TestCase):
+    """Boslukla yazilan kalip KELIME SINIRI ister.
+
+    Yasanan hata: selamlasma tablosundaki "hi " kalibi Ingilizce is
+    sorularini sohbet sayiyordu. _normalize'in son satiri
+    " ".join(text.split()) bastaki/sondaki boslugu SILIYOR, yani "hi "
+    kalibi "hi" oluyor ve w-hi-ch, t-hi-s icinde esleiyordu. Kalibi yazan
+    kisi boslugu tam bunu onlemek icin koymustu.
+
+    Sonuc gorunur degildi: soru sohbet sayilinca kanit toplanmiyor ve
+    sirket rakamlari kanitsiz uretiliyordu.
+    """
+
+    def test_bosluklu_kalip_kelime_ortasinda_eslesmez(self):
+        self.assertFalse(conversation._has("which product", ("hi ",)))
+        self.assertFalse(conversation._has("this month", ("hi ",)))
+
+    def test_bosluklu_kalip_tam_kelimede_eslesir(self):
+        self.assertTrue(conversation._has("hi jarvis", ("hi ",)))
+        self.assertTrue(conversation._has("say hi", ("hi ",)))
+
+    def test_bosluksuz_kaliplarin_davranisi_DEGISMEDI(self):
+        # Tablodaki yuzlerce kalip bosluksuz; alt dizgi eslemesi surmeli.
+        self.assertTrue(conversation._has("satislarimiz", ("satis",)))
+        self.assertTrue(conversation._has("reklamlar", ("reklam",)))
+
+
+class IngilizceSirketSorusuKanitaGider(unittest.TestCase):
+    """Sirket sorusu hangi dilde sorulursa sorulsun COMPANY_QUERY.
+
+    OLCULDU: Ingilizce sorular tabloda karsiligi olmadigi icin
+    GENERAL_REASONING'e dusuyordu -- kanit toplanmiyor, cevabi model
+    uretiyordu. "What are our sales this month?" evidence_refs [] ile
+    cevaplandi; dogru rakam vermesi kanittan degil, o rakamin sohbet
+    gecmisinde bulunmasindandi.
+    """
+
+    def _intent(self, soru):
+        return conversation.classify(soru).intent
+
+    def test_ingilizce_satis_sorusu(self):
+        for soru in ("What are our sales this month?",
+                     "How many orders do we have?",
+                     "Show me our revenue"):
+            self.assertEqual(conversation.COMPANY_QUERY, self._intent(soru), soru)
+
+    def test_ingilizce_reklam_sorusu(self):
+        for soru in ("How much did we spend on ads?",
+                     "What is our campaign budget?"):
+            self.assertEqual(conversation.COMPANY_QUERY, self._intent(soru), soru)
+
+    def test_ingilizce_urun_sorusu(self):
+        for soru in ("Which product should I promote?",
+                     "What is the price of VIREON?"):
+            self.assertEqual(conversation.COMPANY_QUERY, self._intent(soru), soru)
+
+    def test_TURKCE_davranis_bozulmadi(self):
+        for soru in ("Bu ay satışlar nasıl?", "Reklam harcaması ne oldu?",
+                     "Kaç sipariş var?", "Cevapsız müşteri mesajı var mı?",
+                     "Son 30 günde kaç adet ürün sattık?"):
+            self.assertEqual(conversation.COMPANY_QUERY, self._intent(soru), soru)
+
+    def test_selamlasma_sohbet_KALIR(self):
+        """Pozitif kontrol: her seyi COMPANY_QUERY yapan bir tablo da
+        yukaridaki testleri gecerdi."""
+        for soru in ("Merhaba Jarvis", "Naber", "Hello", "Hi", "Günaydın"):
+            self.assertEqual(conversation.SIMPLE_CONVERSATION, self._intent(soru), soru)
+
+    def test_eylem_istegi_firewall_yolunda_KALIR(self):
+        for soru in ("VIREON fiyatını 100 TL artır", "Kampanyayı kapat"):
+            self.assertEqual(conversation.ACTION_REQUEST, self._intent(soru), soru)
+
 if __name__ == "__main__": unittest.main()
