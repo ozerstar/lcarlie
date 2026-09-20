@@ -1,0 +1,4 @@
+# MCP sunucusu icin AYRI venv: venv-mcp/
+# Ana venv'e KURMA -- 13 paket ekler ve jarvis-web.service'i o venv calistirir.
+#   python3 -m venv venv-mcp && venv-mcp/bin/pip install -r requirements-mcp.txt
+mcp==2.2.0
