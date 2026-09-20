@@ -154,6 +154,36 @@ def _propose_action(task_id: int, lease_token: str, idempotency_key: str,
 # extended with a spec FILE instead of just a slug, because a coding
 # objective and an allowlist cannot fit in an idempotency key.
 # --------------------------------------------------------------------------
+def _build_agency_payload(slug: str | None) -> dict[str, str] | None:
+    """Ajans şartnamesinden gerçek yük. Şartname yoksa None.
+
+    None donmek onemli: cagiran taraf o zaman eski genel yuke duser ve
+    elle acilmis gorevler bozulmaz. Uydurulmus bir yuk dondurmek, bos
+    yukten daha kotu olurdu.
+    """
+    if not slug:
+        return None
+    try:
+        from .agency_store import load_spec
+    except Exception:  # noqa: BLE001 - modul yoklugu bir durumdur
+        return None
+    spec = load_spec(slug)
+    if not spec:
+        return None
+    payload = spec.get("payload")
+    if not isinstance(payload, dict) or not payload:
+        return None
+    # `reason` onaylayan insanin ilk gordugu alandir; konsept adi ve urun
+    # oraya yazilir ki kuyrukta ne oldugu slug okumadan anlasilsin.
+    metin = payload.get("primary_text") or payload.get("headline") or ""
+    payload = dict(payload)
+    payload.setdefault("reason", " — ".join(
+        parca for parca in (str(spec.get("product") or ""),
+                            str(spec.get("concept_name") or ""),
+                            str(metin)[:400]) if parca))
+    return payload
+
+
 def _build_coding_review_payload(slug: str) -> dict[str, str]:
     if not slug:
         raise CodingTaskDenied("CODE_CHANGE_REVIEW requires a slug: jarvis:CODE_CHANGE_REVIEW:<slug>")
@@ -381,8 +411,12 @@ def run_cycle(host: str | None = "lcarlie") -> dict[str, Any]:
                 state["coding_task_count"] = state.get("coding_task_count", 0) + 1
                 payload = _build_coding_review_payload(slug)
             else:
-                payload = {"subject_ref": key,
-                          "reason": f"Automated proposal from operator-originated task {key}"}
+                # Once burada HER zaman genel bir yer tutucu yaziliyordu ve
+                # onay kuyruguna ici bos oneri dusuyordu. Ajans sartnamesi
+                # varsa gercek metin kullanilir; yoksa eski davranis surer.
+                payload = (_build_agency_payload(slug)
+                           or {"subject_ref": key,
+                               "reason": f"Automated proposal from operator-originated task {key}"})
 
             validated = validate_proposal(internal_intent, payload, contract,
                                           idempotency_key=f"action:{key}")

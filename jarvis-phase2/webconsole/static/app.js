@@ -1310,6 +1310,28 @@ function renderVeri(d) {
     + card('VERİ KALİTESİ', qual, '');
 }
 
+/* Rollerin gercegi: panelde 28 satir var ama 28 farkli yetenek YOK.
+ * Uretmeyen rol isaretlenir -- gizlemek tabloyu temiz gosterirdi ama
+ * olmayan bir kabiliyeti ima ederdi. */
+function renderRoleReality(block) {
+  if (!block) return '';
+  const rows = (block.contributions || []).map((c) => {
+    const bos = c.status !== 'PRODUCED';
+    const kalemler = Object.entries(c.items || {})
+      .map(([k, v]) => `${escapeHtml(k)}: ${v}`).join(' · ');
+    return `<div class="kv${bos ? ' is-bad' : ''}">
+      <span class="kv-k">${escapeHtml(String(c.role || '?'))}</span>
+      <span class="kv-v">${bos ? 'ÜRETMEDİ' : escapeHtml(kalemler || '—')}</span>
+    </div>`;
+  }).join('');
+  const son = block.last_run || {};
+  const meta = son.product
+    ? `${escapeHtml(String(son.product))} · ${escapeHtml(String(son.objective || ''))}`
+    : 'henüz ajans koşusu yok';
+  return card('SON KOŞUDA ROL KATKILARI', rows || '<p class="sect-note">Kayıt yok.</p>', meta)
+    + `<p class="sect-note">${escapeHtml(String(block.note || ''))}</p>`;
+}
+
 function renderAjanlar(d) {
   const roles = (d.roles || []).map((r) => kvRow(
     r.id || r.error || '?', r.kind || r.domain || '')).join('');
@@ -1319,9 +1341,10 @@ function renderAjanlar(d) {
       <span class="kv-k">${escapeHtml(String(e.name || e.error || '?'))}</span>
       <span class="kv-v">${stateChip(e.state || '—')} ${escapeHtml(String(e.version || ''))}</span>
     </div>`).join('');
-  return card('MODEL SAĞLAYICILARI', provs, `${(d.providers || []).length}`)
+  return renderRoleReality(d.role_reality)
+    + card('MODEL SAĞLAYICILARI', provs, `${(d.providers || []).length}`)
     + card('MOTORLAR', engines, `${(d.engines || []).length}`)
-    + card('ROLLER', roles, `${(d.roles || []).length}`);
+    + card('TANIMLI ROLLER', roles, `${(d.roles || []).length} kayıt`);
 }
 
 /* Dersler: sayimdir, neden-sonuc degil. Karara hic baglanmamis kumeler once
