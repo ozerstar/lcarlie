@@ -142,6 +142,11 @@ class Provider:
     call: Callable[..., tuple[str, str]]
     paid: bool = False
     note: str = ""
+    # Akil yuruten modeller butcenin bir kismini gorunmeyen ic dusunceye
+    # harcar. OLCULDU: gpt-5-mini 220 token ile 0 kelime dondu
+    # (finish_reason=length), 800 token ile duzgun cevap verdi. Bu sessiz
+    # bir hata sinifi: istisna yok, hata kodu yok, yalniz bos metin.
+    min_tokens: int = 0
 
 
 # Sira OLCULMUSTUR, tahmin degil. Ucretsiz ve hizli olan once.
@@ -161,7 +166,8 @@ PROVIDERS: tuple[Provider, ...] = (
              lambda k, m, msg, t: _openai_style(
                  "https://api.openai.com/v1/chat/completions", k, m, msg, t,
                  new_style=True),
-             paid=True, note="4,5 s; max_completion_tokens gerekir -- UCRETLI"),
+             paid=True, min_tokens=800,
+             note="9,7 s (800 token ile); max_completion_tokens gerekir -- UCRETLI"),
     # NVIDIA ve GROQ bilerek disarida: NVIDIA "Here's a thinking process"
     # sizdiriyor ve kesiliyor, GROQ HTTP 403/1010 donuyor (olculdu).
 )
@@ -200,8 +206,9 @@ def generate(messages: list[dict[str, str]], max_tokens: int = 400,
             continue
         model = cfg.get(f"{provider.name.upper()}_MODEL") or provider.default_model
         started = time.perf_counter()
+        budget = max(max_tokens, provider.min_tokens)
         try:
-            text, finish = provider.call(key, model, messages, max_tokens)
+            text, finish = provider.call(key, model, messages, budget)
         except urllib.error.HTTPError as exc:
             detail = ""
             try:
