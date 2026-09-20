@@ -97,8 +97,16 @@ class Tests(unittest.TestCase):
         a thin result as fact, and it must never fabricate a source."""
         result = conversation.route("Rakiplerimizi araştır.", Runtime())
         self.assertEqual("RESEARCH_REQUEST", result["intent"])
+        # TIMEOUT da DURUST bir sonuctur ve listeye 20.09.2026'da eklendi:
+        # arastirma artik gercekten calisiyor (Gemini grounding), yani agdan
+        # sayfa indiriyor ve 45 sn'lik kaynak butcesini asabiliyor. O durumda
+        # verilen cevap "Arastirma tamamlanamadi... bu, konuda kaynak olmadigi
+        # anlamina GELMEZ" -- ince bir sonucu olgu gibi sunmuyor, kaynak da
+        # uydurmuyor, yani bu testin korudugu iki kurali da cigneMIYOR.
+        # Listeye alinmazsa test sinirda rastgele kirilir ve dagitim kapisini
+        # kilitler.
         self.assertIn(result["status"],
-                      ("ANSWERED", "LOW_CONFIDENCE", "DATA_UNAVAILABLE"))
+                      ("ANSWERED", "LOW_CONFIDENCE", "DATA_UNAVAILABLE", "TIMEOUT"))
         self.assertEqual(0, result["external_actions"])
         if result["status"] == "ANSWERED":
             self.assertTrue(result["evidence_refs"])

@@ -100,17 +100,30 @@ def soru_tipi(mesaj: str) -> str:
 
 
 # --- ürün kartı ----------------------------------------------------------
-_ICINDEKILER = re.compile(r"i[çc]indekiler\s*:?\s*(.+?)(?:\s*ingredients\s*:|$)",
+# 🔴 İKİ NOKTA ZORUNLU, opsiyonel değil.
+# İlk hâli `kullan[ıi]m\s*:?` yazıyordu ve ölçümde "Düzenli kullanımDA yorgun,
+# mat ve gergin..." cümlesinin ORTASINDAN yakaladı; müşteriye kullanım
+# talimatı diye ürün övgüsü gidecekti. Başlık, başlık gibi aranmalı.
+_ICINDEKILER = re.compile(r"i[çc]indekiler\s*:\s*(.+?)(?:\s*ingredients\s*:|$)",
                           re.IGNORECASE | re.DOTALL)
-_KULLANIM = re.compile(r"kullan[ıi]m\s*:?\s*(.+?)(?:\s*uyar[ıi]lar|\s*raf [öo]mr|$)",
+_KULLANIM = re.compile(r"(?:^|[.\s])kullan[ıi]m\s*:\s*(.+?)(?:\s{2,}|uyar[ıi]lar|raf [öo]mr|$)",
                        re.IGNORECASE | re.DOTALL)
+_KARGO = re.compile(r"kargo\s*(?:&|ve)?\s*teslimat\s*:\s*(.+?)(?:\s{2,}|$)",
+                    re.IGNORECASE | re.DOTALL)
+
+
+def _bosluk_koru(ham: str) -> str:
+    """HTML varlıklarını çözer ama BOŞLUK YAPISINI KORUR.
+
+    Wix metninde bölümler ardışık boşlukla ayrılıyor; `" ".join(split())`
+    o sınırı siliyordu ve kargo alanı ürün açıklamasının içine taşıyordu.
+    Kırpma, alan ayıklandıktan SONRA yapılır.
+    """
+    return html.unescape(ham or "").replace("\xa0", " ").replace("\r", " ")
 
 
 def _temizle(ham: str) -> str:
-    """Wix açıklaması HTML varlıklarıyla geliyor (&amp;, &nbsp;)."""
-    metin = html.unescape(ham or "")
-    metin = metin.replace("\xa0", " ")
-    return " ".join(metin.split())
+    return " ".join(_bosluk_koru(ham).split())
 
 
 @dataclass
@@ -123,44 +136,71 @@ class UrunKarti:
     aciklama: str
     icindekiler: str = ""
     kullanim: str = ""
+    kargo: str = ""
 
     @property
     def kampanyali(self) -> bool:
         return bool(self.liste_fiyat and self.satis_fiyat
                     and self.liste_fiyat > self.satis_fiyat)
 
-    def olgular(self) -> list[str]:
-        """Cevapta kullanılabilecek DOĞRULANMIŞ olgular.
+    def _fiyat_satiri(self) -> str | None:
+        if not self.satis_fiyat:
+            return None
+        if self.kampanyali:
+            return (f"Güncel fiyat: {self.satis_fiyat:,.0f} TL "
+                    f"(liste fiyatı {self.liste_fiyat:,.0f} TL)").replace(",", ".")
+        return f"Fiyat: {self.satis_fiyat:,.0f} TL".replace(",", ".")
 
-        Model yalnız bunları kullanabilir; listede olmayan bir sayı veya
-        iddia cevaba girerse denetim katmanı yakalar.
+    def olgular(self, tip: str = GENEL) -> list[str]:
+        """Bu SORU için gereken doğrulanmış olgular — hepsi değil.
+
+        🔴 NEDEN DARALTILDI (sahip talebi, 20.09.2026):
+        *"her mesaj için tüm konuyu anlatma, gerekli cevabı iste"*.
+        Önceki hâli ürün kartının tamamını (içindekiler dahil, ~1.500
+        karakter) her soruda gönderiyordu. İki zararı vardı: dış modele
+        gereksiz jeton parası ödeniyordu ve model, sorulmayan bilgiyi
+        cevaba sokuyordu ("fiyat?" sorusuna kullanım talimatı ekliyordu).
+
+        Fiyat sorana fiyat, içerik sorana içerik gider.
         """
-        satir = [f"Ürün adı: {self.ad}"]
-        if self.satis_fiyat:
-            if self.kampanyali:
-                satir.append(f"Güncel fiyat: {self.satis_fiyat:,.0f} TL "
-                             f"(liste fiyatı {self.liste_fiyat:,.0f} TL)"
-                             .replace(",", "."))
-            else:
-                satir.append(f"Fiyat: {self.satis_fiyat:,.0f} TL".replace(",", "."))
-        satir.append("Stok durumu: " + ("var" if self.stokta else "yok"))
-        if self.icindekiler:
-            satir.append("İçindekiler (birebir): " + self.icindekiler)
-        if self.kullanim:
-            satir.append("Kullanım: " + self.kullanim)
+        satir = [f"Ürün: {self.ad}"]
+        fiyat = self._fiyat_satiri()
+
+        if tip == ICERIK:
+            # Liste modele VERİLMEZ: onu kod, beyan biçiminde kendisi ekler.
+            # Modele verilirse düz yazıya gömüyor ve mevzuat kuralı haklı
+            # olarak blokluyor (ölçüldü: 'epimedium' bileşen tuzağı).
+            return satir
+        if tip == KULLANIM:
+            if self.kullanim:
+                satir.append("Kullanım: " + self.kullanim)
+            return satir
+        if tip == KARGO:
+            if self.kargo:
+                satir.append("Kargo: " + self.kargo)
+            return satir
+        # FIYAT, SIPARIS ve GENEL: fiyat + stok yeter.
+        if fiyat:
+            satir.append(fiyat)
+        satir.append("Stok: " + ("var" if self.stokta else "yok"))
         return satir
 
 
+def _alan(desen: re.Pattern[str], kaynak: str, sinir: int) -> str:
+    eslesme = desen.search(kaynak)
+    if not eslesme:
+        return ""
+    return " ".join(eslesme.group(1).split())[:sinir]
+
+
 def kart_olustur(kayit: dict[str, Any]) -> UrunKarti:
+    ham = _bosluk_koru(kayit.get("aciklama_duz") or "")
     aciklama = _temizle(kayit.get("aciklama_duz") or "")
-    icindekiler = ""
-    eslesme = _ICINDEKILER.search(aciklama)
-    if eslesme:
-        icindekiler = eslesme.group(1).strip()
-    kullanim = ""
-    eslesme = _KULLANIM.search(aciklama)
-    if eslesme:
-        kullanim = eslesme.group(1).strip()[:400]
+    # Ayıklama boşluk yapısı KORUNMUŞ metin üzerinde yapılır; bölüm sınırı
+    # ardışık boşluktur ve kırpılmış metinde o sınır yoktur.
+    icindekiler = _alan(_ICINDEKILER, ham, 1200)
+    kullanim = _alan(_KULLANIM, ham, 400)
+    kargo = _alan(_KARGO, ham, 200)
     satis = kayit.get("wix_satis")
     liste = kayit.get("wix_liste")
     return UrunKarti(
@@ -172,6 +212,7 @@ def kart_olustur(kayit: dict[str, Any]) -> UrunKarti:
         aciklama=aciklama,
         icindekiler=icindekiler,
         kullanim=kullanim,
+        kargo=kargo,
     )
 
 
@@ -197,40 +238,34 @@ def urun_bul(kayitlar: Iterable[dict[str, Any]], ad: str) -> UrunKarti | None:
 # Kodda duran tek şey BAŞLANGIÇ sürümü. Öğrenme döngüsü bunun üzerine yeni
 # sürüm önerir; onaylanan sürüm veriden gelir ve buradaki metni ezer.
 VARSAYILAN_YAKLASIM = (
-    "Kısa ve sıcak yaz, 2-4 cümle. Müşterinin sorduğu şeyi ÖNCE cevapla, "
-    "sonra tek bir doğal adım öner. Satış baskısı kurma, acele ettirme. "
-    "Madde işareti ve başlık kullanma; sohbet gibi aksın."
+    "Sıcak ve doğal yaz, sohbet gibi. Soruyu cevapla, sonra tek bir adım öner."
 )
 
-# Bu üç kural ÜSLUPTAN ayrı tutuluyor: yaklaşım sürümü değişse de bunlar
-# değişmez. Üçü de ilk canlı denemede (20.09.2026) gerçekten yaşandı.
+# Yaklaşım sürümü değişse de bunlar değişmez. Üçü de ilk canlı denemede
+# (20.09.2026) gerçekten yaşandı ve hiçbirini denetim katmanı yakalayamaz --
+# çünkü üçü de yasak iddia değil, ÜSLUP sorunu.
 DEGISMEZ_USLUP = (
-    "Her zaman SİZ diye hitap et; sen/siz karıştırma. "
-    "Soruyu tekrar etme, doğrudan cevaba gir. "
-    "Müşterinin vücudu, şikâyeti veya durumu hakkında varsayım yapma; "
-    "'şunu yaşıyorsanız' gibi teşhis ima eden cümle kurma."
+    "SİZ diye hitap et. Soruyu tekrar etme. "
+    "Müşterinin durumu hakkında varsayım yapma."
 )
 
-SISTEM_YONERGESI = """Sen L'CARLIÉ'nin müşteri mesajlarını yanıtlayan asistanısın.
-
-KESİN KURALLAR
-1. Fiyat, stok, içindekiler ve kullanım bilgisini YALNIZCA sana verilen
-   "DOĞRULANMIŞ OLGULAR" listesinden al. Listede olmayan bir sayı, oran,
-   süre veya bileşen YAZMA. Bilmiyorsan bilmediğini söyle.
-2. Sağlık iddiası kurma. Hastalık iyileştirme, tedavi, organ/kan/dolaşım
-   etkisi, "kesin sonuç", "kaç günde geçer" gibi ifadeler YASAK.
-3. Süre veya sonuç taahhüdü verme.
-4. Doğal ve insan gibi yaz; robot cümlesi kurma, aynı kalıbı tekrarlama.
-5. Emoji kullanma. Madde imi kullanma.
-6. Türkçe yaz.
-
-ÜSLUP
+# 🔴 İSTEM NEDEN BU KADAR KISA
+# Sahip talebi (20.09.2026): *"ona basit prompt söyle… her mesaj için tüm
+# konuyu anlatma"*. Kısaltmak güvenliği ZAYIFLATMIYOR, çünkü güvenlik zaten
+# istemde değil KODDA duruyor: olgu kapısı, sayı kapısı, kesik-cevap kapısı
+# ve `compliance.review`. Uzun bir kural listesi modelin uymasına güvenmek
+# demekti; ölçtük, 4B model uymadı. Kod uyuyor.
+#
+# Kalan üç satırın her biri denetimle yakalanamayan bir ÜSLUP sorununu
+# kapatıyor (iddia değil, ton): siz dili, soruyu tekrar etmemek, müşterinin
+# durumu hakkında varsayım yapmamak.
+SISTEM_YONERGESI = """L'CARLIÉ müşteri mesajını yanıtla. Türkçe, 2-3 cümle.
+Yalnızca aşağıdaki bilgiyi kullan; burada olmayan hiçbir şey yazma.
 {yaklasim}
 
-DOĞRULANMIŞ OLGULAR
 {olgular}
 
-Müşterinin sorusu: {soru}
+Müşteri: {soru}
 """
 
 # Meta, otomatik yanıt deneyimlerinin kullanıcıya bildirilmesini şart koşuyor.
@@ -294,6 +329,8 @@ def eksik_olgu(tip: str, urun: UrunKarti) -> str | None:
 
 
 _SAYI = re.compile(r"\d[\d.,]*")
+_YER_TUTUCU = re.compile(r"\[[^\]]{3,}\]|\{\{|buraya\s+\w+\s+(eklen|yaz)",
+                         re.IGNORECASE)
 
 
 def uydurma_sayi(metin: str, olgular: list[str]) -> list[str]:
@@ -363,22 +400,46 @@ def cevap_uret(mesaj: str, urun: UrunKarti | None, layer: Any,
                  "Yanlış bilgi vermemek için ilgili arkadaşıma aktarıyorum, "
                  "en kısa sürede size dönüş yapılacak.")
         return Cevap(metin=_ifsala(metin, ilk_cevap), soru_tipi=tip, urun=urun.ad,
-                     yaklasim=yaklasim, olgular=urun.olgular(),
+                     yaklasim=yaklasim, olgular=urun.olgular(tip),
                      mevzuat="OLGU_EKSIK", gonderilebilir=False,
                      gerekce=f"kartta '{eksik}' bos -> insana aktarilir")
 
-    olgular = urun.olgular()
+    olgular = urun.olgular(tip)
+    # İÇERİK sorusunda modelden yalnız BİR çerçeve cümlesi istenir; bileşen
+    # listesini kod, resmî beyan biçiminde ("İçindekiler: …") birebir ekler.
+    #
+    # NEDEN: Ölçüldü (20.09.2026) -- model listeyi düz yazıya gömünce
+    # `compliance` "VIREON/FEMISIA bileşen tuzağı" kuralıyla BLOKLADI ve
+    # doğru yaptı; aynı liste "İçindekiler:" başlığıyla temiz geçiyor
+    # (`_is_ingredient_declaration`). Ayrıca bileşen beyanı zaten birebir
+    # olmak zorunda -- modelin yeniden yazmasına hiçbir sebep yok.
+    ek_beyan = ""
+    liste_kirpildi = False
+    if tip == ICERIK:
+        ek_beyan = "İçindekiler: " + urun.icindekiler
+        # 🔴 "liste ayrıca eklenecek" DEME: ölçüldü, model o cümleyi duyunca
+        # yer tutucu bırakıyor -> "* [Buraya bileşen listesi eklenecektir]".
+        # Listeden hiç söz ettirme; girişin kendi başına tam olması gerekir.
+        yaklasim = (yaklasim + " Sadece tek cümlelik kısa bir giriş yaz. "
+                    "Bileşen sayma, liste yazma, 'şunlardır' gibi listeye "
+                    "giriş yapan ifade kullanma.")
+
     istem = SISTEM_YONERGESI.format(
         yaklasim=yaklasim.strip() + " " + DEGISMEZ_USLUP,
         olgular="\n".join("- " + o for o in olgular),
         soru=mesaj.strip(),
     )
     try:
+        # escalate=True -> zincir DIŞ sağlayıcıyla başlar (ölçülmüş sıra:
+        # gemini 1,0 s). Müşteriye giden metin için bilinçli tercih: yerel
+        # 4B model ölçümde sen/siz karıştırdı ve soruyu tekrar etti; kusur
+        # müşteriye görünür. Dış sağlayıcı düşerse zincir yerele iner.
+        #
         # generate() -> (saglayici_cikti, katman, deneme_sayisi)
         sonuc, katman, _ = layer.generate(
             [{"role": "user", "content": istem}],
             max_tokens=max_tokens,
-            escalate=False,
+            escalate=True,
         )
     except Exception as exc:  # noqa: BLE001
         return Cevap(metin="", soru_tipi=tip, urun=urun.ad, yaklasim=yaklasim,
@@ -399,9 +460,40 @@ def cevap_uret(mesaj: str, urun: UrunKarti | None, layer: Any,
                      olgular=olgular, mevzuat="URETILEMEDI", gonderilebilir=False,
                      gerekce="model bos cevap dondu")
 
+    # 🔴 LİSTE KAPISI — İÇERİK sorusunun en tehlikeli hatası
+    # Ölçüldü (20.09.2026): "bileşen sayma" DENMESİNE RAĞMEN Gemini VIREON
+    # için tamamen alakasız, genel bir kozmetik INCI listesi uydurdu
+    # (Niacinamide, Panthenol, Ceteareth-25, Carbomer…). O sefer sayı kapısı
+    # yakaladı, ama yalnızca "Ceteareth-25" içindeki 25 sayesinde --
+    # yani ŞANS ESERİ. Sayısız bir uydurma liste sızabilirdi.
+    #
+    # Bu yüzden içerik sorusunda modelin metni bir LİSTE İÇEREMEZ: beyanı
+    # kod ekliyor, modelin işi tek cümlelik giriş. İki virgülden fazlası
+    # liste demektir.
+    # Reddetmek yerine KIRPILIR: yoksa her içerik sorusu cevapsız kalırdı.
+    # Modelin ilk cümlesi doğal bir giriştir; listesi varsa o cümlede değil,
+    # sonrasındadır. İlk cümle de liste taşıyorsa nötr bir girişe düşülür --
+    # burada şablona düşmek güvenli, çünkü cevabın ÖZÜ (beyan) zaten birebir.
+    if tip == ICERIK:
+        metin = _ilk_cumle(metin)
+        if metin.count(",") > 2 or not metin:
+            metin = f"{urun.ad} ürünümüzün içeriğini paylaşıyorum."
+            liste_kirpildi = True
+
+    # Yer tutucu kapısı: model "[buraya … eklenecek]" gibi bir boşluk
+    # bırakırsa müşteriye yarım mesaj gider. Ölçüldü ve yaşandı.
+    if _YER_TUTUCU.search(metin):
+        return Cevap(metin=metin, soru_tipi=tip, urun=urun.ad, yaklasim=yaklasim,
+                     olgular=olgular, mevzuat="YER_TUTUCU", gonderilebilir=False,
+                     model=(sonuc or {}).get("model"), model_calls=1,
+                     gerekce="model cevapta yer tutucu birakti")
+
+    if ek_beyan:
+        metin = f"{metin}\n\n{ek_beyan}"
+
     # Olgularda geçmeyen sayı = uydurma fiyat/oran/süre. Mevzuat taraması
     # bunu yakalamaz (o yasak iddia arar), bu yüzden ayrı kapı.
-    kacak = uydurma_sayi(metin, olgular)
+    kacak = uydurma_sayi(metin, olgular + ([ek_beyan] if ek_beyan else []))
     if kacak:
         return Cevap(metin=metin, soru_tipi=tip, urun=urun.ad, yaklasim=yaklasim,
                      olgular=olgular, mevzuat="UYDURMA_SAYI",
@@ -419,8 +511,17 @@ def cevap_uret(mesaj: str, urun: UrunKarti | None, layer: Any,
         gonderilebilir=inceleme.clean,
         model=(sonuc or {}).get("model"),
         model_calls=1,
-        gerekce=f"uretildi ({katman})",
+        gerekce=f"uretildi ({katman})"
+                + (" | model liste yazdi, girise dusuldu" if liste_kirpildi else ""),
     )
+
+
+_CUMLE_SONU = re.compile(r"(?<=[.!?])\s")
+
+
+def _ilk_cumle(metin: str) -> str:
+    parcalar = _CUMLE_SONU.split(metin.strip(), 1)
+    return parcalar[0].strip() if parcalar else ""
 
 
 def _ifsala(metin: str, ilk_cevap: bool) -> str:

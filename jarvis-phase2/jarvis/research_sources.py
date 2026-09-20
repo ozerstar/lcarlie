@@ -755,18 +755,23 @@ def _gemini_search(query: str, limit: int, resolver: Any) -> list[str]:
     if not candidates:
         return []
     chunks = ((candidates[0].get("groundingMetadata") or {}).get("groundingChunks") or [])
+    uriler = [u for u in (str(((c.get("web") or {}).get("uri") or "")).strip()
+                          for c in chunks) if u][:limit]
+    if not uriler:
+        return []
+    # 🔴 YONLENDIRMELER PARALEL COZULUR.
+    # Sirali hali olculdu: 8 URL icin arama adimi 15-21 saniye suruyordu ve
+    # arastirmanin 45 sn'lik butcesini yiyip TIMEOUT'a dusuruyordu -- yani
+    # arama calisiyor ama cevap yetismiyordu. Her yonlendirme bagimsiz bir
+    # HTTP gidis-donusu; beklemeyi seri yapmanin hicbir sebebi yok.
+    with ThreadPoolExecutor(max_workers=min(8, len(uriler))) as havuz:
+        cozulmus = list(havuz.map(_resolve_redirect, uriler))
     urls: list[str] = []
     seen: set[str] = set()
-    for chunk in chunks:
-        uri = str(((chunk.get("web") or {}).get("uri") or "")).strip()
-        if not uri:
-            continue
-        real = _resolve_redirect(uri)
+    for real in cozulmus:
         if real and real not in seen:
             seen.add(real)
             urls.append(real)
-        if len(urls) >= limit:
-            break
     return urls
 
 
