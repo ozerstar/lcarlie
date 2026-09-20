@@ -796,6 +796,56 @@ def _analysis(message: str, memory: Any, started: float) -> dict[str, Any]:
 
 
 # --- research ------------------------------------------------------------
+# Derinlik istegi kokleri. Cekimli bicimleri yakalamak icin KOK oneki:
+# "derinlemesine", "kapsamlica", "detaylica" hepsi tutar.
+_DEPTH_ROOTS = ("derin", "kapsaml", "detayl", "her aci", "her yon",
+                "ekip olarak", "uzmanlar", "coklu")
+
+
+def _wants_depth(message: str) -> bool:
+    return any(kok in _ascii_fold(message) for kok in _DEPTH_ROOTS)
+
+
+def _research_team(message: str, controller: Any, started: float) -> dict[str, Any]:
+    """Birden çok açıdan araştırma. Ölçüldü: üç açı ~70 saniye.
+
+    Her aci ayri bir aramadir ve kendi sorgusunu kurar; olculdu, aci
+    degistirince GERCEKTEN farkli kaynaklar geliyor (rakip acisi duz
+    sorguda hic cikmayan lansman haberlerini buldu).
+    """
+    from jarvis import research_team as team
+
+    out = team.investigate(message, controller)
+    kaynaklar = out.get("sources") or []
+    evidence = [{"ref": s.get("url") or "", "summary": str(s.get("title") or "")[:200]}
+                for s in kaynaklar[:10]]
+
+    if not kaynaklar:
+        # Hangi acinin neden bos dondugu ayri ayri yazilir: zaman asimi ile
+        # "sonuc yok" ayni sey degildir.
+        detay = "; ".join(f"{a['name']}: {a['status']}" for a in out.get("angles") or [])
+        return _response(message, RESEARCH_REQUEST, "LOW_CONFIDENCE",
+            f"Ekip {len(out.get('angles') or [])} açıdan aradı, kaynak "
+            f"bulunamadı. Açı durumları -- {detay}",
+            missing_data=("verified_research_source",), started=started,
+            research_team=out)
+
+    satirlar = [team.summarize(out), ""]
+    for s in kaynaklar[:8]:
+        bulan = ", ".join(s.get("found_by") or [])
+        tarih = str(s.get("observed_at") or "")[:10]
+        satirlar.append(
+            f"- [{s.get('source_type')}] {s.get('title') or s.get('url')}"
+            + (f" ({tarih})" if tarih else "")
+            + f"\n  {s.get('url')}\n  bulan: {bulan}")
+
+    return _response(message, RESEARCH_REQUEST, "ANSWERED",
+        "\n".join(satirlar),
+        evidence_refs=tuple(e["ref"] for e in evidence),
+        started=started, details=_details_payload(evidence),
+        research_team=out, model_calls=0)
+
+
 def _research(message: str, started: float) -> dict[str, Any]:
     """Research Controller as it stands, then synthesis over what it returned.
 
@@ -814,7 +864,12 @@ def _research(message: str, started: float) -> dict[str, Any]:
         searxng = os.environ.get("RESEARCH_SEARXNG_URL", "http://127.0.0.1:8888")
         factory = default_factory()
         factory.register(WebSearchCrawlAdapter(searxng_url=searxng))
-        report = ResearchController(factory).run(message)
+        controller = ResearchController(factory)
+        # Kullanici DERINLIK istediyse ekip calisir: uc ayri arama, ~70
+        # saniye. Her istekte calistirmak sohbeti kullanilamaz yapardi.
+        if _wants_depth(message):
+            return _research_team(message, controller, started)
+        report = controller.run(message)
     except Exception as exc:  # noqa: BLE001
         return _response(message, RESEARCH_REQUEST, "DATA_UNAVAILABLE",
             "Araştırma isteği tanındı ancak araştırma capability'si şu anda çalışmıyor.",
