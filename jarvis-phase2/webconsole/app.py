@@ -527,9 +527,40 @@ def _panel_veri() -> dict:
     return {"domains": domains, "provenance": provenance, "quality": quality}
 
 
+def _role_reality() -> dict:
+    """Rollerin gerçekte ne olduğu ve son koşuda ne ürettikleri.
+
+    Panelin 28 satiri, 28 farkli yetenek DEGILDIR. Bunu yazmamak, sistemi
+    oldugundan buyuk gostermek olur.
+    """
+    out: dict = {
+        "note": ("8 ajans rolü kod tarafında yalnız etikettir; aralarında "
+                 "davranış farkı yoktur. 20 uzmanın hepsi tek sınıftır "
+                 "(DeterministicSpecialist) ve yalnız hangi veriyi "
+                 "istedikleriyle ayrışır. Aşağıdaki tablo son ajans "
+                 "koşusunda her rolün gerçekten ne ürettiğini gösterir."),
+        "last_run": None, "contributions": [],
+    }
+    try:
+        from jarvis import agency_store
+        son = agency_store.recent(1)
+        if not son:
+            return out
+        kayit = agency_store.get(son[0]["id"]) or {}
+        teslimat = kayit.get("deliverable") or {}
+        out["last_run"] = {"task": teslimat.get("task"),
+                           "product": teslimat.get("product"),
+                           "objective": teslimat.get("objective")}
+        out["contributions"] = teslimat.get("role_contributions") or []
+    except Exception as exc:  # noqa: BLE001 - panel hicbir zaman cokmez
+        out["error"] = str(exc)[:200]
+    return out
+
+
 def _panel_ajanlar() -> dict:
     """Roller, saglayicilar ve motor adaylari -- hangisi gercekten kullanilabilir."""
     roles, providers, engines = [], [], []
+    reality = _role_reality()
     try:
         from jarvis import agency
         for role in agency.ROLES:
@@ -559,7 +590,7 @@ def _panel_ajanlar() -> dict:
                             "evidence": candidate.evidence})
     except Exception as exc:  # noqa: BLE001
         engines = [_panel_error(exc)]
-    return {"roles": roles, "providers": providers, "engines": engines}
+    return {"role_reality": reality, "roles": roles, "providers": providers, "engines": engines}
 
 
 def _panel_raporlar() -> dict:

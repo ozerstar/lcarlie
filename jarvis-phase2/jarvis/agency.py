@@ -43,6 +43,53 @@ TASK_ROLES = {
     TASK_SOCIAL: (SOCIAL_CONTENT, COPYWRITER, CREATIVE_DIRECTOR),
     TASK_CRO: (CRO_SPECIALIST, GROWTH_STRATEGIST, CREATIVE_DIRECTOR),
 }
+# Her rolun ciktidaki sorumlulugu. Rollere yeni davranis EKLENMEDI; zaten
+# her biri ciktinin bir parcasina karsilik geliyordu, eksik olan baglantiydi.
+# Bir rol hicbir sey uretmediyse rapor bunu acikca soyler -- "28 rol" diye
+# listelenip hicbirinin ne yaptigi bilinmemesinden iyidir.
+ROLE_OUTPUTS: dict[str, tuple[str, ...]] = {
+    CREATIVE_DIRECTOR: ("creative_concepts",),
+    COPYWRITER: ("creative_concepts",),
+    META_PERFORMANCE: ("performance_baseline",),
+    CREATIVE_INTELLIGENCE: ("test_plan", "experiment_matrix"),
+    COMPETITOR_CREATIVE: ("research_state",),
+    SOCIAL_CONTENT: ("social_plan",),
+    CRO_SPECIALIST: ("cro_recommendations",),
+    GROWTH_STRATEGIST: ("problems", "opportunities"),
+}
+
+# Rolun ciktisi "uretilmis" sayilmasi icin ne gerekir. Bos liste, bos sozluk
+# ve DATA_UNAVAILABLE isareti uretim sayilmaz.
+def _produced(value: object) -> int:
+    if value is None:
+        return 0
+    if isinstance(value, (list, tuple)):
+        return len(value)
+    if isinstance(value, dict):
+        return 1 if any(v not in (None, "", 0, [], {}) for v in value.values()) else 0
+    if isinstance(value, str):
+        return 0 if (not value.strip() or value in ("NOT_REQUIRED", "DATA_UNAVAILABLE")) else 1
+    return 1 if value else 0
+
+
+def role_contributions(roles: tuple[str, ...], result: dict) -> list[dict]:
+    """Her rolün GERÇEKTEN ne ürettiği. Üretmediyse sıfır yazar."""
+    out = []
+    for role in roles:
+        alanlar = ROLE_OUTPUTS.get(role, ())
+        kalemler = {alan: _produced(result.get(alan)) for alan in alanlar}
+        toplam = sum(kalemler.values())
+        out.append({
+            "role": role,
+            "outputs": list(alanlar),
+            "items": kalemler,
+            "produced": toplam,
+            # Bu rol bu koşuda bir şey üretmediyse gizlenmez.
+            "status": "PRODUCED" if toplam else "NO_OUTPUT",
+        })
+    return out
+
+
 TASK_QUERIES = {
     TASK_CAMPAIGN: ("sales_items", "advertising_performance", "ecommerce_price"),
     TASK_PERFORMANCE: ("advertising_performance", "advertising_spend"),
@@ -502,6 +549,10 @@ class AgencyCapability:
             "page_content_state": ("PAGE_CONTENT_DATA_UNAVAILABLE"
                                    if task_type == TASK_CRO else "NOT_APPLICABLE"),
             "data_gaps": list(dict.fromkeys(data_gaps)), "roles_used": list(roles),
+            # Rol listesi tek basina "28 rol calisti" izlenimi veriyordu.
+            # Katki tablosu her rolun ne urettigini sayar; uretmeyen rol
+            # NO_OUTPUT olarak gorunur.
+            "role_contributions": [],
             "campaign_objective": ("Qualified landing-page visits and evidence-aware creative learning"
                                    if task_type == TASK_CAMPAIGN else task_type.replace("_", " ").title()),
             "core_angle": ("Cosmetic care routine with clear, non-medical product communication"
@@ -543,6 +594,7 @@ class AgencyCapability:
         }
         result["summary"], result["model"], result["model_calls"] = self._synthesize(result)
         result["metrics"]["model_calls"] = result["model_calls"]
+        result["role_contributions"] = role_contributions(roles, result)
         result["proposal_id"] = "agency-" + hashlib.sha256(
             json.dumps(result, sort_keys=True, ensure_ascii=False, default=str).encode()).hexdigest()[:16]
         return result
