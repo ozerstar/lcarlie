@@ -263,6 +263,14 @@ class ExecutionSurfaceStaysHonest(unittest.TestCase):
         # ilerleme orani degil. Panelin yuzdelerini ayrica
         # test_fiyat_panel_yuzdeleri_backendden_gelir dogruluyor.
         yurutme = APP_JS.split("const fmState")[0]
+        # Host kaynak olcumu (trNum..setBigStat arasi) da ayni gerekceyle
+        # disarida: oradaki yuzde app.py -> _host_metrics'in /proc'tan
+        # OLCTUGU deger, uydurulmus bir ilerleme orani degil. Gevsetme
+        # degil kapsam ayrimi -- o blogu ShowsNoNumberTheBackendNeverMeasured
+        # daha sikisiyla dogruluyor (backend gercekten olcuyor mu, arayuz
+        # yalnizca geleni mi basiyor, olculemeyen N/A kaliyor mu).
+        bas, son = yurutme.index("function trNum"), yurutme.index("function setBigStat")
+        yurutme = yurutme[:bas] + yurutme[son:]
         code = re.sub(r"/\*.*?\*/", "", yurutme, flags=re.S)
         code = re.sub(r"(?m)^\s*//.*$", "", code)
         for pattern in (r"['\"`]\s*%\s*['\"`]", r"\+\s*['\"]%['\"]", r"toFixed\(",
