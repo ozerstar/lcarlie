@@ -557,6 +557,15 @@ def _role_reality() -> dict:
     return out
 
 
+def _team_opinions() -> list:
+    """Ekip üyeleri ve bu veriye bakınca söyledikleri. Sıfır model çağrısı."""
+    try:
+        from jarvis.roster import opinions
+        return opinions(_memory)
+    except Exception as exc:  # noqa: BLE001 - panel hicbir zaman cokmez
+        return [_panel_error(exc)]
+
+
 def _panel_ajanlar() -> dict:
     """Roller, saglayicilar ve motor adaylari -- hangisi gercekten kullanilabilir."""
     roles, providers, engines = [], [], []
@@ -590,7 +599,7 @@ def _panel_ajanlar() -> dict:
                             "evidence": candidate.evidence})
     except Exception as exc:  # noqa: BLE001
         engines = [_panel_error(exc)]
-    return {"role_reality": reality, "roles": roles, "providers": providers, "engines": engines}
+    return {"team": _team_opinions(), "role_reality": reality, "roles": roles, "providers": providers, "engines": engines}
 
 
 def _panel_raporlar() -> dict:
