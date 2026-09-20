@@ -49,7 +49,32 @@ def _normalize(text: str) -> str:
 
 
 def _has(text: str, terms: tuple[str, ...]) -> bool:
-    return any(_normalize(term) in text for term in terms)
+    """Kalip metinde geciyor mu. Bosluklu yazilan kalip KELIME SINIRI ister.
+
+    OLCULDU (20.09.2026): selamlasma tablosundaki "hi " kalibi Ingilizce
+    is sorularini sohbet sayiyordu. Sebep _normalize'in son satiri --
+    " ".join(text.split()) bastaki ve sondaki boslugu SILIYOR, yani "hi "
+    kalibi "hi" oluyor ve w-hi-ch, t-hi-s icinde esleiyor. Kalibi yazan
+    kisi tam bunu onlemek icin boslugu koymustu; kod onu siliyordu.
+
+    Sonuc: "What are our sales this month?" SIMPLE_CONVERSATION'a dustu,
+    kanit toplanmadi ve sirket rakamlari kanitsiz uretildi.
+
+    Kalibi silmek yerine niyeti calistiriliyor: terimde bosluk varsa
+    eslesme kelime sinirinda aranir. Boslugsuz kaliplarin davranisi
+    DEGISMEDI -- tablodaki yuzlerce kalip aynen calismaya devam eder.
+    """
+    dolgulu = f" {text} "
+    for term in terms:
+        cekirdek = _normalize(term)
+        if not cekirdek:
+            continue
+        if term != term.strip():          # yazar sinir istemis
+            if f" {cekirdek} " in dolgulu:
+                return True
+        elif cekirdek in text:
+            return True
+    return False
 
 
 _ANALYTICAL_OBJECTS = (
@@ -376,6 +401,37 @@ _DOMAIN_ROOTS = {
     "brief": ("brief", "brifing", "ozet", "gunluk rapor", "sabah",
               "yonetici", "durum raporu"),
 }
+
+# --- INGILIZCE KOKLER -------------------------------------------------
+# NEDEN VAR
+# Sirket sorusu Ingilizce sorulunca tablo onu tanimiyordu ve soru
+# COMPANY_QUERY yerine GENERAL_REASONING'e dusuyordu: kanit hic
+# toplanmiyor, cevabi model kendi uretiyor. OLCULDU -- "What are our
+# sales this month?" evidence_refs [] ile cevaplandi; dogru rakam
+# vermesi kanittan degil, o rakamin sohbet gecmisinde bulunmasindandi.
+# Gecmiste olmasaydi uydururdu.
+#
+# Operator Turkce yaziyor; Ingilizce cumleler cogunlukla SES TANIMANIN
+# yanlis cozmesiyle geliyor. Yine de veriye dayanan bir soru, hangi
+# dilde gelirse gelsin veriye gitmeli.
+#
+# YANLIS POZITIF KONTROLU
+# Esleme kok ONEKI ile yapiliyor ve kelime en az _MIN_ROOT_WORD (4) harf
+# olmali. Bu yuzden kisa ve Turkce kelimelerin icine gizlenebilecek
+# kokler BILEREK DISARIDA: "ad" (Turkce "adet"/"adres" ile carpisir),
+# "sale" degil "sales" degil -- "sale" Turkce bir kelimeyi kesmiyor ama
+# listeyi dar tutmak icin yalniz olculen sorularda gecen kokler alindi.
+_INGILIZCE_KOKLER = {
+    "sales": ("sale", "revenu", "order", "income", "earning"),
+    "advertising": ("advertis", "campaign", "spend", "spent", "budget",
+                    "impression", "click"),
+    "ecommerce": ("product", "price", "pricing", "stock", "discount",
+                  "catalog", "margin", "cart"),
+    "crm": ("customer", "message", "unanswered", "subscriber"),
+    "operations": ("shipping", "shipment", "delivery", "refund"),
+}
+for _alan, _kokler in _INGILIZCE_KOKLER.items():
+    _DOMAIN_ROOTS[_alan] = _DOMAIN_ROOTS[_alan] + _kokler
 
 # Bilinen lemmalar. "sattik" -> satmak, "harcadik" -> harcamak (olculdu).
 _DOMAIN_LEMMAS = {
