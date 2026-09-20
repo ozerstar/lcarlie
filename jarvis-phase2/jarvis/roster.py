@@ -86,10 +86,18 @@ ROSTER: tuple[Member, ...] = (
     Member("ai_prompt_engineering", "Yapay Zekâ Altyapısı",
            "Model ve yetenek durumunu okur.",
            ("capability_state",)),
+    # 🔴 20.09.2026: bu iki uye YAPISAL OLARAK SESSIZDI. Ikisi de 'financial'
+    # adli bir sorgu okuyordu ve o sorgu izin listesinde HIC YOKTU; ustelik
+    # ai_reader'in mart.ekonomi_gunluk ve mart.nakit_gunluk uzerinde hicbir
+    # yetkisi de yoktu. Kadroda gorunup veriden tek cumle kuramiyorlardi.
+    # Sorgular eklendi, yetki verildi, ikisine ayri okuma yazildi -- cunku
+    # isleri ayri: biri birim ekonomiye, digeri kaydin tutarliligina bakar.
     Member("finance", "Finans Uzmanı",
-           "Mali tabloları okur.", ("financial",)),
+           "Günlük birim ekonomiyi okur: net ciro, katkı ve reklam sonrası kâr.",
+           ("financial",)),
     Member("accounting_control", "Muhasebe Kontrol",
-           "Mali kayıt tutarlılığına bakar.", ("financial",)),
+           "Kaydın tutarlılığına bakar: tahsil edilmemiş tutar, maliyet kalitesi, hesap kapsaması.",
+           ("financial_cash",)),
     # --- dis arastirma gerektirenler
     Member("market_intelligence", "Pazar İstihbaratı",
            "Pazarın dışarıdaki halini araştırır; şirket verisinden konuşamaz.",
@@ -341,7 +349,59 @@ def _say_capability(rows: dict[str, list]) -> str:
 # Hangi uye hangi cumleyi kurar. Ayni veriyi okuyan iki uye ayni cumleyi
 # kurar -- bu bir kusur degil, gercegin kendisi: ikisi de ayni gorunume
 # bakiyor. Panel bunu gizlemez.
+def _say_finance(rows: dict[str, list]) -> str:
+    """Finans: gunluk birim ekonomi. Sifir model cagrisi, hepsi sayimdir."""
+    gunler = rows.get("financial", [])
+    if not gunler:
+        return "Ekonomi görünümü boş; birim ekonomi hesaplanamıyor."
+    son = gunler[0]
+    harcama = sum(_num(g, "reklam_harcamasi") for g in gunler)
+    ciro = sum(_num(g, "net_ciro") for g in gunler)
+    katki = sum(_num(g, "reklam_sonrasi_katki") for g in gunler)
+    # 🔴 "Siparis yok" ile "olculemedi" AYRI SEYLER. ekonomi_durumu alani
+    #    bunu zaten ayiriyor; kendi yorumumu ustune koymuyorum.
+    harcamali_siparissiz = sum(1 for g in gunler
+                               if str(g.get("ekonomi_durumu") or "") == "HARCAMA_VAR_SIPARIS_YOK")
+    metin = (f"Son {len(gunler)} günde net ciro {ciro:,.0f} TL, reklam harcaması "
+             f"{harcama:,.0f} TL, reklam sonrası katkı {katki:,.0f} TL.")
+    if harcamali_siparissiz:
+        metin += (f" {harcamali_siparissiz} günde harcama var ama sipariş yok "
+                  f"(ekonomi_durumu=HARCAMA_VAR_SIPARIS_YOK).")
+    tamlik = _num(son, "ekonomi_tamlik_yuzde")
+    if tamlik and tamlik < 100:
+        metin += (f" En son günün ekonomi tamlığı %{tamlik:,.0f}; eksik bileşen "
+                  f"varken katkı olduğundan iyi görünür.")
+    return metin
+
+
+def _say_accounting(rows: dict[str, list]) -> str:
+    """Muhasebe Kontrol: kaydin tutarliligi -- rakamin kendisi degil, guvenilirligi."""
+    gunler = rows.get("financial_cash", [])
+    if not gunler:
+        return "Nakit görünümü boş; kayıt tutarlılığı denetlenemiyor."
+    tahsil_edilmemis = sum(_num(g, "tahsil_edilmemis") for g in gunler)
+    brut = sum(_num(g, "brut_ciro") for g in gunler)
+    olculmus = [_num(g, "cogs_olculmus_yuzde") for g in gunler
+                if _num(g, "cogs_olculmus_yuzde")]
+    metin = (f"Son {len(gunler)} günde brüt ciro {brut:,.0f} TL; "
+             f"tahsil edilmemiş {tahsil_edilmemis:,.0f} TL.")
+    if olculmus:
+        metin += f" Maliyetin ölçülmüş kısmı ortalama %{sum(olculmus)/len(olculmus):,.0f}."
+    else:
+        metin += " Maliyetin ölçülmüş kısmı yok; marj tahminî maliyetle hesaplanıyor."
+    # Meta hesap kapsamasi: eksikse reklam harcamasi OLDUGUNDAN DUSUK gorunur,
+    # yani kar OLDUGUNDAN YUKSEK. Bu sessiz gecilemez.
+    kapsama = [str(g.get("meta_hesap_kapsamasi") or "") for g in gunler]
+    eksik_kapsama = [k for k in kapsama if k and k != "TAM" and "1/1" not in k]
+    if eksik_kapsama:
+        metin += (f" Reklam hesabı kapsaması eksik ({eksik_kapsama[0]}): "
+                  f"harcama olduğundan düşük, dolayısıyla kâr olduğundan yüksek görünür.")
+    return metin
+
+
 SPEAKERS: dict[str, Callable[[dict[str, list]], str]] = {
+    "finance": _say_finance,
+    "accounting_control": _say_accounting,
     "ecommerce_sales": _say_sales,
     "field_b2b_sales": _say_b2b,
     "meta_performance": _say_ads,

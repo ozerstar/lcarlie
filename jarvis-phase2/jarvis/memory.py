@@ -140,6 +140,35 @@ class CompanyMemory:
             "wix_satis,wix_yayinda,musteriye_soylenecek_fiyat,durum,aciklama,fiyat_kaynagi "
             "FROM mart.fiyat_gercegi ORDER BY urun_id LIMIT 40) x;"
         ),
+        # --- finans (20.09.2026) -------------------------------------------
+        # 🔴 NEDEN SONRADAN EKLENDI: roster'daki "Finans Uzmani" ve "Muhasebe
+        # Kontrol" uyeleri 'financial' adli bir sorgu okuyordu ve o sorgu bu
+        # sozlukte HIC YOKTU. Ikisi de yapisal olarak sessizdi: kadroda
+        # gorunuyor, veriden tek cumle kuramiyorlardi. Veri hep vardi
+        # (mart.ekonomi_gunluk 60 satir, mart.nakit_gunluk 75 satir); eksik
+        # olan sey baglantiydi. ai_reader'a SELECT yetkisi de ayni gun verildi
+        # -- oncesinde iki gorunumde de hicbir yetkisi yoktu.
+        #
+        # Ikisi AYRI sorgu cunku iki uyenin isi ayri: biri birim ekonomiye
+        # (katki, reklam sonrasi kar) bakar, digeri kaydin TUTARLILIGINA
+        # (tahsil edilmemis, cogs kalitesi, hesap kapsamasi) bakar.
+        "financial": (
+            "SELECT row_to_json(x) FROM (SELECT gun AS entity_id,"
+            "'mart.ekonomi_gunluk' AS source,gun::text AS source_record_id,"
+            "gun AS observed_at,siparis,gerceklesmis_siparis,net_ciro,"
+            "dogrulanmis_katki,katki_ust_siniri,reklam_harcamasi,"
+            "reklam_sonrasi_katki,ekonomi_tamlik_yuzde,ekonomi_durumu "
+            "FROM mart.ekonomi_gunluk ORDER BY gun DESC LIMIT 30) x;"
+        ),
+        "financial_cash": (
+            "SELECT row_to_json(x) FROM (SELECT gun AS entity_id,"
+            "'mart.nakit_gunluk' AS source,gun::text AS source_record_id,"
+            "gun AS observed_at,siparis,brut_ciro,net_ciro,"
+            "tahsil_beyan_edilen,tahsil_edilmemis,bilinen_cogs,cogs_kalite,"
+            "cogs_olculmus_yuzde,meta_hesap_kapsamasi,ciro_harcama_orani,"
+            "nakit_durum FROM mart.nakit_gunluk ORDER BY gun DESC LIMIT 30) x;"
+        ),
+
         "gunluk_brief": (
             "SELECT row_to_json(x) FROM (SELECT b.brief_key AS entity_id,"
             "'mart.gunluk_brief' AS source,b.brief_key AS source_record_id,"
