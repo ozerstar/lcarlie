@@ -25,6 +25,9 @@ KNOWN_ROUTES = {
     "/api/session", "/api/login", "/api/logout", "/api/status",
     "/api/activity", "/api/proposals", "/api/chat", "/api/chat/stream",
     "/api/plan", "/api/panel",
+    # Yurutme: /api/plan planlar, /api/run planlar VE calistirir (yalniz
+    # okuma analizi; eylem ureten adim PROPOSED zarfi olur). app.py sunuyor.
+    "/api/run",
     # Platform fiyat yonetimi -- ikisi de app.py'de sunuluyor.
     "/api/fiyat-matrisi", "/api/fiyat-toplu-onizleme",
     # E-ticaret urun alanlari -- app.py sunuyor.
@@ -75,10 +78,46 @@ class FrontendCallsOnlyRealEndpoints(unittest.TestCase):
             self.assertIn(f'"{route}"', SERVER, f"{route} is not routed in app.py")
 
     def test_plan_endpoint_is_display_only(self):
-        # The plan view must never grow an "execute" affordance: execution is
-        # gated behind the human-approval path, not a button in the browser.
+        # /api/plan PLANLAR, calistirmaz -- bu hala boyle. Calistirma ayri
+        # bir uca (/api/run) tasindi; ikisinin karismamasi onemli, cunku
+        # plan ucunu cagiran her yer "hicbir sey calismaz" sozu veriyor.
         self.assertIn("openPlan", APP_JS)
-        self.assertNotIn("executePlan", APP_JS)
+        plan_route = SERVER[SERVER.index('if path == "/api/plan":'):]
+        plan_route = plan_route[:plan_route.index('if path == "/api/run":')]
+        self.assertNotIn("ExecutionRuntime", plan_route,
+                         "/api/plan calistirmaya baslamis")
+
+    def test_execution_from_the_browser_keeps_the_action_boundary(self):
+        """20.09.2026: yurutme tarayiciya ACILDI -- sinir acilmadi.
+
+        Onceki kural "tarayicida calistir dugmesi olmasin" idi ve dogruydu:
+        execution_runtime HTTP'de yoktu, bir dugme ancak uydurma olurdu.
+        Artik uc gercek. Ama ONEMLI OLAN sinir hic degismedi ve asil
+        kilitlenmesi gereken oydu: tarayicidan CALISTIRILAN sey yalnizca
+        OKUMA analizidir; eylem uretimi hala insan onayi hattindadir.
+        """
+        run_route = SERVER[SERVER.index('if path == "/api/run":'):]
+        run_route = run_route[:run_route.index("if path.startswith(\"/api/proposals/\")")]
+        # 1. Calistirma, degismemis runtime uzerinden yapilir -- panel kendi
+        #    yurutme mantigini yazmaya baslamamali.
+        self.assertIn("ExecutionRuntime(", run_route)
+        # 2. Originator UYDURULMAZ: giris yapmis operatorun adi verilir,
+        #    boylece her calistirma bir insana kadar izlenebilir.
+        self.assertIn("originator=session.username", run_route)
+        self.assertNotIn('originator="', run_route)
+        # 3. Bu uc eylem onerisi YAZMAZ; o yol operator/loop tarafinda.
+        self.assertNotIn("ai_propose_action", run_route)
+        self.assertNotIn("_operator.decide", run_route)
+
+    def test_runtime_action_boundary_is_still_enforced_upstream(self):
+        # Panelin verdigi soz backend'de gercekten duruyor mu: eylem ureten
+        # adim calistirilmaz, PROPOSED olur; kodlama gorevi insan kaynakli
+        # olmak zorunda. Bu dosya arayuzu test eder, ama bu iki satir
+        # olmadan arayuzun sozu dayanaksiz kalir.
+        runtime = (APP_PY.parent.parent / "jarvis" / "execution_runtime.py").read_text(encoding="utf-8")
+        self.assertIn("STEP_PROPOSED", runtime)
+        self.assertIn("STEP_REQUIRES_HUMAN_ORIGINATION", runtime)
+        self.assertIn("a plan cannot start itself", runtime)
 
 
 class StaysInsideTheContentSecurityPolicy(unittest.TestCase):
@@ -223,9 +262,15 @@ class ExecutionSurfaceStaysHonest(unittest.TestCase):
     """
 
     def test_no_invented_execution_endpoint(self):
-        for invented in ("/api/execute", "/api/run", "/api/runs", "/api/execution"):
+        # Kural degismedi: arayuz app.py'nin SUNMADIGI bir yurutme ucu
+        # cagiramaz. Degisen sey /api/run'in artik gercekten sunuluyor
+        # olmasi -- o yuzden yasak listesinden cikti, KNOWN_ROUTES'a girdi
+        # ve test_known_routes_all_exist_in_the_server onu app.py'de ariyor.
+        for invented in ("/api/execute", "/api/runs", "/api/execution"):
             self.assertNotIn(invented, APP_JS,
                              f"frontend invents {invented}; app.py serves no such route")
+        if "/api/run" in APP_JS:
+            self.assertIn('"/api/run"', SERVER, "/api/run arayuzde var, app.py'de yok")
 
     def test_run_data_is_read_only_from_an_explicit_guard(self):
         # A run is rendered only when the backend actually attaches one in the

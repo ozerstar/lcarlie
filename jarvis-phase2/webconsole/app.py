@@ -45,6 +45,7 @@ from jarvis import capabilities as caps  # noqa: E402
 from jarvis import conversation_memory as _cmem  # noqa: E402
 from jarvis.action_contract import ContractCache, ContractError  # noqa: E402
 from jarvis.execution_planner import plan_request  # noqa: E402
+from jarvis.execution_runtime import ExecutionDenied, ExecutionRuntime  # noqa: E402
 from jarvis.context import ContextCompiler  # noqa: E402
 from jarvis.memory import CompanyMemory, MemoryError as JarvisMemoryError  # noqa: E402
 from jarvis.operator import OperatorSession  # noqa: E402
@@ -581,6 +582,59 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(502, {"error": str(exc)})
                 return
             self._send_json(200, plan.to_dict())
+            return
+        if path == "/api/run":
+            # REQUEST -> PLAN -> ÇALIŞTIR -> KANIT/BULGU/ÖNERİ.
+            #
+            # NEDEN VAR: jarvis/execution_runtime.py 20.09.2026'da yazıldı ve
+            # HTTP'de HİÇ YOKTU. Panelin yürütme yüzeyi (akış rayı, domain
+            # kartları, kanıt tablosu, YÖNETİM ANALİZİ) hazırdı ama besleyen
+            # uç nokta olmadığı için kalıcı olarak "plan yok" yazıyordu:
+            # yetenek vardı, yüzü yoktu.
+            #
+            # 🔴 SINIR DEĞİŞMEDİ, ONU BURADA YAZIYORUM:
+            # Runtime yalnız OKUMA analizi yapar. Eylem üreten adım asla
+            # çalıştırılmaz -- değişmemiş jarvis.firewall'dan geçirilip
+            # `PROPOSED` zarfı olarak KAYDEDİLİR; o zarfı gerçek eyleme
+            # çeviren tek yol hâlâ mevcut insan onayı hattıdır (operatör
+            # kuyruğu + /api/proposals/<id>/decide). Bu uç nokta
+            # core.ai_action_proposal'a yazmaz, model çağırmaz (model_calls
+            # yapı gereği 0), kodlama görevi üretemez, dış araştırma
+            # yapmaz. Hepsi tests/test_execution_runtime.py'de kilitli.
+            #
+            # `originator` UYDURULMAZ: runtime adlandırılmış bir insan
+            # olmadan çalışmayı reddediyor ("a plan cannot start itself").
+            # Buraya giriş yapmış operatörün kullanıcı adı veriliyor, yani
+            # her çalıştırma bunu isteyen insana kadar izlenebilir.
+            body = _read_json_body(self)
+            message = str(body.get("message", ""))[:2000]
+            try:
+                plan = plan_request(message, registry=_live_registry())
+            except JarvisMemoryError as exc:
+                self._send_json(502, {"error": str(exc)})
+                return
+            if not plan.steps:
+                # Planlanamayan istek çalıştırılamaz. Boş bir "run" uydurmak
+                # yerine planın kendi gerekçesi (REJECTED_AMBIGUOUS vb.)
+                # olduğu gibi dönüyor; arayüz onu zaten gösteriyor.
+                self._send_json(200, plan.to_dict())
+                return
+            try:
+                contract = ContractCache(_memory).get()
+            except (ContractError, JarvisMemoryError):
+                contract = None
+            try:
+                record = ExecutionRuntime(_memory, contract=contract).execute(
+                    plan, originator=session.username)
+            except ExecutionDenied as exc:
+                self._send_json(400, {"error": str(exc)})
+                return
+            except JarvisMemoryError as exc:
+                self._send_json(502, {"error": str(exc)})
+                return
+            payload = plan.to_dict()
+            payload["run"] = record.to_dict()
+            self._send_json(200, payload)
             return
         if path.startswith("/api/proposals/") and path.endswith("/decide"):
             action_id = path.split("/")[-2]

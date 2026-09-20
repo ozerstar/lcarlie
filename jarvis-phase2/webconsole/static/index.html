@@ -516,17 +516,23 @@
     <section class="panel p-wide" aria-label="Yürütme planı analizi">
       <div class="panel-head">
         <h2 class="panel-title">ANALİZ · YÜRÜTME PLANI</h2>
-        <span class="panel-count">/api/plan</span>
+        <span class="panel-count">/api/plan · /api/run</span>
       </div>
       <div class="analiz-body">
         <p class="rp-note">
           Bir talebi yaz; Jarvis onu denetlenmiş bir yürütme grafiğine çevirir.
-          Hiçbir adım çalıştırılmaz, model çağrılmaz — yalnızca plan gösterilir.
+          <strong>PLAN ÜRET</strong> yalnızca grafiği gösterir, hiçbir şey çalışmaz.
+          <strong>ÇALIŞTIR</strong> adımları yürütür ve kanıtları, bulguları,
+          önerileri doldurur — ama yalnızca <em>okuma</em> analizi yapar:
+          model çağrılmaz, dış eylem yapılmaz, eylem üreten adım çalıştırılmaz;
+          o adım onay bekleyen bir <strong>ÖNERİ</strong> zarfına dönüşür ve
+          gerçek eyleme ancak mevcut insan onayı hattından geçerek döner.
         </p>
         <form id="analizForm" class="analiz-form">
           <input id="analizInput" type="text" autocomplete="off"
                  placeholder="örn. “VIREON için rakip fiyat analizi çıkar”">
-          <button type="submit" class="gold-btn">PLAN ÜRET</button>
+          <button type="submit" class="ghost-btn">PLAN ÜRET</button>
+          <button type="button" id="analizRunBtn" class="gold-btn">ÇALIŞTIR</button>
         </form>
 
         <!-- Execution flow rail. Stage state comes from the plan today and

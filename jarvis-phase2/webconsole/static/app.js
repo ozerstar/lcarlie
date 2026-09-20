@@ -603,23 +603,31 @@ function renderPlan(plan) {
   `;
 }
 
-async function requestPlan(message) {
+/* İki uç, tek akış:
+ *   /api/plan  yalnız PLANLAR   -> yanıtta `run` yok, yüzey iskelet kalır
+ *   /api/run   PLANLAR + ÇALIŞTIRIR -> yanıta `run` eklenir ve aynı yüzey
+ *              (akış rayı, domain kartları, kanıt tablosu, YÖNETİM ANALİZİ)
+ *              kendiliğinden dolar; tek satır çizim kodu değişmedi.
+ *
+ * ÇALIŞTIR yalnız OKUMA analizi yapar. Eylem üreten adım çalıştırılmaz;
+ * PROPOSED zarfına dönüşür ve gerçek eyleme ancak mevcut insan onayı
+ * hattından geçerek döner. Sınır backend'de (jarvis/execution_runtime.py)
+ * ve testlerinde duruyor, burada değil -- bu dosya onu yalnızca gösterir. */
+async function requestPlan(message, execute) {
   state.planInFlight = true;
   renderExecutionSurface();
   let result;
   try {
-    const { ok, body } = await api('/api/plan', { method: 'POST', body: JSON.stringify({ message }) });
+    const yol = execute ? '/api/run' : '/api/plan';
+    const { ok, body } = await api(yol, { method: 'POST', body: JSON.stringify({ message }) });
     if (!ok || !body) {
       state.lastPlan = null;
       state.lastRun = null;
       result = { error: (body && body.error) || 'bilinmeyen hata' };
     } else {
       state.lastPlan = body;
-      // The runtime is not exposed over HTTP yet. If and when the backend
-      // attaches its own RunRecord.to_dict() to this response under `run`,
-      // every stage, domain card, evidence row and objection below starts
-      // rendering from it with no further frontend change. Until then this
-      // is null and the surface stays a labelled skeleton.
+      // Yalnızca backend gerçekten bir RunRecord iliştirdiyse dolar;
+      // extractRun şeklini denetler, uydurma bir kabuk kabul etmez.
       state.lastRun = extractRun(body);
       result = { plan: body };
     }
@@ -644,17 +652,31 @@ async function openPlan() {
 
 qs('planBtn').addEventListener('click', openPlan);
 
-qs('analizForm').addEventListener('submit', async (event) => {
-  event.preventDefault();
+async function analizCalistir(execute) {
   const message = qs('analizInput').value.trim();
   if (!message) return;
   const target = qs('analizResult');
-  target.innerHTML = '<p class="empty-note">Plan üretiliyor…</p>';
-  const result = await requestPlan(message);
-  target.innerHTML = result.error
-    ? `<p class="empty-note">Plan üretilemedi: ${escapeHtml(result.error)}</p>`
-    : renderPlan(result.plan);
+  const btn = qs('analizRunBtn');
+  target.innerHTML = execute
+    ? '<p class="empty-note">Adımlar çalıştırılıyor…</p>'
+    : '<p class="empty-note">Plan üretiliyor…</p>';
+  if (btn) btn.disabled = true;
+  try {
+    const result = await requestPlan(message, execute);
+    target.innerHTML = result.error
+      ? `<p class="empty-note">${execute ? 'Çalıştırılamadı' : 'Plan üretilemedi'}: ${escapeHtml(result.error)}</p>`
+      : renderPlan(result.plan);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+qs('analizForm').addEventListener('submit', (event) => {
+  event.preventDefault();
+  analizCalistir(false);
 });
+
+qs('analizRunBtn').addEventListener('click', () => { analizCalistir(true); });
 
 qs('modalClose').addEventListener('click', () => { qs('proposalModal').hidden = true; });
 qs('proposalModal').addEventListener('click', (e) => { if (e.target.id === 'proposalModal') qs('proposalModal').hidden = true; });
