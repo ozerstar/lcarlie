@@ -51,8 +51,16 @@ PSQL = ["docker", "exec", "-i", "lcarlie-postgres",
 ACILAR: tuple[tuple[str, str], ...] = (
     ("ekonomi",
      "Turkiye ekonomi enflasyon faiz tuketici harcamasi son gelismeler"),
+    # 🔴 SOMUT YAZ, "haberleri" DEME.
+    # İlk hâli "Turkiye kozmetik kisisel bakim sektoru pazar haberleri" idi
+    # ve iki koşuda da 0 kaynak verdi: 15 sayfa iniyor, 15'i birden alakasız
+    # diye eleniyordu. Sebep, "haberleri/sektörü/pazar" gibi genel
+    # kelimelerin alaka eşleşmesini sulandırması. Somut hâli (pazar
+    # büyüklüğü, büyüme, ihracat) 4 kaynağı SIFIR elemeyle getiriyor.
     ("sektor",
-     "Turkiye kozmetik kisisel bakim sektoru pazar haberleri"),
+     "kozmetik sektoru Turkiye pazar buyuklugu buyume"),
+    ("sektor_ticaret",
+     "Turkiye kozmetik ihracat uretim sektor raporu"),
     ("duzenleme",
      "Turkiye e-ticaret duzenlemesi reklam mevzuati son degisiklikler"),
     ("gundem",
