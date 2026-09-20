@@ -1175,6 +1175,59 @@ def _panel_usage() -> dict:
                 "paid_calls": 0}
 
 
+_ARASTIRMA_LOG = STATE_DIR / "departman_arastirma.jsonl"
+
+
+def _arastirma_bulgulari(tavan: int = 3000) -> dict:
+    """Departman -> o birimin dis arastirma bulgulari.
+
+    🔴 BU FONKSIYONUN VARLIK SEBEBI: bulgular uretiliyordu ama HICBIR YERDE
+    GORUNMUYORDU -- bu projede defalarca yasanan "uretilen ama okunmayan
+    rapor" hatasinin aynisi. Panoya baglanmayan arastirma, yapilmamis
+    arastirmadan farksizdir; ustelik yapildigi sanildigi icin daha kotudur.
+
+    Dosya buyudukce sadece SON tavan satiri okunur; pano yavaslamaz.
+    """
+    out: dict[str, dict] = {}
+    try:
+        with _ARASTIRMA_LOG.open("r", encoding="utf-8") as f:
+            satirlar = f.readlines()[-tavan:]
+    except OSError:
+        return {"_yok": True, "_sebep": "arastirma kaydi henuz yok"}
+    for ham in satirlar:
+        ham = ham.strip()
+        if not ham:
+            continue
+        try:
+            r = json.loads(ham)
+        except ValueError:
+            continue
+        dep = str(r.get("departman") or "")
+        if not dep:
+            continue
+        kova = out.setdefault(dep, {"toplam": 0, "son_zaman": "", "bulgular": [],
+                                    "enjeksiyon": 0})
+        kova["toplam"] += 1
+        z = str(r.get("zaman") or "")
+        if z > kova["son_zaman"]:
+            kova["son_zaman"] = z
+        if r.get("enjeksiyon"):
+            kova["enjeksiyon"] += 1
+        kova["bulgular"].append({
+            "baslik": r.get("baslik") or "(başlıksız)",
+            "yayinci": r.get("yayinci"),
+            "url": r.get("url"),
+            "konu": r.get("konu"),
+            "zaman": z,
+            "ozet": (r.get("ozet") or "")[:240],
+        })
+    # Her departman icin en yeniler ustte, en fazla 5 tanesi panoya.
+    for kova in out.values():
+        kova["bulgular"].sort(key=lambda b: b.get("zaman") or "", reverse=True)
+        kova["bulgular"] = kova["bulgular"][:5]
+    return out
+
+
 def _panel_ekip() -> dict:
     """EKIP PANOSU: departman departman kim var, kim calisiyor, kim calismiyor.
 
@@ -1213,6 +1266,8 @@ def _panel_ekip() -> dict:
         uye_hatasi = ""
     gorus_by_key = {g["key"]: g for g in gorusler}
     uyeler_by_dept = roster.departman_uyeleri()
+    arastirma = _arastirma_bulgulari()
+    arastirma_var = not arastirma.get("_yok")
 
     KONUSTU = "KONUŞTU"
     VERI_YOK = "VERİ YOK"
@@ -1243,7 +1298,12 @@ def _panel_ekip() -> dict:
             renk = "kirmizi"
         else:
             renk = "sari"
+        ar = arastirma.get(kod) or {}
         satirlar.append({
+            "arastirma_toplam": ar.get("toplam", 0),
+            "arastirma_son": ar.get("son_zaman", ""),
+            "arastirma": ar.get("bulgular", []),
+            "arastirma_enjeksiyon": ar.get("enjeksiyon", 0),
             "kod": kod,
             "ad": d.get("ad"),
             "aile": d.get("aile"),
@@ -1273,6 +1333,10 @@ def _panel_ekip() -> dict:
             "konusan_uye": sum(s["konusan"] for s in satirlar),
             "renk": sayim,
         },
+        "arastirma_var": arastirma_var,
+        "arastirma_son_kosu": max(
+            (s["arastirma_son"] for s in satirlar if s["arastirma_son"]), default=""),
+        "arastirma_toplam": sum(s["arastirma_toplam"] for s in satirlar),
         "uyari": uye_hatasi,
         "not": ("Renk, o departmanin uyelerinin SU ANKI okuma sonucudur; "
                 "birim_durumu ise core.departman alanidir. Ikisi ayri seydir."),
@@ -1356,6 +1420,26 @@ def _ekip_sor(kod: str, soru: str) -> dict:
                           "summary": f"{g.get('name')} ({g.get('status')}): "
                                      f"{g.get('statement')}"})
 
+    # 1b) DIS ARASTIRMA BULGULARI -- "kendini gelistirme" burada kapanir.
+    # 🔴 Arastirma yapip bulguyu kullanmamak, arastirma yapmamakla ayni.
+    #    Mudurun okudugu dis kaynak, sirket verisiyle AYNI kanit yiginina
+    #    girer; boylece "bu neden boyle" sorusuna hem ic olcumle hem
+    #    disaridan ogrendigiyle cevap verebilir.
+    # 🔴 IC VERI ILE DIS KAYNAK KARISTIRILMAZ: ref onegi 'arastirma:' oldugu
+    #    icin cevabin kaynagi her zaman ayirt edilebilir. Dis kaynak bir
+    #    IDDIADIR, sirket olcumu degildir.
+    ar_dep = (_arastirma_bulgulari().get(kod) or {}).get("bulgular", [])
+    if ar_dep:
+        satirlar_ar = []
+        for b in ar_dep[:5]:
+            satirlar_ar.append(
+                f"{b.get('baslik')} [{b.get('yayinci')}] {(b.get('ozet') or '')[:160]}")
+        kanit.append({
+            "ref": f"arastirma:{kod}",
+            "summary": ("DIŞ KAYNAK (şirket ölçümü değil, iddia): "
+                        + " | ".join(satirlar_ar))[:1400],
+        })
+
     # 2) Ham sorgular -- sorgu basina tek satir, kolon=deger biciminde.
     def _satir_ozeti(satir: dict, tavan: int = 220) -> str:
         parcalar = []
@@ -1404,6 +1488,9 @@ def _ekip_sor(kod: str, soru: str) -> dict:
         f"Görevin: {misyon or 'bu birimin işi'}. "
         "SADECE sana verilen kanıttan konuş; kanıtta olmayan rakamı, ürünü veya "
         "olguyu ASLA yazma.\n"
+        "Kanıtta 'DIŞ KAYNAK' ile başlayan satırlar şirketin kendi ölçümü "
+        "DEĞİLDİR, dışarıdan okunan iddialardır. Onları kullanırken 'dışarıda "
+        "şöyle deniyor' diye ayır; şirket ölçümüyle aynı kesinlikte sunma.\n"
         "Cevabını TAM OLARAK şu dört başlıkla ver:\n"
         "ÖLÇÜLEN: kanıttaki somut rakamları yaz (kaç, yüzde kaç, hangi kaynak). "
         "Bu bölüm boş geçilemez; kanıtta rakam varsa yazılır.\n"

@@ -46,28 +46,61 @@ ATIF = Path(os.environ.get("JARVIS_STATE_DIR", str(KOK / "state"))) / "departman
 # bagli olmali; genel "kozmetik haberleri" gibi bir konu her birim icin ayni
 # seyi getirir ve ekip tek sesli olur.
 # --------------------------------------------------------------------------
+# =========================================================================
+# KONULAR -- HER BIRI TEK TEK OLCULDU (20.09.2026), TAHMIN EDILMEDI
+#
+# 🔴 OLCULMUS KURAL: KURUM/KANAL ADI + SOMUT BELGE TIPI -> sonuc gelir.
+#                    SOYUT KAVRAM SORUSU -> SIFIR sonuc.
+#   4 bulgu  "TITCK kozmetik urun bildirim duyuru"           (TITCK genelgeleri)
+#   4 bulgu  "Hepsiburada kozmetik kategori komisyon orani"  (2026 komisyon tablosu)
+#   2 bulgu  "dermokozmetik marka Instagram reklam kampanya Turkiye"
+#   0 bulgu  "Meta reklam kreatif frekans yorgunluk esigi kac"
+#   0 bulgu  "kozmetik markada fiyat seffafligi tuketici davranisi"
+#
+# 🔴 URUN/FIYAT DUZEYINDE RAKIP ISTIHBARATI BU HATTAN GELMIYOR. Olculdu:
+#   0 bulgu  "Trendyol erkek mahrem bolge bakim kremi satici fiyat"
+#   0 bulgu  "erkek bakim kremi marka Trendyol fiyat"
+#   0 bulgu  "intim bolge bakim urunu marka Turkiye"
+#   Sebep boru hatti degil KAYNAK: web aramasi pazaryeri liste sayfalarini
+#   getirmiyor. Rakip FIYATI istiyorsak gereken sey baska bir yetenek --
+#   pazaryerini dogrudan okuyan bir cekim. Buraya daha dar konu yazmak
+#   bosuna; dar yazdikca sonuc sifirlaniyor.
+#
+# 🔴 GENIS KONU DA CALISMIYOR, BASKA SEBEPTEN: "kisisel bakim rakip kampanya
+#   indirim Turkiye" 4 sonuc getirdi ama hepsi "Kisisel Bakim Nedir?" tipi
+#   ansiklopedi yazisiydi. Genis soru genel cevap alir.
+# =========================================================================
 KONULAR: dict[str, tuple[str, ...]] = {
     "CREATIVE_STRAT": (
+        # Olculdu: bu iki konu ilk kosuda 6 bulgu getirdi.
         "kozmetik reklam kreatifi hangi format daha iyi calisiyor",
         "instagram reels kozmetik marka reklam ornekleri",
     ),
     "BRAND": (
+        # Olculdu: 5 bulgu.
         "kozmetik marka konumlandirma fiyat iletisimi",
         "dermokozmetik marka mesaji tuketici beklentisi Turkiye",
     ),
     "BIZDEV": (
-        "Trendyol Hepsiburada kozmetik satici komisyon oranlari",
+        # Olculdu: 4 bulgu, iceriginde 2026 komisyon tablosu var.
+        "Hepsiburada kozmetik kategori komisyon orani satici",
         "pazaryeri kozmetik kategori buyume Turkiye",
     ),
     "COMPETITOR_INT": (
+        # Olculdu: 2 bulgu. Urun/fiyat sorgusu yerine REKLAM/KAMPANYA
+        # duzeyi -- bu hattan gelebilen tek rakip sinyali bu.
+        "dermokozmetik marka Instagram reklam kampanya Turkiye",
         "dermokozmetik rakip markalar yeni urun lansmani",
-        "kisisel bakim rakip kampanya indirim Turkiye",
     ),
     "REGULATORY": (
+        # Olculdu: 4 + 4 bulgu. En verimli iki konu; kurum adi tasiyorlar.
+        "TITCK kozmetik urun bildirim duyuru",
         "kozmetik mevzuat yonetmelik degisikligi Turkiye",
-        "kozmetik urun iddia reklam kurallari",
     ),
     "CONTENT": (
+        # 🔴 Ilk kosuda 0 bulgu geldi ve ENGELLENMEDI -- gercekten yeni bir
+        #    sey bulunamadi. Konu yine de birakildi: sifir sonuc da bir
+        #    olcumdur ve konu degistirilirse neyin degistigi izlenebilsin.
         "sosyal medya icerik takvimi kozmetik marka",
         "instagram gonderi sikligi etkilesim arastirma",
     ),

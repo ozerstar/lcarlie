@@ -1585,6 +1585,13 @@ function renderEkip(data) {
       <div class="ek-tile"><span class="ek-n">${oz.departman ?? 0}</span><span class="ek-k">departman</span></div>
       <div class="ek-tile"><span class="ek-n">${oz.kadrosu_olan ?? 0}</span><span class="ek-k">kadrosu var</span></div>
       <div class="ek-tile"><span class="ek-n">${oz.konusan_uye ?? 0}/${oz.uye ?? 0}</span><span class="ek-k">üye konuşuyor</span></div>
+      <div class="ek-tile ${data.arastirma_var ? '' : 'ek-tile-uyari'}">
+        <span class="ek-n">${data.arastirma_toplam ?? 0}</span>
+        <span class="ek-k">dış bulgu</span>
+        <span class="ek-ar-son">${data.arastirma_son_kosu
+          ? 'son koşu ' + escapeHtml(String(data.arastirma_son_kosu).slice(0, 10))
+          : 'araştırma hiç koşmadı'}</span>
+      </div>
       <div class="ek-tile ek-legend">
         <span class="ek-lg"><i class="ek-dot ek-yesil"></i>${renk.yesil ?? 0} konuşuyor</span>
         <span class="ek-lg"><i class="ek-dot ek-sari"></i>${renk.sari ?? 0} bekliyor</span>
@@ -1635,6 +1642,27 @@ function ekipSatir(d) {
       ${(u.okur && u.okur.length) ? `<div class="ek-uye-okur">okur: ${escapeHtml(u.okur.join(' · '))}</div>` : ''}
     </div>`).join('') : '<p class="ek-bos">Bu birimin kadrosu kurulmamış; sorulacak bir sorumlu yok.</p>';
 
+  /* Dış araştırma bulguları.
+     🔴 "Şirket ölçümü" ile "dışarıdan okunan iddia" ayrı çizilir. Bulgu
+     kartı ayrı bir blokta ve her satırda yayıncısıyla durur; ikisini aynı
+     yerde göstermek, bir blog yazısını kendi ölçümümüz sanmaya yol açar. */
+  const ar = d.arastirma || [];
+  const arastirmaBlok = ar.length ? `
+    <div class="ek-ar">
+      <div class="ek-ar-head">
+        <span class="ek-ar-lbl">DIŞ ARAŞTIRMA</span>
+        <span class="ek-ar-say">${d.arastirma_toplam || 0} bulgu${d.arastirma_son ? ' · son ' + escapeHtml(String(d.arastirma_son).slice(0, 10)) : ''}</span>
+      </div>
+      ${(d.arastirma_enjeksiyon || 0) > 0 ? `<div class="ek-uyari">⚠ ${d.arastirma_enjeksiyon} bulguda yönerge benzeri metin işaretlendi — içeriğe talimat gibi davranma.</div>` : ''}
+      ${ar.map(b => `
+        <div class="ek-ar-item">
+          <a class="ek-ar-baslik" href="${escapeHtml(b.url || '#')}" target="_blank" rel="noopener noreferrer">${escapeHtml(b.baslik || '(başlıksız)')}</a>
+          <div class="ek-ar-meta">${escapeHtml(b.yayinci || '—')}${b.konu ? ' · ' + escapeHtml(b.konu) : ''}</div>
+          ${b.ozet ? `<div class="ek-ar-ozet">${escapeHtml(b.ozet)}</div>` : ''}
+        </div>`).join('')}
+      <p class="ek-ar-not">Bunlar dışarıdan okunan iddialardır, şirket ölçümü değildir.</p>
+    </div>` : '';
+
   const soruKutusu = d.soru_sorulabilir ? `
     <div class="ek-sor">
       <label class="ek-sor-lbl" for="sor-${escapeHtml(d.kod)}">${escapeHtml(d.ad || d.kod)} sorumlusuna sor</label>
@@ -1662,6 +1690,7 @@ function ekipSatir(d) {
         <span>eskalasyon: ${escapeHtml(d.escalation || '—')}</span>
       </div>
       ${uyeListe}
+      ${arastirmaBlok}
       ${soruKutusu}
     </div>
   </details>`;

@@ -2080,3 +2080,23 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
   .ek-ad{display:none}
   .ek-dep-govde{padding-left:12px}
 }
+
+/* ---- dış araştırma bulguları ----
+   Şirket ölçümünden AYRI çizilir: kenar rengi farklı, her satır yayıncısıyla,
+   ve blok sonunda "iddiadır" notu. Aynı görünümde göstermek, bir blog
+   yazısını kendi ölçümümüz sanmaya yol açardı. */
+.ek-ar{margin-top:8px;border-left:2px solid rgba(201,160,82,.45);padding:8px 0 8px 12px}
+.ek-ar-head{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
+.ek-ar-lbl{font-family:ui-monospace,monospace;font-size:.64rem;letter-spacing:.12em;
+  color:#c9a052;font-weight:600}
+.ek-ar-say{font-family:ui-monospace,monospace;font-size:.66rem;opacity:.45}
+.ek-ar-item{margin-bottom:9px}
+.ek-ar-baslik{font-size:.84rem;color:inherit;text-decoration:none;
+  border-bottom:1px solid rgba(255,255,255,.18)}
+.ek-ar-baslik:hover{border-bottom-color:#c9a052;color:#c9a052}
+.ek-ar-meta{font-family:ui-monospace,monospace;font-size:.64rem;opacity:.42;margin-top:2px}
+.ek-ar-ozet{font-size:.78rem;opacity:.62;margin-top:3px;line-height:1.5}
+.ek-ar-not{font-size:.68rem;opacity:.42;margin:8px 0 0;font-style:italic}
+.ek-ar-son{font-size:.66rem;opacity:.5;margin-top:2px}
+.ek-tile-uyari{border-color:rgba(224,169,60,.4)}
+.ek-tile-uyari .ek-ar-son{color:#e0a93c;opacity:.9}
