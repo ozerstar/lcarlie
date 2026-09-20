@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import unicodedata
 from dataclasses import asdict, dataclass
@@ -203,6 +204,20 @@ def _load_snapshot(memory: Any, queries: tuple[str, ...]) -> EvidenceSnapshot:
     size = len(json.dumps(records, ensure_ascii=False, default=str).encode("utf-8"))
     return EvidenceSnapshot(records, tuple(dict.fromkeys(refs)), tuple(gaps), size,
                             round((perf_counter() - started) * 1000, 3))
+
+
+def _daily_budget() -> float | None:
+    """Günlük test bütçesi. Tanımlı değilse gün sayısı HESAPLANMAZ.
+
+    Uydurulmus bir gunluk butceyle takvim uretmek, olculmus gibi duran bir
+    tahmin olurdu. Deger sahip karari; JARVIS_DAILY_AD_BUDGET ile verilir.
+    """
+    ham = os.environ.get("JARVIS_DAILY_AD_BUDGET", "").strip()
+    try:
+        deger = float(ham)
+    except ValueError:
+        return None
+    return deger if deger > 0 else None
 
 
 def _fold(value: Any) -> str:
@@ -569,6 +584,20 @@ class AgencyCapability:
                                          "not readable by any current capability"})
         problems, opportunities = _problems_and_opportunities(
             task_type, baseline, sales, snapshot)
+        # Butce/takvim/hedefleme OLCULEN veriden. Urun bilinmiyorsa ya da
+        # satisi yoksa plan bos doner ve bunu acikca soyler -- uydurmaz.
+        from .campaign_plan import build as _plan_build, summarize as _plan_summary
+        plan = _plan_build(
+            product.name if product else (task or ""),
+            list(snapshot.records.get("advertising_performance", ())),
+            list(snapshot.records.get("sales_items", ())),
+            product_keys=(product.keys if product else ()),
+            daily_budget=_daily_budget())
+        hedef = plan.targeting
+        sabit_kitle = (hedef["adsets"][0]["name"] if hedef.get("adsets")
+                       else "GEÇMİŞ KİTLE YOK: yeni kitle tanımlanmalı")
+        sabit_yerlesim = "tek yerleşim (geçmiş veride yerleşim kırılımı yok)"
+
         if task_type == TASK_CAMPAIGN:
             concepts = _enrich_concepts(concepts, baseline, sales)
         result = {
@@ -589,6 +618,10 @@ class AgencyCapability:
             # Katki tablosu her rolun ne urettigini sayar; uretmeyen rol
             # NO_OUTPUT olarak gorunur.
             "role_contributions": [],
+            # Butce ve takvim: her sayi olculmus veriden, karsiligi
+            # `campaign_plan.basis` icinde yazili. Kar IDDIA EDILMEZ.
+            "campaign_plan": plan.to_dict(),
+            "campaign_plan_summary": _plan_summary(plan),
             "campaign_objective": ("Qualified landing-page visits and evidence-aware creative learning"
                                    if task_type == TASK_CAMPAIGN else task_type.replace("_", " ").title()),
             "core_angle": ("Cosmetic care routine with clear, non-medical product communication"
@@ -610,9 +643,13 @@ class AgencyCapability:
                                 ["CTR", "CPC", "link clicks", "landing-page views (DATA_UNAVAILABLE)",
                                  "commercially confirmed orders (DATA_UNAVAILABLE)"]),
             "experiment_matrix": ([
-                {"cell": f"angle_{index + 1}", "creative": concept["name"],
-                 "audience": "held constant", "placement": "held constant",
-                 "budget": "held constant", "measure": "CTR, CPC, link clicks"}
+    {"cell": f"angle_{index + 1}", "creative": concept["name"],
+                 # "held constant" bir STRING'di; sabit tutulacak sey ADIYLA
+                 # yazilmazsa kampanya kurulamaz ve sonuc karsilastirilamaz.
+                 "audience": sabit_kitle, "placement": sabit_yerlesim,
+                 "budget": (f"{plan.test_budget[0]:,.0f}-{plan.test_budget[1]:,.0f} TL toplam test"
+                            if plan.test_budget else "ÖLÇÜM YOK: bütçe hesaplanamadı"),
+                 "measure": "CTR, CPC, link clicks"}
                 for index, concept in enumerate(concepts)]
                 if task_type == TASK_CAMPAIGN else []),
             "regulatory_risks": regulatory_risks,
