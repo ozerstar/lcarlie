@@ -54,10 +54,49 @@ class AllowlistTests(unittest.TestCase):
 
 class ReadOnlyTests(unittest.TestCase):
     def test_no_query_contains_a_write_statement(self):
+        # KELIME SINIRI ile aranir, alt dizgi ile degil. 'created_at' bir
+        # sutun adidir ve icinde 'create' gecer; alt dizgi aramasi bu
+        # yuzden yanlis alarm veriyordu (olculdu: gunluk_brief sorgusu).
+        # Sinirli arama yakaladigini KAYBETMEZ -- bunu bir alttaki test
+        # kanitliyor, bu yuzden burada gevseme olmadigi iddia degil olcum.
         for name, sql in CompanyMemory.QUERIES.items():
             lowered = sql.lower()
             for keyword in WRITE_KEYWORDS:
-                self.assertNotIn(keyword, lowered, f"{name} contains {keyword!r}")
+                self.assertIsNone(
+                    re.search(rf"\b{keyword.strip()}\b", lowered),
+                    f"{name} contains {keyword!r}")
+
+    def test_the_write_guard_still_catches_real_write_statements(self):
+        """Kelime sinirina gecerken korumayi gevsetmedik mi?
+
+        Bir koruma kurali degistirildiginde asil risk, sessizce ise
+        yaramaz hale gelmesidir. Asagidaki ifadelerin HEPSI yakalanmali;
+        biri kacarsa bu test patlar ve gevseme gorunur olur.
+        """
+        yazma_ifadeleri = (
+            "select 1; create table x(a int)",
+            "select 1; create or replace view v as select 1",
+            "insert into core.urun values (1)",
+            "update core.urun set ad='x'",
+            "delete from core.urun",
+            "drop view mart.gunluk_brief",
+            "truncate core.urun",
+            "grant select on core.urun to ai_reader",
+            "revoke select on core.urun from ai_reader",
+            "alter table core.urun add column x int",
+            "copy core.urun to '/tmp/x'",
+        )
+        for sql in yazma_ifadeleri:
+            yakalandi = any(re.search(rf"\b{k.strip()}\b", sql.lower())
+                            for k in WRITE_KEYWORDS)
+            self.assertTrue(yakalandi, f"yakalanmadi: {sql!r}")
+
+    def test_a_column_named_created_at_is_not_a_write(self):
+        """Yanlis alarmin kendisi de sinaniyor ki geri gelmesin."""
+        masum = "select b.brief_key, b.created_at from mart.gunluk_brief b"
+        for k in WRITE_KEYWORDS:
+            self.assertIsNone(re.search(rf"\b{k.strip()}\b", masum),
+                              f"masum sorgu {k!r} ile yanlis eslesti")
 
     def test_every_query_starts_with_select(self):
         for name, sql in CompanyMemory.QUERIES.items():

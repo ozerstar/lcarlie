@@ -260,6 +260,54 @@ class Handler(BaseHTTPRequestHandler):
             findings = _tail_jsonl(STATE_DIR / "findings.jsonl", limit)
             self._send_json(200, {"audit": audit, "findings": findings})
             return
+        if path == "/api/kreatif":
+            try:
+                evidence = _memory._fetch("kreatif_performans")
+            except Exception as exc:  # noqa: BLE001
+                self._send_json(503, {"error": "kreatif verisi okunamadi",
+                                      "detail": str(exc)[:200]})
+                return
+            self._send_json(200, {
+                "rows": evidence.records,
+                "source": evidence.source,
+                "latency_ms": evidence.latency_ms,
+                # Panelin esigi kendi uydurmamasi icin sunucudan gelir.
+                "ornek_esigi": 1000,
+            })
+            return
+        if path == "/api/urun-alanlari":
+            try:
+                evidence = _memory._fetch("urun_alan_karsilastirma")
+            except Exception as exc:  # noqa: BLE001
+                self._send_json(503, {"error": "urun alanlari okunamadi",
+                                      "detail": str(exc)[:200]})
+                return
+            self._send_json(200, {
+                "rows": evidence.records,
+                "source": evidence.source,
+                "latency_ms": evidence.latency_ms,
+                # Panel bu satiri gostermeli: duzenleme dogrudan uygulanmaz.
+                "uyari": ("Degisiklikler dogrudan uygulanmaz; onay kuyruguna "
+                          "gonderilir. Dis platforma yazma izni kapali."),
+            })
+            return
+        if path == "/api/fiyat-matrisi":
+            try:
+                evidence = _memory._fetch("platform_fiyat_matrisi")
+            except Exception as exc:  # noqa: BLE001
+                self._send_json(503, {"error": "fiyat matrisi okunamadi",
+                                      "detail": str(exc)[:200]})
+                return
+            self._send_json(200, {
+                "rows": evidence.records,
+                "source": evidence.source,
+                "latency_ms": evidence.latency_ms,
+                # Panelin "bu sayi ne kadar guvenilir" diyebilmesi icin.
+                "uyari": ("Maliyet sahip beyanidir (tum urunlere ortalama "
+                          "400 TL), gercek urun maliyeti degildir. Marj "
+                          "yaklasiktir."),
+            })
+            return
         if path == "/api/panel":
             # Bolum listesi: uc nokta kesfedilebilir olsun, arayuz sabit
             # isim listesi tasimak zorunda kalmasin.
@@ -315,6 +363,23 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/logout":
             sessions.destroy(session.session_id)
             self._send_json(200, {"ok": True}, self._clear_session_cookies())
+            return
+        if path == "/api/fiyat-toplu-onizleme":
+            # ONIZLEME: hicbir sey yazilmaz, yalniz hesaplanir.
+            body = _read_json_body(self)
+            if not isinstance(body, dict):
+                self._send_json(400, {"error": "gecersiz govde"})
+                return
+            try:
+                sonuc = _toplu_onizleme(body)
+            except ValueError as exc:
+                self._send_json(400, {"error": str(exc)})
+                return
+            except Exception as exc:  # noqa: BLE001
+                self._send_json(503, {"error": "onizleme uretilemedi",
+                                      "detail": str(exc)[:200]})
+                return
+            self._send_json(200, sonuc)
             return
         if path == "/api/chat":
             body = _read_json_body(self)
@@ -483,6 +548,107 @@ def main() -> None:
 def _panel_error(exc: Exception) -> dict:
     return {"status": "ERROR", "error": str(exc)[:300]}
 
+
+
+def _yeni_fiyat(mevcut: float, yontem: str, deger: float) -> float:
+    """Toplu islemin urettigi yeni fiyat. Yuvarlama KURUSTA, asagi degil:
+    899.99 gibi bir sayiyi 899.99 birakmak panelde okunmaz hale getirirdi."""
+    if yontem == "YUZDE":
+        return round(mevcut * (1 + deger / 100.0), 2)
+    if yontem == "SABIT_EKLE":
+        return round(mevcut + deger, 2)
+    if yontem == "SABIT_FIYAT":
+        return round(deger, 2)
+    raise ValueError(f"bilinmeyen yontem: {yontem}")
+
+
+def _marj_hesapla(fiyat: float, komisyon: float | None, kdv: float,
+                  maliyet: float | None) -> dict:
+    """Gorunumdeki formulun AYNISI. Iki yerde iki farkli hesap olmamali.
+
+    Eksik girdi uydurulmaz: komisyon veya maliyet yoksa marj None doner ve
+    uyari neyin eksik oldugunu soyler.
+    """
+    if komisyon is None:
+        return {"marj": None, "marj_yuzde": None, "uyari": "KOMISYON_YOK"}
+    if maliyet is None:
+        return {"marj": None, "marj_yuzde": None, "uyari": "MALIYET_YOK"}
+    net = (fiyat * (1 - komisyon / 100.0)) / (1 + kdv / 100.0)
+    marj = net - maliyet
+    yuzde = (100.0 * marj / net) if net else None
+    if marj < 0:
+        uyari = "ZARAR"
+    elif yuzde is not None and yuzde < 10:
+        uyari = "KRITIK"
+    elif yuzde is not None and yuzde < 25:
+        uyari = "DUSUK"
+    else:
+        uyari = "OK"
+    return {"marj": round(marj, 2),
+            "marj_yuzde": round(yuzde, 1) if yuzde is not None else None,
+            "uyari": uyari}
+
+
+def _toplu_onizleme(body: dict) -> dict:
+    """Toplu fiyat islemini HESAPLAR, uygulamaz.
+
+    Amac tek: onaya gitmeden once "bu islem kac urunu zarara sokuyor"
+    sorusunu cevaplamak.
+    """
+    platform = str(body.get("platform") or "").strip()
+    yontem = str(body.get("yontem") or "").strip().upper()
+    if not platform:
+        raise ValueError("platform zorunlu")
+    try:
+        deger = float(body.get("deger"))
+    except (TypeError, ValueError):
+        raise ValueError("deger sayi olmali") from None
+    secili = body.get("urun_idler") or []
+
+    rows = [r for r in _memory._fetch("platform_fiyat_matrisi").records
+            if r.get("platform_kod") == platform]
+    if secili:
+        secili = set(secili)
+        rows = [r for r in rows if r.get("urun_id") in secili]
+    if not rows:
+        raise ValueError("eslesen urun yok")
+
+    satirlar, sayac = [], {"ZARAR": 0, "KRITIK": 0, "DUSUK": 0, "OK": 0,
+                           "KOMISYON_YOK": 0, "MALIYET_YOK": 0, "FIYAT_YOK": 0}
+    for r in rows:
+        mevcut = r.get("gecerli_fiyat")
+        if mevcut is None:
+            sayac["FIYAT_YOK"] += 1
+            satirlar.append({"urun_id": r.get("urun_id"),
+                             "urun_adi": r.get("urun_adi"),
+                             "eski_fiyat": None, "yeni_fiyat": None,
+                             "uyari": "FIYAT_YOK"})
+            continue
+        yeni = _yeni_fiyat(float(mevcut), yontem, deger)
+        if yeni <= 0:
+            raise ValueError("islem sifir veya negatif fiyat uretiyor")
+        komisyon = r.get("komisyon_yuzde")
+        maliyet = r.get("birim_maliyet")
+        marj = _marj_hesapla(
+            yeni,
+            float(komisyon) if komisyon is not None else None,
+            float(r.get("kdv_yuzde") or 20),
+            float(maliyet) if maliyet is not None else None)
+        sayac[marj["uyari"]] = sayac.get(marj["uyari"], 0) + 1
+        satirlar.append({
+            "urun_id": r.get("urun_id"), "urun_adi": r.get("urun_adi"),
+            "eski_fiyat": float(mevcut), "yeni_fiyat": yeni,
+            "marj": marj["marj"], "marj_yuzde": marj["marj_yuzde"],
+            "uyari": marj["uyari"],
+        })
+
+    return {
+        "platform": platform, "yontem": yontem, "deger": deger,
+        "urun_sayisi": len(satirlar), "ozet": sayac, "satirlar": satirlar,
+        "uygulandi": False,
+        "not": ("Bu bir ONIZLEMEDIR; hicbir fiyat degistirilmedi. "
+                "Uygulanmasi icin onay kuyruguna gonderilmelidir."),
+    }
 
 def _panel_veri() -> dict:
     """Company Memory'nin gercek durumu: hangi sorgu calisiyor, kac satir."""

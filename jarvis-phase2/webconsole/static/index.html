@@ -49,6 +49,9 @@
       <button type="button" class="nav-item" data-view="gorevler">GÖREVLER</button>
       <button type="button" class="nav-item" data-view="veri">VERİ</button>
       <button type="button" class="nav-item" data-view="ajanlar">AJANLAR</button>
+      <button type="button" class="nav-item" data-view="fiyat">FİYAT</button>
+      <button type="button" class="nav-item" data-view="eticaret">E-TİCARET</button>
+      <button type="button" class="nav-item" data-view="reklam">REKLAM</button>
       <button type="button" class="nav-item" data-view="raporlar">RAPORLAR</button>
       <button type="button" class="nav-item" data-view="ayarlar">AYARLAR</button>
     </nav>
@@ -246,6 +249,195 @@
     </div>
     <div class="panel-body sect-body" id="ajanlarBody">
       <p class="sect-empty">Yükleniyor…</p>
+    </div>
+  </section>
+</main>
+
+<main class="stage stage-single view-panel" id="viewReklam" hidden>
+  <section class="panel" aria-label="REKLAM KREATİF ANALİZİ">
+    <div class="panel-head">
+      <h2 class="panel-title">REKLAM · KREATİF ANALİZİ</h2>
+      <span class="panel-count" id="krCount">—</span>
+    </div>
+    <div class="panel-body sect-body" id="krBody">
+
+      <p class="kr-giris" id="krGiris"></p>
+
+      <!-- Ozet kartlari: her biri sayi + ne demek + ne yapmali -->
+      <div class="kr-kartlar" id="krKartlar"></div>
+
+      <h3 class="rp-sub">ÇAĞRI DÜĞMESİNE GÖRE <span class="rp-src">link tıklama oranı</span></h3>
+      <p class="kr-aciklama">
+        Reklamın altındaki düğme. Her biri farklı şey ister — biri mağazaya,
+        biri profile, biri mesaja götürür. <strong>Doğrudan kıyaslanamazlar:</strong>
+        profil tıklaması ucuzdur ama satış değildir.
+      </p>
+      <div class="kr-bar-liste" id="krCta"></div>
+
+      <h3 class="rp-sub">BİÇİME GÖRE <span class="rp-src">video mu, görsel mi</span></h3>
+      <p class="kr-aciklama">
+        Hangi reklam biçimi daha çok tıklanıyor. Video dikkat çeker ama
+        pahalıdır; görsel paylaşımı ucuzdur ama anlatım gücü azdır.
+      </p>
+      <div class="kr-bar-liste" id="krBicim"></div>
+
+      <h3 class="rp-sub">EN ÇOK TIKLANAN KREATİFLER <span class="rp-src">yalnız ölçülebilir olanlar</span></h3>
+      <div class="fm-scroll">
+        <table class="fm-table kr-table">
+          <thead>
+            <tr>
+              <th scope="col">METİN</th>
+              <th scope="col">BİÇİM</th>
+              <th scope="col">DÜĞME</th>
+              <th scope="col" class="fm-num-th">GÖSTERİM</th>
+              <th scope="col" class="fm-num-th">LİNK CTR</th>
+              <th scope="col" class="fm-num-th">TL/TIKLAMA</th>
+              <th scope="col" class="fm-num-th">FREKANS</th>
+            </tr>
+          </thead>
+          <tbody id="krRows"></tbody>
+        </table>
+      </div>
+
+      <h3 class="rp-sub">DİKKAT EDİLECEKLER <span class="rp-src">veriden çıkan uyarılar</span></h3>
+      <ul class="kr-uyarilar" id="krUyarilar"></ul>
+
+      <h3 class="rp-sub">TERİMLER <span class="rp-src">ne anlama geliyor</span></h3>
+      <dl class="kr-sozluk" id="krSozluk"></dl>
+
+      <p class="fm-foot" id="krFoot"></p>
+    </div>
+  </section>
+</main>
+
+<main class="stage stage-single view-panel" id="viewEticaret" hidden>
+  <section class="panel" aria-label="E-TİCARET ÜRÜN BİLGİLERİ">
+    <div class="panel-head">
+      <h2 class="panel-title">E-TİCARET · ÜRÜN BİLGİLERİ</h2>
+      <span class="panel-count" id="etCount">—</span>
+    </div>
+    <div class="panel-body sect-body" id="etBody">
+
+      <div class="et-split">
+        <aside class="et-liste" aria-label="Ürün listesi">
+          <label class="fm-label" for="etSearch">ÜRÜN ARA</label>
+          <input type="search" id="etSearch" class="fm-input fm-search"
+                 placeholder="ürün adı…" autocomplete="off">
+          <ul class="et-urunler" id="etUrunler"></ul>
+        </aside>
+
+        <div class="et-detay">
+          <div class="et-baslik">
+            <h3 class="et-ad" id="etAd">Soldan bir ürün seçin</h3>
+            <span class="et-sku mono" id="etSku"></span>
+          </div>
+
+          <div class="fm-bar">
+            <span class="fm-label">SÜZ</span>
+            <select id="etFilter" class="fm-input">
+              <option value="">tüm alanlar</option>
+              <option value="FARKLI">yalnız farklı olanlar</option>
+              <option value="YAZILIR">yalnız değiştirilebilirler</option>
+            </select>
+            <span class="fm-scope" id="etScope"></span>
+          </div>
+
+          <div class="fm-scroll">
+            <table class="fm-table et-table" id="etTable">
+              <thead>
+                <tr>
+                  <th scope="col">ALAN</th>
+                  <th scope="col">WIX</th>
+                  <th scope="col">TRENDYOL</th>
+                  <th scope="col">DURUM</th>
+                  <th scope="col" class="et-th-ops">MÜDAHALE</th>
+                </tr>
+              </thead>
+              <tbody id="etRows"></tbody>
+            </table>
+          </div>
+
+          <p class="fm-foot" id="etFoot"></p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+</main>
+
+<main class="stage stage-single view-panel" id="viewFiyat" hidden>
+  <section class="panel" aria-label="PLATFORM FİYAT YÖNETİMİ">
+    <div class="panel-head">
+      <h2 class="panel-title">PLATFORM FİYAT YÖNETİMİ</h2>
+      <span class="panel-count" id="fiyatCount">—</span>
+    </div>
+    <div class="panel-body sect-body" id="fiyatBody">
+
+      <div class="fm-bar" role="group" aria-label="Platform seçimi">
+        <span class="fm-label">PLATFORM</span>
+        <div class="fm-chips" id="fmPlatforms"></div>
+      </div>
+
+      <div class="fm-bar">
+        <label class="fm-label" for="fmSearch">ARA</label>
+        <input type="search" id="fmSearch" class="fm-input fm-search"
+               placeholder="ürün adı…" autocomplete="off">
+        <label class="fm-label" for="fmFilter">SÜZ</label>
+        <select id="fmFilter" class="fm-input">
+          <option value="">tümü</option>
+          <option value="ZARAR">yalnız zarar</option>
+          <option value="KRITIK">zarar + kritik</option>
+          <option value="DEGISIK">referanstan farklı</option>
+          <option value="EKSIK">verisi eksik</option>
+        </select>
+      </div>
+
+      <div class="fm-bulk" role="group" aria-label="Toplu fiyat işlemi">
+        <span class="fm-label">TOPLU İŞLEM</span>
+        <select id="fmMethod" class="fm-input">
+          <option value="YUZDE">yüzde değiştir (%)</option>
+          <option value="SABIT_EKLE">tutar ekle/çıkar (TL)</option>
+          <option value="SABIT_FIYAT">sabit fiyat yap (TL)</option>
+        </select>
+        <input type="number" id="fmValue" class="fm-input fm-num"
+               step="0.01" placeholder="-20" aria-label="Değer">
+        <button type="button" class="qa-btn" id="fmPreview">ÖNİZLE</button>
+        <button type="button" class="qa-btn fm-danger" id="fmSubmit" disabled>
+          ONAYA GÖNDER
+        </button>
+        <span class="fm-scope" id="fmScope">süzülen tüm ürünler</span>
+      </div>
+
+      <div class="fm-preview" id="fmPreviewBox" hidden>
+        <div class="fm-preview-head">
+          <strong>ÖNİZLEME</strong>
+          <span class="fm-preview-note">Hiçbir fiyat değiştirilmedi.</span>
+          <button type="button" class="fm-x" id="fmPreviewClose"
+                  aria-label="Önizlemeyi kapat">×</button>
+        </div>
+        <ul class="fm-tally" id="fmTally"></ul>
+      </div>
+
+      <div class="fm-scroll">
+        <table class="fm-table" id="fmTable">
+          <thead>
+            <tr>
+              <th scope="col" class="fm-th-sort" data-sort="urun_adi">ÜRÜN</th>
+              <th scope="col" class="fm-num-th" data-sort="referans_fiyat">REFERANS</th>
+              <th scope="col" class="fm-num-th" data-sort="platform_fiyati">PLATFORM</th>
+              <th scope="col" class="fm-num-th" data-sort="fark_yuzde">FARK</th>
+              <th scope="col" class="fm-num-th" data-sort="komisyon_yuzde">KOM.</th>
+              <th scope="col" class="fm-num-th" data-sort="net_kdvsiz">NET</th>
+              <th scope="col" class="fm-num-th" data-sort="marj">MARJ</th>
+              <th scope="col" class="fm-num-th" data-sort="marj_yuzde">MARJ %</th>
+              <th scope="col" data-sort="marj_uyari">DURUM</th>
+            </tr>
+          </thead>
+          <tbody id="fmRows"></tbody>
+        </table>
+      </div>
+
+      <p class="fm-foot" id="fmFoot"></p>
     </div>
   </section>
 </main>

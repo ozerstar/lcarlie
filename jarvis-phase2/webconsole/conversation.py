@@ -314,6 +314,15 @@ def _company(message: str, domain: str, memory: Any, started: float) -> dict[str
             longest = max((float(row.get("bekleme_saat") or 0) for row in evidence.records), default=0)
             answer = (f"Evet, {count} cevapsız müşteri konuşması var. En uzun bekleme yaklaşık "
                       f"{longest:.1f} saat." if count else "Cevapsız müşteri konuşması görünmüyor.")
+        elif domain == "brief":
+            evidence = memory._fetch("gunluk_brief")
+            answer = _brief_answer(evidence.records)
+        elif domain == "gundem":
+            evidence = memory._fetch("agenda")
+            answer = _gundem_answer(evidence.records)
+        elif domain == "advertising" and _kreatif_sorusu(message):
+            evidence = memory._fetch("kreatif_performans")
+            answer = _kreatif_answer(evidence.records)
         elif domain == "advertising":
             evidence = memory._fetch("advertising_performance")
             latest = [row for row in evidence.records if row.get("pencere") == 30]
@@ -323,6 +332,9 @@ def _company(message: str, domain: str, memory: Any, started: float) -> dict[str
         elif domain == "sales":
             evidence = memory._fetch("sales_orders")
             answer = _sales_answer(message, evidence.records, memory)
+        elif domain == "ecommerce":
+            evidence = memory._fetch("urun_karti")
+            answer = _urun_karti_answer(message, evidence.records)
         else:
             evidence = memory.get_executive_brief()
             row = evidence.records[0] if evidence.records else {}
@@ -348,11 +360,21 @@ def _company(message: str, domain: str, memory: Any, started: float) -> dict[str
 _DOMAIN_ROOTS = {
     "crm": ("musteri", "cevapsiz", "konusma", "crm", "abone"),
     "advertising": ("reklam", "harca", "roas", "ctr", "cpa", "cpc", "kampanya",
-                    "gosterim", "tiklama", "butce"),
+                    "gosterim", "tiklama", "butce",
+                    # Kreatif sorulari da reklam alanidir.
+                    "kreatif", "metin", "baslik", "gorsel", "video",
+                    "frekans", "yorgun"),
     "sales": ("sat", "siparis", "ciro", "gelir", "kazanc", "adet"),
     "ecommerce": ("urun", "fiyat", "marj", "stok", "katalog", "indirim",
                   "eticaret", "sepet", "donusum"),
     "operations": ("operasyon", "kargo", "gonderi", "teslimat", "iade"),
+    # Gundem/bekleyen is sorulari. Bunlar olmadan "bekleyen isler neler"
+    # sorusu yerel modele dusuyor ve model uyduruyordu.
+    "gundem": ("gundem", "bekleyen", "hatirlat", "yapilacak", "acik is",
+               "acik soru", "sirada", "onceli", "takip"),
+    # Gunluk yonetici ozeti. Uretiliyordu ama kimse okuyamiyordu.
+    "brief": ("brief", "brifing", "ozet", "gunluk rapor", "sabah",
+              "yonetici", "durum raporu"),
 }
 
 # Bilinen lemmalar. "sattik" -> satmak, "harcadik" -> harcamak (olculdu).
@@ -367,6 +389,16 @@ _DOMAIN_LEMMAS = {
 # Kok onekinin uygulanmasi icin en az kelime uzunlugu. "sat" koku 3 harf;
 # 4 harften kisa kelimelerde ("sat" emri gibi) aramak gereksiz gurultu uretir.
 _MIN_ROOT_WORD = 4
+
+# Kisa para birimleri kok esigine takilir: _MIN_ROOT_WORD 4, "tl" ise 2 harf.
+# Koke eklemek SESSIZCE ise yaramazdi. Bu yuzden ayri ve TAM KELIME olarak
+# karsilastirilir -- alt dizgi degil, yoksa "tatli"/"hatlari" yanlis eslesir.
+_PARA_KELIMELERI = frozenset((
+    "tl", "try", "lira", "liraya", "liradan", "liralik", "liralık",
+))
+# Cok kelimeli tutar sorulari. Bunlar kelime degil KALIP oldugu icin
+# birlesik metinde aranir; bir kelimenin icine gizlenemezler.
+_TUTAR_KALIPLARI = ("ne kadar", "kac para", "kaca satiliyor", "kaca satiyoruz")
 
 
 # Uretilecek sey. "kampanyasi", "kampanyasini" -> lemma "kampanya" (olculdu).
@@ -458,8 +490,405 @@ def _domains_of(message: str) -> list[str]:
             hit = bool(lemma_set & set(_DOMAIN_LEMMAS.get(domain, ())))
         if hit:
             found.append(domain)
+    # Fiyat bir VERI sorusudur; modele degil veriye gitmeli. Kok taramasi
+    # kisa para birimlerini ve cok kelimeli tutar kaliplarini yakalayamaz.
+    if "ecommerce" not in found:
+        birlesik = " ".join(folded)
+        if (set(folded) & _PARA_KELIMELERI
+                or any(k in birlesik for k in _TUTAR_KALIPLARI)):
+            found.append("ecommerce")
     return found
 
+
+
+
+def _tl(v) -> str:
+    """Tutar biçimi. None ise '—' -- 0 yazmak 'bedava' demek olurdu."""
+    if v is None:
+        return "—"
+    try:
+        return f"{float(v):,.2f} TL".replace(",", "\u00a0")
+    except (TypeError, ValueError):
+        return "—"
+
+
+
+# Wix aciklamalari kargo/teslimat bloguyla ACILIYOR; urun tanimi sonra
+# geliyor. Cevabin ilk cumlesi urunun NE OLDUGUNU soylemeli.
+_KARGO_ISARETI = ("kargo", "teslimat", "gonderim", "gönderim", "iade",
+                  "siparis", "sipariş", "is gunu", "iş günü")
+_HTML_VARLIK = {"&amp;": "&", "&nbsp;": " ", "&lt;": "<", "&gt;": ">",
+                "&quot;": '"', "&#39;": "'", "&apos;": "'"}
+
+
+def _urun_tanimi(ham: str) -> str:
+    """Açıklamadan ürünün ne olduğunu anlatan ilk cümle.
+
+    Kargo/teslimat cümleleri atlanır -- onlar her üründe aynı ve ürün
+    hakkında hiçbir şey söylemez.
+    """
+    metin = ham
+    for k, v in _HTML_VARLIK.items():
+        metin = metin.replace(k, v)
+    metin = " ".join(metin.split())
+    if not metin:
+        return ""
+    for cumle in metin.replace("·", ".").split("."):
+        c = cumle.strip()
+        if len(c) < 40:
+            continue
+        dusuk = _ascii_fold(c)
+        if any(_ascii_fold(k) in dusuk for k in _KARGO_ISARETI):
+            continue
+        return (c[:240].rstrip() + "…") if len(c) > 240 else c + "."
+    # Hicbir cumle uymadiysa basi verilir -- bos donmek daha kotu olurdu.
+    return metin[:200].rstrip() + "…"
+
+
+# Kreatif sorusu mu, harcama sorusu mu? Ikisi de "reklam" alanindadir ama
+# bambaska seyler sorar.
+_KREATIF_ISARETI = ("kreatif", "metin", "baslik", "gorsel", "video", "cta",
+                    "hangi reklam", "reklam metni", "yorgun", "frekans",
+                    "tutuyor", "calisiyor")
+
+
+def _kreatif_sorusu(message: str) -> bool:
+    f = _ascii_fold(turkish.deasciify(message))
+    return any(_ascii_fold(k) in f for k in _KREATIF_ISARETI)
+
+
+
+# Uretim emri mi, analiz sorusu mu? "reklam metni YAZ" ile "hangi reklam
+# metni TUTUYOR" ayni kelimeleri tasir ama bambaska seylerdir.
+_KREATIF_URETIM = ("yaz", "hazirla", "uret", "olustur", "kurgula", "tasarla",
+                   "onerir misin", "fikir ver")
+_KREATIF_ANALIZ = ("hangi", "nasil", "ne durumda", "tutuyor", "calisiyor",
+                   "performans", "karsilastir", "en iyi", "yorgun", "frekans")
+
+
+def _kreatif_analiz_sorusu(message: str) -> bool:
+    """Var olan kreatifler HAKKINDA soru mu?
+
+    Üç koşul birlikte: kreatif konusu geçmeli, analiz işareti taşımalı,
+    ve üretim fiili TAŞIMAMALI. Üçü birden aranır çünkü tek başına her
+    biri yanılır -- "hangi ürün" kreatif sorusu değildir, "reklam metni"
+    tek başına üretim isteği olabilir.
+    """
+    if not _kreatif_sorusu(message):
+        return False
+    f = _ascii_fold(turkish.deasciify(message))
+    if any(_ascii_fold(k) in f for k in _KREATIF_URETIM):
+        return False
+    return any(_ascii_fold(k) in f for k in _KREATIF_ANALIZ)
+
+
+
+def _brief_answer(rows: list[dict]) -> str:
+    """Günlük yönetici özeti. Model çağrısı YOK -- brief zaten üretilmiş.
+
+    İçerik JSON olarak saklanıyor (executive_summary / priorities / risks).
+    Ayrıştırılamazsa ham metin verilir; sessizce boş dönmek, üretilmiş bir
+    özeti kaybetmek olurdu.
+    """
+    if not rows:
+        return ("Henüz günlük yönetici özeti üretilmemiş. "
+                "lcarlie-executive-brief servisi günde bir kez çalışır.")
+
+    r = rows[0]
+    tarih = str(r.get("created_at") or "")[:16]
+    saglayici = f"{r.get('provider') or '?'}/{r.get('model') or '?'}"
+    parcalar = [f"**Günlük Yönetici Özeti** — {tarih} ({saglayici})"]
+
+    ham = r.get("icerik")
+    veri = None
+    if isinstance(ham, dict):
+        veri = ham
+    elif isinstance(ham, str) and ham.strip().startswith("{"):
+        try:
+            import json as _json
+            veri = _json.loads(ham)
+        except (ValueError, TypeError):
+            veri = None
+
+    if veri:
+        ozet = str(veri.get("executive_summary") or "").strip()
+        if ozet:
+            parcalar.append(ozet)
+        for alan, baslik in (("priorities", "ÖNCELİKLER"), ("risks", "RİSKLER")):
+            liste = veri.get(alan)
+            if isinstance(liste, list) and liste:
+                parcalar.append(
+                    baslik + " — " + " · ".join(str(x) for x in liste[:4]))
+    elif isinstance(ham, str) and ham.strip():
+        parcalar.append(ham.strip()[:700])
+    else:
+        parcalar.append("Brief kaydı var ama içeriği okunamadı.")
+
+    if len(rows) > 1:
+        onceki = str(rows[1].get("created_at") or "")[:10]
+        parcalar.append(f"(Bir önceki özet: {onceki}.)")
+    return " ".join(parcalar)
+
+def _gundem_answer(rows: list[dict]) -> str:
+    """Şirket gündemi: ne bekliyor, kimde, ne kadar süredir.
+
+    Sıra veritabanından P0→P4 geliyor; burada bozulmaz. "Kimde" ayrımı
+    ayrıca yazılır: gündemin en çok sorulan sorusu "bu bende mi sende mi".
+    """
+    if not rows:
+        return "Gündemde açık madde yok."
+
+    # Onceligi ACIKCA siralariz: yukaridan gelen siraya guvenip filtreleyince
+    # P1, P0'in onune gecmisti. En acil madde en altta kalirsa hatirlatmanin
+    # anlami kalmaz.
+    def _onc(r):
+        return str(r.get("oncelik") or "P3")
+
+    rows = sorted(rows, key=_onc)
+    insan = [r for r in rows if r.get("durum") == "BLOCKED_NEEDS_HUMAN"]
+    devam = [r for r in rows if r.get("durum") == "IN_PROGRESS"]
+    acik = [r for r in rows if r.get("durum") == "OPEN"]
+
+    # Sayiya gore Turkce eki degisir (2'si, 18'i); ek kullanmayan ifade.
+    parcalar = [f"Gündemde {len(rows)} madde var — {len(insan)} madde sizi "
+                f"bekliyor, {len(devam)} madde devam ediyor, {len(acik)} madde açık."]
+
+    def satir(r):
+        onc = str(r.get("oncelik") or "P3")
+        soru = str(r.get("soru") or "?")
+        # Bekleme suresi varsa yazilir -- eskimis madde gundemde en
+        # kolay gozden kacan seydir.
+        bek = r.get("bekleme")
+        gun = ""
+        if bek:
+            metin = str(bek)
+            if "day" in metin:
+                try:
+                    gun = f" · {int(metin.split(' day')[0].strip())} gündür bekliyor"
+                except (ValueError, IndexError):
+                    gun = ""
+        return f"[{onc}] {soru[:150]}{gun}"
+
+    if insan:
+        parcalar.append("SİZİ BEKLEYENLER — " + " || ".join(satir(r) for r in insan[:5]))
+    kalan = [r for r in rows if r.get("durum") != "BLOCKED_NEEDS_HUMAN"]
+    if kalan:
+        parcalar.append("DİĞER AÇIK MADDELER — "
+                        + " || ".join(satir(r) for r in kalan[:5]))
+    if len(rows) > 10:
+        parcalar.append(f"({len(rows) - 10} madde daha var.)")
+    return " ".join(parcalar)
+
+def _kreatif_answer(rows: list[dict]) -> str:
+    """Hangi söz tutuyor? CTA ve biçim kıyaslaması + en iyiler.
+
+    Yalnız ölçülebilir kreatifler sıralanır. 1000 gösterim altındakiler
+    dışarıda bırakılır -- orada oran gürültüdür.
+    """
+    if not rows:
+        return "Kreatif performans verisi okunamıyor."
+
+    olculebilir = [r for r in rows if r.get("yeterli_ornek")]
+    if not olculebilir:
+        return (f"{len(rows)} kreatif var ama hiçbiri değerlendirilebilir "
+                "örnek büyüklüğüne ulaşmamış (1000 gösterim altı).")
+
+    def oran(grup):
+        g = sum(float(r.get("gosterim") or 0) for r in grup)
+        t = sum(float(r.get("link_tiklama") or 0) for r in grup)
+        h = sum(float(r.get("harcama") or 0) for r in grup)
+        return (100.0 * t / g if g else None, h / t if t else None, g)
+
+    parcalar = []
+    durumlar = {}
+    for r in rows:
+        d = str(r.get("olcum_durumu") or "?")
+        durumlar[d] = durumlar.get(d, 0) + 1
+    parcalar.append(
+        f"{len(rows)} kreatifin {len(olculebilir)}'i değerlendirilebilir "
+        f"({durumlar.get('YETERSIZ_ORNEK', 0)} tanesi 1000 gösterim altında, "
+        f"{durumlar.get('PERFORMANS_KAYDI_YOK', 0)} tanesinin performans kaydı yok).")
+
+    # --- CTA
+    ctalar = {}
+    for r in olculebilir:
+        ctalar.setdefault(r.get("cta") or "(CTA yok)", []).append(r)
+    sirali = sorted(((ad, *oran(g)) for ad, g in ctalar.items()),
+                    key=lambda x: (x[1] is None, -(x[1] or 0)))
+    if sirali:
+        satir = "; ".join(
+            f"{ad} %{ctr:.1f} ({maliyet:.2f} TL/link)" if ctr and maliyet
+            else f"{ad} —"
+            for ad, ctr, maliyet, _ in sirali[:5])
+        parcalar.append("CTA'ya göre link CTR — " + satir + ".")
+
+    # --- bicim
+    bicimler = {}
+    for r in olculebilir:
+        bicimler.setdefault(r.get("bicim") or "?", []).append(r)
+    bs = sorted(((ad, *oran(g)) for ad, g in bicimler.items()),
+                key=lambda x: (x[1] is None, -(x[1] or 0)))
+    if bs:
+        parcalar.append("Biçim — " + "; ".join(
+            f"{ad} %{ctr:.1f}" for ad, ctr, _, _ in bs if ctr) + ".")
+
+    # --- en iyi tek kreatif
+    en_iyi = max(olculebilir,
+                 key=lambda r: float(r.get("link_ctr") or 0), default=None)
+    if en_iyi:
+        ad = str(en_iyi.get("baslik") or en_iyi.get("govde") or "(başlıksız)")[:70]
+        parcalar.append(
+            f"En yüksek link CTR: \"{ad}\" — %{en_iyi.get('link_ctr')}, "
+            f"{en_iyi.get('gosterim')} gösterim, {en_iyi.get('bicim')}.")
+
+    # --- yorgunluk
+    yorgun = [r for r in olculebilir
+              if float(r.get("en_yuksek_frekans") or 0) >= 2.5]
+    if yorgun:
+        parcalar.append(f"{len(yorgun)} kreatifte frekans 2,5'in üstüne çıkmış "
+                        "— aynı kişi reklamı tekrar tekrar görüyor.")
+
+    # --- ZORUNLU UYARI
+    parcalar.append("Dikkat: farklı CTA'lar farklı şey satın alır. Profil "
+                    "görüntüleme tıklaması ucuzdur ama satış değildir; "
+                    "bu oranlar doğrudan kıyaslanamaz.")
+    return " ".join(parcalar)
+
+def _urun_karti_answer(message: str, rows: list[dict]) -> str:
+    """Ürün sorusuna dolu cevap.
+
+    Fiyat tek başına yetmiyordu. Burada ürünün ne olduğu, nerede kaça
+    satıldığı, stoğu, satış geçmişi ve platformlar arası tutarsızlığı
+    birlikte verilir -- hepsi veriden, hiçbiri modelden.
+    """
+    if not rows:
+        return "Ürün kartı şu anda okunamıyor."
+
+    kelimeler = [_ascii_fold(w) for w in message.split()]
+    kelimeler = [w for w in kelimeler if len(w) >= 4]
+    eslesen = [r for r in rows
+               if any(k in _ascii_fold(str(r.get("urun_adi") or ""))
+                      for k in kelimeler)]
+
+    if not eslesen:
+        return (f"Sorudaki ürün katalogda bulunamadı. Katalogda {len(rows)} "
+                "ürün var.")
+    if len(eslesen) > 1:
+        adlar = ", ".join(str(r.get("urun_adi") or "?")[:34] for r in eslesen[:6])
+        return f"{len(eslesen)} ürün eşleşti: {adlar}. Soruyu tek ürüne daraltın."
+
+    r = eslesen[0]
+    ad = str(r.get("urun_adi") or "?")
+    parcalar = [f"**{ad}**"]
+
+    aciklama = _urun_tanimi(str(r.get("aciklama_duz") or ""))
+    if aciklama:
+        parcalar.append(aciklama)
+
+    # --- fiyat
+    fiyat = []
+    if r.get("wix_satis") is not None:
+        w = f"Wix {_tl(r['wix_satis'])}"
+        if r.get("wix_liste") is not None and r["wix_liste"] != r["wix_satis"]:
+            w += f" (liste {_tl(r['wix_liste'])})"
+        fiyat.append(w)
+    ty = r.get("trendyol_satis")
+    if ty is not None and float(ty) > 0:
+        fiyat.append(f"Trendyol {_tl(ty)}")
+    elif ty is not None:
+        # Sifir bir FIYAT DEGIL, ariza isareti. Fiyat gibi gostermek
+        # yaniltici olurdu.
+        parcalar.append("⚠ Trendyol'da fiyatı 0 görünüyor — listeleme eksik.")
+    if fiyat:
+        parcalar.append("Fiyat — " + " · ".join(fiyat) + ".")
+    elif r.get("trendyolda_var") is False:
+        parcalar.append("Fiyat kaydı yok.")
+
+    # --- stok ve yayin
+    durum = []
+    if r.get("wix_stok") is not None:
+        durum.append(f"Wix stok {r['wix_stok']}")
+    if r.get("trendyol_stok") is not None:
+        durum.append(f"Trendyol stok {r['trendyol_stok']}")
+    if r.get("wix_yayinda") is False:
+        durum.append("Wix'te YAYINDA DEĞİL")
+    if not r.get("trendyolda_var"):
+        durum.append("Trendyol'da listelenmemiş")
+    if durum:
+        parcalar.append(" · ".join(durum) + ".")
+
+    # --- satis gecmisi. Satmamis urun icin 0 YAZILMAZ.
+    if r.get("satilan_adet") is not None:
+        try:
+            _adet = f"{float(r['satilan_adet']):g}"
+        except (TypeError, ValueError):
+            _adet = str(r["satilan_adet"])
+        s = f"Bugüne kadar {_adet} adet satıldı"
+        if r.get("ciro") is not None:
+            s += f", {_tl(r['ciro'])} ciro"
+        if r.get("satis_marj_yuzde") is not None:
+            s += f", brüt marj %{r['satis_marj_yuzde']}"
+        parcalar.append(s + ".")
+    else:
+        parcalar.append("Henüz satış kaydı yok.")
+
+    # --- maliyet ve marj uyarisi
+    if r.get("birim_maliyet") is not None:
+        kaynak = str(r.get("maliyet_kaynagi") or "")
+        ek = (" (sahip beyanı, tüm ürünlere ortalama — gerçek ürün maliyeti değil)"
+              if kaynak == "ELLE" else "")
+        parcalar.append(f"Birim maliyet {_tl(r['birim_maliyet'])}{ek}.")
+
+    # --- platformlar arasi tutarsizlik
+    farkli = r.get("farkli_alan")
+    if farkli:
+        parcalar.append(f"Wix ile Trendyol arasında {farkli} alan farklı "
+                        "(E-TİCARET sekmesinde satır satır görülebilir).")
+
+    return " ".join(parcalar)
+
+def _fiyat_answer(message: str, rows: list[dict]) -> str:
+    """Ürün fiyatı -- KAYNAĞIYLA birlikte.
+
+    Fiyatın nereden geldiği saklanmaz. İşletme beyanı ile Wix vitrini ayrı
+    şeylerdir; 007 migration'ı bu ayrımı `fiyat_kaynagi` sütununda korudu ve
+    cevap da onu taşır. "1.200 TL" demek yetmez, "kaynak Wix" demek gerekir.
+    """
+    if not rows:
+        return "Fiyat tablosu şu anda okunamıyor."
+
+    # Mesajdaki kelimeler ÜRÜN ADINDA aranır. Kısa kelimeler ("kac", "tl")
+    # her ürüne değeceği için elenir.
+    kelimeler = [_ascii_fold(w) for w in message.split()]
+    kelimeler = [w for w in kelimeler if len(w) >= 4]
+
+    eslesen = [r for r in rows
+               if any(k in _ascii_fold(str(r.get("urun_adi") or ""))
+                      for k in kelimeler)]
+
+    def _satir(r: dict) -> str:
+        ad = str(r.get("urun_adi") or "?")
+        fiyat = r.get("musteriye_soylenecek_fiyat")
+        kaynak = str(r.get("fiyat_kaynagi") or "YOK")
+        if fiyat is None:
+            return f"{ad}: fiyat kaydı yok."
+        etiket = {"BEYAN": "işletme beyanı",
+                  "WIX": "Wix vitrini"}.get(kaynak, kaynak)
+        return f"{ad}: {float(fiyat):,.2f} TL (kaynak: {etiket})."
+
+    if len(eslesen) == 1:
+        return _satir(eslesen[0])
+    if 1 < len(eslesen) <= 6:
+        return "Birden fazla ürün eşleşti:\n" + "\n".join(
+            "- " + _satir(r) for r in eslesen)
+    if eslesen:
+        return (f"{len(eslesen)} ürün eşleşti; soruyu tek ürüne daraltın. "
+                "Örnek: 'VIREON kaç TL?'")
+
+    beyan = sum(1 for r in rows if r.get("fiyat_kaynagi") == "BEYAN")
+    return (f"Sorudaki ürün fiyat tablosunda bulunamadı. Tabloda {len(rows)} "
+            f"ürün var; {beyan} tanesinin fiyatı işletme beyanı, kalanı "
+            "Wix vitrininden alınıyor.")
 
 def _ascii_fold(word: str) -> str:
     import unicodedata as _ud
@@ -776,7 +1205,8 @@ def _analysis(message: str, memory: Any, started: float) -> dict[str, Any]:
         # Specialist findings are the hard case: weighing several domains and a
         # red-team pass against each other is what the stronger model is for.
         result = _router().synthesize(message, evidence, missing_data=missing,
-                                      escalate=needs_escalation(message))
+                                      escalate=ESCALATE_REASONING
+                                      or needs_escalation(message))
         answer, model, calls = result.answer, result.model, result.model_calls
         confidence, tier = result.confidence, result.tier
     except ModelUnavailable:
@@ -1266,9 +1696,43 @@ def _action(message: str, started: float) -> dict[str, Any]:
         approval_required=True, execution_started=False)
 
 
+def _urun_adi_gecen(message: str, runtime: Any) -> bool:
+    """Mesaj katalogdaki bir ürün adını taşıyor mu?
+
+    Marka adı TAM KELİME olarak aranır. Alt dizgi kullanılmaz: "CAL JAW"
+    markasının "cal" parçası "calisma" içinde de geçer ve her soruyu ürün
+    sorusu yapardı. Üç harften kısa parçalar da elenir.
+    """
+    try:
+        adlar = _known_products(runtime)
+    except Exception:  # noqa: BLE001 - katalog yoklugu bir durumdur
+        return False
+    if not adlar:
+        return False
+    kelimeler = {_ascii_fold(w).strip(".,;:!?()[]\"'")
+                 for w in turkish.deasciify(message).split()}
+    kelimeler.discard("")
+    for ad in adlar:
+        # Marka adi cok kelimeli olabilir ("FEMISIA for WOMEN"); ilk
+        # parcasi ayirt edici olandir.
+        bas = _ascii_fold(str(ad).split("(")[0].strip()).split(" ")[0]
+        if len(bas) >= 4 and bas in kelimeler:
+            return True
+    return False
+
+
 def route(message: str, runtime: Any) -> dict[str, Any]:
     started = perf_counter()
     decision = classify(message)
+    # Ciplak bir urun adi ("Hydravie") sirket sorusudur, muhakeme sorusu
+    # degil. Bu kontrol olmadan soru yerel modele dusuyor ve model
+    # katalogda olan bir urun icin "katalogda yok" diyebiliyordu.
+    if decision.intent == GENERAL_REASONING and _urun_adi_gecen(message, runtime):
+        decision = RouteDecision(COMPANY_QUERY, "ecommerce")
+    # Var olan kreatifler HAKKINDA soru, yeni kreatif ISTEGI degildir.
+    # Ajans katmani "metin" kelimesini uretim sanip soruyu yutuyordu.
+    if decision.intent == AGENCY_REQUEST and _kreatif_analiz_sorusu(message):
+        decision = RouteDecision(COMPANY_QUERY, "advertising")
     if decision.intent == SIMPLE_CONVERSATION:
         return _chat(message, decision.intent, started, runtime)
     # The action boundary is settled before any model can be reached. A

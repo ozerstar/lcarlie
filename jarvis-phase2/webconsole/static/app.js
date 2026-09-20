@@ -126,8 +126,9 @@ qs('logoutBtn').addEventListener('click', async () => {
  * markup: they are placeholders for capabilities the backend does not have
  * yet, and clicking them must not pretend otherwise. */
 const VIEWS = { home: 'viewHome', analiz: 'viewAnaliz', gorevler: 'viewGorevler',
-                veri: 'viewVeri', ajanlar: 'viewAjanlar',
-                raporlar: 'viewRaporlar', ayarlar: 'viewAyarlar' };
+                veri: 'viewVeri', ajanlar: 'viewAjanlar', fiyat: 'viewFiyat',
+                raporlar: 'viewRaporlar', ayarlar: 'viewAyarlar',
+                eticaret: 'viewEticaret', reklam: 'viewReklam' };
 
 function setView(name) {
   if (!VIEWS[name]) return;
@@ -137,6 +138,9 @@ function setView(name) {
     btn.classList.toggle('is-active', btn.dataset.view === name);
   });
   if (name === 'gorevler') { refreshActivity(); refreshProposals(); }
+  if (name === 'fiyat') loadFiyatMatrisi();
+  if (name === 'eticaret') loadUrunAlanlari();
+  if (name === 'reklam') loadKreatif();
   if (PANEL_SECTIONS[name]) loadSection(name);
 }
 
@@ -1477,3 +1481,778 @@ async function loadSection(name) {
     if (count) count.textContent = 'hata';
   }
 }
+
+/* ==================================================================
+   PLATFORM FİYAT YÖNETİMİ
+
+   Panelin varlık sebebi tek cümle: toplu bir fiyat işlemi onaya
+   gitmeden ÖNCE kaç ürünü zarara soktuğu görünsün.
+
+   Üç kural burada kodla zorlanır:
+   1. Önizleme hiçbir şey yazmaz. Yazma yalnız onay kuyruğundan geçer.
+   2. Eksik veri uydurulmaz. Komisyon girilmemişse marj hesaplanmaz,
+      "KOMISYON_YOK" yazılır -- boş hücre "sorun yok" demek değildir.
+   3. Maliyetin sahip beyanı olduğu dipnotta durur; marj kesin sayı
+      gibi sunulmaz.
+   ================================================================== */
+
+const fmState = {
+  rows: [],          // sunucudan gelen ham izgara
+  platform: 'wix',
+  platforms: [],
+  search: '',
+  filter: '',
+  sortKey: 'urun_adi',
+  sortDir: 1,
+  preview: null,     // son onizleme sonucu; onaya gonderme buna baglidir
+  uyari: '',
+};
+
+const FM_DURUM_ETIKET = {
+  ZARAR: 'ZARAR', KRITIK: 'KRİTİK', DUSUK: 'DÜŞÜK', OK: 'UYGUN',
+  KOMISYON_YOK: 'komisyon girilmedi',
+  MALIYET_YOK: 'maliyet yok',
+  FIYAT_YOK: 'fiyat yok',
+};
+
+function fmNum(v, suffix) {
+  if (v === null || v === undefined || v === '') return '—';
+  const n = Number(v);
+  if (!isFinite(n)) return '—';
+  return n.toLocaleString('tr-TR', { minimumFractionDigits: 2,
+                                     maximumFractionDigits: 2 }) + (suffix || '');
+}
+
+function fmPct(v) {
+  if (v === null || v === undefined || v === '') return '—';
+  const n = Number(v);
+  if (!isFinite(n)) return '—';
+  return (n > 0 ? '+' : '') + n.toLocaleString('tr-TR',
+    { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
+}
+
+async function loadFiyatMatrisi() {
+  const body = qs('fiyatBody');
+  const count = qs('fiyatCount');
+  if (!body) return;
+  if (count) count.textContent = 'yükleniyor…';
+
+  const { ok, status, body: data } = await api('/api/fiyat-matrisi');
+  if (!ok) {
+    if (count) count.textContent = status === 401 ? 'oturum yok' : 'hata';
+    const foot = qs('fmFoot');
+    if (foot) {
+      foot.className = 'fm-foot is-bad';
+      foot.textContent = status === 401
+        ? 'Oturum düştü. Giriş ekranına yönlendiriliyorsunuz…'
+        : `Fiyat matrisi yüklenemedi (HTTP ${status}). ` +
+          String((data && data.error) || '');
+    }
+    return;
+  }
+
+  fmState.rows = (data && data.rows) || [];
+  fmState.uyari = (data && data.uyari) || '';
+  fmState.platforms = [];
+  const gorulen = new Set();
+  for (const r of fmState.rows) {
+    if (gorulen.has(r.platform_kod)) continue;
+    gorulen.add(r.platform_kod);
+    fmState.platforms.push({
+      kod: r.platform_kod, ad: r.platform_adi,
+      aktif: !!r.platform_aktif, yazma: !!r.yazma_izni,
+    });
+  }
+  if (!gorulen.has(fmState.platform) && fmState.platforms.length) {
+    fmState.platform = fmState.platforms[0].kod;
+  }
+  fmRenderPlatforms();
+  fmRender();
+}
+
+function fmRenderPlatforms() {
+  const box = qs('fmPlatforms');
+  if (!box) return;
+  box.innerHTML = fmState.platforms.map((p) => {
+    const secili = p.kod === fmState.platform;
+    // Yazma izni olmayan platform acikca isaretlenir: panelde fiyat
+    // belirlemek ile o fiyati platforma YAZMAK ayri seylerdir.
+    const rozet = p.yazma ? '' : '<span class="fm-ro" title="yazma kapalı">salt okunur</span>';
+    return `<button type="button" class="fm-chip${secili ? ' is-on' : ''}"
+      data-platform="${escapeHtml(p.kod)}" aria-pressed="${secili}">
+      ${escapeHtml(p.ad)}${rozet}</button>`;
+  }).join('');
+}
+
+function fmFiltrele() {
+  const ara = fmState.search.trim().toLocaleLowerCase('tr');
+  let rows = fmState.rows.filter((r) => r.platform_kod === fmState.platform);
+  if (ara) {
+    rows = rows.filter((r) =>
+      String(r.urun_adi || '').toLocaleLowerCase('tr').includes(ara));
+  }
+  const f = fmState.filter;
+  if (f === 'ZARAR') rows = rows.filter((r) => r.marj_uyari === 'ZARAR');
+  else if (f === 'KRITIK') rows = rows.filter((r) => r.marj_uyari === 'ZARAR' || r.marj_uyari === 'KRITIK');
+  else if (f === 'DEGISIK') rows = rows.filter((r) => r.platform_fiyati !== null && r.platform_fiyati !== undefined);
+  else if (f === 'EKSIK') rows = rows.filter((r) =>
+    ['KOMISYON_YOK', 'MALIYET_YOK', 'FIYAT_YOK'].includes(r.marj_uyari));
+
+  const k = fmState.sortKey;
+  const d = fmState.sortDir;
+  rows.sort((a, b) => {
+    const x = a[k], y = b[k];
+    // Bos degerler HER ZAMAN sona; yon degisince basa gelip listeyi
+    // okunmaz hale getirmesinler.
+    const xb = x === null || x === undefined || x === '';
+    const yb = y === null || y === undefined || y === '';
+    if (xb && yb) return 0;
+    if (xb) return 1;
+    if (yb) return -1;
+    if (typeof x === 'number' && typeof y === 'number') return (x - y) * d;
+    return String(x).localeCompare(String(y), 'tr') * d;
+  });
+  return rows;
+}
+
+function fmRender() {
+  const rows = fmFiltrele();
+  const tbody = qs('fmRows');
+  const count = qs('fiyatCount');
+  const scope = qs('fmScope');
+  const foot = qs('fmFoot');
+
+  if (count) {
+    const toplam = fmState.rows.filter((r) => r.platform_kod === fmState.platform).length;
+    count.textContent = rows.length === toplam
+      ? `${toplam} ürün` : `${rows.length}/${toplam} ürün`;
+  }
+  if (scope) {
+    scope.textContent = rows.length
+      ? `${rows.length} ürüne uygulanacak`
+      : 'eşleşen ürün yok';
+  }
+
+  if (!tbody) return;
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="9" class="fm-empty">Süzgece uyan ürün yok.</td></tr>';
+  } else {
+    tbody.innerHTML = rows.map((r) => {
+      const durum = r.marj_uyari || '';
+      const etiket = FM_DURUM_ETIKET[durum] || durum || '—';
+      const sinif = 'fm-d-' + (durum || 'yok').toLowerCase();
+      const platformHucre = (r.platform_fiyati === null || r.platform_fiyati === undefined)
+        ? '<span class="fm-ref">referans</span>'
+        : fmNum(r.platform_fiyati);
+      const komisyon = (r.komisyon_yuzde === null || r.komisyon_yuzde === undefined)
+        ? '<span class="fm-miss">girilmedi</span>'
+        : fmPct(r.komisyon_yuzde).replace('+', '') +
+          (r.komisyon_istisnasi ? '<span class="fm-ex" title="ürün bazlı istisna">·</span>' : '');
+      return `<tr>
+        <td class="fm-urun">${escapeHtml(String(r.urun_adi || '—'))}</td>
+        <td class="fm-n">${fmNum(r.referans_fiyat)}</td>
+        <td class="fm-n">${platformHucre}</td>
+        <td class="fm-n">${fmPct(r.fark_yuzde)}</td>
+        <td class="fm-n">${komisyon}</td>
+        <td class="fm-n">${fmNum(r.net_kdvsiz)}</td>
+        <td class="fm-n">${fmNum(r.marj)}</td>
+        <td class="fm-n">${fmPct(r.marj_yuzde)}</td>
+        <td><span class="fm-durum ${sinif}">${escapeHtml(etiket)}</span></td>
+      </tr>`;
+    }).join('');
+  }
+
+  if (foot) {
+    const p = fmState.platforms.find((x) => x.kod === fmState.platform);
+    const yazma = p && p.yazma
+      ? 'Bu platforma yazma AÇIK.'
+      : 'Bu platforma yazma KAPALI — panelde belirlenen fiyat dışarı gönderilmez.';
+    foot.className = 'fm-foot';
+    foot.textContent = `${yazma} ${fmState.uyari}`;
+  }
+}
+
+async function fmOnizle() {
+  const yontem = (qs('fmMethod') || {}).value;
+  const ham = (qs('fmValue') || {}).value;
+  const kutu = qs('fmPreviewBox');
+  const tally = qs('fmTally');
+  const gonder = qs('fmSubmit');
+
+  const deger = Number(ham);
+  if (ham === '' || !isFinite(deger)) {
+    if (tally) tally.innerHTML = '<li class="fm-t-bad">Geçerli bir değer girin.</li>';
+    if (kutu) kutu.hidden = false;
+    return;
+  }
+
+  // Yalniz SUZULEN urunler islenir -- ekranda gordugunuz neyse o.
+  const idler = fmFiltrele().map((r) => r.urun_id);
+  if (!idler.length) {
+    if (tally) tally.innerHTML = '<li class="fm-t-bad">Eşleşen ürün yok.</li>';
+    if (kutu) kutu.hidden = false;
+    return;
+  }
+
+  if (tally) tally.innerHTML = '<li>Hesaplanıyor…</li>';
+  if (kutu) kutu.hidden = false;
+
+  const { ok, status, body } = await api('/api/fiyat-toplu-onizleme', {
+    method: 'POST',
+    body: JSON.stringify({ platform: fmState.platform, yontem,
+                           deger, urun_idler: idler }),
+  });
+
+  if (!ok) {
+    fmState.preview = null;
+    if (gonder) gonder.disabled = true;
+    if (tally) {
+      tally.innerHTML = `<li class="fm-t-bad">Önizleme üretilemedi (HTTP ${status}). ` +
+        escapeHtml(String((body && body.error) || '')) + '</li>';
+    }
+    return;
+  }
+
+  fmState.preview = body;
+  const o = body.ozet || {};
+  const sira = ['ZARAR', 'KRITIK', 'DUSUK', 'OK',
+                'KOMISYON_YOK', 'MALIYET_YOK', 'FIYAT_YOK'];
+  const parcalar = sira.filter((k) => o[k]).map((k) => {
+    const kotu = k === 'ZARAR' || k === 'KRITIK';
+    const eksik = k.endsWith('_YOK');
+    const sinif = kotu ? 'fm-t-bad' : (eksik ? 'fm-t-miss' : 'fm-t-ok');
+    return `<li class="${sinif}"><b>${o[k]}</b> ${escapeHtml(FM_DURUM_ETIKET[k] || k)}</li>`;
+  });
+  if (tally) {
+    tally.innerHTML = `<li class="fm-t-head"><b>${body.urun_sayisi}</b> ürün</li>` +
+      parcalar.join('');
+  }
+
+  // Zarar varsa gondermeyi engellemiyoruz -- karar sahibin. Ama dugme
+  // acikca uyarir; sessizce onaylatmak dogru olmaz.
+  if (gonder) {
+    gonder.disabled = false;
+    const zarar = (o.ZARAR || 0) + (o.KRITIK || 0);
+    gonder.textContent = zarar
+      ? `ONAYA GÖNDER (${zarar} riskli)` : 'ONAYA GÖNDER';
+    gonder.classList.toggle('is-risky', !!zarar);
+  }
+}
+
+function fmSubmitSifirla() {
+  const g = qs('fmSubmit');
+  if (!g) return;
+  g.disabled = true;
+  g.textContent = 'ONAYA GÖNDER';
+  g.classList.remove('is-risky');
+}
+
+function fmBind() {
+  const chips = qs('fmPlatforms');
+  if (chips) {
+    chips.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-platform]');
+      if (!b) return;
+      fmState.platform = b.dataset.platform;
+      fmState.preview = null;
+      // Etiket de sifirlanir. Platform degisince onceki platformun risk
+      // sayisi dugmede kalirsa, onizleme YAPILMAMIS bir platformda
+      // "14 riskli" yaziyor gorunur -- yaniltici.
+      fmSubmitSifirla();
+      const pv = qs('fmPreviewBox'); if (pv) pv.hidden = true;
+      fmRenderPlatforms();
+      fmRender();
+    });
+  }
+  const ara = qs('fmSearch');
+  if (ara) ara.addEventListener('input', () => { fmState.search = ara.value; fmRender(); });
+  const suz = qs('fmFilter');
+  if (suz) suz.addEventListener('change', () => { fmState.filter = suz.value; fmRender(); });
+
+  const tablo = qs('fmTable');
+  if (tablo) {
+    tablo.addEventListener('click', (e) => {
+      const th = e.target.closest('[data-sort]');
+      if (!th) return;
+      const k = th.dataset.sort;
+      fmState.sortDir = (fmState.sortKey === k) ? -fmState.sortDir : 1;
+      fmState.sortKey = k;
+      fmRender();
+    });
+  }
+
+  const onizle = qs('fmPreview');
+  if (onizle) onizle.addEventListener('click', fmOnizle);
+  const kapat = qs('fmPreviewClose');
+  if (kapat) {
+    kapat.addEventListener('click', () => {
+      const pv = qs('fmPreviewBox'); if (pv) pv.hidden = true;
+      fmState.preview = null;
+      fmSubmitSifirla();
+    });
+  }
+
+  const gonder = qs('fmSubmit');
+  if (gonder) {
+    gonder.addEventListener('click', () => {
+      // Onay kuyrugu ucu henuz yok. Olmayan bir seyi "gonderildi" diye
+      // gostermek yalan olurdu; acikca soyleriz.
+      const tally = qs('fmTally');
+      if (tally) {
+        tally.insertAdjacentHTML('beforeend',
+          '<li class="fm-t-miss">Onay kuyruğuna gönderme ucu henüz bağlanmadı; ' +
+          'hiçbir şey gönderilmedi.</li>');
+      }
+    });
+  }
+}
+
+fmBind();
+
+/* ==================================================================
+   E-TİCARET · ÜRÜN BİLGİLERİ
+
+   Amaç: bir ürünün DEĞİŞTİRİLEBİLİR tüm alanlarına tek yerden erişmek
+   ve kolayca müdahale etmek.
+
+   Üç kural kodla zorlanır:
+   1. Değiştirilemeyen alan düzenlenebilir GÖSTERİLMEZ. `yazilabilir`
+      false ise o platform hücresi salt okunur kalır -- kullanıcıya
+      yapamayacağı bir şeyi teklif etmek yanlıştır.
+   2. Düzenleme doğrudan uygulanmaz. "Onaya gönder" der; dış platforma
+      yazma izni kapalı olduğu sürece bunu açıkça söyler.
+   3. Uzun metin (açıklama, SEO) hücreye sığmaz; kısaltılır ve tam hali
+      ayrı pencerede gösterilir. Sessizce kırpmak veri kaybı izlenimi verir.
+   ================================================================== */
+
+const etState = {
+  rows: [],
+  urunler: [],
+  secili: null,      // urun_id
+  search: '',
+  filter: '',
+  uyari: '',
+};
+
+const ET_DURUM_ETIKET = {
+  AYNI: 'aynı',
+  FARKLI: 'farklı',
+  YALNIZ_WIX: 'yalnız Wix',
+  YALNIZ_TRENDYOL: 'yalnız Trendyol',
+  IKISINDE_DE_YOK: 'yok',
+};
+
+function etKisalt(s, n) {
+  if (s === null || s === undefined || s === '') return null;
+  const t = String(s).replace(/\s+/g, ' ').trim();
+  return t.length > n ? t.slice(0, n) + '…' : t;
+}
+
+async function loadUrunAlanlari() {
+  const count = qs('etCount');
+  if (count) count.textContent = 'yükleniyor…';
+
+  const { ok, status, body } = await api('/api/urun-alanlari');
+  if (!ok) {
+    if (count) count.textContent = status === 401 ? 'oturum yok' : 'hata';
+    const foot = qs('etFoot');
+    if (foot) {
+      foot.className = 'fm-foot is-bad';
+      foot.textContent = status === 401
+        ? 'Oturum düştü. Giriş ekranına yönlendiriliyorsunuz…'
+        : `Ürün alanları yüklenemedi (HTTP ${status}). ` +
+          String((body && body.error) || '');
+    }
+    return;
+  }
+
+  etState.rows = (body && body.rows) || [];
+  etState.uyari = (body && body.uyari) || '';
+
+  const gorulen = new Map();
+  for (const r of etState.rows) {
+    if (!gorulen.has(r.urun_id)) {
+      gorulen.set(r.urun_id, { urun_id: r.urun_id, ad: r.urun_adi, sku: r.sku });
+    }
+  }
+  etState.urunler = [...gorulen.values()]
+    .sort((a, b) => String(a.ad).localeCompare(String(b.ad), 'tr'));
+
+  if (!etState.secili && etState.urunler.length) {
+    etState.secili = etState.urunler[0].urun_id;
+  }
+  if (count) count.textContent = `${etState.urunler.length} ürün`;
+  etRenderListe();
+  etRenderDetay();
+}
+
+function etRenderListe() {
+  const box = qs('etUrunler');
+  if (!box) return;
+  const ara = etState.search.trim().toLocaleLowerCase('tr');
+  const liste = ara
+    ? etState.urunler.filter((u) =>
+        String(u.ad).toLocaleLowerCase('tr').includes(ara))
+    : etState.urunler;
+
+  if (!liste.length) {
+    box.innerHTML = '<li class="et-bos">eşleşen ürün yok</li>';
+    return;
+  }
+  box.innerHTML = liste.map((u) => {
+    // Kac alani farkli? Listede gorunmesi, hangi urune bakmak gerektigini
+    // aramadan soyler.
+    const farkli = etState.rows.filter(
+      (r) => r.urun_id === u.urun_id && r.durum === 'FARKLI').length;
+    const secili = u.urun_id === etState.secili;
+    return `<li><button type="button" class="et-urun${secili ? ' is-on' : ''}"
+      data-urun="${escapeHtml(String(u.urun_id))}" aria-pressed="${secili}">
+      <span class="et-urun-ad">${escapeHtml(String(u.ad || '—'))}</span>
+      ${farkli ? `<span class="et-rozet">${farkli}</span>` : ''}
+    </button></li>`;
+  }).join('');
+}
+
+function etRenderDetay() {
+  const tbody = qs('etRows');
+  const adEl = qs('etAd');
+  const skuEl = qs('etSku');
+  const scope = qs('etScope');
+  const foot = qs('etFoot');
+  if (!tbody) return;
+
+  const urun = etState.urunler.find((u) => u.urun_id === etState.secili);
+  if (adEl) adEl.textContent = urun ? String(urun.ad) : 'Ürün seçin';
+  if (skuEl) skuEl.textContent = urun && urun.sku ? urun.sku : '';
+
+  let satirlar = etState.rows.filter((r) => r.urun_id === etState.secili);
+  const toplam = satirlar.length;
+  if (etState.filter === 'FARKLI') {
+    satirlar = satirlar.filter((r) => r.durum === 'FARKLI');
+  } else if (etState.filter === 'YAZILIR') {
+    satirlar = satirlar.filter((r) => r.wix_yazilabilir || r.trendyol_yazilabilir);
+  }
+  if (scope) {
+    scope.textContent = toplam
+      ? `${satirlar.length}/${toplam} alan` : '';
+  }
+
+  if (!satirlar.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="fm-empty">Gösterilecek alan yok.</td></tr>';
+  } else {
+    tbody.innerHTML = satirlar.map((r) => {
+      const d = r.durum || '';
+      const hucre = (deger, yazilir) => {
+        if (deger === null || deger === undefined || deger === '') {
+          return '<span class="fm-miss">—</span>';
+        }
+        const kisa = etKisalt(deger, 46);
+        const uzun = String(deger).length > 46;
+        // Degistirilemeyen alan duzenlenebilir GORUNMEZ.
+        const sinif = yazilir ? 'et-v et-v-acik' : 'et-v';
+        return `<span class="${sinif}"${uzun ? ' data-uzun="1"' : ''}>${escapeHtml(kisa)}</span>`;
+      };
+      const mudahale = (r.wix_yazilabilir || r.trendyol_yazilabilir)
+        ? `<button type="button" class="et-op" data-sira="${r.sira}"
+             data-alan="${escapeHtml(String(r.alan))}">DÜZENLE</button>`
+        : '<span class="fm-miss">değiştirilemez</span>';
+      return `<tr data-sira="${r.sira}">
+        <td class="et-alan">${escapeHtml(String(r.alan))}
+          <span class="et-grup">${escapeHtml(String(r.grup || ''))}</span></td>
+        <td>${hucre(r.wix_deger, r.wix_yazilabilir)}</td>
+        <td>${hucre(r.trendyol_deger, r.trendyol_yazilabilir)}</td>
+        <td><span class="fm-durum et-d-${d.toLowerCase()}">${escapeHtml(ET_DURUM_ETIKET[d] || d)}</span></td>
+        <td class="et-ops">${mudahale}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  if (foot) {
+    foot.className = 'fm-foot';
+    foot.textContent = etState.uyari;
+  }
+}
+
+function etBind() {
+  const liste = qs('etUrunler');
+  if (liste) {
+    liste.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-urun]');
+      if (!b) return;
+      etState.secili = b.dataset.urun;
+      etRenderListe();
+      etRenderDetay();
+    });
+  }
+  const ara = qs('etSearch');
+  if (ara) ara.addEventListener('input', () => { etState.search = ara.value; etRenderListe(); });
+  const suz = qs('etFilter');
+  if (suz) suz.addEventListener('change', () => { etState.filter = suz.value; etRenderDetay(); });
+
+  const tablo = qs('etTable');
+  if (tablo) {
+    tablo.addEventListener('click', (e) => {
+      const b = e.target.closest('.et-op');
+      if (!b) return;
+      // Duzenleme ucu henuz bagli degil. Olmayan bir seyi "kaydedildi"
+      // diye gostermek yalan olurdu; acikca soyleriz.
+      const foot = qs('etFoot');
+      if (foot) {
+        foot.className = 'fm-foot is-bad';
+        foot.textContent = `"${b.dataset.alan}" alanı için düzenleme ucu ` +
+          'henüz bağlanmadı — hiçbir değişiklik yapılmadı. Değişiklikler ' +
+          'onay kuyruğundan geçecek şekilde kurulacak.';
+      }
+    });
+  }
+}
+
+etBind();
+
+/* ==================================================================
+   REKLAM · KREATİF ANALİZİ
+
+   Sahip 20.09.2026: "performansların ne anlama geldiği açıklama ve
+   çözüm yolları da eklensin... ROAS CRM veya diğer terimler ne anlama
+   geliyor ben bilmiyorum... yönetebilmek üretebilmek ve ne dediğini
+   anlamak istiyorum."
+
+   Bu yüzden her sayı üç şeyle birlikte gelir:
+     DEĞER  -> ne olduğu
+     ANLAM  -> bu sayı neyi ölçüyor, düşük/yüksek olması ne demek
+     YAPILACAK -> bu durumda ne yapılır
+
+   Eşik değerleri SUNUCUDAN gelir ya da burada AÇIKÇA yazılır; panel
+   kendi eşiğini uydurmaz.
+   ================================================================== */
+
+const krState = { rows: [], esik: 1000 };
+
+/* Terim sözlüğü. Tanımlar sade Türkçe; her birinde "neye yarar" var.
+   Reklamcılık jargonu bilmeyen biri okuyup yönetebilmeli. */
+const KR_SOZLUK = [
+  ['Gösterim', 'Reklamın ekranda kaç kez göründüğü. Aynı kişi üç kez görürse üç gösterim sayılır — yani kaç KİŞİ gördüğünü söylemez.'],
+  ['Erişim', 'Reklamı gören FARKLI kişi sayısı. Gösterimden her zaman küçüktür.'],
+  ['Frekans', 'Gösterim ÷ Erişim. Aynı kişinin reklamı ortalama kaç kez gördüğü. Reklamcılıkta 2,5–3 üstü "yorgunluk" eşiği olarak <strong>yaygın kabul görür</strong> — ama bu bizim hesabımızda ölçülmüş bir eşik değil, genel bir kuraldır. Kendi verinizle doğrulayana kadar kesin sayı gibi kullanmayın.'],
+  ['Tıklama', 'Reklama yapılan her tıklama — beğeni, yorum, "devamını gör" dahil. Tek başına yanıltıcıdır.'],
+  ['Link tıklama', 'Siteye veya profile GİDEN gerçek tıklama. Asıl bakılması gereken budur.'],
+  ['CTR', '"Click Through Rate" — tıklama ÷ gösterim. Reklamın ilgi çekme oranı. Düşükse görsel ya da ilk üç saniye tutmuyordur.'],
+  ['CPM', '1000 gösterimin maliyeti. Kitleye ulaşmak ne kadara mal oluyor. Dar hedefleme CPM\'i yükseltir.'],
+  ['CPC / TL per tıklama', 'Bir tıklamanın maliyeti. Harcama ÷ tıklama. Yüksekse ya reklam ilgi çekmiyordur ya hedef kitle pahalıdır.'],
+  ['ROAS', '"Return On Ad Spend" — reklam harcamasının kaç katı ciro döndüğü. 3 ROAS = 1 TL harcayıp 3 TL ciro. <strong>Bizde şu an güvenilir hesaplanamıyor:</strong> Meta\'nın bildirdiği satışlar ticari olarak doğrulanmadı, GA4 verisi hiç akmıyor.'],
+  ['CRM', '"Customer Relationship Management" — müşteri ilişkileri yönetimi. Bizde: müşteri konuşmaları, cevapsız mesajlar, hangi müşteri ne sormuş.'],
+  ['CTA', '"Call To Action" — reklamın altındaki çağrı düğmesi. SHOP_NOW mağazaya, VIEW_INSTAGRAM_PROFILE profile, MESSAGE_PAGE mesaja götürür.'],
+  ['Kreatif', 'Reklamın kendisi: görsel/video + başlık + metin + düğme. "Hangi kreatif tutuyor" = hangi reklam işe yarıyor.'],
+  ['Ölçülebilir örnek', 'Yeterince gösterim almış reklam. Az gösterimde oranlar rastlantıdır; bu panelde 1000 gösterim altı sıralamaya sokulmaz.'],
+  ['Bu paneldeki sayılar', 'Hepsi kendi Meta verimizden, toplamlardan hesaplanır. <strong>Sektör ortalaması ya da "olması gereken" eşik yazılmaz</strong> — öyle rakamlar bizim hesabımız için ölçülmedi ve karar verirken yanıltır. Kıyaslamayı kendi geçmişinizle yapın.'],
+];
+
+function krSayi(v, ondalik) {
+  if (v === null || v === undefined || v === '') return '—';
+  const n = Number(v);
+  if (!isFinite(n)) return '—';
+  return n.toLocaleString('tr-TR', {
+    minimumFractionDigits: ondalik || 0, maximumFractionDigits: ondalik || 0 });
+}
+
+async function loadKreatif() {
+  const count = qs('krCount');
+  if (count) count.textContent = 'yükleniyor…';
+  const { ok, status, body } = await api('/api/kreatif');
+  if (!ok) {
+    if (count) count.textContent = status === 401 ? 'oturum yok' : 'hata';
+    const foot = qs('krFoot');
+    if (foot) {
+      foot.className = 'fm-foot is-bad';
+      foot.textContent = status === 401
+        ? 'Oturum düştü. Giriş ekranına yönlendiriliyorsunuz…'
+        : `Kreatif verisi yüklenemedi (HTTP ${status}).`;
+    }
+    return;
+  }
+  krState.rows = (body && body.rows) || [];
+  krState.esik = (body && body.ornek_esigi) || 1000;
+  krRender();
+}
+
+/* Oranlar TOPLAMLARDAN hesaplanir. Gunluk oranlarin ortalamasi, az
+   gosterimli gunu cok gosterimliyle esit sayar ve yanlis sonuc verir. */
+function krOran(grup) {
+  const g = grup.reduce((s, r) => s + Number(r.gosterim || 0), 0);
+  const t = grup.reduce((s, r) => s + Number(r.link_tiklama || 0), 0);
+  const h = grup.reduce((s, r) => s + Number(r.harcama || 0), 0);
+  return { gosterim: g, tik: t, harcama: h,
+           ctr: g ? (100 * t / g) : null, birim: t ? (h / t) : null };
+}
+
+function krBarListe(hedefId, gruplar, toplamCtr) {
+  const el = qs(hedefId);
+  if (!el) return;
+  if (!gruplar.length) { el.innerHTML = '<p class="kr-bos">Ölçülebilir veri yok.</p>'; return; }
+  const enYuksek = Math.max(...gruplar.map((x) => x.ctr || 0)) || 1;
+  el.innerHTML = gruplar.map((x) => {
+    // CSP `style-src 'self'` satir ici stile izin vermiyor. Genislik bu
+    // yuzden HAZIR SINIFLA verilir (kr-w-5 ... kr-w-100, 5'er adim).
+    // JS'ten stil atamak sessizce calismama riski tasirdi.
+    const ham = Math.max(5, Math.round(100 * (x.ctr || 0) / enYuksek));
+    const adim = Math.min(100, Math.round(ham / 5) * 5);
+    const ustu = toplamCtr && x.ctr > toplamCtr;
+    return `<div class="kr-bar-satir">
+      <div class="kr-bar-ad">${escapeHtml(x.ad)}
+        <span class="kr-bar-alt">${krSayi(x.gosterim)} gösterim · ${x.kreatif} kreatif</span></div>
+      <div class="kr-bar-alan">
+        <div class="kr-bar kr-w-${adim}${ustu ? ' is-ust' : ''}"></div>
+      </div>
+      <div class="kr-bar-deger">%${krSayi(x.ctr, 1)}
+        <span class="kr-bar-alt">${x.birim ? krSayi(x.birim, 2) + ' TL/tık' : '—'}</span></div>
+    </div>`;
+  }).join('');
+}
+
+function krRender() {
+  const rows = krState.rows;
+  const olc = rows.filter((r) => r.yeterli_ornek);
+  const count = qs('krCount');
+  if (count) count.textContent = `${olc.length}/${rows.length} ölçülebilir`;
+
+  const t = krOran(olc);
+  const giris = qs('krGiris');
+  if (giris) {
+    giris.innerHTML =
+      `<strong>${rows.length}</strong> reklam kreatifinden <strong>${olc.length}</strong> tanesi ` +
+      `değerlendirilebilir durumda (${krState.esik} gösterimin altındakiler sıralamaya alınmaz — ` +
+      `orada oranlar rastlantıdır). Toplam ${krSayi(t.gosterim)} gösterim, ` +
+      `${krSayi(t.harcama, 2)} TL harcama.`;
+  }
+
+  // --- ozet kartlari: deger + anlam + yapilacak
+  const yorgun = olc.filter((r) => Number(r.en_yuksek_frekans || 0) >= 2.5);
+  const basliksiz = rows.filter((r) => !r.baslik);
+  const kayitsiz = rows.filter((r) => r.olcum_durumu === 'PERFORMANS_KAYDI_YOK');
+  const kartlar = [
+    {
+      deger: '%' + krSayi(t.ctr, 2), ad: 'ORTALAMA LİNK CTR',
+      // Sektor kiyasi YAZILMADI: elimizde olculmus bir referans yok ve
+      // uydurulmus bir esik, karar verirken en tehlikeli seydir.
+      anlam: 'Reklamı gören her 100 kişiden kaçı linke tıkladı. Tek başına "iyi" ya da "kötü" denemez: tıklamaların bir kısmı profil görüntülemesi, bir kısmı mağaza ziyareti — ikisi aynı değer taşımaz.',
+      yap: 'Mağazaya giden tıklamaları ayrı izleyin. Karşılaştırmayı kendi geçmişinizle yapın; sektör ortalaması diye dolaşan rakamlar bizim hesabımız için ölçülmedi.',
+      sinif: 'notr',
+    },
+    {
+      deger: krSayi(t.birim, 2) + ' TL', ad: 'TIKLAMA BAŞINA MALİYET',
+      anlam: 'Bir link tıklaması ortalama bu kadara mal oluyor. Harcama ÷ link tıklama.',
+      // Donusum oranimiz BILINMIYOR (GA4 akmiyor, Meta satislari ticari
+      // olarak dogrulanmadi). O yuzden "su kadara kadar mantikli" demiyoruz.
+      yap: 'Bunun makul olup olmadığını söylemek için kaç tıklamadan bir satış çıktığını bilmek gerekir — o veri bizde henüz yok (GA4 akmıyor, Meta satışları doğrulanmadı). Önce dönüşüm ölçümünü kurun.',
+      sinif: 'notr',
+    },
+    {
+      deger: String(yorgun.length), ad: 'YORGUN KREATİF',
+      anlam: 'Frekansı 2,5 üstüne çıkan reklam sayısı — yani aynı kişi reklamı ortalama 2,5 kereden fazla görmüş. 2,5 eşiği reklamcılıkta yaygın bir kuraldır, bizim verimizde ölçülmüş değildir.',
+      yap: yorgun.length
+        ? 'Bu reklamların tıklama oranı zaman içinde düşüyor mu, ona bakın. Düşüyorsa kreatifi yenileyin ya da hedef kitleyi genişletin; düşmüyorsa frekans tek başına sorun değildir.'
+        : 'Şu an 2,5 üstüne çıkan kreatif yok.',
+      sinif: yorgun.length ? 'uyari' : 'iyi',
+    },
+    {
+      deger: String(basliksiz.length) + '/' + String(rows.length), ad: 'BAŞLIKSIZ KREATİF',
+      anlam: 'Başlık, görselin altındaki kalın yazıdır. Yoksa reklam yalnız görsele güvenir.',
+      yap: 'Aynı görseli başlıklı ve başlıksız yayınlayıp karşılaştırın — hangisinin tuttuğunu ancak ölçerek bilirsiniz.',
+      sinif: basliksiz.length > rows.length / 2 ? 'uyari' : 'notr',
+    },
+  ];
+  const kel = qs('krKartlar');
+  if (kel) {
+    kel.innerHTML = kartlar.map((k) => `<div class="kr-kart kr-${k.sinif}">
+      <div class="kr-kart-deger">${escapeHtml(k.deger)}</div>
+      <div class="kr-kart-ad">${escapeHtml(k.ad)}</div>
+      <p class="kr-kart-anlam"><span class="kr-etiket">NE DEMEK</span>${escapeHtml(k.anlam)}</p>
+      <p class="kr-kart-yap"><span class="kr-etiket">NE YAPMALI</span>${escapeHtml(k.yap)}</p>
+    </div>`).join('');
+  }
+
+  // --- CTA ve bicim
+  const grupla = (alan, varsayilan) => {
+    const m = new Map();
+    for (const r of olc) {
+      const k = r[alan] || varsayilan;
+      if (!m.has(k)) m.set(k, []);
+      m.get(k).push(r);
+    }
+    return [...m.entries()]
+      .map(([ad, g]) => ({ ad, kreatif: g.length, ...krOran(g) }))
+      .sort((a, b) => (b.ctr || 0) - (a.ctr || 0));
+  };
+  krBarListe('krCta', grupla('cta', '(düğme yok)'), t.ctr);
+  krBarListe('krBicim', grupla('bicim', '(bilinmiyor)'), t.ctr);
+
+  // --- en iyi kreatifler
+  const tbody = qs('krRows');
+  if (tbody) {
+    const ilk = [...olc].sort((a, b) => Number(b.link_ctr || 0) - Number(a.link_ctr || 0)).slice(0, 10);
+    tbody.innerHTML = ilk.length ? ilk.map((r) => {
+      const metin = r.baslik || r.govde || '(metinsiz — yalnız görsel/video)';
+      const frek = Number(r.en_yuksek_frekans || 0);
+      return `<tr>
+        <td class="kr-metin">${escapeHtml(String(metin).slice(0, 64))}</td>
+        <td>${escapeHtml(String(r.bicim || '—'))}</td>
+        <td class="mono">${escapeHtml(String(r.cta || '—'))}</td>
+        <td class="fm-n">${krSayi(r.gosterim)}</td>
+        <td class="fm-n">%${krSayi(r.link_ctr, 2)}</td>
+        <td class="fm-n">${krSayi(r.link_basi_maliyet, 2)}</td>
+        <td class="fm-n${frek >= 2.5 ? ' kr-kotu' : ''}">${krSayi(frek, 2)}</td>
+      </tr>`;
+    }).join('') : '<tr><td colspan="7" class="fm-empty">Ölçülebilir kreatif yok.</td></tr>';
+  }
+
+  // --- uyarilar: her biri BULGU + NE YAPMALI
+  const uy = [];
+  if (yorgun.length) {
+    uy.push([`${yorgun.length} kreatifte frekans 2,5 üstünde`,
+      'Aynı kişi reklamı ortalama 2,5 kereden fazla görmüş. 2,5 eşiği ' +
+      'reklamcılıkta yaygın bir kuraldır; bizim verimizde ölçülmedi.',
+      'Önce bu kreatiflerin tıklama oranı zaman içinde düşüyor mu, ona bakın. ' +
+      'Düşüyorsa kreatifi yenileyin ya da hedef kitleyi genişletin.']);
+  }
+  if (kayitsiz.length) {
+    uy.push([`${kayitsiz.length} kreatifin performans kaydı yok`,
+      'Bu reklamlar ya hiç yayınlanmadı ya da veri çekilmedi.',
+      'Meta panelinde durumlarını kontrol edin; yayınlanmayan kreatif harcamaz ama yer kaplar.']);
+  }
+  const ctaGruplari = grupla('cta', '(düğme yok)');
+  const pahali = ctaGruplari.filter((x) => x.birim && x.birim > 3);
+  if (pahali.length) {
+    uy.push([`${pahali.map((x) => x.ad).join(', ')} tıklaması pahalı`,
+      `Tıklama başına ${pahali.map((x) => krSayi(x.birim, 2)).join(', ')} TL. Ama bu tek başına kötü değildir: mağazaya giden tıklama, profil tıklamasından daha değerlidir.`,
+      'Bu düğmelerin SATIŞA dönüp dönmediğine bakın; dönüyorsa pahalı olması sorun değil.']);
+  }
+  const uyEl = qs('krUyarilar');
+  if (uyEl) {
+    uyEl.innerHTML = uy.length ? uy.map(([b, n, y]) => `<li class="kr-uyari">
+      <strong>${escapeHtml(b)}</strong>
+      <span class="kr-uyari-n">${escapeHtml(n)}</span>
+      <span class="kr-uyari-y"><span class="kr-etiket">NE YAPMALI</span>${escapeHtml(y)}</span>
+    </li>`).join('') : '<li class="kr-bos">Veriden çıkan bir uyarı yok.</li>';
+  }
+
+  // --- sozluk
+  const sz = qs('krSozluk');
+  if (sz) {
+    sz.innerHTML = KR_SOZLUK.map(([t2, a]) =>
+      `<dt>${escapeHtml(t2)}</dt><dd>${a}</dd>`).join('');
+  }
+
+  const foot = qs('krFoot');
+  if (foot) {
+    foot.className = 'fm-foot';
+    foot.textContent = 'Oranlar toplamlardan hesaplanır (günlük oranların ' +
+      'ortalaması değil). Meta\'nın bildirdiği satışlar ticari olarak ' +
+      'doğrulanmadığı için ROAS burada hesaplanmıyor.';
+  }
+}
+
+function krBind() {
+  // Panel gorunume gecince yuklenir; ayrica baglanacak olay yok.
+}
+
+krBind();

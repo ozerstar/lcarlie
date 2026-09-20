@@ -137,8 +137,53 @@ class CompanyMemory:
             "SELECT row_to_json(x) FROM (SELECT urun_id AS entity_id,"
             "'mart.fiyat_gercegi' AS source,urun_id AS source_record_id,"
             "urun_adi,base_price,kampanya_fiyati,fiyat_durumu,wix_liste,"
-            "wix_satis,wix_yayinda,musteriye_soylenecek_fiyat,durum,aciklama "
+            "wix_satis,wix_yayinda,musteriye_soylenecek_fiyat,durum,aciklama,fiyat_kaynagi "
             "FROM mart.fiyat_gercegi ORDER BY urun_id LIMIT 40) x;"
+        ),
+        "gunluk_brief": (
+            "SELECT row_to_json(x) FROM (SELECT b.brief_key AS entity_id,"
+            "'mart.gunluk_brief' AS source,b.brief_key AS source_record_id,"
+            "b.brief_key,b.provider,b.model,b.created_at,"
+            "b.konu,b.icerik,b.kimden,b.kime,b.durum "
+            "FROM mart.gunluk_brief b LIMIT 5) x;"
+        ),
+        "kreatif_performans": (
+            "SELECT row_to_json(x) FROM (SELECT ad_id AS entity_id,"
+            "'mart.kreatif_performans' AS source,ad_id AS source_record_id,"
+            "ad_id,ad_adi,etkin_durum,bicim,cta,baslik,left(govde,160) AS govde,"
+            "video_mu,gun_sayisi,harcama,gosterim,tiklama,link_tiklama,"
+            "ctr,link_ctr,link_basi_maliyet,cpm,en_yuksek_frekans,"
+            "yeterli_ornek,olcum_durumu "
+            "FROM mart.kreatif_performans ORDER BY gosterim DESC NULLS LAST) x;"
+        ),
+        "urun_karti": (
+            "SELECT row_to_json(x) FROM (SELECT urun_id AS entity_id,"
+            "'mart.urun_karti' AS source,urun_id AS source_record_id,"
+            "urun_id,urun_adi,sku,left(aciklama_duz,400) AS aciklama_duz,"
+            "wix_satis,wix_liste,wix_stok,wix_yayinda,wix_gorsel,"
+            "trendyolda_var,trendyol_satis,trendyol_stok,"
+            "birim_maliyet,maliyet_kaynagi,satilan_adet,ciro,satis_marj_yuzde,"
+            "platform_sayisi,fiyat_ozeti,en_dusuk_marj,farkli_alan "
+            "FROM mart.urun_karti ORDER BY urun_adi) x;"
+        ),
+        "urun_alan_karsilastirma": (
+            "SELECT row_to_json(x) FROM (SELECT urun_id AS entity_id,"
+            "'mart.urun_alan_karsilastirma' AS source,urun_id AS source_record_id,"
+            "urun_id,urun_adi,sku,content_id,sira,alan,grup,"
+            "wix_deger,trendyol_deger,wix_yazilabilir,trendyol_yazilabilir,durum "
+            "FROM mart.urun_alan_karsilastirma "
+            "ORDER BY urun_adi,sira) x;"
+        ),
+        "platform_fiyat_matrisi": (
+            "SELECT row_to_json(x) FROM (SELECT urun_id AS entity_id,"
+            "'mart.platform_fiyat_matrisi' AS source,urun_id AS source_record_id,"
+            "urun_id,urun_adi,platform_kod,platform_adi,platform_aktif,"
+            "yazma_izni,komisyon_yuzde,komisyon_istisnasi,kdv_yuzde,"
+            "referans_fiyat,referans_kaynagi,platform_fiyati,gecerli_fiyat,"
+            "yontem,fark_durumu,fark_yuzde,birim_maliyet,maliyet_kaynagi,"
+            "komisyon_tutari,net_kdvsiz,marj,marj_yuzde,marj_uyari "
+            "FROM mart.platform_fiyat_matrisi "
+            "ORDER BY urun_adi,platform_kod) x;"
         ),
         "ecommerce_funnel": (
             "SELECT row_to_json(x) FROM (SELECT ust_kod||'>'||alt_kod AS entity_id,"

@@ -25,11 +25,18 @@ KNOWN_ROUTES = {
     "/api/session", "/api/login", "/api/logout", "/api/status",
     "/api/activity", "/api/proposals", "/api/chat", "/api/chat/stream",
     "/api/plan", "/api/panel",
+    # Platform fiyat yonetimi -- ikisi de app.py'de sunuluyor.
+    "/api/fiyat-matrisi", "/api/fiyat-toplu-onizleme",
+    # E-ticaret urun alanlari -- app.py sunuyor.
+    "/api/urun-alanlari",
+    # Kreatif analizi -- app.py sunuyor.
+    "/api/kreatif",
 }
 
 # Arka ucu olan bolumler. Bu kume, navigasyonun neyi sunabilecegini belirler:
 # bir sekme ancak buraya girdikten sonra etkinlestirilebilir.
-BACKED_VIEWS = {"home", "analiz", "gorevler", "veri", "ajanlar", "raporlar", "ayarlar"}
+BACKED_VIEWS = {"home", "analiz", "gorevler", "veri", "ajanlar", "raporlar",
+                "ayarlar", "fiyat", "eticaret", "reklam"}
 PANEL_VIEWS = {"veri", "ajanlar", "raporlar", "ayarlar"}
 
 
@@ -142,13 +149,39 @@ class ExecutionSurfaceStaysHonest(unittest.TestCase):
         self.assertIn("function extractRun(", APP_JS)
         self.assertIn("state.lastRun = extractRun(body)", APP_JS)
 
+    def test_fiyat_panel_yuzdeleri_backendden_gelir(self):
+        """Fiyat panelindeki yuzdeler uydurulmus olamaz.
+
+        Marj ve fark yuzdeleri veritabani gorunumunde hesaplanir
+        (mart.platform_fiyat_matrisi) ve API'den aynen gecer. Panel
+        kendi basina bir oran URETMEZ; yalniz gelen alani bicimlendirir.
+        """
+        panel = APP_JS.split("const fmState", 1)
+        self.assertEqual(len(panel), 2, "fiyat paneli app.js'de bulunamadi")
+        panel = panel[1]
+        # Yuzde basan tek fonksiyon fmPct, ve yalniz bu iki alanla cagrilir.
+        self.assertIn("function fmPct(", panel)
+        cagrilar = re.findall(r"fmPct\(([^)]*)\)", panel)
+        izinli = {"r.fark_yuzde", "r.marj_yuzde", "r.komisyon_yuzde", "v"}
+        for arg in cagrilar:
+            self.assertIn(arg.strip(), izinli,
+                          f"fmPct backend alani olmayan {arg!r} ile cagrilmis")
+        # Panel kendi oran hesabi yapmamali; bolme isareti gormek istemiyoruz.
+        self.assertNotIn("* 100", panel, "panel kendi yuzdesini hesapliyor")
+
     def test_no_progress_percentage_anywhere(self):
         """The backend reports a per-step status, never a ratio.
 
         Checked against code with comments removed -- a comment explaining why
         there is no percentage is not a percentage.
         """
-        code = re.sub(r"/\*.*?\*/", "", APP_JS, flags=re.S)
+        # Kapsam YURUTME YUZEYI. Fiyat paneli (const fmState'ten dosya
+        # sonuna kadar) disarida tutulur: oradaki yuzdeler backend'in
+        # hesapladigi marj_yuzde / fark_yuzde alanlaridir, uydurulmus bir
+        # ilerleme orani degil. Panelin yuzdelerini ayrica
+        # test_fiyat_panel_yuzdeleri_backendden_gelir dogruluyor.
+        yurutme = APP_JS.split("const fmState")[0]
+        code = re.sub(r"/\*.*?\*/", "", yurutme, flags=re.S)
         code = re.sub(r"(?m)^\s*//.*$", "", code)
         for pattern in (r"['\"`]\s*%\s*['\"`]", r"\+\s*['\"]%['\"]", r"toFixed\(",
                         r"\bpercent\b", r"progress-bar", r"width\s*:\s*\$\{"):

@@ -27,6 +27,16 @@ from typing import Any, Iterable
 
 STATE_DIR = Path(os.environ.get("JARVIS_STATE_DIR", "/opt/lcarlie/jarvis-phase2/state"))
 MEMORY_DIR = STATE_DIR / "conversation"
+# Aramaya hazir dizin (jarvis.hatira) YALNIZ gercek durum dizininde yazilir.
+# Testler JARVIS_STATE_DIR'i gecici bir klasore cevirip modulu yeniden
+# yukluyor; dosya katmani boylece izole oluyor ama dizin ORTAK postgres'te
+# duruyor. Bu kapi olmadan test metinleri uretim dizinine karisiyordu
+# (olculdu: 17 satirin hepsi test verisiydi).
+_VARSAYILAN_STATE = Path("/opt/lcarlie/jarvis-phase2/state")
+
+
+def _dizin_acik() -> bool:
+    return STATE_DIR == _VARSAYILAN_STATE
 
 # How much of the past a turn is allowed to carry. Six turns is enough for
 # "onu değil, diğerini" to resolve; more than that and the model starts
@@ -128,6 +138,16 @@ def remember(note: str, source: str = "operator", thread: str = "operator") -> b
                 if row.get("note") != note]
         rows.append({"at": _now(), "note": note[:400], "source": source})
         _write(_path(thread, "notes"), rows[-MAX_NOTES:])
+        # Dosya yazildi: not artik guvende. Dizin bunun USTUNDE bir arama
+        # katmani, kayit kaynagi degil -- bu yuzden basarisizligi yutuluyor
+        # ve donus degerini DEGISTIRMIYOR. Dizin kaybolursa yeniden kurulur;
+        # not kaybolursa kurulamaz.
+        if _dizin_acik():
+            try:
+                from jarvis import hatira
+                hatira.kaydet(note[:400], thread=thread)
+            except Exception:  # noqa: BLE001
+                pass
         return True
     except Exception:  # noqa: BLE001
         return False
@@ -142,6 +162,14 @@ def forget(fragment: str, thread: str = "operator") -> int:
         rows = _read(_path(thread, "notes"))
         keep = [row for row in rows if fragment not in str(row.get("note", "")).casefold()]
         _write(_path(thread, "notes"), keep)
+        # Unutulan not dizinde kalirsa aramada cikmaya devam eder; geri
+        # alinmis bir karari hatirlayan hafiza, hatirlamayandan kotudur.
+        if _dizin_acik():
+            try:
+                from jarvis import hatira
+                hatira.unut(fragment, thread=thread)
+            except Exception:  # noqa: BLE001
+                pass
         return len(rows) - len(keep)
     except Exception:  # noqa: BLE001
         return 0
@@ -151,14 +179,43 @@ def notes(thread: str = "operator") -> list[str]:
     return [str(row.get("note")) for row in _read(_path(thread, "notes")) if row.get("note")]
 
 
-def notes_block(thread: str = "operator", limit: int = 12) -> str:
+def notes_block(thread: str = "operator", limit: int = 12,
+                soru: str = "") -> str:
     """Notes rendered for a system prompt, or an empty string when there are
-    none -- so a fresh install adds nothing to the context at all."""
-    kept = notes(thread)[-limit:]
+    none -- so a fresh install adds nothing to the context at all.
+
+    `soru` verilirse once ONA ANLAMCA YAKIN notlar konur, sonra kalan yer
+    son notlarla doldurulur. Verilmezse davranis birebir eskisi gibidir:
+    son `limit` not, sirasiyla. Boylece mevcut cagirilar degismez.
+
+    Neden gerek vardi: not sayisi MAX_NOTES'a (60) yaklastikca "son 12 not"
+    ile "bu soruyla ilgili 12 not" birbirinden uzaklasir. Eskisi tarihe
+    gore seciyordu; soru sorulduysa alaka daha iyi bir olcut.
+    """
+    kept = notes(thread)
     if not kept:
         return ""
+
+    secilen: list[str] = []
+    if soru and _dizin_acik():
+        try:
+            from jarvis import hatira
+            for n in hatira.ara(soru, limit=limit, thread=thread):
+                if n not in secilen:
+                    secilen.append(n)
+        except Exception:  # noqa: BLE001
+            pass  # dizin yoksa asagidaki tarih sirasi devrali
+
+    for n in reversed(kept):
+        if len(secilen) >= limit:
+            break
+        if n not in secilen:
+            secilen.append(n)
+
+    if not secilen:
+        return ""
     return ("Daha önce konuşulanlardan aklında tutman istenenler:\n"
-            + "\n".join(f"- {note}" for note in kept))
+            + "\n".join(f"- {note}" for note in secilen))
 
 
 def status(thread: str = "operator") -> dict[str, int]:
