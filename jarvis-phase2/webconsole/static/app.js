@@ -134,7 +134,7 @@ const VIEWS = { home: 'viewHome', analiz: 'viewAnaliz', gorevler: 'viewGorevler'
                 veri: 'viewVeri', ajanlar: 'viewAjanlar', fiyat: 'viewFiyat',
                 raporlar: 'viewRaporlar', ayarlar: 'viewAyarlar',
                 eticaret: 'viewEticaret', reklam: 'viewReklam',
-                hafiza: 'viewHafiza' };
+                hafiza: 'viewHafiza', ekip: 'viewEkip' };
 
 function setView(name) {
   if (!VIEWS[name]) return;
@@ -1379,7 +1379,13 @@ checkSession();
  * tıklayınca bir şey varmış gibi davranmamaları doğruydu. Artık
  * /api/panel/<bölüm> gerçek ölçüm döndürüyor, o yüzden açıldılar.
  * Okunamayan bir kaynak gizlenmez -- hatasıyla gösterilir. */
-const PANEL_SECTIONS = { veri: 1, ajanlar: 1, raporlar: 1, ayarlar: 1 };
+/* EKIP buraya 20.09.2026'da eklendi. Ekranin TAMAMI yazilmisti --
+ * viewEkip kabi, renderEkip, ekipSatir, SOR dugmesi, /api/ekip/sor ucu ve
+ * _panel_ekip -- ama bu iki haritaya kaydedilmemisti. Sonuc: setView('ekip')
+ * ilk satirda `if (!VIEWS[name]) return;` ile donuyor ve EKIP sekmesine
+ * basinca HICBIR SEY olmuyordu. Calisan kodun kayitsiz kalmasi, olmayan
+ * koddan daha zor fark ediliyor. */
+const PANEL_SECTIONS = { ekip: 1, veri: 1, ajanlar: 1, raporlar: 1, ayarlar: 1 };
 
 function kvRow(label, value, cls) {
   return `<div class="kv${cls ? ' ' + cls : ''}">

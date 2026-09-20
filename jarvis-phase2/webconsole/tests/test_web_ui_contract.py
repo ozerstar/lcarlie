@@ -375,6 +375,27 @@ class NavigationOnlyOffersBackedViews(unittest.TestCase):
             self.assertIn("disabled", match.group(0),
                           f"{view} has no backend but is enabled")
 
+    def test_her_acik_sekme_VIEWS_haritasinda_KAYITLI(self):
+        """HTML'de sekme var ama app.js'in VIEWS haritasinda yoksa, o sekme
+        OLU demektir: setView() ilk satirda `if (!VIEWS[name]) return;` ile
+        doner ve tiklama HICBIR SEY yapmaz -- hata da vermez.
+
+        20.09.2026'da EKIP sekmesi tam bu yuzden acilmiyordu. Ekranin
+        tamami yazilmisti (viewEkip kabi, renderEkip, SOR dugmesi,
+        /api/ekip/sor ucu, _panel_ekip) ama iki haritaya kaydedilmemisti.
+        Calisan kodun kayitsiz kalmasi, olmayan koddan daha zor fark edilir.
+        """
+        harita = re.search(r"const VIEWS = \{(.*?)\};", APP_JS, re.S)
+        self.assertIsNotNone(harita, "VIEWS haritasi bulunamadi")
+        kayitli = set(re.findall(r"(\w+)\s*:\s*'view", harita.group(1)))
+        for match in re.finditer(r'<button[^>]*data-view="([a-z]+)"([^>]*)>', INDEX):
+            sekme, kalan = match.group(1), match.group(2)
+            if "disabled" in kalan:
+                continue      # kapali sekme zaten tiklanmiyor
+            self.assertIn(sekme, kayitli,
+                          f"{sekme} sekmesi acik ama VIEWS'te yok -- tiklayinca "
+                          "hicbir sey olmaz")
+
     def test_backed_sections_are_enabled(self):
         for view in sorted(BACKED_VIEWS):
             match = re.search(rf'<button[^>]*data-view="{view}"[^>]*>', INDEX)
