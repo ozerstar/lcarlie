@@ -205,7 +205,7 @@ def classify(message: str) -> RouteDecision:
                    "açılış sayfası", "acilis sayfasi", "cro",
                    "reklam performansımızı", "reklam performansimizi",
                    "reklam neden çalışmıyor", "reklam neden calismiyor",
-                   "yeni kampanya", "kampanya hazır")):
+                   "yeni kampanya", "kampanya hazır")) or _wants_production(raw):
         return RouteDecision(AGENCY_REQUEST)
     if _has(text, ("rakip", "pazar araştır", "pazar arastir", "research", "araştır", "arastir")):
         return RouteDecision(RESEARCH_REQUEST)
@@ -367,6 +367,46 @@ _DOMAIN_LEMMAS = {
 # Kok onekinin uygulanmasi icin en az kelime uzunlugu. "sat" koku 3 harf;
 # 4 harften kisa kelimelerde ("sat" emri gibi) aramak gereksiz gurultu uretir.
 _MIN_ROOT_WORD = 4
+
+
+# Uretilecek sey. "kampanyasi", "kampanyasini" -> lemma "kampanya" (olculdu).
+_PRODUCTION_OBJECTS = ("kampanya", "kreatif", "reklam metni", "reklam metin",
+                       "icerik plan", "sosyal medya plan", "gonderi plan",
+                       "aci", "konsept", "brief", "slogan", "basl")
+_PRODUCTION_OBJECT_LEMMAS = ("kampanya", "kreatif", "konsept", "slogan", "başlık")
+
+# Uretim fiilleri. Olculdu: hazirla/hazirlar -> hazirlamak,
+# uretelim -> uretmek, onerir -> onermek, kurgula -> kurgulamak.
+_PRODUCTION_VERBS = ("hazirla", "uret", "yaz", "kurgula", "oner", "olustur",
+                     "tasarla", "gelistir", "cikar", "planla", "kur")
+_PRODUCTION_VERB_LEMMAS = ("hazırlamak", "üretmek", "yazmak", "kurgulamak",
+                           "önermek", "oluşmak", "tasarlamak", "geliştirmek",
+                           "planlamak", "kurmak")
+
+
+def _wants_production(message: str) -> bool:
+    """Bir şey ÜRETİLMESİ isteniyor mu? Nesne + fiil birlikte aranır.
+
+    Sabit dizgi aramak Turkcede kirilgan: "kampanya hazir" kalibi
+    "kampanyasi hazirla" cumlesini GORMEZ, cunku iyelik eki dizgiyi boler.
+    OLCULDU -- ajans istekleri bu yuzden ajansa hic ulasmiyordu.
+
+    Iki kosul birlikte arandigi icin asiri tetikleme olmaz: "Reklamlar nasil
+    gidiyor?" uretim fiili tasimaz ve rapor sorusu olarak kalir.
+    """
+    try:
+        from jarvis.turkish import lemmas as _lemmas, words as _words
+        tokens = _words(message)
+        lemma_set = {lem.casefold() for w in tokens for lem in _lemmas(w)}
+    except Exception:  # noqa: BLE001 - bicimbilgisi istege baglidir
+        tokens, lemma_set = message.split(), set()
+
+    folded = " ".join(_ascii_fold(w) for w in tokens)
+    nesne = (any(o in folded for o in _PRODUCTION_OBJECTS)
+             or bool(lemma_set & set(_PRODUCTION_OBJECT_LEMMAS)))
+    fiil = (any(w.startswith(_PRODUCTION_VERBS) for w in folded.split())
+            or bool(lemma_set & set(_PRODUCTION_VERB_LEMMAS)))
+    return nesne and fiil
 
 
 def _is_pure_small_talk(message: str) -> bool:
@@ -1109,6 +1149,16 @@ def _agency_request(message: str, memory: Any, started: float) -> dict[str, Any]
     # ugramadan cope gidiyordu. Zarf uretilir, veritabanina YAZILMAZ --
     # gonderim ayri ve bilincli bir adimdir.
     deliverable["proposals"] = _screen_agency(deliverable, memory)
+
+    # Teslimat diske yazilir ve onerilebilir konseptler icin sartname
+    # uretilir. Once bu yapilmiyordu: konseptler, test plani ve mevzuat
+    # bulgulari HTTP yanitindan sonra cope gidiyordu. Kayit basarisiz olursa
+    # cevap yine doner -- saklamak cevabi engellememeli.
+    try:
+        from jarvis import agency_store
+        deliverable["stored"] = agency_store.save(deliverable)
+    except Exception as exc:  # noqa: BLE001
+        deliverable["stored"] = {"error": str(exc)[:200]}
 
     return _response(message, AGENCY_REQUEST, "PROPOSED",
         deliverable.get("summary") or "Agency önerisi hazırlandı.",
