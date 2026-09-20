@@ -1401,6 +1401,36 @@ FALLBACK_INTRO = (
 _KNOWLEDGE = company_knowledge()
 
 
+DIL_NOTU = "\n\n(Yanıtını Türkçe yaz.)"
+
+
+def _dil_notlu(message: str) -> str:
+    """Her soruya, soruya BITISIK bir dil notu ekler.
+
+    NEDEN ISTEM YETMIYOR
+    Kural hem CHAT_SYSTEM'de hem GROUNDING_SYSTEM'de acikca yazili. Yine de
+    OLCULDU: "What are our sales this month?" Ingilizce cevaplandi.
+    Qwen3-4B sorunun diline uyuyor; kucuk modeller istemin basindaki kurali
+    degil, soruya en yakin talimati dinliyor. Not eklenince ayni soru
+    Turkce cevaplandi (iki tur, ikisi de Turkce).
+
+    NEDEN SINIFLANDIRICI YOK
+    Once "yalniz yabanci soruya ekle" diye yazildi ve siniflandirici
+    yanildi: "Which product should I promote?" Turkce sanildi, cevap
+    Ingilizce geldi. Kelime listesini buyutmek ayni sinif hatayi erteler.
+    Notu her soruya eklemenin bedeli ~25 karakter; yaniltmanin bedeli
+    yanlis dilde cevap. Bu yuzden kosul yok.
+
+    Not KAYDA GIRMEZ: conversation_memory'ye kullanicinin yazdigi cumle
+    yazilir, bu eklenti degil -- cagri yerlerinde `message` degiskeni
+    oldugu gibi duruyor.
+    """
+    metin = message or ""
+    if metin.endswith(DIL_NOTU):
+        return metin
+    return metin + DIL_NOTU
+
+
 def _system_for(message: str, internal_ok: bool = True) -> str:
     """Persona, then who we are, then only what this message actually needs.
 
@@ -1489,7 +1519,7 @@ def _chat(message: str, intent: str, started: float,
     introduction still stands so the user is never left without a reply.
     """
     try:
-        result = _router().synthesize(message, (), system=_system_for(message), max_tokens=CHAT_MAX_TOKENS,
+        result = _router().synthesize(_dil_notlu(message), (), system=_system_for(message), max_tokens=CHAT_MAX_TOKENS,
                                       escalate=needs_escalation(message),
                                       history=conversation_memory.history())
     except ModelUnavailable:
@@ -1513,7 +1543,7 @@ def stream_chat(message: str, intent: str):
     model = None
     calls = 0
     try:
-        for delta in _router().stream_text(message, _system_for(message), max_tokens=CHAT_MAX_TOKENS,
+        for delta in _router().stream_text(_dil_notlu(message), _system_for(message), max_tokens=CHAT_MAX_TOKENS,
                                            history=conversation_memory.history()):
             chunks.append(delta)
             yield {"type": "token", "delta": delta}

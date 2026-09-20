@@ -164,4 +164,40 @@ class CevapDiliTurkceSabit(unittest.TestCase):
         for kural in ("Resmî", "siz", "En fazla 4 cümle"):
             self.assertIn(kural, conversation.CHAT_SYSTEM)
 
+
+class DilNotuSoruyaBitisik(unittest.TestCase):
+    """Dil notu soruya bitişik gider ve kayda karışmaz.
+
+    Neden var: istemdeki "HER ZAMAN Türkçe" kuralı ÖLÇÜLDÜ ve 4B modelde
+    yetmedi -- "What are our sales this month?" İngilizce cevaplandı.
+    Not eklendikten sonra 16 turun 16'sı Türkçe geldi (8 Türkçe soru,
+    8 yabancı soru, her biri 2 tur).
+
+    Burada modelin çıktısı değil, notun DOĞRU YERE eklendiği ölçülüyor;
+    çıktı testi model her koşuda farklı cümle kurduğu için kırılgan olurdu.
+    """
+
+    def test_not_sorunun_SONUNA_eklenir(self):
+        # Kucuk modeller istemin basindaki kurali degil, soruya en yakin
+        # talimati dinliyor -- notun sonda olmasinin sebebi bu.
+        cikti = conversation._dil_notlu("Hello")
+        self.assertTrue(cikti.startswith("Hello"))
+        self.assertTrue(cikti.rstrip().endswith("(Yanıtını Türkçe yaz.)"))
+
+    def test_turkce_soruya_da_eklenir(self):
+        """Sınıflandırıcı bilerek yok: bir kez yazıldı ve yanıldı
+        ("Which product should I promote?" Türkçe sanıldı)."""
+        self.assertIn("Türkçe yaz", conversation._dil_notlu("Merhaba"))
+
+    def test_iki_kez_eklenmez(self):
+        bir = conversation._dil_notlu("Merhaba")
+        self.assertEqual(bir, conversation._dil_notlu(bir))
+
+    def test_bos_mesaj_patlatmaz(self):
+        self.assertIn("Türkçe yaz", conversation._dil_notlu(""))
+
+    def test_kullanicinin_cumlesi_bozulmaz(self):
+        soru = "Bu ay satışlar nasıl?"
+        self.assertTrue(conversation._dil_notlu(soru).startswith(soru))
+
 if __name__ == "__main__": unittest.main()
