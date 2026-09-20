@@ -644,6 +644,16 @@ def _panel_raporlar() -> dict:
     }
 
 
+def _panel_usage() -> dict:
+    """Son 7 günün model kullanımı. Para tahmin edilmez, token sayılır."""
+    try:
+        from jarvis.usage import summary
+        return summary(days=7)
+    except Exception as exc:  # noqa: BLE001 - panel hicbir zaman cokmez
+        return {"error": str(exc)[:200], "providers": [], "total_calls": 0,
+                "paid_calls": 0}
+
+
 def _panel_ayarlar() -> dict:
     """Yonetisim anahtarlari -- SALT OKUNUR.
 
@@ -677,7 +687,7 @@ def _panel_ayarlar() -> dict:
     except Exception:  # noqa: BLE001
         pass
 
-    return {
+    return {"model_usage": _panel_usage(), 
         "env": env, "thresholds": thresholds, "compliance": compliance,
         "readonly": True,
         "note": ("Bu degerler panelden degistirilemez. EXTERNAL_ACTIONS ve kill "

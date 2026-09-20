@@ -1409,12 +1409,35 @@ function renderRaporlar(d) {
     + card('DÖNGÜ SONUÇLARI', c, '');
 }
 
+/* Model kullanimi: UCRETLI cagri ayri isaretlenir. Para tahmin edilmez --
+ * birim fiyat zamanla degisir ve panele sabit yazmak bir gun sessizce
+ * yanlis rakam gostermek olurdu. */
+function renderUsage(block) {
+  if (!block) return '';
+  if (block.error) {
+    return card('MODEL KULLANIMI',
+      `<p class="sect-note">Okunamadı: ${escapeHtml(String(block.error))}</p>`, '');
+  }
+  const rows = (block.providers || []).map((p) => {
+    const tok = (p.prompt_tokens || 0) + (p.completion_tokens || 0);
+    return `<div class="kv${p.paid ? ' is-bad' : ''}">
+      <span class="kv-k">${escapeHtml(String(p.provider))}${p.paid ? ' · ÜCRETLİ' : ''}</span>
+      <span class="kv-v">${p.calls} çağrı · ${tok.toLocaleString('tr-TR')} token · ort ${p.avg_s}s${
+        p.failed ? ` · ${p.failed} hata` : ''}</span>
+    </div>`;
+  }).join('');
+  const meta = `${block.total_calls || 0} çağrı · ${block.paid_calls || 0} ücretli (7 gün)`;
+  return card('MODEL KULLANIMI', rows || '<p class="sect-note">Kayıt yok.</p>', meta)
+    + `<p class="sect-note">${escapeHtml(String(block.note || ''))}</p>`;
+}
+
 function renderAyarlar(d) {
   const env = Object.entries(d.env || {}).map(([k, v]) => kvRow(k, v,
     k === 'EXTERNAL_ACTIONS' && String(v) !== 'false' ? 'is-bad' : '')).join('');
   const th = Object.entries(d.thresholds || {}).map(([k, v]) => kvRow(k, v)).join('');
   const gated = (d.compliance?.gated_actions || []).map((a) => kvRow(a, 'mevzuat kapısı açık')).join('');
-  return card('YÖNETİŞİM', env, d.readonly ? stateChip('SALT OKUNUR') : '')
+  return renderUsage(d.model_usage)
+    + card('YÖNETİŞİM', env, d.readonly ? stateChip('SALT OKUNUR') : '')
     + `<p class="sect-note">${escapeHtml(String(d.note || ''))}</p>`
     + card('MEVZUAT KAPISI', gated, escapeHtml(String(d.compliance?.rules_source || '')))
     + card('İŞ ZEKÂSI EŞİKLERİ', th, '')
