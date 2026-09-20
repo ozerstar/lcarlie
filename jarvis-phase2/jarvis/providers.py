@@ -89,7 +89,7 @@ def _post(url: str, body: dict[str, Any], headers: dict[str, str]) -> dict[str, 
 
 # --------------------------------------------------------------- cagiricilar
 def _openai_style(url: str, key: str, model: str, messages: list[dict[str, str]],
-                  max_tokens: int, new_style: bool = False) -> tuple[str, str]:
+                  max_tokens: int, new_style: bool = False) -> tuple[str, str, int | None, int | None]:
     # OLCULDU: gpt-5-mini `max_tokens` kabul etmiyor, HTTP 400 donuyor;
     # `max_completion_tokens` istiyor. Eski modeller tersine.
     limit = ({"max_completion_tokens": max_tokens} if new_style
@@ -97,12 +97,14 @@ def _openai_style(url: str, key: str, model: str, messages: list[dict[str, str]]
     data = _post(url, {"model": model, "messages": messages, **limit},
                  {"Authorization": f"Bearer {key}"})
     choice = (data.get("choices") or [{}])[0]
-    return (choice.get("message") or {}).get("content", ""), \
-        str(choice.get("finish_reason") or "")
+    usage = data.get("usage") or {}
+    return ((choice.get("message") or {}).get("content", ""),
+            str(choice.get("finish_reason") or ""),
+            usage.get("prompt_tokens"), usage.get("completion_tokens"))
 
 
 def _gemini(key: str, model: str, messages: list[dict[str, str]],
-            max_tokens: int) -> tuple[str, str]:
+            max_tokens: int) -> tuple[str, str, int | None, int | None]:
     system = "\n".join(m["content"] for m in messages if m.get("role") == "system")
     user = "\n\n".join(m["content"] for m in messages if m.get("role") != "system")
     body: dict[str, Any] = {
@@ -115,12 +117,16 @@ def _gemini(key: str, model: str, messages: list[dict[str, str]],
                  f"{model}:generateContent?key={key}", body, {})
     candidate = (data.get("candidates") or [{}])[0]
     parts = (candidate.get("content") or {}).get("parts") or []
-    return "".join(p.get("text", "") for p in parts), \
-        str(candidate.get("finishReason") or "")
+    # Gemini token alanlari farkli adlarda gelir; tek bicime indirilmezse
+    # defter saglayicilar arasinda karsilastirilamaz olur.
+    meta = data.get("usageMetadata") or {}
+    return ("".join(p.get("text", "") for p in parts),
+            str(candidate.get("finishReason") or ""),
+            meta.get("promptTokenCount"), meta.get("candidatesTokenCount"))
 
 
 def _anthropic(key: str, model: str, messages: list[dict[str, str]],
-               max_tokens: int) -> tuple[str, str]:
+               max_tokens: int) -> tuple[str, str, int | None, int | None]:
     system = "\n".join(m["content"] for m in messages if m.get("role") == "system")
     turns = [m for m in messages if m.get("role") != "system"]
     body: dict[str, Any] = {"model": model, "max_tokens": max_tokens,
@@ -130,8 +136,10 @@ def _anthropic(key: str, model: str, messages: list[dict[str, str]],
     data = _post("https://api.anthropic.com/v1/messages", body,
                  {"x-api-key": key, "anthropic-version": "2023-06-01"})
     parts = data.get("content") or []
-    return "".join(p.get("text", "") for p in parts if p.get("type") == "text"), \
-        str(data.get("stop_reason") or "")
+    usage = data.get("usage") or {}
+    return ("".join(p.get("text", "") for p in parts if p.get("type") == "text"),
+            str(data.get("stop_reason") or ""),
+            usage.get("input_tokens"), usage.get("output_tokens"))
 
 
 @dataclass(frozen=True)
@@ -139,7 +147,7 @@ class Provider:
     name: str
     env_key: str
     default_model: str
-    call: Callable[..., tuple[str, str]]
+    call: Callable[..., tuple[str, str, int | None, int | None]]
     paid: bool = False
     note: str = ""
     # Akil yuruten modeller butcenin bir kismini gorunmeyen ic dusunceye
@@ -171,6 +179,21 @@ PROVIDERS: tuple[Provider, ...] = (
     # NVIDIA ve GROQ bilerek disarida: NVIDIA "Here's a thinking process"
     # sizdiriyor ve kesiliyor, GROQ HTTP 403/1010 donuyor (olculdu).
 )
+
+
+def _record_usage(provider, model: str, started: float, *,
+                  prompt_tokens: int | None = None,
+                  completion_tokens: int | None = None,
+                  ok: bool = True, error: str = "") -> None:
+    """Maliyet defterine yazar. Defter bozulursa çağrı ENGELLENMEZ."""
+    try:
+        from .usage import record
+        record(provider.name, model, provider.paid,
+               prompt_tokens=prompt_tokens, completion_tokens=completion_tokens,
+               elapsed_s=round(time.perf_counter() - started, 2),
+               ok=ok, error=error)
+    except Exception:  # noqa: BLE001 - maliyet kaydi cagriyi durduramaz
+        pass
 
 
 class NoProvider(RuntimeError):
@@ -208,7 +231,8 @@ def generate(messages: list[dict[str, str]], max_tokens: int = 400,
         started = time.perf_counter()
         budget = max(max_tokens, provider.min_tokens)
         try:
-            text, finish = provider.call(key, model, messages, budget)
+            text, finish, giris_tok, cikis_tok = provider.call(
+                key, model, messages, budget)
         except urllib.error.HTTPError as exc:
             detail = ""
             try:
@@ -217,6 +241,8 @@ def generate(messages: list[dict[str, str]], max_tokens: int = 400,
                 pass
             attempts.append({"provider": provider.name,
                              "result": f"HTTP {exc.code}: {mask(detail)}"})
+            _record_usage(provider, model, started, ok=False,
+                          error=f"HTTP {exc.code}")
             continue
         except Exception as exc:  # noqa: BLE001 - bir saglayici digerini engellemez
             attempts.append({"provider": provider.name,
@@ -226,10 +252,14 @@ def generate(messages: list[dict[str, str]], max_tokens: int = 400,
         if not (text or "").strip():
             attempts.append({"provider": provider.name, "result": "bos cevap"})
             continue
+        gecen = round(time.perf_counter() - started, 2)
+        _record_usage(provider, model, started, prompt_tokens=giris_tok,
+                      completion_tokens=cikis_tok)
         return {"text": text, "provider": provider.name, "model": model,
                 "paid": provider.paid, "finish_reason": finish,
                 "truncated": finish.lower() in {"length", "max_tokens"},
-                "elapsed_s": round(time.perf_counter() - started, 2),
+                "prompt_tokens": giris_tok, "completion_tokens": cikis_tok,
+                "elapsed_s": gecen,
                 "attempts": attempts}
 
     raise NoProvider("hiçbir dış sağlayıcı yanıt vermedi: "
