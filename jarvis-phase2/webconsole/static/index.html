@@ -49,6 +49,7 @@
       <button type="button" class="nav-item" data-view="gorevler">GÖREVLER</button>
       <button type="button" class="nav-item" data-view="veri">VERİ</button>
       <button type="button" class="nav-item" data-view="ajanlar">AJANLAR</button>
+      <button type="button" class="nav-item" data-view="hafiza">HAFIZA</button>
       <button type="button" class="nav-item" data-view="fiyat">FİYAT</button>
       <button type="button" class="nav-item" data-view="eticaret">E-TİCARET</button>
       <button type="button" class="nav-item" data-view="reklam">REKLAM</button>
@@ -470,6 +471,43 @@
     </div>
     <div class="panel-body sect-body" id="ayarlarBody">
       <p class="sect-empty">Yükleniyor…</p>
+    </div>
+  </section>
+</main>
+
+<main class="stage stage-single view-panel" id="viewHafiza" hidden>
+  <section class="panel" aria-label="KİŞİSEL ASİSTAN HAFIZASI">
+    <div class="panel-head">
+      <h2 class="panel-title">HAFIZA</h2>
+      <span class="panel-count" id="hafizaCount">—</span>
+    </div>
+    <div class="panel-body sect-body" id="hafizaBody">
+
+      <p class="hf-giris">
+        Jarvis’in kalıcı olarak aklında tuttuğu notlar. Yalnız buraya yazılan
+        ya da sohbette <strong>“bunu hatırla”</strong> denilen cümleler girer —
+        hiçbir şey konuşmadan çıkarım yapılarak eklenmez.
+      </p>
+
+      <!-- Iki kaynak ayri gosterilir: dosya kayit kaynagi, dizin arama katmani -->
+      <div class="hf-durum" id="hfDurum"></div>
+
+      <h3 class="rp-sub">YENİ NOT <span class="rp-src">kalıcı olarak hatırlanır</span></h3>
+      <form class="hf-form" id="hfForm">
+        <label class="hf-label" for="hfInput">Hatırlanacak cümle</label>
+        <textarea id="hfInput" class="hf-input" rows="2" maxlength="400"
+                  placeholder="Örn: Toplu fiyat değişikliğini yüzde bazlı istiyorum, sabit tutarla değil."></textarea>
+        <div class="hf-form-alt">
+          <span class="hf-sayac" id="hfSayac">0 / 400</span>
+          <button type="submit" class="qa-btn" id="hfSubmit">KAYDET</button>
+        </div>
+      </form>
+      <p class="hf-mesaj" id="hfMesaj" hidden></p>
+
+      <h3 class="rp-sub">KAYITLI NOTLAR <span class="rp-src">en yeni üstte</span></h3>
+      <div class="hf-liste" id="hfListe"></div>
+
+      <p class="fm-foot" id="hfFoot"></p>
     </div>
   </section>
 </main>

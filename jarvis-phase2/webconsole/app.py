@@ -42,6 +42,7 @@ os.environ.setdefault("EXTERNAL_ACTIONS", "false")
 os.environ.setdefault("JARVIS_MEMORY_TRANSPORT", "local-docker")
 
 from jarvis import capabilities as caps  # noqa: E402
+from jarvis import conversation_memory as _cmem  # noqa: E402
 from jarvis.action_contract import ContractCache, ContractError  # noqa: E402
 from jarvis.execution_planner import plan_request  # noqa: E402
 from jarvis.context import ContextCompiler  # noqa: E402
@@ -444,6 +445,9 @@ class Handler(BaseHTTPRequestHandler):
                           "yaklasiktir."),
             })
             return
+        if path == "/api/hafiza":
+            self._send_json(200, _hafiza_gorunumu())
+            return
         if path == "/api/panel":
             # Bolum listesi: uc nokta kesfedilebilir olsun, arayuz sabit
             # isim listesi tasimak zorunda kalmasin.
@@ -516,6 +520,40 @@ class Handler(BaseHTTPRequestHandler):
                                       "detail": str(exc)[:200]})
                 return
             self._send_json(200, sonuc)
+            return
+        if path == "/api/hafiza":
+            # Not EKLEME. Hicbir sey cikarim yapmaz: buraya yalnizca
+            # operatorun kendi yazdigi cumle girer. Hafizanin neyi
+            # saklayacagina kendi karar vermesi, duzeltilemeyen bir
+            # hafizadir -- jarvis.conversation_memory.remember()'in
+            # varlik sebebi de bu.
+            body = _read_json_body(self)
+            note = str(body.get("note", ""))[:400]
+            if not note.strip():
+                self._send_json(400, {"error": "bos not kaydedilmez"})
+                return
+            eklendi = _cmem.remember(note, source="panel")
+            if not eklendi:
+                self._send_json(503, {"error": "not yazilamadi"})
+                return
+            payload = _hafiza_gorunumu()
+            payload["eklendi"] = True
+            self._send_json(200, payload)
+            return
+        if path == "/api/hafiza/sil":
+            # SILME parcaya gore calisir (conversation_memory.forget).
+            # Kac notun gittigini DONDURUYORUZ: metin baska bir notun
+            # icinde de geciyorsa iki not birden gider ve operator bunu
+            # sonradan degil, o anda gormeli.
+            body = _read_json_body(self)
+            fragment = str(body.get("fragment", ""))[:400]
+            if not fragment.strip():
+                self._send_json(400, {"error": "bos parca ile silinmez"})
+                return
+            silinen = _cmem.forget(fragment)
+            payload = _hafiza_gorunumu()
+            payload["silinen"] = silinen
+            self._send_json(200, payload)
             return
         if path == "/api/chat":
             body = _read_json_body(self)
@@ -687,6 +725,54 @@ def main() -> None:
 def _panel_error(exc: Exception) -> dict:
     return {"status": "ERROR", "error": str(exc)[:300]}
 
+
+# ---------------------------------------------------------------------
+# HAFIZA
+#
+# Kisisel asistan katmani (jarvis.conversation_memory + jarvis.hatira)
+# 20.09.2026'da kuruldu ve calisiyordu, ama panelde HICBIR yuzu yoktu:
+# ne bir ekran, ne bir uc nokta. Gorunmeyen bir hafiza denetlenemez --
+# operator neyin hatirlandigini goremiyorsa, yanlis hatirlanan bir seyi
+# de duzeltemez. Bu uclar o boslugu kapatir.
+#
+# Iki kaynak bilerek AYRI raporlanir:
+#   dosya  -- notun aslI (state/conversation/<thread>.notes.jsonl)
+#   dizin  -- mem0/pgvector, yalnizca ARAMA katmani
+# Ayni sayiyi tek etiketle gostermek, dizin coktugunde paneli yalanci
+# yapardI. Ikisi ayrildigi icin panel "dizin geride kalmis" diyebiliyor.
+# ---------------------------------------------------------------------
+
+HAFIZA_UYARI = ("Notun aslı dosyada tutulur; dizin yalnızca aramayı "
+                "hızlandırır. Dizin çökerse not kaybolmaz, arama körelir.")
+
+
+def _hafiza_dizin_durumu() -> dict:
+    """Arama dizininin OLCULEN durumu. Ithal bile tembel: mem0 agir bir
+    bagimlilik ve panel acilmadan yuklenmesi icin sebep yok."""
+    try:
+        from jarvis import hatira
+        return hatira.durum()
+    except Exception as exc:  # noqa: BLE001
+        # Dizin yoksa hafiza calismaya devam eder; bu bir arIza degil,
+        # bildirilecek bir durum. Panel farki gorsun diye "kurulu: false".
+        return {"kurulu": False, "telemetri_kapali": None,
+                "hata": f"{type(exc).__name__}: {str(exc)[:200]}",
+                "not_sayisi": None}
+
+
+def _hafiza_gorunumu() -> dict:
+    notlar = _cmem.note_rows()
+    dizin = _hafiza_dizin_durumu()
+    dosya = _cmem.status()
+    tutarli = (dizin.get("not_sayisi") == len(notlar)) if dizin.get("kurulu") else None
+    return {
+        "notlar": notlar,
+        "dosya": dosya,
+        "dizin": dizin,
+        "tutarli": tutarli,
+        "sinir": _cmem.MAX_NOTES,
+        "uyari": HAFIZA_UYARI,
+    }
 
 
 def _yeni_fiyat(mevcut: float, yontem: str, deger: float) -> float:

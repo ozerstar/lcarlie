@@ -1855,3 +1855,125 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
   .kr-sozluk { grid-template-columns: 1fr; gap: 2px 0; }
   .kr-sozluk dd { margin-bottom: 10px; }
 }
+
+/* ============================ HAFIZA ==============================
+   Kisisel asistan katmaninin ekrani. Tasarim dili degismedi: mevcut
+   kart/kutu/dipnot desenleri yeniden kullanildi, yeni bir gorsel dil
+   uydurulmadi. Inline stil YOK -- CSP style-src 'self' (bkz.
+   test_web_ui_contract.StaysInsideTheContentSecurityPolicy).
+   ================================================================== */
+
+.hf-giris {
+  font-size: 13.5px;
+  line-height: 1.6;
+  margin: 0 0 18px;
+  max-width: 74ch;
+  opacity: .88;
+}
+
+.hf-durum {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px;
+  margin-bottom: 8px;
+}
+.hf-kart {
+  border: 1px solid var(--line, #2a2f37);
+  border-top: 2px solid var(--line, #2a2f37);
+  padding: 13px 15px 14px;
+  background: rgba(255, 255, 255, .02);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.hf-kart.is-bad { border-top-color: var(--crit, #cd6f68); }
+.hf-kart-b {
+  font-size: .52rem;
+  font-weight: 600;
+  letter-spacing: .22em;
+  opacity: .62;
+}
+.hf-kart-d {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  color: var(--champagne, #f2e4c4);
+  line-height: 1.15;
+}
+.hf-kart.is-bad .hf-kart-d { color: #f0a6a3; }
+.hf-kart-a { font-size: 11px; opacity: .55; line-height: 1.45; }
+
+.hf-form { display: flex; flex-direction: column; gap: 8px; margin-bottom: 6px; }
+.hf-label {
+  font-size: .52rem;
+  font-weight: 600;
+  letter-spacing: .18em;
+  opacity: .6;
+}
+.hf-input {
+  background: rgba(0, 0, 0, .28);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  color: var(--ivory);
+  font-family: var(--font-ui);
+  font-size: .85rem;
+  line-height: 1.55;
+  padding: 10px 12px;
+  resize: vertical;
+  min-height: 56px;
+}
+.hf-input:focus { outline: none; border-color: var(--gold-dim); }
+.hf-form-alt { display: flex; align-items: center; gap: 12px; }
+.hf-sayac {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  opacity: .5;
+  font-variant-numeric: tabular-nums;
+}
+.hf-form-alt .qa-btn { margin-left: auto; padding: 9px 22px; }
+
+.hf-mesaj { font-size: 12px; margin: 8px 0 0; line-height: 1.5; }
+.hf-mesaj.is-ok { color: var(--ok, #8fb99a); }
+.hf-mesaj.is-bad { color: #f0a6a3; }
+
+.hf-liste { display: flex; flex-direction: column; gap: 10px; }
+.hf-not {
+  border: 1px solid var(--line-soft);
+  border-left: 2px solid var(--gold-dim);
+  background: rgba(255, 255, 255, .018);
+  padding: 12px 14px 10px;
+}
+.hf-not-metin {
+  margin: 0 0 8px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.hf-not-alt { display: flex; align-items: center; gap: 12px; }
+.hf-not-bilgi {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  opacity: .5;
+}
+.hf-sil {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  color: inherit;
+  font-family: var(--font-ui);
+  font-size: .5rem;
+  font-weight: 600;
+  letter-spacing: .18em;
+  padding: 5px 12px;
+  cursor: pointer;
+  opacity: .62;
+}
+.hf-sil:hover { border-color: #cd6f68; color: #f0a6a3; opacity: 1; }
+.hf-sil:disabled { opacity: .3; cursor: default; }
+
+@media (max-width: 620px) {
+  .hf-durum { grid-template-columns: 1fr; }
+  .hf-form-alt { flex-wrap: wrap; }
+  .hf-form-alt .qa-btn { margin-left: 0; width: 100%; }
+}

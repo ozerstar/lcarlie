@@ -133,7 +133,8 @@ qs('logoutBtn').addEventListener('click', async () => {
 const VIEWS = { home: 'viewHome', analiz: 'viewAnaliz', gorevler: 'viewGorevler',
                 veri: 'viewVeri', ajanlar: 'viewAjanlar', fiyat: 'viewFiyat',
                 raporlar: 'viewRaporlar', ayarlar: 'viewAyarlar',
-                eticaret: 'viewEticaret', reklam: 'viewReklam' };
+                eticaret: 'viewEticaret', reklam: 'viewReklam',
+                hafiza: 'viewHafiza' };
 
 function setView(name) {
   if (!VIEWS[name]) return;
@@ -146,6 +147,7 @@ function setView(name) {
   if (name === 'fiyat') loadFiyatMatrisi();
   if (name === 'eticaret') loadUrunAlanlari();
   if (name === 'reklam') loadKreatif();
+  if (name === 'hafiza') loadHafiza();
   if (PANEL_SECTIONS[name]) loadSection(name);
 }
 
@@ -2566,3 +2568,203 @@ function voiceBind() {
 }
 
 voiceBind();
+
+/* ==================================================================
+   HAFIZA -- kisisel asistan katmaninin gorunur yuzu
+
+   Katman 20.09.2026'da kuruldu ve calisiyordu, ama panelde hicbir
+   karsiligi yoktu: operator neyin hatirlandigini goremiyordu. Bir
+   hafizanin denetlenebilir olmasi, dogru hatirlamasi kadar onemli --
+   goremedigi bir notu kimse duzeltemez.
+
+   Bu ekranin uc kurali, hepsi arka uctan gelen alanlara dayanir:
+   1. Dosya ve dizin AYRI gosterilir. Dosya notun aslI, dizin yalnizca
+      arama katmani. Tek sayiya indirmek, dizin coktugunde paneli
+      yalanci yapardI.
+   2. Silme parcaya gore calisir; kac notun gittigi SUNUCUDAN gelir ve
+      birden fazlaysa ayrica soylenir.
+   3. Hicbir sayi burada uretilmez. Sayac uzunlugu disinda ekranda
+      gorunen her deger /api/hafiza yanitindan gelir.
+   ================================================================== */
+
+const hfState = { notlar: [], yukleniyor: false };
+
+function hfMesajGoster(metin, kotu) {
+  const el = qs('hfMesaj');
+  if (!el) return;
+  if (!metin) { el.hidden = true; el.textContent = ''; return; }
+  el.className = kotu ? 'hf-mesaj is-bad' : 'hf-mesaj is-ok';
+  el.textContent = metin;
+  el.hidden = false;
+}
+
+/* Dosya ve dizin, her biri kendi kaynagiyla. */
+function hfDurumCiz(data) {
+  const kutu = qs('hfDurum');
+  if (!kutu) return;
+  const dizin = data.dizin || {};
+  const dosya = data.dosya || {};
+  const notSayisi = (data.notlar || []).length;
+
+  const dizinDurum = dizin.kurulu
+    ? (dizin.not_sayisi === null || dizin.not_sayisi === undefined
+        ? 'erişilebilir, sayı okunamadı'
+        : dizin.not_sayisi + ' satır')
+    : 'ERİŞİLEMİYOR';
+
+  const kart = (baslik, deger, alt, kotu) => `
+    <div class="hf-kart${kotu ? ' is-bad' : ''}">
+      <span class="hf-kart-b">${escapeHtml(baslik)}</span>
+      <span class="hf-kart-d">${escapeHtml(String(deger))}</span>
+      <span class="hf-kart-a">${escapeHtml(alt)}</span>
+    </div>`;
+
+  let parcalar = kart('DOSYA', notSayisi + ' not',
+                      'kayıt kaynağı · en fazla ' + (data.sinir || '—'), false)
+    + kart('ARAMA DİZİNİ', dizinDurum,
+           dizin.kurulu ? 'anlamsal arama açık' : 'not kaybolmaz, arama körelir',
+           !dizin.kurulu)
+    + kart('SOHBET GEÇMİŞİ', (dosya.turns || 0) + ' tur',
+           'pencere içi; kalıcı not değil', false);
+
+  kutu.innerHTML = parcalar;
+
+  const foot = qs('hfFoot');
+  if (!foot) return;
+  const satirlar = [String(data.uyari || '')];
+  if (dizin.hata) satirlar.push('Dizin hatası: ' + String(dizin.hata));
+  // tutarli: sunucu hesaplar. null ise dizin kapali demektir, kiyas yapilmaz.
+  if (data.tutarli === false) {
+    satirlar.push('Dosya ile dizin aynı sayıda değil — arama eksik ' +
+                  'sonuç verebilir, ama hiçbir not kaybolmuş değildir.');
+  }
+  foot.className = data.tutarli === false || dizin.hata ? 'fm-foot is-bad' : 'fm-foot';
+  foot.textContent = satirlar.join(' ');
+}
+
+function hfListeCiz(notlar) {
+  const liste = qs('hfListe');
+  if (!liste) return;
+  if (!notlar.length) {
+    liste.innerHTML = '<p class="sect-empty">Henüz kayıtlı not yok. ' +
+      'Yukarıdan ekleyebilir ya da sohbette “bunu hatırla” diyebilirsiniz.</p>';
+    return;
+  }
+  liste.innerHTML = notlar.map((n, i) => `
+    <article class="hf-not">
+      <p class="hf-not-metin">${escapeHtml(n.note)}</p>
+      <div class="hf-not-alt">
+        <span class="hf-not-bilgi">${escapeHtml(fmtDateTime(n.at) || 'tarih yok')}
+          ${n.source ? ' · ' + escapeHtml(n.source) : ''}</span>
+        <button type="button" class="hf-sil" data-index="${i}">UNUT</button>
+      </div>
+    </article>`).join('');
+}
+
+async function loadHafiza() {
+  const count = qs('hafizaCount');
+  const liste = qs('hfListe');
+  if (!liste) return;
+  if (hfState.yukleniyor) return;
+  hfState.yukleniyor = true;
+  if (count) count.textContent = 'yükleniyor…';
+  liste.innerHTML = '<p class="sect-empty">Yükleniyor…</p>';
+
+  // api() kullanilir: 401'i o yakalayip giris ekranina dondurur.
+  const { ok, status, body: data } = await api('/api/hafiza');
+  hfState.yukleniyor = false;
+  if (!ok) {
+    if (count) count.textContent = status === 401 ? 'oturum yok' : 'hata';
+    liste.innerHTML = status === 401
+      ? '<p class="sect-empty">Oturum düştü. Giriş ekranına yönlendiriliyorsunuz…</p>'
+      : `<p class="sect-empty is-bad">Hafıza okunamadı (HTTP ${status}). ${escapeHtml(String((data && data.error) || ''))}</p>`;
+    return;
+  }
+  hfState.notlar = data.notlar || [];
+  hfDurumCiz(data);
+  hfListeCiz(hfState.notlar);
+  if (count) count.textContent = hfState.notlar.length + ' not';
+}
+
+function hfSayacGuncelle() {
+  const input = qs('hfInput');
+  const sayac = qs('hfSayac');
+  if (input && sayac) sayac.textContent = input.value.length + ' / 400';
+}
+
+function hfBind() {
+  const form = qs('hfForm');
+  const input = qs('hfInput');
+  const liste = qs('hfListe');
+  if (!form || !input || !liste) return;
+
+  input.addEventListener('input', hfSayacGuncelle);
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const note = input.value.trim();
+    if (!note) { hfMesajGoster('Boş not kaydedilmez.', true); return; }
+    const btn = qs('hfSubmit');
+    if (btn) btn.disabled = true;
+    hfMesajGoster('Kaydediliyor…', false);
+    const { ok, status, body } = await api('/api/hafiza', {
+      method: 'POST', body: JSON.stringify({ note }),
+    });
+    if (btn) btn.disabled = false;
+    if (!ok) {
+      hfMesajGoster(`Not yazılamadı (HTTP ${status}). ` +
+                    String((body && body.error) || ''), true);
+      return;
+    }
+    input.value = '';
+    hfSayacGuncelle();
+    hfMesajGoster('Kaydedildi. Bundan sonraki cevaplarda dikkate alınır.', false);
+    hfState.notlar = body.notlar || [];
+    hfDurumCiz(body);
+    hfListeCiz(hfState.notlar);
+    const count = qs('hafizaCount');
+    if (count) count.textContent = hfState.notlar.length + ' not';
+  });
+
+  liste.addEventListener('click', async (event) => {
+    const btn = event.target.closest('.hf-sil');
+    if (!btn) return;
+    const not = hfState.notlar[Number(btn.dataset.index)];
+    if (!not) return;
+    // Silme PARCAYA gore calisir: bu metin baska bir notun icinde de
+    // geciyorsa o da gider. Bu yuzden iki adim. Yerel confirm() bilerek
+    // kullanilmiyor -- panelin hicbir yerinde tarayici diyalogu yok ve
+    // engelleyici bir modal, akisi durdurmaktan baska is gormuyor.
+    if (btn.dataset.onay !== '1') {
+      document.querySelectorAll('.hf-sil').forEach((b) => {
+        if (b !== btn) { delete b.dataset.onay; b.textContent = 'UNUT'; }
+      });
+      btn.dataset.onay = '1';
+      btn.textContent = 'EMİN MİSİNİZ?';
+      hfMesajGoster('Silmek için tekrar basın. Bu metin başka bir notun ' +
+                    'içinde de geçiyorsa o da silinir.', false);
+      return;
+    }
+    btn.disabled = true;
+    const { ok, status, body } = await api('/api/hafiza/sil', {
+      method: 'POST', body: JSON.stringify({ fragment: not.note }),
+    });
+    if (!ok) {
+      btn.disabled = false;
+      hfMesajGoster(`Silinemedi (HTTP ${status}). ` +
+                    String((body && body.error) || ''), true);
+      return;
+    }
+    const silinen = Number(body.silinen || 0);
+    hfMesajGoster(silinen > 1
+      ? silinen + ' not silindi — bu metin başka notların içinde de geçiyordu.'
+      : silinen === 1 ? 'Not unutuldu.' : 'Eşleşen not bulunamadı.', silinen > 1);
+    hfState.notlar = body.notlar || [];
+    hfDurumCiz(body);
+    hfListeCiz(hfState.notlar);
+    const count = qs('hafizaCount');
+    if (count) count.textContent = hfState.notlar.length + ' not';
+  });
+}
+
+hfBind();
