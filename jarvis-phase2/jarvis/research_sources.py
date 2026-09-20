@@ -45,6 +45,9 @@ USER_AGENT = "LCarlieResearchBot/1.0 (+https://lcarlie.shop; contact=owner)"
 MAX_REDIRECTS = 3
 MAX_BYTES = 400_000
 DUCKDUCKGO_HTML = "https://html.duckduckgo.com/html/"
+GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+GEMINI_SEARCH_MODEL = os.environ.get("RESEARCH_GEMINI_MODEL", "gemini-3.5-flash-lite")
+GEMINI_TIMEOUT = float(os.environ.get("RESEARCH_GEMINI_TIMEOUT", "45"))
 
 _TAG_STRIP = re.compile(r"(?is)<(script|style|noscript|template|svg)[^>]*>.*?</\1>")
 _TAGS = re.compile(r"(?s)<[^>]+>")
@@ -698,6 +701,96 @@ def _searxng_search(endpoint: str, query: str, limit: int, resolver: Any) -> lis
     return [str(row.get("url")) for row in payload.get("results", [])[:limit] if row.get("url")]
 
 
+def _gemini_search(query: str, limit: int, resolver: Any) -> list[str]:
+    """Google Search grounding -- yalnizca ARAMA DIZINI olarak.
+
+    NEDEN VAR (20.09.2026'da olculdu, tahmin degil)
+    Bu sunucunun veri merkezi IP'sinden ucretsiz kazima arama fiilen olu:
+    SearXNG kurulu ve saglikliydi ama motorlarin hepsi engelli --
+    google "Suspended: CAPTCHA", google cse "unusual traffic from your
+    network", duckduckgo "access denied", brave/qwant "too many requests",
+    wikidata timeout. Cevap veren tek motor bing'di ve sorgunun yalniz ILK
+    KELIMESINI esliyordu: "kozmetik pazari Turkiye 2026 rapor" -> Hotmail
+    ve Microsoft Support sayfalari. Arastirma bu yuzden 51 saniye calisip
+    elinde "Turkiye - Vikipedi" ve "Turkiye | United Nations" ile
+    kaliyordu. Yani arama vardi, sonuc yoktu.
+
+    NE YAPAR
+    Gemini'ye google_search araciyla sorar ve YALNIZ groundingChunks'taki
+    kaynak baglantilarini alir. Modelin CEVAP METNI KULLANILMAZ -- burasi
+    bir arama dizini, bir cevap kaynagi degil. Sayfalarin kendisi mevcut
+    tarama hattindan gecer: canonicalize_url, SSRF kurallari, alaka esigi,
+    yakin-kopya elemesi, kaynak siniflandirmasi -- hicbiri atlanmaz.
+    Yani kanit disiplini aynen korunur, degisen tek sey URL'lerin NEREDEN
+    geldigi.
+
+    Grounding baglantilari vertexaisearch.cloud.google.com uzerinden
+    yonlendirir; gercek adrese cozulur ve cagirana GERCEK adres doner --
+    boylece canonicalize_url yonlendirmeyi degil, gercekten indirilecek
+    sayfayi denetler.
+    """
+    from . import providers  # gec import: dongusel bagimlilik olmasin
+    key = (providers.load_env().get("GEMINI_API_KEY") or "").strip()
+    if not key:
+        raise SearchError("GEMINI_API_KEY yok")
+    endpoint = (GEMINI_ENDPOINT.format(model=GEMINI_SEARCH_MODEL)
+                + "?key=" + urllib.parse.quote(key, safe=""))
+    body = {
+        "contents": [{"parts": [{"text": query}]}],
+        "tools": [{"google_search": {}}],
+    }
+    request = urllib.request.Request(
+        endpoint, data=json.dumps(body).encode("utf-8"),
+        headers={"Content-Type": "application/json", "User-Agent": USER_AGENT})
+    try:
+        with urllib.request.urlopen(request, timeout=GEMINI_TIMEOUT) as response:
+            payload = json.loads(response.read(MAX_BYTES).decode("utf-8", errors="ignore"))
+    except urllib.error.HTTPError as exc:
+        # Anahtar hata metnine sizmasin.
+        raise SearchError(f"gemini search HTTP {exc.code}") from None
+    except (urllib.error.URLError, OSError, json.JSONDecodeError) as exc:
+        raise SearchError(f"gemini search: {providers.mask(str(exc))}") from None
+
+    candidates = payload.get("candidates") or []
+    if not candidates:
+        return []
+    chunks = ((candidates[0].get("groundingMetadata") or {}).get("groundingChunks") or [])
+    urls: list[str] = []
+    seen: set[str] = set()
+    for chunk in chunks:
+        uri = str(((chunk.get("web") or {}).get("uri") or "")).strip()
+        if not uri:
+            continue
+        real = _resolve_redirect(uri)
+        if real and real not in seen:
+            seen.add(real)
+            urls.append(real)
+        if len(urls) >= limit:
+            break
+    return urls
+
+
+def _resolve_redirect(uri: str) -> str:
+    """Grounding yonlendirmesini gercek adrese cozer.
+
+    Cozulemezse bos doner ve o kaynak DUSER: yonlendirme adresini sayfa
+    icerigi diye indirmek, denetlenmemis bir adresi denetlenmis gibi
+    gostermek olurdu.
+    """
+    try:
+        request = urllib.request.Request(uri, headers={"User-Agent": USER_AGENT})
+        with urllib.request.urlopen(request, timeout=GEMINI_TIMEOUT) as response:
+            final = response.geturl()
+    except (urllib.error.URLError, OSError, ValueError):
+        return ""
+    parsed = urllib.parse.urlsplit(final)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return ""
+    if "grounding-api-redirect" in final:
+        return ""      # cozulmedi, yonlendirme adresinde kaldi
+    return final
+
+
 def _duckduckgo_search(query: str, limit: int, resolver: Any) -> list[str]:
     body = urllib.parse.urlencode({"q": query, "kl": "tr-tr"}).encode()
     request = urllib.request.Request(DUCKDUCKGO_HTML, data=body, headers={
@@ -736,6 +829,10 @@ class WebSearchCrawlAdapter(CapabilityAdapter):
                  timeout: float = 10.0, min_relevance: float | None = None,
                  max_queries: int = 4, search_concurrency: int = 3) -> None:
         self.searxng_url = searxng_url if searxng_url is not None else os.environ.get("RESEARCH_SEARXNG_URL", "")
+        # Arama arka ucu sirasi. Varsayilan "auto": Gemini grounding varsa o,
+        # yoksa SearXNG, o da yoksa DuckDuckGo. Sira 20.09.2026 olcumune
+        # dayaniyor (bkz. _gemini_search); RESEARCH_BACKEND ile sabitlenebilir.
+        self.backend_pref = (os.environ.get("RESEARCH_BACKEND", "auto") or "auto").strip().lower()
         self.max_results = max_results
         self.max_pages = max_pages
         self.resolver = resolver
@@ -755,8 +852,22 @@ class WebSearchCrawlAdapter(CapabilityAdapter):
     def capabilities(self) -> tuple[str, ...]:
         return (RESEARCH_CAPABILITY,)
 
+    def _backends(self) -> list[str]:
+        """Denenecek arka uclar, sirayla. Biri patlarsa sonraki denenir."""
+        if self.backend_pref in {"gemini", "searxng", "duckduckgo"}:
+            chain = [self.backend_pref]
+        else:
+            chain = ["gemini"]
+            if self.searxng_url:
+                chain.append("searxng")
+            chain.append("duckduckgo")
+        return chain
+
+    def _backend_name(self) -> str:
+        return self._backends()[0]
+
     def health(self) -> dict[str, Any]:
-        backend = "searxng" if self.searxng_url else "duckduckgo_html"
+        backend = self._backend_name()
         try:
             canonicalize_url("https://duckduckgo.com/", self.resolver)
             state = AdapterState.AVAILABLE.value
@@ -774,7 +885,7 @@ class WebSearchCrawlAdapter(CapabilityAdapter):
         return (AdapterEvidence(
             kind="adapter_contract",
             summary="search+crawl over the open web; read-only, no business action",
-            reference=f"backend={'searxng' if self.searxng_url else 'duckduckgo_html'}"),)
+            reference=f"backend={self._backend_name()}"),)
 
     def cancel(self, handle: str) -> bool:
         return False
@@ -853,15 +964,28 @@ class WebSearchCrawlAdapter(CapabilityAdapter):
         return merged, round((perf_counter() - started) * 1000, 3), raw_count
 
     def _search_one(self, query: str) -> list[str]:
-        if self.searxng_url:
+        """Sirayla dener; BOS sonuc da basarisizlik sayilir.
+
+        Onceki hali yalnizca istisnada bir sonrakine geciyordu. Olculdu:
+        engelli bir motor istisna ATMIYOR, HTTP 200 ile bos/alakasiz liste
+        donduruyor -- yani yedek yol hic devreye girmiyordu. Bos liste artik
+        bir sonraki arka ucu tetikler.
+        """
+        for backend in self._backends():
             try:
-                return _searxng_search(self.searxng_url, query, self.max_results, self.resolver)
+                if backend == "gemini":
+                    urls = _gemini_search(query, self.max_results, self.resolver)
+                elif backend == "searxng":
+                    if not self.searxng_url:
+                        continue
+                    urls = _searxng_search(self.searxng_url, query, self.max_results, self.resolver)
+                else:
+                    urls = _duckduckgo_search(query, self.max_results, self.resolver)
             except Exception:
-                pass
-        try:
-            return _duckduckgo_search(query, self.max_results, self.resolver)
-        except Exception:
-            return []
+                continue
+            if urls:
+                return urls
+        return []
 
     def _crawl(self, urls: list[str], query: str, budget: int) -> tuple[list[dict[str, Any]], dict[str, int]]:
         topic = " ".join(research_subject(query, count=4)) or query
