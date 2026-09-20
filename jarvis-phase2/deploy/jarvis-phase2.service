@@ -6,7 +6,9 @@ Requires=docker.service
 [Service]
 Type=oneshot
 Environment=JARVIS_ENABLED=false
-Environment=DOCKER_API_VERSION=1.44
+# DOCKER_API_VERSION SABITLENMEZ (20.09.2026'da kaldirildi): daemon minimum
+# API'yi yukseltince sabitlenmis istemci sessizce patlar. Ayni gun 1.43 sabiti
+# n8n yayinlama hattini ve geri donus/kurtarma betiklerini oldurdu.
 Environment=DOCKER_CONFIG=/tmp
 EnvironmentFile=-/etc/lcarlie/jarvis-phase2.env
 ExecStart=/opt/lcarlie/jarvis-phase2/bin/jarvis-phase2

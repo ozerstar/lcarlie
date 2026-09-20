@@ -1,6 +1,11 @@
 #!/bin/sh
 set -eu
-export DOCKER_API_VERSION=1.44
+# 🔴 DOCKER_API_VERSION SABITLENMEZ (20.09.2026'da kaldirildi).
+# Burada 'export DOCKER_API_VERSION=1.44' yaziliydi. 1.43 sabiti ayni gun
+# n8n yayinlama hattini ve geri donus/kurtarma betiklerini oldurmustu;
+# daemon minimum API'yi yukseltince sabitlenmis her istemci patlar. 1.44
+# bugun calisiyor ama ayni kirilgan desen: bir sonraki yukseltmede bu
+# GUVENLIK kontrolu susar. Istemci surumu daemon ile kendi pazarlar.
 violations=$(docker exec lcarlie-postgres psql -U n8n -d n8n -Atqc "
 WITH checks AS(
  SELECT 'function_owner_login' n,(SELECT rolcanlogin FROM pg_roles WHERE rolname='function_owner') bad
