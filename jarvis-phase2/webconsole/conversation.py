@@ -379,6 +379,12 @@ _PRODUCTION_OBJECT_LEMMAS = ("kampanya", "kreatif", "konsept", "slogan", "başl�
 # uretelim -> uretmek, onerir -> onermek, kurgula -> kurgulamak.
 _PRODUCTION_VERBS = ("hazirla", "uret", "yaz", "kurgula", "oner", "olustur",
                      "tasarla", "gelistir", "cikar", "planla", "kur")
+# CRO cumleleri uretim FIILI tasimayabilir ("donusumu artiralim") ama yine
+# de ajans isidir. OLCULDU: "Acilis sayfamizin donusumunu artiralim" hicbir
+# ajans kalibina takilmiyordu ve COMPANY_QUERY'e dusuyordu.
+_CRO_ROOTS_AGENCY = ("acilis sayfa", "landing page", "urun sayfa", "sepet",
+                     "donusum", "checkout")
+
 _PRODUCTION_VERB_LEMMAS = ("hazırlamak", "üretmek", "yazmak", "kurgulamak",
                            "önermek", "oluşmak", "tasarlamak", "geliştirmek",
                            "planlamak", "kurmak")
@@ -402,6 +408,9 @@ def _wants_production(message: str) -> bool:
         tokens, lemma_set = message.split(), set()
 
     folded = " ".join(_ascii_fold(w) for w in tokens)
+    # CRO konusu tek basina ajans isidir; ayri bir uretim fiili aramaz.
+    if any(kok in folded for kok in _CRO_ROOTS_AGENCY):
+        return True
     nesne = (any(o in folded for o in _PRODUCTION_OBJECTS)
              or bool(lemma_set & set(_PRODUCTION_OBJECT_LEMMAS)))
     fiil = (any(w.startswith(_PRODUCTION_VERBS) for w in folded.split())
