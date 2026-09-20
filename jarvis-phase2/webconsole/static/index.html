@@ -177,7 +177,15 @@
         <div class="core-label" aria-live="polite">
           <span class="core-brand">L’CARLIÉ</span>
           <span class="core-state" id="coreStateLabel">HAZIR</span>
+          <span class="core-hint" id="coreHint"></span>
         </div>
+
+        <!-- Sesli konuşma düğmesi: çekirdek diskinin tam üstünde duran
+             şeffaf daire. Bas -> dinler, tekrar bas -> durur ve cevabı sesli
+             okur. .core-label'dan SONRA geliyor; oradaki `.core-svg +
+             .core-label` bitişiklik kuralları bozulmasın diye. -->
+        <button type="button" id="coreBtn" class="core-btn" aria-pressed="false"
+                aria-label="Sesli konuşmayı başlat"></button>
       </div>
 
       <div class="core-foot">
@@ -193,11 +201,11 @@
 
       <div class="rp-scroll">
         <div class="metric-row">
-          <div class="metric"><span class="m-label">CPU</span><span class="m-value m-na" id="mCpu">N/A</span></div>
-          <div class="metric"><span class="m-label">RAM</span><span class="m-value m-na" id="mRam">N/A</span></div>
-          <div class="metric"><span class="m-label">DİSK</span><span class="m-value m-na" id="mDisk">N/A</span></div>
+          <div class="metric"><span class="m-label">CPU</span><span class="m-value m-na" id="mCpu">N/A</span><span class="m-sub" id="mCpuSub"></span></div>
+          <div class="metric"><span class="m-label">RAM</span><span class="m-value m-na" id="mRam">N/A</span><span class="m-sub" id="mRamSub"></span></div>
+          <div class="metric"><span class="m-label">DİSK</span><span class="m-value m-na" id="mDisk">N/A</span><span class="m-sub" id="mDiskSub"></span></div>
         </div>
-        <p class="rp-note">Kaynak kullanımı bu konsola bağlı değil — uç nokta yok, tahmini yüzde gösterilmiyor.</p>
+        <p class="rp-note" id="mNote">Kaynak ölçümü bekleniyor…</p>
 
         <h3 class="rp-sub">SERVİSLER</h3>
         <ul class="svc-list" id="svcList"></ul>

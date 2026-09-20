@@ -179,6 +179,19 @@ def notes(thread: str = "operator") -> list[str]:
     return [str(row.get("note")) for row in _read(_path(thread, "notes")) if row.get("note")]
 
 
+def note_rows(thread: str = "operator") -> list[dict[str, Any]]:
+    """Notlar, yazildiklari zaman ve kaynagiyla birlikte -- en yeni once.
+
+    notes() yalnız metni döner; bir prompt'a girecek olan budur ve öyle
+    kalmalı. Panel ise notu DENETLEMEK için var: "bu ne zaman, kim yazdı"
+    sorusunun cevabı olmadan operatör eski bir kararı yenisinden ayırt
+    edemez. Bu yüzden ayrı bir kapı; notes()'un yükü büyümüyor.
+    """
+    rows = [row for row in _read(_path(thread, "notes")) if row.get("note")]
+    return [{"at": str(row.get("at") or ""), "note": str(row.get("note")),
+             "source": str(row.get("source") or "")} for row in reversed(rows)]
+
+
 def notes_block(thread: str = "operator", limit: int = 12,
                 soru: str = "") -> str:
     """Notes rendered for a system prompt, or an empty string when there are

@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import threading
 import time
 import pathlib
 import traceback
@@ -90,6 +91,141 @@ def _live_registry() -> dict:
     except (ContractError, JarvisMemoryError):
         contract = None
     return caps.build_registry(probe=probe, contract=contract, memory_ok=memory_ok)
+
+
+# ==========================================================================
+# Host kaynak olcumu (CPU / RAM / DISK)
+# ==========================================================================
+# Panel bugune kadar bu ucu icin "N/A" yaziyordu ve notu "uc nokta yok"
+# diyordu -- dogruydu: capabilities.host_resources() yalnizca TOPLAM RAM ve
+# cekirdek SAYISINI veriyor, kullanimi degil, ve API'ye hic cikmiyordu.
+# Burasi o bosluk. Uc deger de cekirdegin kendi sayaclarindan okunur:
+#
+#   CPU   /proc/stat       iki olcum ARASINDAKI fark. "Anlik CPU yuzdesi"
+#                          diye bir sey yoktur; yuzde ancak bir zaman araligi
+#                          icin tanimlidir, o yuzden aralik da raporlanir.
+#   RAM   /proc/meminfo    MemTotal - MemAvailable. MemFree DEGIL: sayfa
+#                          onbellegi geri alinabilir, onu "dolu" saymak
+#                          sunucuyu oldugundan dolu gosterirdi.
+#   DISK  os.statvfs("/")  kok dosya sistemi; yuzde df ile ayni yontemle,
+#                          yani root'a ayrilan yedek haric hesaplanir.
+#
+# Okunamayan alan None doner ve panelde N/A kalir, sebebiyle birlikte.
+# Tahmin, varsayilan veya "yaklasik" bir sayi hicbir yolda uretilmez.
+
+_CPU_LOCK = threading.Lock()
+_CPU_PREV: "tuple[float, float, float] | None" = None   # (zaman, toplam, bos)
+
+
+def _read_cpu_sample() -> "tuple[float, float] | None":
+    """/proc/stat'in toplu `cpu` satirindan (toplam, bos) jiffy."""
+    try:
+        with open("/proc/stat", "r", encoding="utf-8") as handle:
+            line = handle.readline()
+    except OSError:
+        return None
+    parts = line.split()
+    if len(parts) < 6 or parts[0] != "cpu":
+        return None
+    try:
+        values = [float(x) for x in parts[1:11]]
+    except ValueError:
+        return None
+    # user nice system idle iowait irq softirq steal guest guest_nice
+    return sum(values), values[3] + values[4]
+
+
+def _cpu_percent() -> dict:
+    """Iki olcum arasindaki farktan CPU kullanimi.
+
+    Panel 12 saniyede bir /api/status cagirdigi icin normal durumda pencere o
+    iki istek arasidir -- istegi hic bekletmez. Karsilastirilacak taze bir
+    onceki ornek yoksa (ilk istek, ya da uzun aradan sonra) burada kendi
+    200 ms'lik penceresini alir: kisa ama GERCEK bir olcum, "veri yok"
+    demekten iyi ve uydurma degil.
+    """
+    global _CPU_PREV
+    first = _read_cpu_sample()
+    if first is None:
+        return {"percent": None, "error": "/proc/stat okunamadi"}
+    now = time.time()
+    with _CPU_LOCK:
+        prev = _CPU_PREV
+        _CPU_PREV = (now, first[0], first[1])
+
+    if prev is not None and 1.0 <= (now - prev[0]) <= 300.0:
+        window = now - prev[0]
+        total_delta = first[0] - prev[1]
+        idle_delta = first[1] - prev[2]
+    else:
+        time.sleep(0.2)
+        second = _read_cpu_sample()
+        if second is None:
+            return {"percent": None, "error": "/proc/stat okunamadi"}
+        window = 0.2
+        total_delta = second[0] - first[0]
+        idle_delta = second[1] - first[1]
+        with _CPU_LOCK:
+            _CPU_PREV = (time.time(), second[0], second[1])
+
+    if total_delta <= 0:
+        return {"percent": None, "error": "olcum araligi bos"}
+    busy = max(0.0, total_delta - idle_delta)
+    return {"percent": round(min(100.0, busy / total_delta * 100.0), 1),
+            "window_s": round(window, 1)}
+
+
+def _ram_usage() -> dict:
+    fields: dict[str, float] = {}
+    try:
+        with open("/proc/meminfo", "r", encoding="utf-8") as handle:
+            for line in handle:
+                key, _, rest = line.partition(":")
+                if key in ("MemTotal", "MemAvailable"):
+                    fields[key] = float(rest.split()[0])   # kB
+                    if len(fields) == 2:
+                        break
+    except (OSError, ValueError, IndexError):
+        return {"percent": None, "error": "/proc/meminfo okunamadi"}
+    total = fields.get("MemTotal") or 0.0
+    available = fields.get("MemAvailable")
+    if total <= 0 or available is None:
+        return {"percent": None, "error": "MemTotal/MemAvailable yok"}
+    used = total - available
+    kib_per_gib = 1024.0 * 1024.0
+    return {"percent": round(used / total * 100.0, 1),
+            "used_gib": round(used / kib_per_gib, 2),
+            "total_gib": round(total / kib_per_gib, 2)}
+
+
+def _disk_usage(mount: str = "/") -> dict:
+    try:
+        st = os.statvfs(mount)
+    except OSError:
+        return {"percent": None, "error": f"{mount} okunamadi"}
+    block = st.f_frsize or st.f_bsize
+    total = st.f_blocks * block
+    free_user = st.f_bavail * block        # root yedegi HARIC
+    used = total - st.f_bfree * block
+    denom = used + free_user
+    if total <= 0 or denom <= 0:
+        return {"percent": None, "error": "bos dosya sistemi"}
+    gib = 1024.0 ** 3
+    return {"percent": round(used / denom * 100.0, 1),
+            "used_gib": round(used / gib, 2),
+            "total_gib": round(total / gib, 2),
+            "mount": mount}
+
+
+def _host_metrics() -> dict:
+    cpu = _cpu_percent()
+    cpu["cores"] = os.cpu_count()
+    try:
+        cpu["load"] = [round(x, 2) for x in os.getloadavg()]
+    except (OSError, AttributeError):
+        cpu["load"] = None
+    return {"measured_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            "cpu": cpu, "ram": _ram_usage(), "disk": _disk_usage("/")}
 
 
 def _client_ip(handler: "Handler") -> str:
@@ -520,6 +656,9 @@ class Handler(BaseHTTPRequestHandler):
             "action_firewall": {"contract_valid": contract_valid},
             "pending_proposals": pending_count,
             "last_cycle": last_cycle,
+            # Olculmus host kullanimi. Panelin CPU/RAM/DISK alanlari yalnizca
+            # bunu basar; okunamayan alan None gelir ve N/A kalir.
+            "host": _host_metrics(),
             "external_actions_enabled": os.environ.get("EXTERNAL_ACTIONS_ANNOUNCED", "false") == "true",
             "server_time": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         }

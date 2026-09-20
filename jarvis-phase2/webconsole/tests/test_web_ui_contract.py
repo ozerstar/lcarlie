@@ -115,13 +115,95 @@ class StaysInsideTheContentSecurityPolicy(unittest.TestCase):
 
 
 class ShowsNoNumberTheBackendNeverMeasured(unittest.TestCase):
-    def test_cpu_ram_disk_render_as_not_available(self):
-        # /api/status carries no host utilisation, so these must stay N/A.
+    """20.09.2026: CPU/RAM/DISK artik OLCULUYOR, o yuzden bu sinifin kurali
+    degisti -- ama gevsemedi.
+
+    Onceki hali "bu uc kutu her zaman N/A yazmali" diyordu; dogruydu, cunku
+    /api/status host kullanimi TASIMIYORDU. Artik tasiyor (app.py ->
+    _host_metrics). Kural artik su: sayi yalnizca backend'in OLCTUGU yerden
+    gelebilir. Arayuz kendi basina bir yuzde uretemez, HTML'e sabit bir sayi
+    gomulemez, olculemeyen alan N/A kalir.
+    """
+
+    HOST_SOURCES = ("/proc/stat", "/proc/meminfo", "statvfs")
+
+    def test_backend_actually_measures_the_host(self):
+        source = APP_PY.read_text(encoding="utf-8")
+        for needle in self.HOST_SOURCES:
+            self.assertIn(needle, source,
+                          f"{needle} okunmuyor -- yuzde olculmeden nereden gelecek?")
+        self.assertIn('"host": _host_metrics()', source,
+                      "/api/status host olcumunu tasimiyor")
+
+    def test_cpu_percent_is_a_measured_interval_not_a_snapshot(self):
+        # Bir zaman araligi olmadan CPU yuzdesi tanimsizdir; iki ornek
+        # arasindaki fark alinmali ve aralik raporlanmali.
+        source = APP_PY.read_text(encoding="utf-8")
+        self.assertIn("window_s", source, "CPU olcum araligi raporlanmiyor")
+        self.assertIn("_CPU_PREV", source, "onceki ornek saklanmiyor")
+
+    def test_ram_uses_memavailable_not_memfree(self):
+        # MemFree "dolu" saymak sayfa onbellegini kayip gosterir.
+        source = APP_PY.read_text(encoding="utf-8")
+        self.assertIn("MemAvailable", source)
+
+    def test_html_carries_no_baked_in_number(self):
+        # Ilk cizimde ekranda gercek olmayan bir sayi durmamali.
         for metric in ("mCpu", "mRam", "mDisk"):
-            self.assertRegex(INDEX, rf'id="{metric}"[^>]*>N/A<')
+            self.assertRegex(INDEX, rf'id="{metric}"[^>]*>N/A<',
+                             f"{metric} HTML'de N/A disinda bir deger tasiyor")
+
+    def test_frontend_only_prints_what_the_api_sent(self):
+        block = APP_JS[APP_JS.index("function renderMetric"):]
+        block = block[:block.index("\nfunction setBigStat")]
+        for needle in ("host.cpu", "host.ram", "host.disk"):
+            self.assertIn(needle, block, f"{needle} okunmuyor")
+        # Olculemeyen alan icin yedek sayi uretilmemeli.
+        self.assertNotIn("Math.", block)
+        self.assertIn("'N/A'", block, "olculemeyen alan N/A kalmali")
 
     def test_no_synthetic_values_in_the_frontend(self):
         self.assertNotIn("Math.random", APP_JS)
+
+
+class VoiceStaysInTheBrowser(unittest.TestCase):
+    """Sesli konusma cekirdek dugmesine bagli ve TARAYICIDA calisiyor.
+
+    Iki sey kilitleniyor: (1) ses sunucuya gonderilmiyor -- yeni uc nokta
+    acilmadi, backend yalnizca metin goruyor, yani mevcut yetki siniri ayni;
+    (2) motor yoksa dugme sessizce olmuyor, kullaniciya sebebini soyluyor.
+    """
+
+    def test_core_button_exists_and_is_bound(self):
+        self.assertIn('id="coreBtn"', INDEX, "cekirdek dugmesi kayboldu")
+        self.assertIn("coreBtn", APP_JS)
+        self.assertIn("voiceStart", APP_JS)
+        self.assertIn("voiceStop", APP_JS)
+
+    def test_voice_reuses_the_existing_chat_contract(self):
+        # Ses, sendMessage uzerinden ayni /api/chat/stream turunu kullanir.
+        block = APP_JS[APP_JS.index("async function voiceHandleTranscript"):]
+        block = block[:block.index("\nfunction voiceStop")]
+        self.assertIn("await sendMessage(", block)
+
+    def test_no_audio_is_uploaded(self):
+        for needle in ("MediaRecorder", "getUserMedia", "audio/webm", "FormData"):
+            self.assertNotIn(needle, APP_JS,
+                             f"{needle} -- ses sunucuya gonderiliyor olabilir")
+
+    def test_unsupported_browser_is_told_so(self):
+        self.assertIn("ses tanımayı desteklemiyor", APP_JS)
+        self.assertIn("SES YOK", APP_JS)
+
+    def test_microphone_permission_note_survives(self):
+        # Caddy'deki Permissions-Policy geri alinirsa ses yeniden olur;
+        # sebebin kodda yazili kalmasi tek uyari mekanizmasi.
+        self.assertIn("microphone=(self)", APP_JS)
+
+    def test_status_poll_does_not_steal_the_core_while_speaking(self):
+        block = APP_JS[APP_JS.index("function applyLoopCoreState"):]
+        block = block[:block.index("\n}")]
+        self.assertIn("state.voiceMode", block)
 
     def test_audit_rows_are_labelled_by_cycle_not_a_fabricated_time(self):
         # audit.jsonl records `cycle`, never a timestamp; findings carry a real
