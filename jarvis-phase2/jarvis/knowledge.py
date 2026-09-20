@@ -233,3 +233,99 @@ def summary(limit: int = 10) -> dict[str, Any]:
                              key=lambda e: -e["count"])[:limit],
         "last_seen": max((r.get("first_seen", "") for r in rows), default=""),
     }
+
+
+def _fingerprint(row: dict[str, Any]) -> str:
+    """İçerik parmak izi: aynı sayfa ikinci kez 'yeni' sayılmasın.
+
+    URL degil ICERIK esas alinir -- ayni yazi farkli adresten yeniden
+    yayimlanabilir ve o zaman "yeni bulgu" degildir.
+    """
+    import hashlib
+    govde = (str(row.get("title") or "") + "\x1f"
+             + str(row.get("content") or row.get("url") or ""))[:4000]
+    return hashlib.sha256(govde.encode("utf-8", "replace")).hexdigest()[:20]
+
+
+def remember(question: str, rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Araştırma bulgularını deftere yazar ve YENİ olanları sayar.
+
+    Doner: {"stored": kac kayit islendi, "new": kaci ilk kez gorundu}
+
+    Defter yazilamazsa sayaclar sifir doner ve arastirma DURMAZ: bulgu
+    kaydedilemedi diye kullaniciya cevap verilmemesi sacma olurdu.
+    """
+    if not rows:
+        return {"stored": 0, "new": 0}
+    bilinen: set[str] = set()
+    try:
+        with KNOWLEDGE_LOG.open(encoding="utf-8") as handle:
+            for satir in handle:
+                if not satir.strip():
+                    continue
+                try:
+                    bilinen.add(json.loads(satir).get("fingerprint") or "")
+                except json.JSONDecodeError:
+                    continue
+    except OSError:
+        pass
+
+    simdi = datetime.now(timezone.utc).isoformat()
+    yeni: list[dict[str, Any]] = []
+    for row in rows:
+        izi = _fingerprint(row)
+        if izi in bilinen:
+            continue
+        bilinen.add(izi)
+        yeni.append({
+            "at": simdi, "question": question[:300], "fingerprint": izi,
+            "url": row.get("url"), "title": str(row.get("title") or "")[:300],
+            "source_type": row.get("source_type"),
+            "published": row.get("observed_at"),
+            "publisher": row.get("publisher"),
+            "found_by": row.get("found_by"),
+            # Metnin TAMAMI saklanmaz: defter bir indeks, arsiv degil.
+            "excerpt": str(row.get("content") or "")[:MAX_CONTENT_CHARS],
+        })
+
+    if not yeni:
+        return {"stored": len(rows), "new": 0}
+    try:
+        KNOWLEDGE_LOG.parent.mkdir(parents=True, exist_ok=True)
+        with KNOWLEDGE_LOG.open("a", encoding="utf-8") as handle:
+            for kayit in yeni:
+                handle.write(json.dumps(kayit, ensure_ascii=False, default=str) + "\n")
+    except OSError as exc:
+        return {"stored": len(rows), "new": 0, "error": str(exc)[:160]}
+    return {"stored": len(rows), "new": len(yeni)}
+
+
+def recall(query: str = "", limit: int = 20) -> list[dict[str, Any]]:
+    """Daha önce öğrenilenler. Sorgu verilirse başlık/soru içinde aranır.
+
+    Tam metin aramasi DEGIL: defter bir indekstir ve amaci "bunu daha once
+    gormus muyduk" sorusuna cevap vermektir. Gercek arama gerekiyorsa
+    arastirma yeniden calistirilir.
+    """
+    try:
+        satirlar = KNOWLEDGE_LOG.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    aranan = (query or "").casefold()
+    out: list[dict[str, Any]] = []
+    for satir in reversed(satirlar):
+        if not satir.strip():
+            continue
+        try:
+            kayit = json.loads(satir)
+        except json.JSONDecodeError:
+            continue
+        if aranan:
+            govde = (str(kayit.get("title") or "") + " "
+                     + str(kayit.get("question") or "")).casefold()
+            if aranan not in govde:
+                continue
+        out.append(kayit)
+        if len(out) >= limit:
+            break
+    return out
