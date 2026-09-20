@@ -166,6 +166,24 @@ class CompanyMemory:
             "platform_sayisi,fiyat_ozeti,en_dusuk_marj,farkli_alan "
             "FROM mart.urun_karti ORDER BY urun_adi) x;"
         ),
+        # Musteriye cevap yazarken gereken TAM urun metni.
+        #
+        # NEDEN AYRI BIR SORGU: "urun_karti" aciklamayi left(...,400) ile
+        # kesiyor ve panel icin bu dogru -- ama ICINDEKILER listesi metnin
+        # SONUNDA duruyor, yani 400 karakterde her zaman kesiliyor. Olculdu
+        # (20.09.2026): 540 musteri mesajinin 166'si icindekileri soruyor,
+        # yani en sik ikinci soru. Kesik metinle o soru dogru cevaplanamaz.
+        #
+        # Guvenlik yuzeyi GENISLEMEDI: ayni tablo, ayni kolonlar, ayni
+        # ai_reader yetkisi -- yalnizca kirpma kalkti.
+        "urun_bilgi": (
+            "SELECT row_to_json(x) FROM (SELECT urun_id AS entity_id,"
+            "'mart.urun_karti' AS source,urun_id AS source_record_id,"
+            "urun_id,urun_adi,sku,aciklama_duz,"
+            "wix_satis,wix_liste,wix_stok,wix_yayinda,"
+            "trendyolda_var,trendyol_satis "
+            "FROM mart.urun_karti ORDER BY urun_adi) x;"
+        ),
         "urun_alan_karsilastirma": (
             "SELECT row_to_json(x) FROM (SELECT urun_id AS entity_id,"
             "'mart.urun_alan_karsilastirma' AS source,urun_id AS source_record_id,"
