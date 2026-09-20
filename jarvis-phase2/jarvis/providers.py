@@ -28,6 +28,16 @@ kullanır.
 ANAHTARLAR
 Değerleri okunur ama HİÇBİR YERE yazılmaz: log, hata mesajı ve dönüş
 sözlüğü anahtar içermez. Hata metinleri maskelenir.
+
+VERİ SINIRI: GEMINI ANAHTARI FATURALI (sahip teyidi, 20.09.2026)
+Google'ın ÜCRETSİZ katmanı, gönderilen içeriği ürün geliştirmede kullanır ve
+insan denetçilerin okumasına izin verir; kendi şartları "hassas veya gizli
+bilgi göndermeyin" der. ÜCRETLİ (faturalı) katmanda bu geçerli değildir.
+
+Sahip hesabın faturalı olduğunu teyit etti; şirket verisi bu yüzden
+Gemini'ye gönderilebiliyor. FATURALANDIRMA KAPATILIRSA bu gerekçe düşer ve
+Gemini zincirden çıkarılmalı, yerine OpenRouter (2,2 s, ücretsiz) birinci
+sıraya alınmalıdır.
 """
 from __future__ import annotations
 
