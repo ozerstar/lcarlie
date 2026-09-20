@@ -1332,6 +1332,28 @@ function renderRoleReality(block) {
     + `<p class="sect-note">${escapeHtml(String(block.note || ''))}</p>`;
 }
 
+/* Ekip: her uyenin adi, gorevi ve BU VERIYE BAKINCA ne soyledigi.
+ * Konusamayan uye gizlenmez -- sebebini soyler. Gizlemek paneli temiz
+ * gosterirdi ama olmayan bir kabiliyeti ima ederdi. */
+function renderTeam(rows) {
+  if (!Array.isArray(rows) || !rows.length) return '';
+  const konusan = rows.filter((r) => r.status === 'KONUŞTU');
+  const susan = rows.filter((r) => r.status !== 'KONUŞTU');
+  const blok = (r) => `<details class="detail-block">
+      <summary><strong>${escapeHtml(String(r.name || r.key || '?'))}</strong>
+        <span class="kv-v">${escapeHtml(String(r.status || ''))}</span></summary>
+      <p class="sect-note">${escapeHtml(String(r.job || ''))}</p>
+      <p>${escapeHtml(String(r.statement || ''))}</p>
+      ${r.reads && r.reads.length
+        ? `<p class="sect-note">okuduğu veri: ${escapeHtml(r.reads.join(', '))}</p>`
+        : ''}
+    </details>`;
+  return card('EKİP — KİM NE DİYOR', konusan.map(blok).join(''),
+              `${konusan.length} üye konuştu`)
+    + card('KONUŞAMAYANLAR', susan.map(blok).join(''),
+           `${susan.length} üye`);
+}
+
 function renderAjanlar(d) {
   const roles = (d.roles || []).map((r) => kvRow(
     r.id || r.error || '?', r.kind || r.domain || '')).join('');
@@ -1341,7 +1363,8 @@ function renderAjanlar(d) {
       <span class="kv-k">${escapeHtml(String(e.name || e.error || '?'))}</span>
       <span class="kv-v">${stateChip(e.state || '—')} ${escapeHtml(String(e.version || ''))}</span>
     </div>`).join('');
-  return renderRoleReality(d.role_reality)
+  return renderTeam(d.team)
+    + renderRoleReality(d.role_reality)
     + card('MODEL SAĞLAYICILARI', provs, `${(d.providers || []).length}`)
     + card('MOTORLAR', engines, `${(d.engines || []).length}`)
     + card('TANIMLI ROLLER', roles, `${(d.roles || []).length} kayıt`);
