@@ -121,6 +121,40 @@ CAMPAIGN_MARKERS = ("kampanya hazırla", "kampanya hazirla", "kampanyası hazır
                     "kreatif aci", "kreatif fikir")
 
 
+# Gorev tipi kok BIRLIKTELIGI ile belirlenir, sabit kalipla degil.
+# OLCULDU: "instagram plan" kalibi "Instagram icin gonderi plani" cumlesini
+# GORMEZ (araya kelime giriyor); "acilis sayfasi" kalibi "acilis sayfamizin"
+# cumlesini GORMEZ (iyelik eki dizgiyi boluyor). Kokler aksansiz tutulur ve
+# sirasi/arasi onemsizdir.
+_TASK_ROOTS: tuple[tuple[str, tuple[tuple[str, ...], ...]], ...] = (
+    # (gorev_tipi, ( (bu koklerden biri), (bunlardan biri), ... ))
+    (TASK_SOCIAL, (("instagram", "sosyal medya", "gonderi", "haftalik",
+                    "7 gun", "yedi gun", "story", "reels"),
+                   ("plan", "takvim", "icerik"))),
+    (TASK_CRO, (("acilis sayfa", "landing page", "urun sayfa", "sepet",
+                 "donusum", "checkout"),
+                ())),
+    (TASK_PERFORMANCE, (("performans",),
+                        ("problem", "test", "neden", "dus", "sorun"))),
+)
+
+
+def _fold_task(text: str) -> str:
+    import unicodedata as _ud
+    lowered = (text or "").replace("İ", "i").replace("I", "ı").casefold()
+    return "".join(c for c in _ud.normalize("NFKD", lowered)
+                   if not _ud.combining(c)).replace("ı", "i")
+
+
+def _task_by_roots(task: str) -> str | None:
+    """Kökler birlikte geçiyorsa görev tipi. Yoksa None -- uydurmaz."""
+    flat = _fold_task(task)
+    for gorev, gruplar in _TASK_ROOTS:
+        if all(any(kok in flat for kok in grup) for grup in gruplar if grup):
+            return gorev
+    return None
+
+
 def classify_task(task: str) -> str:
     text = task.casefold()
     # Checked first: a campaign brief routinely mentions the landing page and
@@ -137,7 +171,9 @@ def classify_task(task: str) -> str:
                                      "ne test", "reklam performansımızı", "reklam performansimizi",
                                      "son reklam")):
         return TASK_PERFORMANCE
-    return TASK_CAMPAIGN
+    # Sabit kaliplar cekimi ve araya giren kelimeyi kaciriyor; kok
+    # birlikteligine bak. Bulamazsa varsayilan kampanya kalir.
+    return _task_by_roots(task) or TASK_CAMPAIGN
 
 
 def select_roles(task_type: str, task: str) -> tuple[str, ...]:
