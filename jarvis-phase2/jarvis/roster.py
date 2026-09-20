@@ -194,6 +194,84 @@ ROSTER: tuple[Member, ...] = (
 BY_KEY = {m.key: m for m in ROSTER}
 
 
+# --------------------------------------------------------- uye -> departman
+# 🔴 AYRI SOZLUK, Member'a alan EKLENMEDI. 41 tanimi tek tek degistirmek
+#    hem gurultulu hem hataya acik; eslemeyi tek yerde tutmak eksigi de
+#    gorunur kilar (bkz. eslenmeyen_uyeler). Kodlar core.departman.kod ile
+#    ayni olmak zorunda -- panoda departman basligi oradan geliyor.
+UYE_DEPARTMAN: dict[str, str] = {
+    # ticari
+    "ecommerce_sales": "ECOM",
+    "product_portfolio": "PRODUCT",
+    "field_b2b_sales": "B2B",
+    "bizdev": "BIZDEV",
+    "operations": "FULFILLMENT",
+    # finans
+    "finance": "FINANCE",
+    "accounting_control": "FINANCE",
+    # veri / olcum
+    "data_measurement": "DATA_BI",
+    "research": "DATA_BI",
+    # reklam
+    "meta_performance": "META_MEDIA",
+    "creative_fatigue": "META_MEDIA",
+    "META_PERFORMANCE": "META_MEDIA",
+    # kreatif
+    "creative_intelligence": "CREATIVE_STRAT",
+    "creative_decision": "CREATIVE_STRAT",
+    "creative_hypothesis": "CREATIVE_STRAT",
+    "creative_coverage": "CREATIVE_STRAT",
+    "CREATIVE_DIRECTOR": "CREATIVE_STRAT",
+    "CREATIVE_INTELLIGENCE": "CREATIVE_STRAT",
+    "creative_copy": "COPY",
+    "COPYWRITER": "COPY",
+    "art_format": "ART",
+    # marka
+    "brand_voice": "BRAND",
+    "brand_positioning": "BRAND",
+    "brand_strategy": "BRAND",
+    # icerik / sosyal
+    "content_cadence": "CONTENT",
+    "social_media": "SOCIAL",
+    "social_engagement": "SOCIAL",
+    "SOCIAL_CONTENT": "SOCIAL",
+    # musteri
+    "crm_customer": "CRM",
+    # istihbarat
+    "market_intelligence": "MARKET_INT",
+    "market_findings": "MARKET_INT",
+    "competitor_intelligence": "COMPETITOR_INT",
+    "COMPETITOR_CREATIVE": "COMPETITOR_INT",
+    # yonetisim
+    "regulatory_quality": "REGULATORY",
+    "red_team": "RED_TEAM",
+    # platform
+    "ai_prompt_engineering": "AI_OPS",
+    # donusum
+    "CRO_SPECIALIST": "CRO",
+    # yurutme
+    "growth": "EXEC",
+    "strategy": "EXEC",
+    "managing_director": "EXEC",
+    "GROWTH_STRATEGIST": "EXEC",
+}
+
+
+def eslenmeyen_uyeler() -> tuple[str, ...]:
+    """Departmani olmayan uyeler. Bos donmeli; test bunu bekcilik eder."""
+    return tuple(m.key for m in ROSTER if m.key not in UYE_DEPARTMAN)
+
+
+def departman_uyeleri() -> dict[str, tuple[Member, ...]]:
+    """Departman kodu -> o departmanin uyeleri."""
+    kova: dict[str, list[Member]] = {}
+    for m in ROSTER:
+        kod = UYE_DEPARTMAN.get(m.key)
+        if kod:
+            kova.setdefault(kod, []).append(m)
+    return {k: tuple(v) for k, v in kova.items()}
+
+
 # ------------------------------------------------------------- görüş üretimi
 def _num(row: dict, *keys: str) -> float:
     for key in keys:

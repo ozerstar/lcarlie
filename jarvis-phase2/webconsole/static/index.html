@@ -47,6 +47,7 @@
       <button type="button" class="nav-item is-active" data-view="home">ANA SAYFA</button>
       <button type="button" class="nav-item" data-view="analiz">ANALİZ</button>
       <button type="button" class="nav-item" data-view="gorevler">GÖREVLER</button>
+      <button type="button" class="nav-item" data-view="ekip">EKİP</button>
       <button type="button" class="nav-item" data-view="veri">VERİ</button>
       <button type="button" class="nav-item" data-view="ajanlar">AJANLAR</button>
       <button type="button" class="nav-item" data-view="hafiza">HAFIZA</button>
@@ -238,6 +239,17 @@
   </main>
 
   <!-- -------------------------- ANALİZ --------------------------- -->
+  <main class="stage stage-single view-panel" id="viewEkip" hidden>
+  <section class="panel" aria-label="EKİP PANOSU">
+    <div class="panel-head">
+      <h2 class="panel-title">EKİP PANOSU</h2>
+      <span class="panel-count" id="ekipCount">—</span>
+    </div>
+    <div class="panel-body sect-body" id="ekipBody">
+      <p class="sect-empty">Yükleniyor…</p>
+    </div>
+  </section>
+</main>
   <main class="stage stage-single view-panel" id="viewVeri" hidden>
   <section class="panel" aria-label="VERİ KAYNAKLARI">
     <div class="panel-head">

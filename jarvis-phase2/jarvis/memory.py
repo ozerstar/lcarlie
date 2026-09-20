@@ -231,6 +231,15 @@ class CompanyMemory:
         # sorusu, "hangi reklam iyi calisiyor" sorusundan ayridir: ikincisi
         # var olan reklamlari kiyaslar, birincisi HIC REKLAMI OLMAYAN urunu
         # gorunur kilar. Olculdu: 36 urunun 11'inde kreatif var.
+        # Departman listesi (20.09.2026). EKIP panosu basliklarini buradan
+        # alir; arayuz sabit bir departman listesi tasimaz, tek dogru kaynak
+        # core.departman'dir.
+        "departments": (
+            "SELECT row_to_json(x) FROM (SELECT kod AS entity_id,"
+            "'core.departman' AS source,kod AS source_record_id,"
+            "kod,ad,aile,misyon,durum,veri_kaynagi,otonomi_tavani,escalation "
+            "FROM core.departman ORDER BY aile, kod) x;"
+        ),
         "creative_coverage": (
             "SELECT row_to_json(x) FROM (SELECT ad_id AS entity_id,"
             "'mart.reklam_urun' AS source,ad_id AS source_record_id,"

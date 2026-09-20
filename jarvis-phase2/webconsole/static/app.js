@@ -1555,7 +1555,176 @@ function renderAyarlar(d) {
     + card('KILL SWITCH', `<pre class="sect-pre">${escapeHtml(String(d.kill_switch || ''))}</pre>`, '');
 }
 
-const SECTION_RENDERERS = { veri: renderVeri, ajanlar: renderAjanlar,
+/* ==================================================================
+   EKİP PANOSU
+
+   Ne gösterir: 45 departman, hangisinin kadrosu var, o kadro ŞU AN
+   veriden konuşabiliyor mu. Ve her departmana soru sorulabilir.
+
+   🔴 İKİ AYRI "ÇALIŞIYOR" VAR, PANO İKİSİNİ DE GÖSTERİR:
+     nokta rengi  -> üyeler ŞU AN okuyabildi mi (canlı ölçüm)
+     birim rozeti -> core.departman.durum (veri kaynağı tanımlı mı)
+   Bir departman "CALISIYOR" işaretli olup sorgusu düştüğü için sarı
+   olabilir. Tek renge indirmek, yeşil panoda ölü bir birimi gizlerdi.
+   ================================================================== */
+
+const EKIP_RENK = {
+  yesil:  { sinif: 'ek-yesil',  etiket: 'konuşuyor' },
+  sari:   { sinif: 'ek-sari',   etiket: 'girdi/araştırma bekliyor' },
+  kirmizi:{ sinif: 'ek-kirmizi',etiket: 'okuması gereken veri açık değil' },
+  gri:    { sinif: 'ek-gri',    etiket: 'kadrosu yok' },
+};
+
+function renderEkip(data) {
+  const deps = data.departmanlar || [];
+  const oz = data.ozet || {};
+  const renk = oz.renk || {};
+
+  const ozet = `
+    <div class="ek-ozet">
+      <div class="ek-tile"><span class="ek-n">${oz.departman ?? 0}</span><span class="ek-k">departman</span></div>
+      <div class="ek-tile"><span class="ek-n">${oz.kadrosu_olan ?? 0}</span><span class="ek-k">kadrosu var</span></div>
+      <div class="ek-tile"><span class="ek-n">${oz.konusan_uye ?? 0}/${oz.uye ?? 0}</span><span class="ek-k">üye konuşuyor</span></div>
+      <div class="ek-tile ek-legend">
+        <span class="ek-lg"><i class="ek-dot ek-yesil"></i>${renk.yesil ?? 0} konuşuyor</span>
+        <span class="ek-lg"><i class="ek-dot ek-sari"></i>${renk.sari ?? 0} bekliyor</span>
+        <span class="ek-lg"><i class="ek-dot ek-kirmizi"></i>${renk.kirmizi ?? 0} veri yok</span>
+        <span class="ek-lg"><i class="ek-dot ek-gri"></i>${renk.gri ?? 0} kadrosuz</span>
+      </div>
+    </div>
+    <p class="ek-not">${escapeHtml(data.not || '')}</p>`;
+
+  // Aileye göre grupla; aile sırası veriden gelir, arayüz sabit liste tutmaz.
+  const aileler = [];
+  const kova = {};
+  deps.forEach(d => {
+    const a = d.aile || '—';
+    if (!kova[a]) { kova[a] = []; aileler.push(a); }
+    kova[a].push(d);
+  });
+
+  const bloklar = aileler.map(aile => {
+    const liste = kova[aile];
+    const konusan = liste.filter(d => d.renk === 'yesil').length;
+    const satirlar = liste.map(d => ekipSatir(d)).join('');
+    return `<section class="ek-aile">
+      <div class="ek-aile-head">
+        <span class="ek-aile-ad">${escapeHtml(aile)}</span>
+        <span class="ek-aile-say">${liste.length} birim · ${konusan} konuşuyor</span>
+      </div>
+      ${satirlar}
+    </section>`;
+  }).join('');
+
+  return ozet + bloklar;
+}
+
+function ekipSatir(d) {
+  const r = EKIP_RENK[d.renk] || EKIP_RENK.gri;
+  const uyeler = d.uyeler || [];
+
+  const uyeListe = uyeler.length ? uyeler.map(u => `
+    <div class="ek-uye ${u.durum === 'KONUŞTU' ? 'is-konustu' : ''}">
+      <div class="ek-uye-ust">
+        <span class="ek-uye-ad">${escapeHtml(u.ad || '')}</span>
+        <span class="ek-uye-durum">${escapeHtml(u.durum || '')}</span>
+      </div>
+      <div class="ek-uye-gorev">${escapeHtml(u.gorev || '')}</div>
+      ${u.soyledigi ? `<div class="ek-uye-soz">${escapeHtml(u.soyledigi)}</div>` : ''}
+      ${(u.eksik && u.eksik.length) ? `<div class="ek-uye-eksik">okunamayan: ${escapeHtml(u.eksik.join(', '))}</div>` : ''}
+      ${(u.okur && u.okur.length) ? `<div class="ek-uye-okur">okur: ${escapeHtml(u.okur.join(' · '))}</div>` : ''}
+    </div>`).join('') : '<p class="ek-bos">Bu birimin kadrosu kurulmamış; sorulacak bir sorumlu yok.</p>';
+
+  const soruKutusu = d.soru_sorulabilir ? `
+    <div class="ek-sor">
+      <label class="ek-sor-lbl" for="sor-${escapeHtml(d.kod)}">${escapeHtml(d.ad || d.kod)} sorumlusuna sor</label>
+      <div class="ek-sor-row">
+        <input id="sor-${escapeHtml(d.kod)}" class="ek-sor-in" type="text" autocomplete="off"
+               placeholder="Bu neden böyle? Şöyle yapsak daha iyi olmaz mı?">
+        <button type="button" class="ek-sor-btn" data-ekip-sor="${escapeHtml(d.kod)}">SOR</button>
+      </div>
+      <div class="ek-cevap" id="cevap-${escapeHtml(d.kod)}" hidden></div>
+    </div>` : '';
+
+  return `<details class="ek-dep ${r.sinif}">
+    <summary class="ek-dep-head">
+      <i class="ek-dot ${r.sinif}" title="${escapeHtml(r.etiket)}"></i>
+      <span class="ek-kod">${escapeHtml(d.kod || '')}</span>
+      <span class="ek-ad">${escapeHtml(d.ad || '')}</span>
+      <span class="ek-rozet ek-rz-${escapeHtml(String(d.birim_durumu || '').toLowerCase())}">${escapeHtml(d.birim_durumu || '')}</span>
+      <span class="ek-say">${d.konusan || 0}/${d.uye_sayisi || 0}</span>
+    </summary>
+    <div class="ek-dep-govde">
+      <div class="ek-misyon">${escapeHtml(d.misyon || '')}</div>
+      <div class="ek-meta">
+        <span>veri: ${escapeHtml(d.veri_kaynagi || '—')}</span>
+        <span>otonomi: ${escapeHtml(d.otonomi_tavani || '—')}</span>
+        <span>eskalasyon: ${escapeHtml(d.escalation || '—')}</span>
+      </div>
+      ${uyeListe}
+      ${soruKutusu}
+    </div>
+  </details>`;
+}
+
+/* ---- soru sor -----------------------------------------------------
+   🔴 CEVAP HAM GÖSTERİLMEZ. Üç şey cevabın yanında ZORUNLU olarak
+   çizilir: kaç kanıt parçasından üretildiği, hangi kaynaklardan, ve
+   DOĞRULANMAYAN SAYILAR. Son madde kritik: cevapta geçip kanıtta
+   geçmeyen bir rakam varsa kullanıcı bunu görmek zorundadır, yoksa
+   uydurulmuş bir sayıyı ölçülmüş sanır.                              */
+document.addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('[data-ekip-sor]');
+  if (!btn) return;
+  const kod = btn.getAttribute('data-ekip-sor');
+  const input = qs('sor-' + kod);
+  const kutu = qs('cevap-' + kod);
+  if (!input || !kutu) return;
+  const soru = (input.value || '').trim();
+  if (!soru) { input.focus(); return; }
+
+  btn.disabled = true;
+  const eskiMetin = btn.textContent;
+  btn.textContent = '…';
+  kutu.hidden = false;
+  kutu.innerHTML = '<p class="ek-bekle">Sorumlu kanıtı okuyor…</p>';
+
+  const { ok, status, body } = await api('/api/ekip/sor', {
+    method: 'POST',
+    body: JSON.stringify({ kod, soru }),
+  });
+
+  btn.disabled = false;
+  btn.textContent = eskiMetin;
+
+  if (!ok) {
+    kutu.innerHTML = `<p class="ek-hata">Cevap alınamadı (HTTP ${status}). ${escapeHtml(String((body && body.error) || ''))}</p>`;
+    return;
+  }
+  if (body.hata) {
+    kutu.innerHTML = `<p class="ek-hata">${escapeHtml(body.hata)}</p>`;
+    return;
+  }
+
+  const sayilar = body.dogrulanmayan_sayilar || [];
+  const uyari = sayilar.length
+    ? `<div class="ek-uyari">⚠ Cevapta geçip kanıtta bulunmayan sayı(lar): <b>${escapeHtml(sayilar.join(', '))}</b> — bu rakamlar doğrulanmadı.</div>`
+    : `<div class="ek-dogru">✓ Cevaptaki her sayı kanıtta bulundu.</div>`;
+
+  const okunamayan = (body.okunamayan || []).length
+    ? `<div class="ek-uyari">Okunamayan kaynak: ${escapeHtml((body.okunamayan || []).join(', '))}</div>` : '';
+
+  kutu.innerHTML = `
+    <div class="ek-cevap-metin">${escapeHtml(body.cevap || '')}</div>
+    ${uyari}${okunamayan}
+    <div class="ek-cevap-alt">
+      <span>${body.kanit_sayisi || 0} kanıt parçası</span>
+      <span>${escapeHtml((body.kanit_kaynaklari || []).join(' · '))}</span>
+      <span>${escapeHtml(body.model || '')}${body.guven ? ' · güven ' + escapeHtml(body.guven) : ''}</span>
+    </div>`;
+});
+
+const SECTION_RENDERERS = { ekip: renderEkip, veri: renderVeri, ajanlar: renderAjanlar,
                             raporlar: renderRaporlar, ayarlar: renderAyarlar };
 
 async function loadSection(name) {
@@ -1578,7 +1747,9 @@ async function loadSection(name) {
   try {
     body.innerHTML = SECTION_RENDERERS[name](data);
     if (count) {
-      count.textContent = name === 'veri'
+      count.textContent = name === 'ekip'
+        ? `${(data.ozet && data.ozet.konusan_uye) || 0}/${(data.ozet && data.ozet.uye) || 0} üye konuşuyor`
+        : name === 'veri'
         ? `${(data.domains || []).reduce((a, d) => a + d.ok, 0)} sorgu`
         : name === 'ajanlar' ? `${(data.engines || []).length} motor`
         : name === 'raporlar' ? `${data.finding_total || 0} kayıt` : 'salt okunur';

@@ -511,11 +511,11 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/panel":
             # Bolum listesi: uc nokta kesfedilebilir olsun, arayuz sabit
             # isim listesi tasimak zorunda kalmasin.
-            self._send_json(200, {"sections": ["veri", "ajanlar", "raporlar", "ayarlar"]})
+            self._send_json(200, {"sections": ["ekip", "veri", "ajanlar", "raporlar", "ayarlar"]})
             return
         if path.startswith("/api/panel/"):
             section = path.rsplit("/", 1)[-1]
-            builder = {"veri": _panel_veri, "ajanlar": _panel_ajanlar,
+            builder = {"ekip": _panel_ekip, "veri": _panel_veri, "ajanlar": _panel_ajanlar,
                        "raporlar": _panel_raporlar, "ayarlar": _panel_ayarlar}.get(section)
             if builder is None:
                 self._send_json(404, {"error": "unknown panel"})
@@ -578,6 +578,23 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as exc:  # noqa: BLE001
                 self._send_json(503, {"error": "onizleme uretilemedi",
                                       "detail": str(exc)[:200]})
+                return
+            self._send_json(200, sonuc)
+            return
+        if path == "/api/ekip/sor":
+            # Departman sorumlusuna soru. Model cagrilir ama KANITA bagli:
+            # kanit yoksa model hic cagrilmaz, cevaptaki dogrulanmayan
+            # sayilar ayrica doner. Detay: _ekip_sor().
+            body = _read_json_body(self)
+            kod = str(body.get("kod", "")).strip().upper()[:40]
+            soru = str(body.get("soru", ""))[:600]
+            if not kod or not soru.strip():
+                self._send_json(400, {"error": "kod ve soru zorunlu"})
+                return
+            try:
+                sonuc = _ekip_sor(kod, soru)
+            except Exception as exc:  # noqa: BLE001
+                self._send_json(502, {"error": f"soru islenemedi: {str(exc)[:200]}"})
                 return
             self._send_json(200, sonuc)
             return
@@ -1156,6 +1173,284 @@ def _panel_usage() -> dict:
     except Exception as exc:  # noqa: BLE001 - panel hicbir zaman cokmez
         return {"error": str(exc)[:200], "providers": [], "total_calls": 0,
                 "paid_calls": 0}
+
+
+def _panel_ekip() -> dict:
+    """EKIP PANOSU: departman departman kim var, kim calisiyor, kim calismiyor.
+
+    🔴 IKI AYRI 'CALISIYOR' VAR, KARISTIRMA:
+      departman.durum  -- birimin veri kaynagi var mi (core.departman alani)
+      uye.status       -- o uye SU AN veriden konusabildi mi (canli olcum)
+    Bir departman 'CALISIYOR' isaretli olup uyesi o an okuyamiyor olabilir
+    (sorgu dustu). Pano ikisini de gosterir; birini digerinin yerine koymak
+    yesil bir panoda olu bir birimi gizlerdi.
+
+    Renk KURALI -- tahmin degil, sayim:
+      yesil  departmanin EN AZ BIR uyesi veriden konustu
+      sari   uyesi var ama hicbiri konusamadi (arastirma/girdi bekliyor)
+      kirmizi uyesi var ve okumasi gereken veri ACIK DEGIL
+      gri    hic uyesi yok -- birim tanimli ama kadrosu kurulmamis
+    """
+    try:
+        from jarvis import roster
+    except Exception as exc:  # noqa: BLE001
+        return {"error": f"roster okunamadi: {exc}", "departmanlar": []}
+
+    # 1) Departman tablosu (tek dogru kaynak).
+    departmanlar: list[dict] = []
+    try:
+        departmanlar = list(_memory._fetch("departments").records)
+    except Exception as exc:  # noqa: BLE001
+        return {"error": f"departman tablosu okunamadi: {exc}", "departmanlar": []}
+
+    # 2) Canli uye durumu. Tek cagri, sorgular icerde onbellege aliniyor.
+    try:
+        gorusler = roster.opinions(_memory)
+    except Exception as exc:  # noqa: BLE001
+        gorusler = []
+        uye_hatasi = str(exc)
+    else:
+        uye_hatasi = ""
+    gorus_by_key = {g["key"]: g for g in gorusler}
+    uyeler_by_dept = roster.departman_uyeleri()
+
+    KONUSTU = "KONUŞTU"
+    VERI_YOK = "VERİ YOK"
+
+    satirlar: list[dict] = []
+    for d in departmanlar:
+        kod = str(d.get("kod") or "")
+        uyeler = []
+        for m in uyeler_by_dept.get(kod, ()):
+            g = gorus_by_key.get(m.key, {})
+            uyeler.append({
+                "key": m.key,
+                "ad": m.name,
+                "gorev": m.job,
+                "mod": m.mode,
+                "okur": list(m.reads),
+                "durum": g.get("status", "BİLİNMİYOR"),
+                "soyledigi": g.get("statement", ""),
+                "eksik": g.get("missing", []),
+            })
+        konusan = sum(1 for u in uyeler if u["durum"] == KONUSTU)
+        veri_yok = sum(1 for u in uyeler if u["durum"] == VERI_YOK)
+        if not uyeler:
+            renk = "gri"
+        elif konusan:
+            renk = "yesil"
+        elif veri_yok:
+            renk = "kirmizi"
+        else:
+            renk = "sari"
+        satirlar.append({
+            "kod": kod,
+            "ad": d.get("ad"),
+            "aile": d.get("aile"),
+            "misyon": d.get("misyon"),
+            "birim_durumu": d.get("durum"),
+            "veri_kaynagi": d.get("veri_kaynagi"),
+            "otonomi_tavani": d.get("otonomi_tavani"),
+            "escalation": d.get("escalation"),
+            "renk": renk,
+            "uye_sayisi": len(uyeler),
+            "konusan": konusan,
+            "uyeler": uyeler,
+            # Soru sorulabilir mi: kadrosu olan her departmana sorulabilir.
+            "soru_sorulabilir": bool(uyeler),
+        })
+
+    sayim = {"yesil": 0, "sari": 0, "kirmizi": 0, "gri": 0}
+    for s in satirlar:
+        sayim[s["renk"]] = sayim.get(s["renk"], 0) + 1
+
+    return {
+        "departmanlar": satirlar,
+        "ozet": {
+            "departman": len(satirlar),
+            "kadrosu_olan": sum(1 for s in satirlar if s["uye_sayisi"]),
+            "uye": sum(s["uye_sayisi"] for s in satirlar),
+            "konusan_uye": sum(s["konusan"] for s in satirlar),
+            "renk": sayim,
+        },
+        "uyari": uye_hatasi,
+        "not": ("Renk, o departmanin uyelerinin SU ANKI okuma sonucudur; "
+                "birim_durumu ise core.departman alanidir. Ikisi ayri seydir."),
+    }
+
+
+_SAYI = __import__("re").compile(r"\d[\d.,]*")
+
+
+def _sayilari(metin: str) -> set:
+    """Metindeki sayilari ayrac farkindan bagimsiz kumeye cevirir."""
+    out = set()
+    for ham in _SAYI.findall(metin or ""):
+        sade = ham.replace(".", "").replace(",", "").lstrip("0") or "0"
+        if len(sade) >= 2:          # tek haneliler cok yanlis pozitif uretir
+            out.add(sade)
+    return out
+
+
+def _ekip_sor(kod: str, soru: str) -> dict:
+    """Bir departmanin sorumlusuna soru sorar. Cevap KANITA baglidir.
+
+    🔴 UYDURMAYA KARSI UC YAPISAL KAPI (istem degil, kod):
+      1. KANIT KAPISI  -- departmanin uyeleri veriden okuyamadiysa model HIC
+         cagrilmaz. Cagrilan her model bir uydurma firsatidir.
+      2. KANIT BAGI    -- evidence_refs modelin metninden AYIKLANMAZ, verilen
+         kanittan kopyalanir; model okunmamis bir kaynak uyduramaz.
+      3. SAYI KAPISI   -- cevapta gecip kanitta gecmeyen her sayi
+         'dogrulanmayan_sayilar' olarak DONER ve arayuzde gosterilir.
+         Sessizce gecirmek, rakami dogrulanmis gostermek olurdu.
+    """
+    try:
+        from jarvis import roster
+        from jarvis.model_layer import ModelRouter
+    except Exception as exc:  # noqa: BLE001
+        return {"hata": f"model katmani yuklenemedi: {exc}"}
+
+    soru = (soru or "").strip()
+    if not soru:
+        return {"hata": "soru bos"}
+
+    uyeler = roster.departman_uyeleri().get(kod, ())
+    if not uyeler:
+        return {"hata": f"{kod} departmaninin kadrosu yok; soru sorulamaz.",
+                "kod": kod}
+
+    # --- departman kimligi (misyon core.departman'dan, uydurulmaz) ---------
+    misyon, birim_adi, birim_durumu = "", kod, ""
+    try:
+        for d in _memory._fetch("departments").records:
+            if str(d.get("kod")) == kod:
+                misyon = str(d.get("misyon") or "")
+                birim_adi = str(d.get("ad") or kod)
+                birim_durumu = str(d.get("durum") or "")
+                break
+    except Exception:  # noqa: BLE001
+        pass
+
+    # --- kanit topla ------------------------------------------------------
+    # 🔴 BICIM SOZLESMESI: compile_context her parcada 'ref'/'source' ve
+    #    'summary'/'detail' arar. Ilk yazimda {'source':..,'record':{..}}
+    #    yollanmisti: 'summary' bulunmayinca her satir "- kaynak: " diye BOS
+    #    render edildi ve model dogru bir sekilde "kanitta rakam yok" dedi.
+    #    87 satir toplanmisti ama modele hicbiri ULASMAMISTI. Sessiz hataydi;
+    #    hata da vermedi, sadece cevap fakirlesti.
+    # 🔴 BUTCE: compile_context yalniz ILK 12 parcayi ve 6000 karakteri alir.
+    #    O yuzden satir basina bir parca DEGIL, sorgu basina TEK YOGUN ozet
+    #    uretilir ve uyelerin damitilmis bulgulari ONE konur.
+    kanit: list[dict] = []
+    okunamayan: list[str] = []
+    sorgular: list[str] = []
+
+    # 1) Uyelerin kendi deterministik bulgulari -- en damitilmis kanit, once.
+    try:
+        gorusler = roster.opinions(_memory, only=tuple(m.key for m in uyeler))
+    except Exception:  # noqa: BLE001
+        gorusler = []
+    for g in gorusler:
+        if g.get("statement"):
+            kanit.append({"ref": f"roster:{g['key']}",
+                          "summary": f"{g.get('name')} ({g.get('status')}): "
+                                     f"{g.get('statement')}"})
+
+    # 2) Ham sorgular -- sorgu basina tek satir, kolon=deger biciminde.
+    def _satir_ozeti(satir: dict, tavan: int = 220) -> str:
+        parcalar = []
+        for k, v in satir.items():
+            if k in ("entity_id", "source", "source_record_id") or v in (None, ""):
+                continue
+            parcalar.append(f"{k}={v}")
+        return "; ".join(parcalar)[:tavan]
+
+    for m in uyeler:
+        for q in m.reads:
+            if q in sorgular:
+                continue
+            sorgular.append(q)
+            try:
+                e = _memory._fetch(q)
+            except Exception:  # noqa: BLE001
+                okunamayan.append(q)
+                continue
+            if not e.records:
+                kanit.append({"ref": e.source, "summary": "kayıt yok (0 satır)"})
+                continue
+            satirlar = [_satir_ozeti(r) for r in e.records[:12]]
+            ozet = " | ".join(s for s in satirlar if s)[:1400]
+            kanit.append({"ref": e.source,
+                          "summary": f"{len(e.records)} satır. {ozet}"})
+
+    # 1. KANIT KAPISI
+    if not kanit:
+        return {"kod": kod, "departman": birim_adi,
+                "cevap": (f"{birim_adi} şu an veriden konuşamıyor: okuması gereken "
+                          f"kaynaklar açık değil ({', '.join(okunamayan) or 'kaynak yok'}). "
+                          f"Bu soruya cevap üretmek uydurma olurdu."),
+                "model_kullanildi": False, "kanit_sayisi": 0,
+                "okunamayan": okunamayan, "uyeler": [m.name for m in uyeler]}
+
+    # 🔴 ISTEM BIR YAPI DAYATIR, "dikkatli ol" DEMEZ.
+    #    Ilk surumde yalnizca "kanittan konus, bilmiyorsan bilinmiyor de"
+    #    yaziyordu ve model OLCULEN RAKAMI HIC YAZMADAN dogrudan
+    #    "bu veriyle bilinmiyor" dedi -- oysa kanit fiyatin sorularin %56'si
+    #    oldugunu soyluyordu. Cekingenlik de bir hatadir: elindeki olcumu
+    #    saklayan cevap, uyduran cevap kadar ise yaramaz.
+    #    Cozum istemde "daha iyi ol" demek degil, BOLUM DAYATMAK.
+    sistem = (
+        f"Sen L'CARLIÉ şirketinde {birim_adi} biriminin sorumlususun. "
+        f"Görevin: {misyon or 'bu birimin işi'}. "
+        "SADECE sana verilen kanıttan konuş; kanıtta olmayan rakamı, ürünü veya "
+        "olguyu ASLA yazma.\n"
+        "Cevabını TAM OLARAK şu dört başlıkla ver:\n"
+        "ÖLÇÜLEN: kanıttaki somut rakamları yaz (kaç, yüzde kaç, hangi kaynak). "
+        "Bu bölüm boş geçilemez; kanıtta rakam varsa yazılır.\n"
+        "OKUMA: bu rakamlar bu birimin işi açısından ne anlama geliyor. "
+        "Nedensellik iddia etme; örtüşme ile nedeni ayır.\n"
+        "SEÇENEKLER: en fazla üç yol. Her birinin yanında ÇÜRÜTÜCÜSÜ olsun — "
+        "yani hangi ölçüm görülürse o yolun yanlış olduğu anlaşılır.\n"
+        "BİLİNMEYEN: bu veriyle cevaplanamayan kısım ve onu cevaplamak için "
+        "hangi ölçümün gerektiği.\n"
+        "Kesin sonuç vaat etme. Türkçe yaz, toplam 12 cümleyi geçme."
+    )
+
+    router = ModelRouter()
+    try:
+        sonuc = router.synthesize(soru, kanit, missing_data=okunamayan,
+                                  escalate=True, max_tokens=900, system=sistem)
+    except Exception as exc:  # noqa: BLE001
+        return {"kod": kod, "departman": birim_adi,
+                "hata": f"model cevap veremedi: {str(exc)[:200]}",
+                "kanit_sayisi": len(kanit)}
+
+    # 🔴 ModelResult'ta alan adi 'answer'. 'text' diye bir alan YOK; ilk
+    #    yazimda oyle varsayilmisti ve cevap sessizce None donuyordu --
+    #    kanit toplama calisirken metin bos geliyordu, hata da vermiyordu.
+    cevap = getattr(sonuc, "answer", "") or ""
+    refs = list(getattr(sonuc, "evidence_refs", ()) or ())
+
+    # 3. SAYI KAPISI
+    kanit_metni = json.dumps(kanit, ensure_ascii=False)
+    dogrulanmayan = sorted(_sayilari(cevap) - _sayilari(kanit_metni))
+
+    return {
+        "kod": kod,
+        "departman": birim_adi,
+        "birim_durumu": birim_durumu,
+        "soru": soru,
+        "cevap": cevap,
+        "uyeler": [m.name for m in uyeler],
+        "kanit_sayisi": len(kanit),
+        "kanit_kaynaklari": sorted({k["ref"] for k in kanit}),
+        "evidence_refs": refs,
+        "okunamayan": okunamayan,
+        "dogrulanmayan_sayilar": dogrulanmayan,
+        "model_kullanildi": True,
+        "guven": getattr(sonuc, "confidence", None),
+        "model": getattr(sonuc, "model", "") or "",
+    }
 
 
 def _panel_ayarlar() -> dict:

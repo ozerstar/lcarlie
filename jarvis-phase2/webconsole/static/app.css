@@ -1977,3 +1977,106 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
   .hf-form-alt { flex-wrap: wrap; }
   .hf-form-alt .qa-btn { margin-left: 0; width: 100%; }
 }
+
+/* ==================================================================
+   EKİP PANOSU
+   Renk anlam taşır: yeşil/sarı/kırmızı/gri = üyelerin ŞU ANKİ okuma
+   sonucu. Birim rozeti (CALISIYOR/KISMI/YOK) ayrı bir şeydir ve ayrı
+   çizilir; ikisini aynı renge indirmek ölü birimi gizlerdi.
+   ================================================================== */
+
+.ek-ozet{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:10px;margin-bottom:14px}
+.ek-tile{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);
+  border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:4px}
+.ek-n{font-size:1.6rem;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.ek-k{font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;opacity:.6}
+.ek-legend{gap:6px;justify-content:center}
+.ek-lg{display:flex;align-items:center;gap:7px;font-size:.78rem;opacity:.85}
+
+.ek-dot{width:9px;height:9px;border-radius:50%;flex:0 0 9px;display:inline-block}
+.ek-dot.ek-yesil{background:#37d19a;box-shadow:0 0 7px rgba(55,209,154,.55)}
+.ek-dot.ek-sari{background:#e0a93c;box-shadow:0 0 7px rgba(224,169,60,.45)}
+.ek-dot.ek-kirmizi{background:#e0564a;box-shadow:0 0 7px rgba(224,86,74,.5)}
+.ek-dot.ek-gri{background:#5d6873}
+
+.ek-not{font-size:.76rem;opacity:.55;margin:0 0 18px;line-height:1.5}
+
+.ek-aile{margin-bottom:18px}
+.ek-aile-head{display:flex;align-items:baseline;gap:12px;
+  border-bottom:1px solid rgba(201,160,82,.35);padding-bottom:5px;margin-bottom:4px}
+.ek-aile-ad{font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;
+  color:#c9a052;font-weight:600}
+.ek-aile-say{font-size:.72rem;opacity:.5;font-variant-numeric:tabular-nums}
+
+.ek-dep{border-bottom:1px solid rgba(255,255,255,.06)}
+.ek-dep[open]{background:rgba(255,255,255,.02)}
+.ek-dep-head{display:flex;align-items:center;gap:10px;padding:9px 4px;
+  cursor:pointer;list-style:none}
+.ek-dep-head::-webkit-details-marker{display:none}
+.ek-dep-head:hover{background:rgba(255,255,255,.035)}
+.ek-dep.ek-gri .ek-dep-head{opacity:.5}
+.ek-kod{font-family:ui-monospace,monospace;font-size:.76rem;font-weight:600;
+  min-width:124px}
+.ek-ad{font-size:.88rem;opacity:.8;flex:1;min-width:0;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.ek-say{font-family:ui-monospace,monospace;font-size:.75rem;opacity:.65;
+  font-variant-numeric:tabular-nums;min-width:38px;text-align:right}
+
+.ek-rozet{font-family:ui-monospace,monospace;font-size:.62rem;letter-spacing:.06em;
+  padding:2px 7px;border-radius:3px;white-space:nowrap}
+.ek-rz-calisiyor{background:rgba(55,209,154,.14);color:#5cc192}
+.ek-rz-kismi{background:rgba(224,169,60,.14);color:#d9a441}
+.ek-rz-yok{background:rgba(255,255,255,.06);color:#8b95a1}
+
+.ek-dep-govde{padding:4px 4px 18px 26px;display:flex;flex-direction:column;gap:10px}
+.ek-misyon{font-size:.86rem;opacity:.85}
+.ek-meta{display:flex;flex-wrap:wrap;gap:14px;font-family:ui-monospace,monospace;
+  font-size:.7rem;opacity:.5}
+
+.ek-uye{border-left:2px solid rgba(255,255,255,.1);padding:7px 0 7px 12px}
+.ek-uye.is-konustu{border-left-color:#37d19a}
+.ek-uye-ust{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.ek-uye-ad{font-weight:600;font-size:.9rem}
+.ek-uye-durum{font-family:ui-monospace,monospace;font-size:.64rem;
+  letter-spacing:.07em;opacity:.55}
+.ek-uye-gorev{font-size:.82rem;opacity:.65;margin-top:2px}
+.ek-uye-soz{font-size:.86rem;margin-top:6px;line-height:1.5}
+.ek-uye-eksik{font-family:ui-monospace,monospace;font-size:.68rem;
+  color:#e0a93c;margin-top:5px}
+.ek-uye-okur{font-family:ui-monospace,monospace;font-size:.66rem;
+  opacity:.38;margin-top:4px;word-break:break-word}
+.ek-bos{font-size:.84rem;opacity:.5;margin:0}
+
+/* ---- soru sor ---- */
+.ek-sor{margin-top:6px;padding-top:12px;border-top:1px dashed rgba(255,255,255,.1)}
+.ek-sor-lbl{display:block;font-size:.7rem;letter-spacing:.1em;
+  text-transform:uppercase;opacity:.55;margin-bottom:7px}
+.ek-sor-row{display:flex;gap:8px;flex-wrap:wrap}
+.ek-sor-in{flex:1;min-width:220px;background:rgba(0,0,0,.25);
+  border:1px solid rgba(255,255,255,.14);border-radius:6px;padding:9px 12px;
+  color:inherit;font:inherit;font-size:.86rem}
+.ek-sor-in:focus{outline:2px solid #c9a052;outline-offset:1px}
+.ek-sor-btn{background:rgba(201,160,82,.18);border:1px solid rgba(201,160,82,.5);
+  color:#c9a052;border-radius:6px;padding:9px 18px;font:inherit;font-size:.76rem;
+  letter-spacing:.08em;cursor:pointer}
+.ek-sor-btn:hover:not(:disabled){background:rgba(201,160,82,.3)}
+.ek-sor-btn:disabled{opacity:.5;cursor:default}
+
+.ek-cevap{margin-top:12px;background:rgba(0,0,0,.22);border-radius:8px;
+  padding:14px 16px;border:1px solid rgba(255,255,255,.08)}
+.ek-cevap-metin{font-size:.88rem;line-height:1.65;white-space:pre-wrap}
+.ek-bekle{font-size:.84rem;opacity:.6;margin:0}
+.ek-hata{font-size:.84rem;color:#e0564a;margin:0}
+.ek-uyari{margin-top:10px;font-size:.8rem;color:#e0a93c;
+  background:rgba(224,169,60,.1);border-radius:5px;padding:8px 11px}
+.ek-dogru{margin-top:10px;font-size:.78rem;color:#5cc192;opacity:.8}
+.ek-cevap-alt{display:flex;flex-wrap:wrap;gap:14px;margin-top:11px;
+  padding-top:9px;border-top:1px solid rgba(255,255,255,.07);
+  font-family:ui-monospace,monospace;font-size:.66rem;opacity:.45}
+
+@media (max-width:700px){
+  .ek-kod{min-width:96px}
+  .ek-ad{display:none}
+  .ek-dep-govde{padding-left:12px}
+}
