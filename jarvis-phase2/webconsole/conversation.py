@@ -164,7 +164,11 @@ def classify(message: str) -> RouteDecision:
     # with red-team objections over business signals.
     if _has(text, _PERSONAL_MARKERS):
         return RouteDecision(SIMPLE_CONVERSATION)
-    if _has(text, ("merhaba", "selam", "sen nesin", "ne yapabiliyorsun", "kimsin", "hello",
+    # Selamlasma kalibi IS SORUSUNUN ICINDE gecebilir: "satislarimiz nasil
+    # gidiyor" cumlesi "nasil gidiyor" tasir ama sohbet degildir. OLCULDU --
+    # o soru sohbet sayilinca sistem elindeki satis verisini kullanicidan
+    # istedi. Mesaj bir is alani adi tasiyorsa kalip gecersizdir.
+    if _is_pure_small_talk(raw) and _has(text, ("merhaba", "selam", "sen nesin", "ne yapabiliyorsun", "kimsin", "hello",
                    "nasılsın", "nasilsin", "yardımcı olabilirsin", "yardimci olabilirsin",
                    "neler yapabilirsin", "ne yapabilirsin",
                    # Ordinary Turkish small talk. Without these a greeting fell
@@ -249,6 +253,59 @@ def _memory(runtime: Any) -> Any:
     return runtime.runtime.compiler.memory
 
 
+# Sorunun hangi rakami istedigi. Turkce cekim tuzagina girmemek icin kok
+# oneki kullanilir: "adedi", "adetler", "kac adet" hepsi "adet" ile baslar.
+_ADET_ROOTS = ("adet", "kac urun", "kac tane", "miktar")
+_CIRO_ROOTS = ("ciro", "gelir", "kazanc", "hasilat", "tl")
+
+
+def _sales_answer(message: str, orders: list[dict[str, Any]], memory: Any) -> str:
+    """Satış sorusuna gerçek rakamla, ölçüm çekincesiyle cevap verir.
+
+    Onceki hali yalnizca `olcumde` satirlarini sayiyordu ve OLCULDU:
+    64 adet / 68.394,59 TL gercek satis varken "0 siparis, 0.00 TL"
+    yaziyordu. Bunu okuyan satis olmadigini sanir.
+
+    Rakamı saklamak yerine cekincesiyle vermek dogru davranistir: sayi
+    gercektir, "dogrulanmis ciro" sayilmamasinin sebebi ayrica soylenir.
+    """
+    try:
+        items = memory._fetch("sales_items").records
+    except Exception:  # noqa: BLE001 - kalem okunamazsa siparisle yetinilir
+        items = []
+
+    adet = sum(int(row.get("adet") or 0) for row in items)
+    kalem_ciro = sum(float(row.get("satir_ciro_net") or 0) for row in items)
+    beyan = sum(float(row.get("ciro_beyan_edilmis_net") or 0) for row in orders)
+    dogrulanmis = sum(float(row.get("ciro_dogrulanmis_net") or 0) for row in orders)
+    olcumde = sum(1 for row in orders if row.get("olcumde"))
+
+    text = _ascii_fold(message)
+    if any(root in text for root in _ADET_ROOTS) and items:
+        bas = (f"{adet} adet ürün satıldı ({len(items)} sipariş kalemi, "
+               f"{len(orders)} siparişte).")
+    elif any(root in text for root in _CIRO_ROOTS) or not items:
+        bas = f"{len(orders)} siparişte toplam {kalem_ciro:,.2f} TL net ciro var."
+    else:
+        bas = (f"{len(orders)} sipariş, {len(items)} kalem, {adet} adet ürün; "
+               f"toplam {kalem_ciro:,.2f} TL net ciro.")
+
+    parcalar = [bas]
+    # Beyan ile dogrulanmis ayri durur: kayitli bir olcumde ciro %18,8
+    # sisik cikmisti ve ikisini birlestirmek o hatayi geri getirirdi.
+    if dogrulanmis and abs(dogrulanmis - beyan) > 0.01:
+        parcalar.append(f"Bunun {dogrulanmis:,.2f} TL'si ödeme tarafından "
+                        f"doğrulanmış, {beyan:,.2f} TL'si beyan.")
+    if olcumde == 0 and orders:
+        # SIFIR GOSTERMEK YERINE SEBEBINI SOYLE.
+        parcalar.append("Siparişlerin hiçbiri ölçüm penceresinde değil, bu yüzden "
+                        "resmî ölçümde 'doğrulanmış ciro' olarak sayılmıyorlar; "
+                        "rakamlar yine de gerçek satışlardır.")
+    elif orders:
+        parcalar.append(f"{olcumde} sipariş ölçüm penceresinde.")
+    return " ".join(parcalar)
+
+
 def _company(message: str, domain: str, memory: Any, started: float) -> dict[str, Any]:
     try:
         if domain == "crm":
@@ -265,11 +322,7 @@ def _company(message: str, domain: str, memory: Any, started: float) -> dict[str
                       "harcama var. Meta satış iddiaları ticari doğrulama olmadan kesin satış sayılmadı.")
         elif domain == "sales":
             evidence = memory._fetch("sales_orders")
-            measured = [row for row in evidence.records if row.get("olcumde")]
-            revenue = sum(float(row.get("ciro_dogrulanmis_net") or row.get("ciro_beyan_edilmis_net") or 0)
-                          for row in measured)
-            answer = (f"Company Memory'de {len(evidence.records)} sipariş var; ölçüm kapsamındaki "
-                      f"{len(measured)} siparişin görünen net cirosu {revenue:,.2f} TL.")
+            answer = _sales_answer(message, evidence.records, memory)
         else:
             evidence = memory.get_executive_brief()
             row = evidence.records[0] if evidence.records else {}
@@ -314,6 +367,15 @@ _DOMAIN_LEMMAS = {
 # Kok onekinin uygulanmasi icin en az kelime uzunlugu. "sat" koku 3 harf;
 # 4 harften kisa kelimelerde ("sat" emri gibi) aramak gereksiz gurultu uretir.
 _MIN_ROOT_WORD = 4
+
+
+def _is_pure_small_talk(message: str) -> bool:
+    """Mesaj gerçekten sohbet mi, yoksa iş sorusu içinde mi geçiyor?
+
+    "nasil gidiyor" tek basina sohbettir; "satislarimiz nasil gidiyor"
+    degildir. Alan adi tasiyan bir mesaj sohbet sayilmaz.
+    """
+    return not _domains_of(message)
 
 
 def _domains_of(message: str) -> list[str]:
