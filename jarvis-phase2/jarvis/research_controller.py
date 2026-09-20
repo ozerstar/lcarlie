@@ -10,6 +10,7 @@ import asyncio
 import hashlib
 import ipaddress
 import json
+import os
 import socket
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 from dataclasses import asdict, dataclass, field
@@ -49,8 +50,15 @@ class ResearchPolicy:
     confidence_threshold: float = 0.72
     coverage_threshold: float = 0.75
     max_concurrency: int = 3
-    source_timeout_s: float = 8.0
-    retry_budget: int = 1
+    # OLCULDU: adaptorun gercek suresi 14,5 saniye (4 sorgu arama +
+    # sayfa cekme). 8 saniye her seferinde zaman asimina ugruyordu ve
+    # arastirma HIC calismiyordu. 45 saniye olculen sureye ag
+    # degiskenligi payi ekler.
+    source_timeout_s: float = float(
+        os.environ.get("JARVIS_RESEARCH_TIMEOUT_S", "45"))
+    # 0: 8 saniyede vazgecip yeniden denemek toplam sureyi ikiye
+    # katlayip ayni duvara carpmakti. Tek deneme, uzun sure.
+    retry_budget: int = 0
     context_budget_bytes: int = 64_000
     cache_ttl_s: float = 900.0
     circuit_breaker_failures: int = 2
@@ -97,6 +105,9 @@ class CircuitState:
 
 @dataclass
 class ResearchTelemetry:
+    # Zaman asimi AYRI sayilir: "kaynak yok" ile karistirilirsa
+    # kullanici "internette yok" sanip konuyu kapatir.
+    timeouts: int = 0
     duration_ms: float = 0.0
     fetch_ms: float = 0.0
     cache_hit: bool = False
@@ -252,7 +263,18 @@ class ResearchController:
                         results.append(normalize_source(item, self.resolver,
                                                         self.policy.context_budget_bytes))
                     self._circuits[adapter.name] = CircuitState()
-                except (FutureTimeout, Exception):
+                except FutureTimeout:
+                    # Zaman asimi HEM basarisizliktir HEM zaman asimi.
+                    # failed_sources dusurulurse mevcut devre kesici testi
+                    # kirilir; timeouts ise AYRI sayilir cunku "kaynak yok"
+                    # ile karistirilirsa kullanici "internette yok" sanip
+                    # konuyu kapatir.
+                    telemetry.failed_sources += 1
+                    telemetry.timeouts = getattr(telemetry, "timeouts", 0) + 1
+                    circuit = self._circuits.setdefault(adapter.name, CircuitState())
+                    circuit.failures += 1
+                    circuit.open = circuit.failures >= self.policy.circuit_breaker_failures
+                except Exception:
                     telemetry.failed_sources += 1
                     circuit = self._circuits.setdefault(adapter.name, CircuitState())
                     circuit.failures += 1

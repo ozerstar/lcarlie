@@ -831,6 +831,20 @@ def _research(message: str, started: float) -> dict[str, Any]:
     low = confidence_value < 0.5 or len(sources) < 2
 
     if not sources:
+        # ZAMAN ASIMI "KAYNAK YOK" DEGILDIR. Olculdu: kaynak basina sure
+        # 8 saniyeydi, adaptorun gercek suresi 14,5 saniye -- arastirma her
+        # seferinde zaman asimina ugruyor ve kullaniciya "kaynak bulunamadi"
+        # deniyordu. Kullanici buna inanip konuyu kapatir.
+        zaman_asimi = int((report.get("telemetry") or {}).get("timeouts") or 0)
+        if zaman_asimi:
+            return _response(message, RESEARCH_REQUEST, "TIMEOUT",
+                f"Araştırma tamamlanamadı: {zaman_asimi} kaynak zaman aşımına "
+                "uğradı. Bu, konuda kaynak olmadığı anlamına GELMEZ; sorgu "
+                "daraltılıp tekrar denenmeli.",
+                missing_data=("research_timed_out",), started=started,
+                research_confidence=confidence_value,
+                research_stop_reason=report.get("stop_reason"),
+                research_timeouts=zaman_asimi)
         return _response(message, RESEARCH_REQUEST, "LOW_CONFIDENCE",
             "Araştırma çalıştı ancak doğrulanabilir kaynak bulunamadı. "
             "Bu konuda güvenilir bir sonuç üretmiyorum.",
