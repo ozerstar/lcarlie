@@ -122,6 +122,19 @@ ROSTER: tuple[Member, ...] = (
     Member("brand_positioning", "Konumlandırma Uzmanı",
            "Soru dağılımını fiyat gerçeğiyle birlikte okur: marka neyle anılıyor.",
            ("customer_voice", "ecommerce_price")),
+    # Organik icerik (20.09.2026). Ucu de AYNI tabloya bakar ama UC AYRI
+    # soruyla: ne siklikta yayinliyoruz / ne kadar karsilik goruyor / hangi
+    # bicimde uretiyoruz. Ayni cumleyi uc kez soyletmemek icin sorular ayrildi.
+    Member("content_cadence", "İçerik Ritmi Analisti",
+           "Yayın ritmini ve metin alışkanlığını okur: ayda kaç gönderi, "
+           "ne uzunlukta metin, kaç etiket, reklam ibaresi var mı.",
+           ("content_performance",)),
+    Member("social_engagement", "Sosyal Etkileşim Analisti",
+           "Gönderi başına beğeni ve yorumu okur: hangi biçim karşılık görüyor.",
+           ("content_performance",)),
+    Member("art_format", "Görsel Format Analisti",
+           "Üretim biçimini okur: reels mi, sabit görsel mi, hangisi ağır basıyor.",
+           ("content_performance",)),
     Member("market_findings", "Pazar Bulgu Uzmanı",
            "Kayda geçmiş pazar bulgularını kaynağı ve tarihiyle okur.",
            ("market_research",)),
@@ -498,6 +511,88 @@ def _say_brand_positioning(rows: dict[str, list]) -> str:
     return metin
 
 
+def _ay_kova(icerik: list) -> dict[str, int]:
+    kova: dict[str, int] = {}
+    for r in icerik:
+        gun = str(r.get("observed_at") or "")[:7]
+        if gun:
+            kova[gun] = kova.get(gun, 0) + 1
+    return kova
+
+
+def _say_content_cadence(rows: dict[str, list]) -> str:
+    """Icerik Ritmi: ne siklikta yayinliyoruz, metin aliskanligi ne."""
+    i = rows.get("content_performance", [])
+    if not i:
+        return "Organik içerik verisi okunamıyor."
+    aylar = _ay_kova(i)
+    ort_ay = sum(aylar.values()) / len(aylar) if aylar else 0
+    uzunluk = [_num(r, "icerik_uzunluk") for r in i if _num(r, "icerik_uzunluk")]
+    etiket = [_num(r, "etiket_sayisi") for r in i]
+    ibaresiz = sum(1 for r in i if not r.get("reklam_ibaresi"))
+    metin = (f"{len(i)} gönderi, {len(aylar)} ay: ayda ortalama {ort_ay:.1f} gönderi.")
+    if uzunluk:
+        metin += f" Metin ortalama {sum(uzunluk)/len(uzunluk):.0f} karakter"
+    if etiket:
+        metin += f", ortalama {sum(etiket)/len(etiket):.1f} etiket."
+    if aylar:
+        en_dusuk = min(aylar.items(), key=lambda kv: kv[1])
+        metin += f" En az üretilen ay {en_dusuk[0]} ({en_dusuk[1]} gönderi)."
+    # 🔴 Mevzuat izi sessiz gecilmez: reklam iceren gonderide ibare zorunlu.
+    if ibaresiz:
+        metin += (f" {ibaresiz} gönderide reklam/tanıtım ibaresi geçmiyor; "
+                  f"reklam niteliği taşıyorlarsa ibare zorunludur.")
+    return metin
+
+
+def _say_social_engagement(rows: dict[str, list]) -> str:
+    """Sosyal Etkilesim: begeni ve yorum. ORAN DEGIL SAYI -- erisim bilinmiyor."""
+    i = rows.get("content_performance", [])
+    if not i:
+        return "Etkileşim okunabilecek gönderi yok."
+    kova: dict[str, list[float]] = {}
+    for r in i:
+        kova.setdefault(str(r.get("bicim") or "?"), []).append(_num(r, "etkilesim"))
+    sirali = sorted(((ad, sum(v) / len(v), len(v)) for ad, v in kova.items()),
+                    key=lambda t: -t[1])
+    begeni = sum(_num(r, "begeni") for r in i)
+    yorum = sum(_num(r, "yorum") for r in i)
+    metin = ("Biçim başına ortalama etkileşim — "
+             + "; ".join(f"{ad} {o:.1f} ({n} gönderi)" for ad, o, n in sirali) + ".")
+    metin += f" Toplam {begeni:,.0f} beğeni, {yorum:,.0f} yorum."
+    if begeni and yorum / max(begeni, 1) < 0.02:
+        metin += (" Yorum/beğeni oranı %2'nin altında: içerik beğeni topluyor "
+                  "ama konuşma başlatmıyor.")
+    # 🔴 Bu uyari kaldirilamaz.
+    metin += (" Erişim verisi alınamıyor (izin yok), bu yüzden bunlar SAYIDIR; "
+              "etkileşim oranı hesaplanamaz.")
+    return metin
+
+
+def _say_art_format(rows: dict[str, list]) -> str:
+    """Gorsel Format: ne uretiyoruz. Uretim karmasi, karsiligi degil."""
+    i = rows.get("content_performance", [])
+    if not i:
+        return "Format okunabilecek gönderi yok."
+    bicim: dict[str, int] = {}
+    tur: dict[str, int] = {}
+    for r in i:
+        bicim[str(r.get("bicim") or "?")] = bicim.get(str(r.get("bicim") or "?"), 0) + 1
+        tur[str(r.get("tur") or "?")] = tur.get(str(r.get("tur") or "?"), 0) + 1
+    toplam = len(i)
+    sirali = sorted(bicim.items(), key=lambda kv: -kv[1])
+    metin = ("Üretim karması — "
+             + "; ".join(f"{ad} {n} (%{100*n/toplam:.0f})" for ad, n in sirali) + ".")
+    video = sum(n for ad, n in tur.items() if ad == "VIDEO")
+    if video:
+        metin += f" Videolu içerik {video}/{toplam} (%{100*video/toplam:.0f})."
+    yz = sum(1 for r in i if r.get("yz_beyani"))
+    if yz:
+        metin += (f" {yz} gönderide yapay zekâ beyanı var (%{100*yz/toplam:.0f}); "
+                  f"görsel üretimin ağırlığı burada okunuyor.")
+    return metin
+
+
 def _say_market_findings(rows: dict[str, list]) -> str:
     """Pazar Bulgu: kayitli bulgular, kaynagiyla. Kaynaksiz bulgu sayilmaz."""
     p = rows.get("market_research", [])
@@ -575,6 +670,10 @@ SPEAKERS: dict[str, Callable[[dict[str, list]], str]] = {
     "brand_voice": _say_brand_voice,
     "brand_positioning": _say_brand_positioning,
     "market_findings": _say_market_findings,
+    # organik icerik (20.09.2026)
+    "content_cadence": _say_content_cadence,
+    "social_engagement": _say_social_engagement,
+    "art_format": _say_art_format,
     "ecommerce_sales": _say_sales,
     "field_b2b_sales": _say_b2b,
     "meta_performance": _say_ads,

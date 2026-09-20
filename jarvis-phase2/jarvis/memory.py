@@ -214,6 +214,19 @@ class CompanyMemory:
             "konu,aciklama,distinct_konusma,eslesen_mesaj,konusma_yuzde,"
             "olcum_yontemi FROM mart.soru_konu ORDER BY konusma_yuzde DESC) x;"
         ),
+        # Organik Instagram icerigi (20.09.2026). CONTENT/SOCIAL/ART
+        # departmanlarinin veri kaynagi YOKTU; reklam olculuyor, organik taraf
+        # hic okunmuyordu. 123 gonderi, 26.11.2025'ten beri.
+        # 🔴 ERISIM/GOSTERIM YOK: insights ucu "(#10) permission" ile reddediliyor,
+        #    o yuzden ETKILESIM bir SAYIDIR, oran degil. 'olcum_siniri' alani
+        #    bunu her satirda tasir ve cevaplarda gizlenmez.
+        "content_performance": (
+            "SELECT row_to_json(x) FROM (SELECT medya_id AS entity_id,"
+            "'mart.icerik_performans' AS source,medya_id AS source_record_id,"
+            "gun AS observed_at,bicim,tur,icerik_basi,icerik_uzunluk,etiket_sayisi,"
+            "reklam_ibaresi,yz_beyani,begeni,yorum,etkilesim,olcum_siniri "
+            "FROM mart.icerik_performans ORDER BY zaman DESC LIMIT 130) x;"
+        ),
         "market_research": (
             "SELECT row_to_json(x) FROM (SELECT kod AS entity_id,"
             "'mart.pazar_arastirma' AS source,kod AS source_record_id,"
