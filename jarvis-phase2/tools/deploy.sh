@@ -45,13 +45,40 @@ fi
 say "=== 1. depo temiz  ($(git log --oneline -1))"
 
 # --- 2. testler KAYNAKTA gecmeden dagitim yok -----------------------------
+# Bu kapi 20.09.2026'da OLCULDU ve KAPANMIYORDU: bir test basarisizken
+# dagitim sorunsuz gecti. Iki ayri kusur vardi, ikisi de asagida kapali.
+#
+# 1) `cmd | tail` borusunun cikis kodu TAIL'in kodudur ve tail hep 0
+#    doner. `if ! sonuc=$(... | tail -3)` bu yuzden hicbir zaman dogru
+#    olmuyordu. Cikis kodu artik boruya verilmeden okunuyor.
+# 2) Testler `python3` ile kosuyordu, oysa uretim venv'de calisiyor.
+#    Sistem python'unda mem0 yok; test gercekte olmayan bir sebeple
+#    kirmizi yandi. Uretimde ne calisiyorsa test de onunla kosmali.
+#
+# Ayrica webconsole/tests hic kosmuyordu -- paneli koruyan sozlesme
+# testleri (CSP, uydurma sayi, olmayan uc nokta) tam oradadir.
 say "=== 2. testler çalışıyor..."
 cd "$KAYNAK" || die "kaynak yok"
-if ! sonuc=$(python3 -m unittest discover -s tests -p "test_*.py" 2>&1 | tail -3); then
-  printf '%s\n' "$sonuc" | sed 's/^/     /'
-  die "testler geçmedi; dağıtım yapılmadı"
-fi
-printf '%s\n' "$sonuc" | sed 's/^/     /'
+gunluk=$(mktemp)
+gecti=1
+
+kos() {
+  ad=$1
+  shift
+  if PYTHONPATH="$KAYNAK:$KAYNAK/webconsole" "$PY" -m unittest discover "$@" -p "test_*.py" >"$gunluk" 2>&1; then
+    printf '     %-12s %s\n' "$ad" "$(tail -3 "$gunluk" | tr '\n' ' ')"
+  else
+    gecti=0
+    say "     $ad BAŞARISIZ:"
+    grep -E '^(FAIL|ERROR):' "$gunluk" | head -10 | sed 's/^/       /'
+    tail -3 "$gunluk" | sed 's/^/       /'
+  fi
+}
+
+kos "tests"      -s tests
+kos "webconsole" -s webconsole/tests -t webconsole/tests
+rm -f "$gunluk"
+[ "$gecti" -eq 1 ] || die "testler geçmedi; dağıtım yapılmadı"
 
 # --- 3. yedek --------------------------------------------------------------
 damga=$(date +%Y%m%d-%H%M%S)
