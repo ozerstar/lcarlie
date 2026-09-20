@@ -185,6 +185,42 @@ class CompanyMemory:
             "yeterli_ornek,olcum_durumu "
             "FROM mart.kreatif_performans ORDER BY gosterim DESC NULLS LAST) x;"
         ),
+        # --- kreatif ve marka (20.09.2026) ---------------------------------
+        # Sahip talebi: "kreatif ekibi ve brand tarafini da aktif et, ekip
+        # sayisini arttir, farkli fikirler istiyorum." Yeni uye eklemenin
+        # sarti VERI: kaynagi olmayan uye "girdi bekler" diyen bir isimden
+        # ibaret kalir ve paneli doldurup hicbir sey soylemez.
+        "creative_decisions": (
+            "SELECT row_to_json(x) FROM (SELECT ad_id AS entity_id,"
+            "'mart.kreatif_karar' AS source,ad_id AS source_record_id,"
+            "pencere,reklam,kampanya,harcama,gosterim,tiklama,ctr_yuzde,cpc,"
+            "attention,meta_conversion_signal,commercial_confirmation,etiket,not_ "
+            "FROM mart.kreatif_karar ORDER BY harcama DESC NULLS LAST LIMIT 60) x;"
+        ),
+        "creative_hypotheses": (
+            "SELECT row_to_json(x) FROM (SELECT kod AS entity_id,"
+            "'mart.kreatif_hipotez' AS source,kod AS source_record_id,"
+            "kod,hipotez,kanit,adet,toplam,yuzde,kanit_kaynagi,beklenen_etki,"
+            "risk,yanlislama,olcum_yontemi FROM mart.kreatif_hipotez ORDER BY kod) x;"
+        ),
+        # 🔴 'ornekler' KOLONU BILEREK YOK. O kolon musteri mesajlarinin
+        # kendisini tasiyor; ai_reader'a sutun duzeyinde de kapatildi
+        # (SELECT denemesi "permission denied" ile reddediliyor, olculdu).
+        # Marka icgorusu icin toplam sayilar yeterli -- ham mesaj PII sinirinin
+        # otesinde kalir.
+        "customer_voice": (
+            "SELECT row_to_json(x) FROM (SELECT konu AS entity_id,"
+            "'mart.soru_konu' AS source,konu AS source_record_id,"
+            "konu,aciklama,distinct_konusma,eslesen_mesaj,konusma_yuzde,"
+            "olcum_yontemi FROM mart.soru_konu ORDER BY konusma_yuzde DESC) x;"
+        ),
+        "market_research": (
+            "SELECT row_to_json(x) FROM (SELECT kod AS entity_id,"
+            "'mart.pazar_arastirma' AS source,kod AS source_record_id,"
+            "kod,seviye,bulgu,kaynak,tarih,yorum FROM mart.pazar_arastirma "
+            "ORDER BY tarih DESC NULLS LAST) x;"
+        ),
+
         "urun_karti": (
             "SELECT row_to_json(x) FROM (SELECT urun_id AS entity_id,"
             "'mart.urun_karti' AS source,urun_id AS source_record_id,"

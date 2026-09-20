@@ -98,6 +98,33 @@ ROSTER: tuple[Member, ...] = (
     Member("accounting_control", "Muhasebe Kontrol",
            "Kaydın tutarlılığına bakar: tahsil edilmemiş tutar, maliyet kalitesi, hesap kapsaması.",
            ("financial_cash",)),
+    # --- kreatif ve marka (20.09.2026, sahip talebiyle buyutuldu)
+    # 🔴 EKIP BUYUTMENIN SARTI VERI. Her yeni uye BASKA bir gorunume,
+    #    baska bir soruyla bakar; ayni veriye ikinci bir ad koymak "farkli
+    #    fikir" uretmez, ayni cumleyi iki kere soyletir.
+    Member("creative_decision", "Kreatif Karar Uzmanı",
+           "Reklam bazında kararı okur: hangisi izlenecek, hangisi yüksek dikkat "
+           "aldığı halde satışı doğrulanmamış, hangisi yetersiz örneklem.",
+           ("creative_decisions",)),
+    Member("creative_hypothesis", "Kreatif Hipotez Uzmanı",
+           "Açık hipotezleri ve her birinin nasıl yanlışlanacağını okur.",
+           ("creative_hypotheses",)),
+    Member("creative_copy", "Başlık ve CTA Analisti",
+           "Kreatif metnini performansla birlikte okur: hangi CTA ve hangi biçim "
+           "daha çok link tıklaması getiriyor.",
+           ("kreatif_performans",)),
+    Member("creative_fatigue", "Kreatif Yorgunluk Analisti",
+           "Frekansı okur: aynı kişi reklamı kaç kez görüyor, hangi kreatif yoruldu.",
+           ("kreatif_performans",)),
+    Member("brand_voice", "Müşteri Dili Uzmanı",
+           "Müşterinin kendi sorduğu konuları okur: neyi soruyor, neyi hiç sormuyor.",
+           ("customer_voice",)),
+    Member("brand_positioning", "Konumlandırma Uzmanı",
+           "Soru dağılımını fiyat gerçeğiyle birlikte okur: marka neyle anılıyor.",
+           ("customer_voice", "ecommerce_price")),
+    Member("market_findings", "Pazar Bulgu Uzmanı",
+           "Kayda geçmiş pazar bulgularını kaynağı ve tarihiyle okur.",
+           ("market_research",)),
     # --- dis arastirma gerektirenler
     Member("market_intelligence", "Pazar İstihbaratı",
            "Pazarın dışarıdaki halini araştırır; şirket verisinden konuşamaz.",
@@ -349,6 +376,144 @@ def _say_capability(rows: dict[str, list]) -> str:
 # Hangi uye hangi cumleyi kurar. Ayni veriyi okuyan iki uye ayni cumleyi
 # kurar -- bu bir kusur degil, gercegin kendisi: ikisi de ayni gorunume
 # bakiyor. Panel bunu gizlemez.
+def _say_creative_decision(rows: dict[str, list]) -> str:
+    """Kreatif Karar: etikete gore sayim. CTR'yi satis SAYMAZ."""
+    k = rows.get("creative_decisions", [])
+    if not k:
+        return "Kreatif karar görünümü boş."
+    etiket: dict[str, int] = {}
+    for r in k:
+        etiket[str(r.get("etiket") or "?")] = etiket.get(str(r.get("etiket") or "?"), 0) + 1
+    dogrulanan = sum(1 for r in k
+                     if str(r.get("commercial_confirmation") or "") not in ("", "NOT_AVAILABLE"))
+    sirali = sorted(etiket.items(), key=lambda kv: -kv[1])
+    metin = (f"{len(k)} reklam kararı: "
+             + "; ".join(f"{ad} {n}" for ad, n in sirali[:4]) + ".")
+    # 🔴 Bu cumle kaldirilamaz: yuksek CTR'yi "kazanan reklam" diye okumak
+    #    bu projede acikca yasak, cunku atif kurulamiyor.
+    metin += (f" Ticari doğrulaması olan reklam: {dogrulanan}/{len(k)}. "
+              f"Doğrulama yoksa CTR yalnız dikkat ölçer, satış değil.")
+    return metin
+
+
+def _say_creative_hypothesis(rows: dict[str, list]) -> str:
+    """Kreatif Hipotez: acik hipotez ve nasil yanlislanacagi."""
+    h = rows.get("creative_hypotheses", [])
+    if not h:
+        return "Açık kreatif hipotezi yok."
+    yanlislanabilir = sum(1 for r in h if str(r.get("yanlislama") or "").strip())
+    metin = f"{len(h)} açık kreatif hipotezi var; {yanlislanabilir}'inde yanlışlama koşulu yazılı."
+    ilk = h[0]
+    konu = str(ilk.get("hipotez") or "")[:90]
+    if konu:
+        metin += f" En üstteki: “{konu}”."
+    if yanlislanabilir < len(h):
+        metin += (f" {len(h) - yanlislanabilir} hipotezin yanlışlama koşulu yok — "
+                  f"çürütülemeyen hipotez sınanamaz.")
+    return metin
+
+
+def _say_creative_copy(rows: dict[str, list]) -> str:
+    """Baslik ve CTA: CTA ve bicim kirilimi. Farkli CTA'lar KIYASLANAMAZ."""
+    k = [r for r in rows.get("kreatif_performans", []) if r.get("yeterli_ornek")]
+    if not k:
+        return "Değerlendirilebilir kreatif yok (hepsi örneklem altında)."
+    def kirilim(alan: str) -> list[tuple[str, float, int]]:
+        kova: dict[str, list[float]] = {}
+        for r in k:
+            ad = str(r.get(alan) or "(yok)")
+            kova.setdefault(ad, []).append(_num(r, "link_ctr"))
+        return sorted(((ad, sum(v) / len(v), len(v)) for ad, v in kova.items()),
+                      key=lambda t: -t[1])
+    cta = kirilim("cta")[:3]
+    bicim = kirilim("bicim")[:2]
+    metin = (f"{len(k)} ölçülebilir kreatif. CTA'ya göre link CTR — "
+             + "; ".join(f"{ad} %{o:.1f} ({n})" for ad, o, n in cta) + ".")
+    if bicim:
+        metin += " Biçim — " + "; ".join(f"{ad} %{o:.1f}" for ad, o, _ in bicim) + "."
+    metin += (" Dikkat: farklı CTA'lar farklı şey satın alır; profil görüntüleme "
+              "tıklaması ucuzdur ama satış değildir, bu oranlar doğrudan kıyaslanamaz.")
+    return metin
+
+
+def _say_creative_fatigue(rows: dict[str, list]) -> str:
+    """Kreatif Yorgunluk: frekans. Ayni kisi kac kez gordu."""
+    k = rows.get("kreatif_performans", [])
+    if not k:
+        return "Frekans okunabilecek kreatif yok."
+    yorgun = [r for r in k if _num(r, "en_yuksek_frekans") >= 2.5]
+    en_yuksek = max((_num(r, "en_yuksek_frekans") for r in k), default=0.0)
+    metin = f"{len(k)} kreatifin {len(yorgun)}'inde frekans 2,5'in üstünde."
+    if en_yuksek:
+        metin += f" En yüksek frekans {en_yuksek:.1f}."
+    if yorgun:
+        metin += (" Aynı kişi reklamı tekrar tekrar görüyor; yeni açı üretilmezse "
+                  "harcama aynı kitleye biner.")
+    else:
+        metin += " Yorgunluk sinyali yok."
+    return metin
+
+
+def _say_brand_voice(rows: dict[str, list]) -> str:
+    """Musteri Dili: musterinin KENDI sordugu konular. Marka ne ile aniliyor."""
+    s = rows.get("customer_voice", [])
+    if not s:
+        return "Müşteri soru dağılımı okunamıyor."
+    sirali = sorted(s, key=lambda r: -_num(r, "konusma_yuzde"))
+    ust = sirali[:3]
+    dip = [r for r in sirali if _num(r, "konusma_yuzde") <= 1]
+    metin = ("Müşterinin sorduğu konular — "
+             + "; ".join(f"{r.get('konu')} %{_num(r,'konusma_yuzde'):.0f}" for r in ust) + ".")
+    if dip:
+        metin += (" Neredeyse hiç sorulmayanlar: "
+                  + ", ".join(str(r.get("konu")) for r in dip[:3]) + ".")
+    metin += (" Sorulmayan konu, ilgi olmadığını değil, o konunun müşteriye hiç "
+              "ulaşmadığını da gösterebilir.")
+    return metin
+
+
+def _say_brand_positioning(rows: dict[str, list]) -> str:
+    """Konumlandirma: soru dagilimi ile fiyat gercegini YAN YANA koyar."""
+    s = rows.get("customer_voice", [])
+    f = rows.get("ecommerce_price", [])
+    if not s:
+        return "Konumlandırma için soru dağılımı okunamıyor."
+    toplam = sum(_num(r, "konusma_yuzde") for r in s) or 1.0
+    fiyat = next((r for r in s if str(r.get("konu")) == "FIYAT"), None)
+    icerik = next((r for r in s if str(r.get("konu")) == "ICERIK"), None)
+    fayda = next((r for r in s if str(r.get("konu")) == "ETKI_FAYDA"), None)
+    parcalar = []
+    if fiyat is not None:
+        parcalar.append(f"fiyat %{_num(fiyat,'konusma_yuzde'):.0f}")
+    if icerik is not None:
+        parcalar.append(f"içerik %{_num(icerik,'konusma_yuzde'):.0f}")
+    if fayda is not None:
+        parcalar.append(f"fayda %{_num(fayda,'konusma_yuzde'):.0f}")
+    metin = f"Katalogda {len(f)} ürün var. Konuşmaların " + ", ".join(parcalar) + " ile açılıyor."
+    if fiyat is not None and fayda is not None:
+        fo, fa = _num(fiyat, "konusma_yuzde"), _num(fayda, "konusma_yuzde")
+        if fa and fo / fa >= 3:
+            metin += (f" Fiyat sorusu fayda sorusunun {fo/fa:.0f} katı: marka şu an "
+                      f"ürünün ne yaptığıyla değil, ne kadar olduğuyla anılıyor.")
+    return metin
+
+
+def _say_market_findings(rows: dict[str, list]) -> str:
+    """Pazar Bulgu: kayitli bulgular, kaynagiyla. Kaynaksiz bulgu sayilmaz."""
+    p = rows.get("market_research", [])
+    if not p:
+        return "Kayda geçmiş pazar bulgusu yok."
+    kaynakli = sum(1 for r in p if str(r.get("kaynak") or "").strip())
+    metin = f"{len(p)} pazar bulgusu kayıtlı; {kaynakli}'i kaynağıyla birlikte."
+    ilk = p[0]
+    bulgu = str(ilk.get("bulgu") or "")[:90]
+    if bulgu:
+        metin += f" En yeni: “{bulgu}”."
+    if kaynakli < len(p):
+        metin += f" {len(p)-kaynakli} bulgunun kaynağı yok; doğrulanana kadar iddia sayılmaz."
+    return metin
+
+
 def _say_finance(rows: dict[str, list]) -> str:
     """Finans: gunluk birim ekonomi. Sifir model cagrisi, hepsi sayimdir."""
     gunler = rows.get("financial", [])
@@ -402,6 +567,14 @@ def _say_accounting(rows: dict[str, list]) -> str:
 SPEAKERS: dict[str, Callable[[dict[str, list]], str]] = {
     "finance": _say_finance,
     "accounting_control": _say_accounting,
+    # kreatif + marka (20.09.2026)
+    "creative_decision": _say_creative_decision,
+    "creative_hypothesis": _say_creative_hypothesis,
+    "creative_copy": _say_creative_copy,
+    "creative_fatigue": _say_creative_fatigue,
+    "brand_voice": _say_brand_voice,
+    "brand_positioning": _say_brand_positioning,
+    "market_findings": _say_market_findings,
     "ecommerce_sales": _say_sales,
     "field_b2b_sales": _say_b2b,
     "meta_performance": _say_ads,
