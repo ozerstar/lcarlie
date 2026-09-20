@@ -27,6 +27,11 @@ const state = {
   lastRun: null,
   planInFlight: false,
   lastVisualState: null,
+  // Sesli konuşma durumu: idle | listening | thinking | speaking.
+  // Burada duruyor çünkü applyLoopCoreState() -- dosyanın çok yukarısında --
+  // ses ekrandayken çekirdeği geri almamalı; `voice` nesnesi orada henüz
+  // tanımlı olmadığı için ona bakamaz.
+  voiceMode: 'idle',
 };
 
 function qs(id) { return document.getElementById(id); }
@@ -193,8 +198,11 @@ function applyCoreState(key, label) {
   qs('coreStateLabel').textContent = label;
 }
 
-/* Puts the core back on the last real /api/status reading. */
+/* Puts the core back on the last real /api/status reading.
+ * Ses açıkken (dinliyor/düşünüyor/konuşuyor) çekirdek onu gösterir; 12
+ * saniyelik durum yoklaması araya girip etiketi geri almasın. */
 function applyLoopCoreState() {
+  if (state.voiceMode !== 'idle') return;
   const visual = state.lastVisualState || 'IDLE';
   applyCoreState(visual.toLowerCase(), CORE_STATE_TEXT[visual] || visual.replace(/_/g, ' '));
 }
@@ -237,6 +245,62 @@ function renderQueue(health) {
   }).join('');
 }
 
+/* ---------------- host kaynak kullanımı ----------------
+ * Üç sayı da /api/status'un `host` nesnesinden gelir. Burada hiçbir değer
+ * hesaplanmaz, yuvarlanmaz, tahmin edilmez: backend ölçemediyse alan null
+ * gelir ve kutu N/A kalır, altında da SEBEBİ yazar. Panelin iki yönde de
+ * yalan söylememesi kuralı (CR-001) burada da geçerli. */
+function trNum(value) {
+  return (value === null || value === undefined) ? '?' : String(value).replace('.', ',');
+}
+
+function renderMetric(valueId, subId, percent, sub) {
+  const box = qs(valueId);
+  if (!box) return;
+  const known = percent !== null && percent !== undefined;
+  box.textContent = known ? ('%' + trNum(percent)) : 'N/A';
+  box.classList.toggle('m-na', !known);
+  const subBox = qs(subId);
+  if (subBox) subBox.textContent = sub || '';
+}
+
+function renderHostMetrics(host, reason) {
+  const note = qs('mNote');
+  if (!host) {
+    renderMetric('mCpu', 'mCpuSub', null, '');
+    renderMetric('mRam', 'mRamSub', null, '');
+    renderMetric('mDisk', 'mDiskSub', null, '');
+    if (note) note.textContent = reason || 'Kaynak ölçümü alınamadı.';
+    return;
+  }
+  const cpu = host.cpu || {};
+  const ram = host.ram || {};
+  const disk = host.disk || {};
+
+  const cpuSub = (cpu.percent === null || cpu.percent === undefined)
+    ? (cpu.error || '')
+    : trNum(cpu.cores) + ' çekirdek'
+      + (cpu.load ? ' · yük ' + trNum(cpu.load[0]) : '');
+  renderMetric('mCpu', 'mCpuSub', cpu.percent, cpuSub);
+
+  const ramSub = (ram.used_gib === null || ram.used_gib === undefined)
+    ? (ram.error || '')
+    : trNum(ram.used_gib) + ' / ' + trNum(ram.total_gib) + ' GiB';
+  renderMetric('mRam', 'mRamSub', ram.percent, ramSub);
+
+  const diskSub = (disk.used_gib === null || disk.used_gib === undefined)
+    ? (disk.error || '')
+    : trNum(disk.used_gib) + ' / ' + trNum(disk.total_gib) + ' GiB';
+  renderMetric('mDisk', 'mDiskSub', disk.percent, diskSub);
+
+  if (!note) return;
+  const at = typeof host.measured_at === 'string' ? host.measured_at.slice(11, 16) : '—';
+  const window = cpu.window_s ? (trNum(cpu.window_s) + ' sn') : '—';
+  note.textContent = 'Sunucunun kendi sayaçlarından okundu (' + at + '). '
+    + 'CPU ' + window + ' aralıkta ölçüldü (/proc/stat), RAM MemAvailable\'a, '
+    + 'disk ' + (disk.mount || '/') + ' bölümüne göre.';
+}
+
 function setBigStat(id, value) {
   const el = qs(id);
   const known = value !== null && value !== undefined;
@@ -250,6 +314,8 @@ async function refreshStatus() {
   if (!ok || !body) {
     qs('tbLiveText').textContent = 'BAĞLANTI YOK';
     live.className = 'tb-live is-error';
+    // Eski sayılar ekranda kalıp güncelmiş gibi durmasın.
+    renderHostMetrics(null, 'Ölçüm alınamadı — sunucuya ulaşılamıyor.');
     return;
   }
 
@@ -270,6 +336,7 @@ async function refreshStatus() {
   }
 
   renderServices(body);
+  renderHostMetrics(body.host, 'Bu sürüm kaynak ölçümü göndermiyor.');
   renderQueue((body.company_memory && body.company_memory.health) || null);
   setBigStat('statApprovals', body.pending_proposals);
   const health = (body.company_memory && body.company_memory.health) || null;
@@ -700,9 +767,14 @@ function addChatMessage(role, html, cls) {
   return div;
 }
 
+/* Ekrana basılanın DÜZ METİN hâlini döndürür -- sesli konuşma bunu okutur.
+ * Ayrı bir "sesli cevap" yolu açılmadı bilerek: sesli ve yazılı akış aynı
+ * /api/chat/stream turundan çıkıyor, yani kullanıcının duyduğu şey ekranda
+ * yazanın aynısı. */
 async function sendMessage(message) {
+  let spoken = '';
   message = (message || '').trim();
-  if (!message) return;
+  if (!message) return spoken;
   lastUserMessage = message;
   addChatMessage('user', escapeHtml(message));
 
@@ -721,7 +793,8 @@ async function sendMessage(message) {
     });
     if (!res.ok || !res.body) {
       stageDiv.innerHTML = 'Bağlantı hatası.';
-      return;
+      spoken = 'Bağlantı hatası.';
+      return spoken;
     }
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
@@ -749,22 +822,31 @@ async function sendMessage(message) {
           if (result.kind === 'REQUIRES_REASONING_CAPABILITY') {
             stageDiv.className = 'chat-msg jarvis reasoning';
             stageDiv.innerHTML = escapeHtml(result.message);
+            spoken = result.message || '';
           } else if (result.kind === 'ERROR') {
             stageDiv.className = 'chat-msg jarvis';
             stageDiv.innerHTML = 'Anlaşılamadı: ' + escapeHtml(result.message);
+            spoken = 'Anlaşılamadı. ' + (result.message || '');
           } else {
             stageDiv.className = 'chat-msg jarvis';
             stageDiv.innerHTML = renderAnswerBody(result);
+            spoken = result.text || streamed || '';
           }
         } else if (event.type === 'error') {
           stageDiv.innerHTML = 'Hata: ' + escapeHtml(event.message);
+          spoken = 'Hata. ' + (event.message || '');
         }
       }
       log_scroll();
     }
   } catch (err) {
-    if (err.name !== 'AbortError') stageDiv.innerHTML = 'Bağlantı kesildi.';
-    else stageDiv.innerHTML = '(durduruldu)';
+    if (err.name !== 'AbortError') {
+      stageDiv.innerHTML = 'Bağlantı kesildi.';
+      spoken = 'Bağlantı kesildi.';
+    } else {
+      stageDiv.innerHTML = '(durduruldu)';
+      spoken = '';
+    }
   } finally {
     qs('stopBtn').hidden = true;
     qs('sendBtn').disabled = false;
@@ -772,6 +854,7 @@ async function sendMessage(message) {
     activeStreamController = null;
     refreshActivity();
   }
+  return spoken;
 }
 function log_scroll() { const log = qs('chatLog'); log.scrollTop = log.scrollHeight; }
 
@@ -2256,3 +2339,230 @@ function krBind() {
 }
 
 krBind();
+
+/* ==================================================================
+ * SESLİ KONUŞMA — çekirdek düğmesi
+ * ==================================================================
+ * İstenen akış: ortadaki L'CARLIÉ küresine bas -> dinlemeye başlar;
+ * tekrar bas -> durur, söylenen metin sohbet hattından geçer ve gelen
+ * cevap sesli okunur. Konuşurken tekrar basmak susturur.
+ *
+ * Ses TARAYICIDA çözülür ve TARAYICIDA okunur (Web Speech API). Sunucuya
+ * ses dosyası gönderilmez ve YENİ UÇ NOKTA AÇILMADI: backend yalnızca
+ * metin görüyor, yani mevcut yetki sınırı ve /api/chat/stream sözleşmesi
+ * aynen duruyor. Duyulan cevap, ekrana basılan cevabın aynısıdır.
+ *
+ * 🔴 Caddy'de `Permissions-Policy: microphone=()` dururken tarayıcı bu
+ * sayfada mikrofonu HİÇ açmaz -- düğme çalışıyor görünüp sessizce ölür.
+ * O başlık jarvis bloğunda `microphone=(self)` yapıldı; geri alınırsa
+ * sesli konuşma yeniden ölür.
+ *
+ * Motor yoksa (Firefox'ta SpeechRecognition yok) düğme sessiz kalmaz:
+ * çekirdek "SES YOK" yazar ve sebebi sohbet kutusuna düşer. */
+
+const SpeechCtor = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+const canSpeak = ('speechSynthesis' in window)
+  && typeof window.SpeechSynthesisUtterance === 'function';
+
+const voice = { rec: null, finalText: '', stopping: false, guard: null };
+
+function voiceSetMode(mode) { state.voiceMode = mode; }
+
+/* Konuşma motoruna verilecek metin. Görüntüyü DEĞİŞTİRMEZ, yalnızca
+ * okunacak kopyayı sadeleştirir: markdown işaretleri sesli okunduğunda
+ * gürültü olur, "1 200.00" ise "bir iki yüz nokta sıfır sıfır" diye
+ * okunur. Sayının DEĞERİ korunur, yalnız yazımı sadeleşir. */
+function speechText(raw) {
+  return String(raw || '')
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/[*_`#>|]/g, ' ')
+    .replace(/(\d)[  ](\d{3})(?!\d)/g, '$1$2')
+    .replace(/(\d)[.,]00(?!\d)/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+let trVoice = null;
+function turkishVoice() {
+  if (trVoice) return trVoice;
+  const list = (canSpeak && window.speechSynthesis.getVoices()) || [];
+  trVoice = list.find((v) => String(v.lang || '').toLowerCase().indexOf('tr') === 0) || null;
+  return trVoice;
+}
+if (canSpeak) {
+  window.speechSynthesis.addEventListener('voiceschanged', () => { trVoice = null; turkishVoice(); });
+}
+
+/* Chrome uzun tek utterance'ı ~15 sn sonra yarıda kesiyor; metin cümle
+ * sınırlarından parçalanıp sıraya konuyor. */
+function speakOut(text, done) {
+  if (!canSpeak) { done(); return; }
+  const clean = speechText(text);
+  if (!clean) { done(); return; }
+  window.speechSynthesis.cancel();
+
+  const sentences = clean.match(/[^.!?…]+[.!?…]*/g) || [clean];
+  const chunks = [];
+  let buffer = '';
+  sentences.forEach((part) => {
+    if ((buffer + part).length > 180 && buffer) { chunks.push(buffer.trim()); buffer = part; }
+    else buffer += part;
+  });
+  if (buffer.trim()) chunks.push(buffer.trim());
+
+  let index = 0;
+  const next = () => {
+    if (index >= chunks.length || state.voiceMode !== 'speaking') { done(); return; }
+    const utter = new SpeechSynthesisUtterance(chunks[index]);
+    index += 1;
+    utter.lang = 'tr-TR';
+    const picked = turkishVoice();
+    if (picked) utter.voice = picked;
+    utter.onend = next;
+    utter.onerror = () => done();
+    window.speechSynthesis.speak(utter);
+  };
+  next();
+}
+
+function voiceCoreState() {
+  const btn = qs('coreBtn');
+  const hint = qs('coreHint');
+  const mode = state.voiceMode;
+  if (btn) {
+    btn.setAttribute('aria-pressed', mode === 'listening' ? 'true' : 'false');
+    btn.setAttribute('aria-label',
+      mode === 'idle' ? 'Sesli konuşmayı başlat' : 'Sesli konuşmayı durdur');
+  }
+  if (mode === 'idle') {
+    if (hint) hint.textContent = SpeechCtor ? 'SESLİ KONUŞ' : 'SES YOK';
+    applyLoopCoreState();
+    return;
+  }
+  const map = {
+    listening: ['listening', 'DİNLİYOR', 'BİTİRMEK İÇİN BAS'],
+    thinking: ['thinking', 'DÜŞÜNÜYOR', 'CEVAP HAZIRLANIYOR'],
+    speaking: ['speaking', 'KONUŞUYOR', 'SUSTURMAK İÇİN BAS'],
+  }[mode];
+  if (hint) hint.textContent = map[2];
+  applyCoreState(map[0], map[1]);
+}
+
+function voiceFinish(note) {
+  if (voice.guard) { clearTimeout(voice.guard); voice.guard = null; }
+  voice.rec = null;
+  voice.finalText = '';
+  voice.stopping = false;
+  voiceSetMode('idle');
+  if (note) addChatMessage('jarvis', escapeHtml(note));
+  voiceCoreState();
+}
+
+async function voiceHandleTranscript() {
+  if (state.voiceMode !== 'listening') return;
+  if (voice.guard) { clearTimeout(voice.guard); voice.guard = null; }
+  const said = (voice.finalText || qs('chatInput').value || '').trim();
+  voice.rec = null;
+  voice.finalText = '';
+  qs('chatInput').value = '';
+  if (!said) { voiceFinish('Ses algılanmadı, bir şey söylenmedi.'); return; }
+
+  voiceSetMode('thinking');
+  voiceCoreState();
+  let answer = '';
+  try {
+    answer = await sendMessage(said);
+  } catch (err) {
+    answer = '';
+  }
+  if (!answer || state.voiceMode !== 'thinking') { voiceFinish(); return; }
+
+  voiceSetMode('speaking');
+  voiceCoreState();
+  speakOut(answer, () => voiceFinish());
+}
+
+function voiceStop() {
+  voice.stopping = true;
+  try { if (voice.rec) voice.rec.stop(); } catch (err) { /* zaten durmuş */ }
+  // onend gelmezse takılı kalmasın.
+  voice.guard = setTimeout(() => { voiceHandleTranscript(); }, 1500);
+}
+
+function voiceStart() {
+  if (!SpeechCtor) {
+    voiceFinish('Bu tarayıcı ses tanımayı desteklemiyor. Chrome veya Edge ile deneyin.');
+    return;
+  }
+  const rec = new SpeechCtor();
+  rec.lang = 'tr-TR';
+  rec.continuous = true;
+  rec.interimResults = true;
+  rec.maxAlternatives = 1;
+  voice.rec = rec;
+  voice.finalText = '';
+  voice.stopping = false;
+
+  rec.addEventListener('result', (event) => {
+    let interim = '';
+    for (let i = event.resultIndex; i < event.results.length; i += 1) {
+      const item = event.results[i];
+      if (item.isFinal) voice.finalText += item[0].transcript;
+      else interim += item[0].transcript;
+    }
+    // Söylenen kelimeler komut kutusunda görünsün: yanlış duyulduysa
+    // kullanıcı gönderilmeden önce görür.
+    qs('chatInput').value = (voice.finalText + ' ' + interim).trim();
+  });
+
+  rec.addEventListener('error', (event) => {
+    const reason = {
+      'not-allowed': 'Mikrofon izni verilmedi. Adres çubuğundaki kilit simgesinden mikrofona izin verin.',
+      'service-not-allowed': 'Mikrofon tarayıcı ayarlarınca engellendi.',
+      'audio-capture': 'Mikrofon bulunamadı. Cihaz bağlı mı?',
+      'network': 'Ses tanıma servisine ulaşılamadı.',
+      'no-speech': 'Ses algılanmadı.',
+      'aborted': '',
+    }[event.error];
+    voiceFinish(reason === undefined ? ('Ses hatası: ' + event.error) : (reason || null));
+  });
+
+  rec.addEventListener('end', () => {
+    if (state.voiceMode !== 'listening') return;
+    // Sessizlik yüzünden kendiliğinden kapandıysa dinlemeye devam et:
+    // bitirme kararı kullanıcının ikinci basışına ait.
+    if (!voice.stopping) {
+      try { rec.start(); return; } catch (err) { /* yeniden başlayamadı */ }
+    }
+    voiceHandleTranscript();
+  });
+
+  try {
+    rec.start();
+  } catch (err) {
+    voiceFinish('Ses tanıma başlatılamadı.');
+    return;
+  }
+  voiceSetMode('listening');
+  voiceCoreState();
+}
+
+function voiceBind() {
+  const btn = qs('coreBtn');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    const mode = state.voiceMode;
+    if (mode === 'listening') { voiceStop(); return; }
+    if (mode === 'speaking') {
+      if (canSpeak) window.speechSynthesis.cancel();
+      voiceFinish();
+      return;
+    }
+    if (mode === 'thinking') return;   // cevap bekleniyor, kesme
+    voiceStart();
+  });
+  voiceCoreState();
+}
+
+voiceBind();
