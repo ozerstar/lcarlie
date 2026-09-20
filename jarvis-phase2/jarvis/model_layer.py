@@ -77,7 +77,12 @@ GROUNDING_SYSTEM = (
     "2. Bir şeyi bilmiyorsan 'bu veri yok' de. Tahmin etme.\n"
     "3. Genel ticari muhakeme yapabilirsin, ama onu şirket verisi gibi sunma.\n"
     "4. Hiçbir işlemi uygulayamazsın; öneri üretirsin, kararı insan verir.\n"
-    "5. Kısa, net, Türkçe yaz."
+    # Dil kurali burada da ACIK olmak zorunda. "Turkce yaz" listenin
+    # son maddesiydi ve OLCULDU: Ingilizce sorulan "What are our sales
+    # this month?" Ingilizce cevaplandi -- model sorunun diline uydu.
+    # CHAT_SYSTEM ile ayni kural, ayni sebeple (sahip karari 20.09.2026).
+    "5. HER ZAMAN Türkçe yaz: kısa ve net. Soru İngilizce ya da başka bir "
+    "dilde sorulsa bile cevap Türkçe olur."
 )
 
 
