@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import subprocess
 import threading
 import time
 import pathlib
@@ -580,6 +581,21 @@ class Handler(BaseHTTPRequestHandler):
                                       "detail": str(exc)[:200]})
                 return
             self._send_json(200, sonuc)
+            return
+        if path == "/api/pazar/bulgu":
+            # Operatorun kendi gozlemi. Rakip fiyati otomatik alinamadigi icin
+            # (olculdu: tum pazaryerleri 403) bu kanal gercek bir yetenek,
+            # yedek degil. human_approver olarak yazilir -- insan beyanidir.
+            body = _read_json_body(self)
+            sonuc = _pazar_bulgu_ekle(
+                kod=str(body.get("kod", "")),
+                seviye=str(body.get("seviye", "")),
+                bulgu=str(body.get("bulgu", "")),
+                kaynak=str(body.get("kaynak", "")),
+                tarih=str(body.get("tarih", "")),
+                yorum=str(body.get("yorum", "")),
+            )
+            self._send_json(200 if sonuc.get("ok") else 400, sonuc)
             return
         if path == "/api/ekip/sor":
             # Departman sorumlusuna soru. Model cagrilir ama KANITA bagli:
@@ -1175,6 +1191,86 @@ def _panel_usage() -> dict:
                 "paid_calls": 0}
 
 
+PAZAR_SEVIYELERI = ("FACT", "INTERPRETATION", "HYPOTHESIS", "NOT_CONNECTED")
+
+
+def _pazar_bulgu_ekle(kod: str, seviye: str, bulgu: str, kaynak: str,
+                      tarih: str, yorum: str = "") -> dict:
+    """Operatorun gozlemini core.pazar_bulgu'ya yazar.
+
+    🔴 NEDEN BU KANAL VAR: rakip fiyat istihbarati OTOMATIK ALINAMIYOR.
+    Olculdu (20.09.2026): Trendyol/Hepsiburada/N11/akakce/cimri hepsi 403
+    donuyor ve satici API'si yalnizca kendi verimizi veriyor. Elle giris
+    calisan TEK yol; bu yuzden surtunmesiz olmasi konfor degil, kapasite.
+
+    🔴 human_approver OLARAK YAZILIR, ai_writer olarak DEGIL. Bu bir INSAN
+    BEYANIDIR, onay akisiyla ayni sinif. Jarvis kendi uydurdugu bir "pazar
+    bulgusunu" kendi kanitina ceviremesin diye yazma yetkisi yok.
+
+    🔴 METIN SQL'E GOMULMEZ. Degerler argv'den DEGIL stdin'den, rastgele
+    etiketli dolar-tirnak icinde JSON olarak gider. Sebep olculmus: bu
+    projede kabuk tirnaklamasi defalarca bozdu (uzak bash '$$'i PID'e
+    acti, uzun jeton terminalde bozuldu). Argv yolu hem kabuk hem psql
+    tarafindan iki kez yorumlanir; stdin yolu hicbirinde yorumlanmaz.
+    """
+    import secrets
+
+    kod = (kod or "").strip().upper()[:60]
+    seviye = (seviye or "").strip().upper()
+    bulgu = (bulgu or "").strip()[:2000]
+    kaynak = (kaynak or "").strip()[:300]
+    tarih = (tarih or "").strip()[:40]
+    yorum = (yorum or "").strip()[:2000]
+
+    if seviye not in PAZAR_SEVIYELERI:
+        return {"hata": f"seviye şunlardan biri olmalı: {', '.join(PAZAR_SEVIYELERI)}"}
+    if len(bulgu) < 8:
+        return {"hata": "bulgu metni çok kısa"}
+    # 🔴 Kaynaksiz bulgu IDDIADIR. Veritabaninda da CHECK var; burada da
+    #    engellenir ki kullanici hatayi formda gorsun, 500 almasin.
+    if len(kaynak) < 3:
+        return {"hata": "kaynak zorunlu — nereden gördüğün yazılmadan kayıt olmaz"}
+    if not kod:
+        return {"hata": "departman kodu zorunlu"}
+
+    # 🔴 'departman' o bulgunun SAHIBI birim, 'kod' ise KONU kodu. Ikisi ayri:
+    #    tasinan eski kayitlarda kod 'ADJACENT_CATEGORY_REFERENCE' gibi tematik
+    #    bir etiketti ve hicbir departmana denk gelmiyordu. Panelden girilen
+    #    gozlemin konu kodu OPERATOR_GOZLEMI'dir -- makinenin bulmadigi,
+    #    insanin gorup beyan ettigi kayit oldugu her zaman ayirt edilebilsin.
+    yuk = json.dumps({"departman": kod, "kod": "OPERATOR_GOZLEMI",
+                      "seviye": seviye, "bulgu": bulgu,
+                      "kaynak": kaynak, "tarih": tarih or "-",
+                      "yorum": yorum or None}, ensure_ascii=False)
+
+    # Nonce: payload'da gecmedigi DOGRULANIR. Gecerse (astronomik olarak
+    # imkansiz) yazmayi reddeder -- sessizce devam etmek yerine durur.
+    etiket = "pb" + secrets.token_hex(8)
+    if f"${etiket}$" in yuk:
+        return {"hata": "kodlama çakışması, kayıt yapılmadı"}
+
+    sql = (
+        "\\set ON_ERROR_STOP on\n"
+        "BEGIN;\n"
+        "SET SESSION AUTHORIZATION human_approver;\n"
+        "INSERT INTO core.pazar_bulgu (departman,kod,seviye,bulgu,kaynak,tarih,yorum)\n"
+        "SELECT j->>'departman', j->>'kod', j->>'seviye', j->>'bulgu', j->>'kaynak',\n"
+        "       j->>'tarih', j->>'yorum'\n"
+        f"  FROM (SELECT ${etiket}${yuk}${etiket}$::jsonb AS j) t;\n"
+        "COMMIT;\n"
+    )
+    try:
+        sonuc = subprocess.run(
+            ["docker", "exec", "-i", "lcarlie-postgres", "psql", "-X", "-q",
+             "-U", "n8n", "-d", "n8n", "-f", "-"],
+            input=sql, capture_output=True, text=True, timeout=20, check=False)
+    except Exception as exc:  # noqa: BLE001
+        return {"hata": f"kayıt yapılamadı: {str(exc)[:160]}"}
+    if sonuc.returncode:
+        return {"hata": f"kayıt reddedildi: {(sonuc.stderr or '').strip()[:220]}"}
+    return {"ok": True, "kod": kod, "seviye": seviye}
+
+
 _ARASTIRMA_LOG = STATE_DIR / "departman_arastirma.jsonl"
 
 
@@ -1268,6 +1364,12 @@ def _panel_ekip() -> dict:
     uyeler_by_dept = roster.departman_uyeleri()
     arastirma = _arastirma_bulgulari()
     arastirma_var = not arastirma.get("_yok")
+    # Operatorun ELLE girdigi pazar gozlemleri. Bunlar dis arastirmadan da
+    # ayridir: birini makine buldu, digerini insan gordu ve beyan etti.
+    try:
+        pazar = list(_memory._fetch("market_research").records)
+    except Exception:  # noqa: BLE001
+        pazar = []
 
     KONUSTU = "KONUŞTU"
     VERI_YOK = "VERİ YOK"
@@ -1300,6 +1402,8 @@ def _panel_ekip() -> dict:
             renk = "sari"
         ar = arastirma.get(kod) or {}
         satirlar.append({
+            "pazar_bulgulari": [b for b in pazar if str(b.get("departman")) == kod][:5],
+            "pazar_toplam": sum(1 for b in pazar if str(b.get("departman")) == kod),
             "arastirma_toplam": ar.get("toplam", 0),
             "arastirma_son": ar.get("son_zaman", ""),
             "arastirma": ar.get("bulgular", []),
@@ -1438,6 +1542,30 @@ def _ekip_sor(kod: str, soru: str) -> dict:
             "ref": f"arastirma:{kod}",
             "summary": ("DIŞ KAYNAK (şirket ölçümü değil, iddia): "
                         + " | ".join(satirlar_ar))[:1400],
+        })
+
+    # 1c) O BIRIME ELLE GIRILMIS GOZLEMLER.
+    # 🔴 NEDEN AYRICA EKLENIYOR: bir departmanin gozlemi, ancak uyelerinden
+    #    biri 'market_research' sorgusunu OKUYORSA kanita giriyordu. Ama
+    #    COMPETITOR_INT'in iki uyesi de arastirma modunda -- hic sorgu
+    #    okumuyorlar. Sonuc: operator o birime gozlem giriyor, o birimin
+    #    muduru gozlemi GORMUYORDU. Olculdu ve burada kapatildi.
+    # 🔴 Seviye (FACT/INTERPRETATION/HYPOTHESIS) metne YAZILIR: bir gozlemi
+    #    yorumla ayni kesinlikte sunmak, elle girisin tum degerini bitirirdi.
+    try:
+        pazar_dep = [b for b in _memory._fetch("market_research").records
+                     if str(b.get("departman")) == kod]
+    except Exception:  # noqa: BLE001
+        pazar_dep = []
+    if pazar_dep:
+        satirlar_pz = [
+            f"[{b.get('seviye')}] {b.get('bulgu')} (kaynak: {b.get('kaynak')}, {b.get('tarih')})"
+            for b in pazar_dep[:6]]
+        kanit.append({
+            "ref": f"gozlem:{kod}",
+            "summary": ("OPERATÖRÜN ELLE GİRDİĞİ GÖZLEM — seviye etiketine uy: "
+                        "FACT gözlemdir, INTERPRETATION yorumdur, HYPOTHESIS "
+                        "sınanmamış tahmindir. " + " | ".join(satirlar_pz))[:1400],
         })
 
     # 2) Ham sorgular -- sorgu basina tek satir, kolon=deger biciminde.

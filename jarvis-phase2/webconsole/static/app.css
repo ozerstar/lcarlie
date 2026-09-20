@@ -2100,3 +2100,28 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
 .ek-ar-son{font-size:.66rem;opacity:.5;margin-top:2px}
 .ek-tile-uyari{border-color:rgba(224,169,60,.4)}
 .ek-tile-uyari .ek-ar-son{color:#e0a93c;opacity:.9}
+/* ---- elle girilen pazar gözlemi ----
+   Dış araştırmadan da AYRI çizilir: birini makine buldu, diğerini insan
+   gördü ve beyan etti. Seviye rozeti (FACT/INTERPRETATION/HYPOTHESIS)
+   gözlemi yorumdan ayırır; aynı kutuya girselerdi hepsi "veri" okunurdu. */
+.ek-pz{margin-top:8px;border-left:2px solid rgba(92,193,146,.45);padding:8px 0 8px 12px}
+.ek-pz-item{margin-bottom:9px}
+.ek-pz-sev{font-family:ui-monospace,monospace;font-size:.6rem;letter-spacing:.06em;
+  padding:2px 6px;border-radius:3px;margin-right:7px;vertical-align:1px}
+.ek-sev-fact{background:rgba(92,193,146,.16);color:#5cc192}
+.ek-sev-interpretation{background:rgba(201,160,82,.16);color:#c9a052}
+.ek-sev-hypothesis{background:rgba(120,140,200,.16);color:#8ea2d8}
+.ek-sev-not_connected{background:rgba(255,255,255,.07);color:#8b95a1}
+.ek-pz-metin{font-size:.84rem}
+.ek-pz-ekle{margin-top:6px}
+.ek-pz-ekle summary{cursor:pointer;font-size:.76rem;color:#5cc192;opacity:.85;
+  list-style:none}
+.ek-pz-ekle summary::-webkit-details-marker{display:none}
+.ek-pz-ekle summary:hover{opacity:1}
+.ek-pz-form{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
+.ek-pz-in{flex:1;min-width:190px;background:rgba(0,0,0,.25);
+  border:1px solid rgba(255,255,255,.14);border-radius:6px;padding:8px 11px;
+  color:inherit;font:inherit;font-size:.82rem}
+.ek-pz-in:focus{outline:2px solid #5cc192;outline-offset:1px}
+.ek-pz-kisa{flex:0 0 120px;min-width:120px}
+.ek-pz-sonuc{margin-top:8px}

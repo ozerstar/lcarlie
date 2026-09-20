@@ -249,7 +249,7 @@ class CompanyMemory:
         "market_research": (
             "SELECT row_to_json(x) FROM (SELECT kod AS entity_id,"
             "'mart.pazar_arastirma' AS source,kod AS source_record_id,"
-            "kod,seviye,bulgu,kaynak,tarih,yorum FROM mart.pazar_arastirma "
+            "departman,kod,seviye,bulgu,kaynak,tarih,yorum FROM mart.pazar_arastirma "
             "ORDER BY tarih DESC NULLS LAST) x;"
         ),
 

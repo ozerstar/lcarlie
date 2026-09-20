@@ -1663,6 +1663,44 @@ function ekipSatir(d) {
       <p class="ek-ar-not">Bunlar dışarıdan okunan iddialardır, şirket ölçümü değildir.</p>
     </div>` : '';
 
+  /* Operatörün kendi gözlemi.
+     🔴 Bu kutu bir yedek değil, ölçülmüş bir kapasite: rakip fiyatı otomatik
+     alınamıyor (tüm pazaryerleri + cimri/akakçe 403 dönüyor, satıcı API'si
+     yalnız kendi verimizi veriyor). Elle giriş çalışan TEK yol.
+     🔴 Kaynak zorunlu ve seviye seçilir: gözlem (FACT), yorum
+     (INTERPRETATION) ve tahmin (HYPOTHESIS) aynı kutuya girerse hepsi
+     "veri" gibi okunur. */
+  const pb = d.pazar_bulgulari || [];
+  const pazarBlok = `
+    <div class="ek-pz">
+      <div class="ek-ar-head">
+        <span class="ek-ar-lbl">ELLE GİRİLEN GÖZLEM</span>
+        <span class="ek-ar-say">${d.pazar_toplam || 0} kayıt</span>
+      </div>
+      ${pb.map(b => `
+        <div class="ek-pz-item">
+          <span class="ek-pz-sev ek-sev-${escapeHtml(String(b.seviye || '').toLowerCase())}">${escapeHtml(b.seviye || '')}</span>
+          <span class="ek-pz-metin">${escapeHtml(b.bulgu || '')}</span>
+          <div class="ek-ar-meta">${escapeHtml(b.kaynak || '')}${b.tarih ? ' · ' + escapeHtml(b.tarih) : ''}</div>
+        </div>`).join('')}
+      <details class="ek-pz-ekle">
+        <summary>+ gözlem ekle</summary>
+        <div class="ek-pz-form">
+          <select class="ek-pz-in" id="pzs-${escapeHtml(d.kod)}" aria-label="Seviye">
+            <option value="FACT">FACT — gördüğüm olgu</option>
+            <option value="INTERPRETATION">INTERPRETATION — benim yorumum</option>
+            <option value="HYPOTHESIS">HYPOTHESIS — tahmin, sınanmalı</option>
+            <option value="NOT_CONNECTED">NOT_CONNECTED — kaynak bağlı değil</option>
+          </select>
+          <input class="ek-pz-in" id="pzb-${escapeHtml(d.kod)}" type="text" placeholder="Ne gördün? (ör. rakip X 890 TL listeliyor)">
+          <input class="ek-pz-in" id="pzk-${escapeHtml(d.kod)}" type="text" placeholder="Kaynak — zorunlu (ör. cimri.com, ekran görüntüsü)">
+          <input class="ek-pz-in ek-pz-kisa" id="pzt-${escapeHtml(d.kod)}" type="text" placeholder="Tarih" value="${new Date().toLocaleDateString('tr-TR')}">
+          <button type="button" class="ek-sor-btn" data-pazar-ekle="${escapeHtml(d.kod)}">KAYDET</button>
+        </div>
+        <div class="ek-pz-sonuc" id="pzr-${escapeHtml(d.kod)}" hidden></div>
+      </details>
+    </div>`;
+
   const soruKutusu = d.soru_sorulabilir ? `
     <div class="ek-sor">
       <label class="ek-sor-lbl" for="sor-${escapeHtml(d.kod)}">${escapeHtml(d.ad || d.kod)} sorumlusuna sor</label>
@@ -1691,10 +1729,44 @@ function ekipSatir(d) {
       </div>
       ${uyeListe}
       ${arastirmaBlok}
+      ${pazarBlok}
       ${soruKutusu}
     </div>
   </details>`;
 }
+
+/* ---- gözlem kaydet -------------------------------------------------
+   🔴 Kaynak boşsa sunucu reddeder; arayüz de aynı hatayı gösterir ki
+   kullanıcı 400 görmek yerine neyi eksik bıraktığını okusun.           */
+document.addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('[data-pazar-ekle]');
+  if (!btn) return;
+  const kod = btn.getAttribute('data-pazar-ekle');
+  const sev = qs('pzs-' + kod), bul = qs('pzb-' + kod);
+  const kay = qs('pzk-' + kod), tar = qs('pzt-' + kod), out = qs('pzr-' + kod);
+  if (!sev || !bul || !kay || !out) return;
+
+  btn.disabled = true;
+  out.hidden = false;
+  out.innerHTML = '<p class="ek-bekle">Kaydediliyor…</p>';
+
+  const { ok, body } = await api('/api/pazar/bulgu', {
+    method: 'POST',
+    body: JSON.stringify({
+      kod, seviye: sev.value, bulgu: bul.value,
+      kaynak: kay.value, tarih: (tar && tar.value) || '',
+    }),
+  });
+  btn.disabled = false;
+
+  if (!ok || body.hata) {
+    out.innerHTML = `<p class="ek-hata">${escapeHtml(String(body.hata || 'kaydedilemedi'))}</p>`;
+    return;
+  }
+  out.innerHTML = '<p class="ek-dogru">✓ Kaydedildi. Bu gözlem artık bu birimin kanıtı.</p>';
+  bul.value = '';
+  kay.value = '';
+});
 
 /* ---- soru sor -----------------------------------------------------
    🔴 CEVAP HAM GÖSTERİLMEZ. Üç şey cevabın yanında ZORUNLU olarak
