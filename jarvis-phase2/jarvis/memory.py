@@ -184,6 +184,27 @@ class CompanyMemory:
             "trendyolda_var,trendyol_satis "
             "FROM mart.urun_karti ORDER BY urun_adi) x;"
         ),
+        # Öğrenme döngüsünün baktığı tek yer. Oran GÖRÜNÜMDE hesaplanıyor
+        # ki panel ile döngü iki farklı sayı söylemesin.
+        "satis_kohort": (
+            "SELECT row_to_json(x) FROM (SELECT "
+            "coalesce(yaklasim_id::text,'0') AS entity_id,"
+            "'mart.satis_kohort' AS source,"
+            "coalesce(yaklasim_id::text,'0') AS source_record_id,"
+            "son_gonderim AS observed_at,"
+            "yaklasim_id,yaklasim_surum,yaklasim_durum,urun,soru_tipi,"
+            "gonderilen,donus_var,donus_yok,pencere_acik,donus_yuzde,"
+            "olcum_durumu,ilk_gonderim,son_gonderim,ort_donus_sn "
+            "FROM mart.satis_kohort ORDER BY gonderilen DESC) x;"
+        ),
+        "satis_yaklasim": (
+            "SELECT row_to_json(x) FROM (SELECT id AS entity_id,"
+            "'lcarlie.satis_yaklasim' AS source,id AS source_record_id,"
+            "olusturma AS observed_at,"
+            "id,surum,urun,soru_tipi,yonerge,gerekce,durum,olusturan,"
+            "onaylayan,onay_zamani,olusturma "
+            "FROM lcarlie.satis_yaklasim ORDER BY surum DESC,id DESC) x;"
+        ),
         "urun_alan_karsilastirma": (
             "SELECT row_to_json(x) FROM (SELECT urun_id AS entity_id,"
             "'mart.urun_alan_karsilastirma' AS source,urun_id AS source_record_id,"
