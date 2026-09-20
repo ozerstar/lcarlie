@@ -149,6 +149,14 @@ ROSTER: tuple[Member, ...] = (
            "Kanal kapsamasını okur: kaç platform açık, kaç ürün-kanal yuvası "
            "boş, açılsa komisyon ve marj ne olur.",
            ("platform_fiyat_matrisi",)),
+    # 🔴 NEDEN EKLENDI (20.09.2026): COMPETITOR_INT'in iki uyesi de arastirma
+    #    modunda, yani hic sirket verisi okumuyor. Sonuc olculdu: rakip
+    #    fiyatlari elimize gecti ama mudur "VIREON'un nerede durduguna dair
+    #    sirket verisi yok" dedi -- KARSILASTIRAMADI. Rakip istihbarati,
+    #    kendi fiyatini bilmeden yarim kalir.
+    Member("price_position", "Fiyat Konumu Analisti",
+           "Kendi fiyatlarımızı okur ki rakip iddialarıyla karşılaştırılabilsin.",
+           ("ecommerce_price",)),
     Member("market_findings", "Pazar Bulgu Uzmanı",
            "Kayda geçmiş pazar bulgularını kaynağı ve tarihiyle okur.",
            ("market_research",)),
@@ -241,6 +249,7 @@ UYE_DEPARTMAN: dict[str, str] = {
     "market_intelligence": "MARKET_INT",
     "market_findings": "MARKET_INT",
     "competitor_intelligence": "COMPETITOR_INT",
+    "price_position": "COMPETITOR_INT",
     "COMPETITOR_CREATIVE": "COMPETITOR_INT",
     # yonetisim
     "regulatory_quality": "REGULATORY",
@@ -766,6 +775,26 @@ def _say_art_format(rows: dict[str, list]) -> str:
     return metin
 
 
+def _say_price_position(rows: dict[str, list]) -> str:
+    """Fiyat Konumu: KENDI fiyatlarimiz. Rakip iddiasiyla kiyaslanabilsin diye."""
+    f = rows.get("ecommerce_price", [])
+    if not f:
+        return "Fiyat gerçeği okunamıyor; rakip karşılaştırması yapılamaz."
+    fiyatlar = [(_num(r, "musteriye_soylenecek_fiyat") or _num(r, "wix_satis"),
+                 str(r.get("urun_adi") or "")) for r in f]
+    fiyatlar = [(p, ad) for p, ad in fiyatlar if p]
+    if not fiyatlar:
+        return f"{len(f)} üründe fiyat alanı boş; karşılaştırılacak rakam yok."
+    fiyatlar.sort()
+    en_dusuk, en_yuksek = fiyatlar[0], fiyatlar[-1]
+    ort = sum(p for p, _ in fiyatlar) / len(fiyatlar)
+    return (f"{len(fiyatlar)} üründe müşteriye söylenecek fiyat var: "
+            f"en düşük {en_dusuk[0]:,.0f} TL ({en_dusuk[1].split('(')[0].strip()[:24]}), "
+            f"en yüksek {en_yuksek[0]:,.0f} TL ({en_yuksek[1].split('(')[0].strip()[:24]}), "
+            f"ortalama {ort:,.0f} TL. Rakip rakamlarıyla kıyaslarken hacim (ml) "
+            f"farkına dikkat: aynı fiyat farklı hacimde farklı şey demektir.")
+
+
 def _say_market_findings(rows: dict[str, list]) -> str:
     """Pazar Bulgu: kayitli bulgular, kaynagiyla. Kaynaksiz bulgu sayilmaz."""
     p = rows.get("market_research", [])
@@ -843,6 +872,7 @@ SPEAKERS: dict[str, Callable[[dict[str, list]], str]] = {
     "brand_voice": _say_brand_voice,
     "brand_positioning": _say_brand_positioning,
     "market_findings": _say_market_findings,
+    "price_position": _say_price_position,
     # organik icerik (20.09.2026)
     "creative_coverage": _say_creative_coverage,
     "brand_strategy": _say_brand_strategy,
