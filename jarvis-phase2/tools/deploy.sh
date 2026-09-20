@@ -1,0 +1,114 @@
+#!/bin/sh
+# Jarvis Phase 2 dağıtımı: depodan üretime, eksiksiz ve doğrulanarak.
+#
+# NEDEN VAR
+# Dağıtım bugüne kadar elle `cp` komutlarıyla yapılıyordu ve hiçbir şey
+# eksiksizliği garanti etmiyordu. 20.09.2026'da jarvis/knowledge.py'nin
+# üretimde HİÇ olmadığı TESADÜFEN görüldü -- modül yazılmış, commit edilmiş,
+# ama kopyalanmamıştı. Hiçbir hata vermedi; ilgili yetenek sessizce yoktu.
+#
+# NE YAPAR
+#   1. Depodaki değişiklikleri kontrol eder (kirli ağaçla dağıtım yapılmaz)
+#   2. Testleri KAYNAKTA çalıştırır -- geçmezse dağıtım YOK
+#   3. Yedek alır
+#   4. Git'in bildiği TÜM dosyaları kopyalar (tek tek seçmez)
+#   5. Sonra tekrar karşılaştırır: eksik kalan varsa söyler
+#   6. Servisi yeniden başlatır ve ayakta olduğunu doğrular
+#
+# NE YAPMAZ
+# venv'e dokunmaz, veritabanına dokunmaz, migration çalıştırmaz. Onlar ayrı
+# ve bilinçli adımlardır.
+set -eu
+
+KAYNAK=${JARVIS_SOURCE:-/opt/lcarlie/source/lcarlie-jarvis-v1/jarvis-phase2}
+HEDEF=${JARVIS_TARGET:-/opt/lcarlie/jarvis-phase2}
+SERVIS=${JARVIS_SERVICE:-jarvis-web}
+PY="$HEDEF/venv/bin/python"
+[ -x "$PY" ] || PY=python3
+
+say() { printf '%s\n' "$*"; }
+die() { printf 'DURDURULDU: %s\n' "$*" >&2; exit 1; }
+
+say "kaynak : $KAYNAK"
+say "hedef  : $HEDEF"
+say "servis : $SERVIS"
+say
+
+# --- 1. kirli agacla dagitim yapilmaz -------------------------------------
+cd "$KAYNAK/.." || die "kaynak dizin yok"
+kirli=$(git status --porcelain 2>/dev/null | head -5)
+if [ -n "$kirli" ]; then
+  say "=== 1. DEPO KIRLİ -- commit edilmemiş değişiklik var:"
+  printf '%s\n' "$kirli" | sed 's/^/     /'
+  die "önce commit et; kaydedilmemiş kod dağıtılmaz"
+fi
+say "=== 1. depo temiz  ($(git log --oneline -1))"
+
+# --- 2. testler KAYNAKTA gecmeden dagitim yok -----------------------------
+say "=== 2. testler çalışıyor..."
+cd "$KAYNAK" || die "kaynak yok"
+if ! sonuc=$(python3 -m unittest discover -s tests -p "test_*.py" 2>&1 | tail -3); then
+  printf '%s\n' "$sonuc" | sed 's/^/     /'
+  die "testler geçmedi; dağıtım yapılmadı"
+fi
+printf '%s\n' "$sonuc" | sed 's/^/     /'
+
+# --- 3. yedek --------------------------------------------------------------
+damga=$(date +%Y%m%d-%H%M%S)
+yedek="$HEDEF/.backup-$damga"
+say "=== 3. yedek: $yedek"
+mkdir -p "$yedek"
+for d in jarvis webconsole bin tools; do
+  [ -d "$HEDEF/$d" ] && cp -a "$HEDEF/$d" "$yedek/" 2>/dev/null || true
+done
+
+# --- 4. git'in bildigi TUM dosyalari kopyala ------------------------------
+# Tek tek secmek, bugun yasanan hatanin ta kendisiydi.
+say "=== 4. kopyalanıyor (git'in bildiği tüm dosyalar)"
+kopyalanan=0
+cd "$KAYNAK/.." || die
+for rel in $(git ls-files | grep "^jarvis-phase2/" | sed 's|^jarvis-phase2/||'); do
+  kaynak_dosya="$KAYNAK/$rel"
+  [ -f "$kaynak_dosya" ] || continue
+  case "$rel" in
+    .*|*/.*) continue ;;
+  esac
+  hedef_dosya="$HEDEF/$rel"
+  mkdir -p "$(dirname "$hedef_dosya")"
+  if ! cmp -s "$kaynak_dosya" "$hedef_dosya" 2>/dev/null; then
+    cp -p "$kaynak_dosya" "$hedef_dosya"
+    kopyalanan=$((kopyalanan + 1))
+  fi
+done
+say "     $kopyalanan dosya güncellendi"
+
+# --- 5. DOGRULA: eksik kalan var mi --------------------------------------
+say "=== 5. doğrulama"
+eksik=0
+for rel in $(git ls-files | grep "^jarvis-phase2/" | sed 's|^jarvis-phase2/||'); do
+  [ -f "$KAYNAK/$rel" ] || continue
+  case "$rel" in .*|*/.*) continue ;; esac
+  if [ ! -f "$HEDEF/$rel" ]; then
+    say "     EKSİK: $rel"
+    eksik=$((eksik + 1))
+  fi
+done
+[ "$eksik" -eq 0 ] || die "$eksik dosya kopyalanamadı"
+say "     eksik dosya yok"
+
+# --- 6. servis --------------------------------------------------------------
+say "=== 6. servis yeniden başlatılıyor"
+systemctl restart "$SERVIS"
+sleep 5
+durum=$(systemctl is-active "$SERVIS" || true)
+[ "$durum" = "active" ] || die "servis ayağa kalkmadı: $durum"
+
+kod=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 http://127.0.0.1:8091/ || echo "000")
+say "     servis: $durum, panel HTTP $kod"
+[ "$kod" = "200" ] || say "     UYARI: panel 200 dönmedi"
+
+hata=$(journalctl -u "$SERVIS" -n 30 --no-pager 2>/dev/null | grep -ciE "traceback|importerror" || true)
+say "     son 30 satırda hata: $hata"
+
+say
+say "TAMAM. Geri almak için: $yedek"
