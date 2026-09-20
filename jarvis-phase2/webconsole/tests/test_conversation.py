@@ -1,9 +1,24 @@
+import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent.parent
 sys.path[:0] = [str(HERE), str(HERE.parent)]
+
+# Durum dizini, conversation (ve onunla gelen conversation_memory) ICE
+# AKTARILMADAN ONCE gecici bir klasore alinir. Sirasi onemli:
+# conversation_memory STATE_DIR'i modul yuklenirken bir kez okur, sonra
+# degistirmek bir ise yaramaz.
+#
+# Bu dosya discover sirasinda ALFABETIK OLARAK ILK gelen test modulu;
+# burada izole edilmezse butun surec uretim dizinine baglaniyor ve
+# arkadan gelen modullerin kendi ayari gec kaliyor. 20.09.2026'da tam
+# bunun yuzunden uretim sohbet dokumunun 369 satiri test fixture'i oldu
+# ve model onlari baglamdan okuyup taklit etti.
+os.environ.setdefault("JARVIS_STATE_DIR", tempfile.mkdtemp(prefix="jarvis-test-"))
+
 import conversation
 
 

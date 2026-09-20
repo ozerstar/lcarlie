@@ -1,4 +1,6 @@
+import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -7,6 +9,13 @@ HERE = Path(__file__).resolve().parent.parent
 JARVIS_ROOT = HERE.parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(JARVIS_ROOT))
+
+# chat -> conversation -> conversation_memory zinciri ICE AKTARILMADAN
+# ONCE izole edilir. Bu dosyanin fixture'lari ("Naber", "Jarvis, sistem
+# durumu ne?") ve sahte cevabi ("stub reply") izolasyon olmadan gercek
+# sohbet dokumune yaziliyordu; history() onlari modele baglam olarak
+# verdigi icin Jarvis kullaniciya "Stub reply" demeye basladi.
+os.environ.setdefault("JARVIS_STATE_DIR", tempfile.mkdtemp(prefix="jarvis-test-"))
 
 import chat  # noqa: E402
 

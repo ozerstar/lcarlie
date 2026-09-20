@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
@@ -37,6 +38,36 @@ _VARSAYILAN_STATE = Path("/opt/lcarlie/jarvis-phase2/state")
 
 def _dizin_acik() -> bool:
     return STATE_DIR == _VARSAYILAN_STATE
+
+
+class UretimDokumuneTestYazamaz(RuntimeError):
+    """Bir test süreci üretim sohbet dökümüne yazmaya çalıştı."""
+
+
+def _yazma_izni() -> None:
+    """Test süreci üretim dökümüne YAZAMAZ.
+
+    20.09.2026'da ölçüldü: webconsole test takımı 383 satırlık üretim
+    dökümünün 369 satırını kendi fixture'larıyla doldurmuştu
+    ("Naber" → "stub reply"). Zararsız görünüyordu, değildi —
+    `history()` son turları modele BAĞLAM olarak veriyor. Model geçmişte
+    böyle cevapladığını görüp taklit etti ve Jarvis kullanıcıya, hem
+    Türkçe hem İngilizce soruya, "Stub reply" dedi. Sızıntı sessizdi:
+    ne hata, ne uyarı, yalnız giderek bozulan cevaplar.
+
+    Kural, her test dosyasının başına `JARVIS_STATE_DIR` yazmayı
+    hatırlamasına bırakılamaz; iki dosyada unutuldu ve üretime sızdı.
+    Bu yüzden kapıyı kod tutuyor ve GÜRÜLTÜLÜ patlıyor: sessiz bir
+    bozulma yerine, testi yazan kişinin göreceği bir hata.
+
+    `unittest` üretim servisinde hiç içe aktarılmaz; ölçüt bu.
+    """
+    if STATE_DIR == _VARSAYILAN_STATE and "unittest" in sys.modules:
+        raise UretimDokumuneTestYazamaz(
+            "Test süreci üretim sohbet dökümüne yazamaz. Test modülünün "
+            "başında, conversation_memory içe aktarılmadan ÖNCE "
+            "os.environ['JARVIS_STATE_DIR'] geçici bir dizine ayarlanmalı. "
+            f"(STATE_DIR={STATE_DIR})")
 
 # How much of the past a turn is allowed to carry. Six turns is enough for
 # "onu değil, diğerini" to resolve; more than that and the model starts
@@ -78,6 +109,8 @@ def _read(path: Path) -> list[dict[str, Any]]:
 
 
 def _write(path: Path, rows: Iterable[dict[str, Any]]) -> None:
+    # Tek yazma yolu burasi; kapi da burada duruyor.
+    _yazma_izni()
     MEMORY_DIR.mkdir(parents=True, exist_ok=True)
     os.chmod(MEMORY_DIR, 0o750)
     tmp = path.with_suffix(".tmp")
@@ -98,6 +131,11 @@ def record(message: str, answer: str, intent: str = "", thread: str = "operator"
                      "user": (message or "")[:MAX_TURN_CHARS],
                      "jarvis": (answer or "")[:MAX_TURN_CHARS], **meta})
         _write(_path(thread, "turns"), rows[-MAX_STORED_TURNS:])
+    except UretimDokumuneTestYazamaz:
+        # Yutma kuralinin TEK istisnasi. Bu hata bir calisma zamani
+        # arizasi degil, yanlis kurulmus bir TEST -- ve sessizce yutulmasi
+        # tam olarak 20.09'da yasanan sizintiyi uretir.
+        raise
     except Exception:  # noqa: BLE001 - memory is an aid, not a dependency
         pass
 
@@ -149,6 +187,8 @@ def remember(note: str, source: str = "operator", thread: str = "operator") -> b
             except Exception:  # noqa: BLE001
                 pass
         return True
+    except UretimDokumuneTestYazamaz:
+        raise
     except Exception:  # noqa: BLE001
         return False
 
@@ -171,6 +211,8 @@ def forget(fragment: str, thread: str = "operator") -> int:
             except Exception:  # noqa: BLE001
                 pass
         return len(rows) - len(keep)
+    except UretimDokumuneTestYazamaz:
+        raise
     except Exception:  # noqa: BLE001
         return 0
 
