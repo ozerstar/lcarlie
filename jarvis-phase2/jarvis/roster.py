@@ -135,6 +135,20 @@ ROSTER: tuple[Member, ...] = (
     Member("art_format", "Görsel Format Analisti",
            "Üretim biçimini okur: reels mi, sabit görsel mi, hangisi ağır basıyor.",
            ("content_performance",)),
+    # 20.09.2026, sahip talebiyle: "kreatif tarafini guclendir; marka
+    # stratejisti ve is gelistirme uzmani onemli."
+    Member("creative_coverage", "Kreatif Kapsama Analisti",
+           "Hangi ürünün reklamı var, hangisinin hiç yok — ve hangi reklam "
+           "hiçbir ürüne bağlanamıyor.",
+           ("creative_coverage", "ecommerce_price")),
+    Member("brand_strategy", "Marka Stratejisti",
+           "Ne söylediğimizi ne sorulduğuyla karşılaştırır: mesajımız talebin "
+           "neresine denk geliyor.",
+           ("customer_voice", "content_performance")),
+    Member("bizdev", "İş Geliştirme Uzmanı",
+           "Kanal kapsamasını okur: kaç platform açık, kaç ürün-kanal yuvası "
+           "boş, açılsa komisyon ve marj ne olur.",
+           ("platform_fiyat_matrisi",)),
     Member("market_findings", "Pazar Bulgu Uzmanı",
            "Kayda geçmiş pazar bulgularını kaynağı ve tarihiyle okur.",
            ("market_research",)),
@@ -511,6 +525,87 @@ def _say_brand_positioning(rows: dict[str, list]) -> str:
     return metin
 
 
+def _say_creative_coverage(rows: dict[str, list]) -> str:
+    """Kreatif Kapsama: HIC reklami olmayan urunu gorunur kilar."""
+    e = rows.get("creative_coverage", [])
+    katalog = rows.get("ecommerce_price", [])
+    if not e:
+        return "Reklam–ürün eşleşmesi okunamıyor."
+    urunler = {str(r.get("urun_id")) for r in e if r.get("urun_id")}
+    baglanamayan = sum(1 for r in e if str(r.get("kaynak") or "") == "YOK"
+                       or not r.get("urun_id"))
+    metin = f"{len(e)} reklamın {len(urunler)} ürüne bağı kurulmuş."
+    if katalog:
+        reklamsiz = len(katalog) - len(urunler)
+        metin += (f" Katalogda {len(katalog)} ürün var; "
+                  f"{max(reklamsiz,0)} ürünün hiç reklamı yok.")
+    if baglanamayan:
+        # 🔴 Bu sayi gizlenmez: bagi kurulamayan reklamin harcamasi hicbir
+        #    urune yazilamaz, yani urun bazli maliyet OLDUGUNDAN DUSUK gorunur.
+        metin += (f" {baglanamayan} reklam hiçbir ürüne bağlanamıyor; "
+                  f"onların harcaması ürün bazında görünmez.")
+    return metin
+
+
+def _say_brand_strategy(rows: dict[str, list]) -> str:
+    """Marka Stratejisti: NE SOYLUYORUZ ile NE SORULUYOR'u yan yana koyar."""
+    soru = rows.get("customer_voice", [])
+    icerik = rows.get("content_performance", [])
+    if not soru:
+        return "Talep tarafı okunamıyor; mesaj–talep karşılaştırması yapılamaz."
+    talep = sorted(soru, key=lambda r: -_num(r, "konusma_yuzde"))
+    ust_talep = [str(r.get("konu")) for r in talep[:2]]
+    metin = f"Talebin ilk iki konusu: {', '.join(ust_talep)}."
+    if icerik:
+        # Mesaj tarafi: kendi metnimizde fiyat/icerik gecen gonderi orani.
+        fiyatli = sum(1 for r in icerik
+                      if "fiyat" in str(r.get("icerik_basi") or "").casefold()
+                      or " tl" in str(r.get("icerik_basi") or "").casefold())
+        icerikli = sum(1 for r in icerik
+                       if "içind" in str(r.get("icerik_basi") or "").casefold()
+                       or "bileşen" in str(r.get("icerik_basi") or "").casefold())
+        metin += (f" Kendi {len(icerik)} gönderimizin açılışında fiyat {fiyatli}, "
+                  f"içerik {icerikli} kez geçiyor.")
+        if fiyatli == 0 and "FIYAT" in ust_talep:
+            metin += (" Talebin birinci konusu fiyat ama gönderilerimizin hiçbiri "
+                      "fiyatla açılmıyor — mesaj talebin sorduğu yerde değil.")
+    metin += (" 🔴 Bu bir ÖRTÜŞME karşılaştırmasıdır, nedensellik değil: "
+              "insanlar fiyatı soruyor olabilir çünkü başka yerde bulamıyorlar.")
+    return metin
+
+
+def _say_bizdev(rows: dict[str, list]) -> str:
+    """Is Gelistirme: kanal kapsamasi. Acik olmayan kanal = kullanilmayan raf."""
+    p = rows.get("platform_fiyat_matrisi", [])
+    if not p:
+        return "Platform matrisi okunamıyor."
+    kanallar: dict[str, dict[str, Any]] = {}
+    for r in p:
+        ad = str(r.get("platform_adi") or r.get("platform_kod") or "?")
+        k = kanallar.setdefault(ad, {"urun": 0, "aktif": False, "yazma": 0})
+        k["urun"] += 1
+        if r.get("platform_aktif"):
+            k["aktif"] = True
+        if r.get("yazma_izni"):
+            k["yazma"] += 1
+    acik = [ad for ad, k in kanallar.items() if k["aktif"]]
+    kapali = [ad for ad, k in kanallar.items() if not k["aktif"]]
+    bos_yuva = sum(k["urun"] for ad, k in kanallar.items() if not k["aktif"])
+    # 🔴 Sayiya ek getirme ("2'i / 2'si") Turkcede sayiya gore degisir ve
+    #    kod icinde dogru uretmek zordur. Cumleyi eke ihtiyac birakmayacak
+    #    sekilde kur: "5 kanaldan 2 tanesi acik".
+    metin = (f"{len(kanallar)} kanaldan {len(acik)} tanesi açık "
+             f"({', '.join(sorted(acik)) or '-'}).")
+    if kapali:
+        metin += (f" Kapalı: {', '.join(sorted(kapali))} — "
+                  f"{bos_yuva} ürün-kanal yuvası hiç açılmamış.")
+    yazan = sum(k["yazma"] for k in kanallar.values())
+    if yazan == 0:
+        metin += (" Hiçbir kanalda yazma izni yok: fiyat/stok bu sistemden "
+                  "değiştirilemez, yalnız okunur.")
+    return metin
+
+
 def _ay_kova(icerik: list) -> dict[str, int]:
     kova: dict[str, int] = {}
     for r in icerik:
@@ -671,6 +766,9 @@ SPEAKERS: dict[str, Callable[[dict[str, list]], str]] = {
     "brand_positioning": _say_brand_positioning,
     "market_findings": _say_market_findings,
     # organik icerik (20.09.2026)
+    "creative_coverage": _say_creative_coverage,
+    "brand_strategy": _say_brand_strategy,
+    "bizdev": _say_bizdev,
     "content_cadence": _say_content_cadence,
     "social_engagement": _say_social_engagement,
     "art_format": _say_art_format,

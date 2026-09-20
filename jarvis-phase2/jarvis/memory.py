@@ -227,6 +227,16 @@ class CompanyMemory:
             "reklam_ibaresi,yz_beyani,begeni,yorum,etkilesim,olcum_siniri "
             "FROM mart.icerik_performans ORDER BY zaman DESC LIMIT 130) x;"
         ),
+        # Kreatif -> urun eslesmesi (20.09.2026). "Hangi urunun reklami VAR"
+        # sorusu, "hangi reklam iyi calisiyor" sorusundan ayridir: ikincisi
+        # var olan reklamlari kiyaslar, birincisi HIC REKLAMI OLMAYAN urunu
+        # gorunur kilar. Olculdu: 36 urunun 11'inde kreatif var.
+        "creative_coverage": (
+            "SELECT row_to_json(x) FROM (SELECT ad_id AS entity_id,"
+            "'mart.reklam_urun' AS source,ad_id AS source_record_id,"
+            "ad_id,urun_id,urun_adi,kaynak,gerekce,ad_adi,etkin_durum "
+            "FROM mart.reklam_urun ORDER BY urun_adi NULLS LAST LIMIT 80) x;"
+        ),
         "market_research": (
             "SELECT row_to_json(x) FROM (SELECT kod AS entity_id,"
             "'mart.pazar_arastirma' AS source,kod AS source_record_id,"
