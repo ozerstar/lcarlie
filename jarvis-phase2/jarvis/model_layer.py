@@ -104,6 +104,15 @@ def _end_cleanly(text: str, finish_reason: str | None) -> str:
     return stripped + " […]"
 
 
+def _accepts_deep(func) -> bool:
+    """Bu `complete` uyarlaması `deep` parametresini tanıyor mu?"""
+    try:
+        import inspect
+        return "deep" in inspect.signature(func).parameters
+    except (TypeError, ValueError):
+        return False
+
+
 class ModelUnavailable(RuntimeError):
     """No provider could answer. Always caught -- Jarvis falls back, never fails."""
 
@@ -298,6 +307,14 @@ class ExternalProvider:
         self.model = model
         self._rate_limited_until = 0.0
 
+    def _multi_keys(self) -> bool:
+        """Çok sağlayıcılı zincirde kullanılabilir anahtar var mı?"""
+        try:
+            from .providers import available
+            return bool(available())
+        except Exception:  # noqa: BLE001
+            return False
+
     def _key(self) -> str | None:
         try:
             text = open(KIMI_CONFIG, encoding="utf-8").read()
@@ -310,13 +327,39 @@ class ExternalProvider:
         return found.group(1) if found else None
 
     def state(self) -> AdapterState:
-        if not self._key():
+        if not self._key() and not self._multi_keys():
             return AdapterState.UNAVAILABLE
         if time.time() < self._rate_limited_until:
             return AdapterState.RATE_LIMITED
         return AdapterState.AVAILABLE
 
-    def complete(self, messages: list[dict[str, str]], max_tokens: int) -> dict[str, Any]:
+    def complete(self, messages: list[dict[str, str]], max_tokens: int,
+                 deep: bool = False) -> dict[str, Any]:
+        # Once cok saglayicili zincir: OLCULDU (20.09.2026) --
+        #   gemini 1,0 s | openrouter 2,2 s | [ucretli] claude 2,3 s, openai 4,5 s
+        # Ucretli saglayici yalniz deep=True ile denenir. Zincir hicbir cevap
+        # veremezse asagidaki eski OpenRouter yolu aynen calisir.
+        try:
+            from .providers import NoProvider, generate as _multi_generate
+        except Exception:  # noqa: BLE001 - modul yoklugu bir durumdur
+            _multi_generate = None  # type: ignore[assignment]
+        if _multi_generate is not None:
+            try:
+                out = _multi_generate(messages, max_tokens=max_tokens, deep=deep)
+            except NoProvider:
+                out = None
+            except Exception:  # noqa: BLE001 - zincir hatasi eski yolu engellemez
+                out = None
+            if out:
+                self.model = f"{out['provider']}/{out['model']}"
+                return {"text": _end_cleanly(out["text"], out.get("finish_reason")),
+                        "model": self.model,
+                        "provider": out["provider"], "paid": out["paid"],
+                        "finish_reason": out.get("finish_reason"),
+                        "truncated": out.get("truncated", False),
+                        "elapsed_s": out.get("elapsed_s"),
+                        "prompt_tokens": None, "completion_tokens": None}
+
         key = self._key()
         if not key:
             raise ModelUnavailable("no external provider credential available")
@@ -406,7 +449,20 @@ class ModelRouter:
                 continue
             attempts += 1
             try:
-                return provider.complete(messages, max_tokens), provider.tier, attempts
+                # `escalate` iki sey demek: dis saglayiciyi ONCE dene, VE
+                # gerekirse UCRETLI saglayiciya kadar in. Ucretli saglayici
+                # baska hicbir yoldan cagrilmaz.
+                #
+                # `deep` yalnizca destekleyen saglayiciya gecirilir: testlerdeki
+                # sahte saglayicilar ve eski uyarlayicilar bu parametreyi
+                # tanimiyor ve TypeError firlatirdi. Imza kontrolu, hatayi
+                # yutmaktan iyidir -- yutsaydik gercek bir TypeError de
+                # saglayici dustu diye gorunurdu.
+                if provider is self.external and _accepts_deep(provider.complete):
+                    result = provider.complete(messages, max_tokens, deep=escalate)
+                else:
+                    result = provider.complete(messages, max_tokens)
+                return result, provider.tier, attempts
             except (ModelUnavailable, urllib.error.URLError, TimeoutError, OSError,
                     KeyError, ValueError):
                 continue
