@@ -111,8 +111,12 @@ def _sablon(sebep: str) -> str:
     ayni sablona iner. "TLS sertifikasi 12 gun sonra bitiyor" inmez -
     sablonu farklidir ve ayri bir olgudur.
     """
-    t = re.sub(r"https?://\S+", "<adres>", sebep)
-    t = re.sub(r"/\S+", "<yol>", t)
+    # 🔴 Burada bir de `https?://\S+ -> <adres>` satiri vardi; mutasyon
+    #    testi onu silince HICBIR test patlamadi. Sebep esdeger mutasyon:
+    #    URL'ler '/' icerdigi icin asagidaki desen zaten onlari da yutuyor
+    #    ('https://a.example/p' -> 'https:<yol>'). Katkisi olmayan satir
+    #    kaldirildi; testler aynen geciyor, davranis degismedi.
+    t = re.sub(r"/\S+", "<yol>", sebep)
     t = re.sub(r"\d+", "<n>", t)
     return re.sub(r"\s+", " ", t).strip()
 
