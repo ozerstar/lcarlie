@@ -164,7 +164,8 @@ def madde_uret(kaynaklar: list[dict], layer) -> tuple[list[dict], str | None]:
         bloklar.append(f"[{sira}] {kaynak['baslik']}\n{kaynak['metin'][:1200]}")
     istem = ISTEM.format(mad=MAX_MADDE, kaynaklar="\n\n".join(bloklar))
     sonuc, _, _ = layer.generate([{"role": "user", "content": istem}],
-                                 max_tokens=1800, escalate=True)
+                                 max_tokens=1800, escalate=True,
+                                 is_anahtari="guncel_olaylar")
     ham = (sonuc or {}).get("text") or ""
     model = (sonuc or {}).get("model")
     basla, bit = ham.find("{"), ham.rfind("}")

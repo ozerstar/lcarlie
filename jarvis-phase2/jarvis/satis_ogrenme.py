@@ -185,7 +185,8 @@ def yaklasim_oner(bulgu: Bulgu, mevcut_yonerge: str,
     )
     try:
         sonuc, _, _ = layer.generate([{"role": "user", "content": istem}],
-                                     max_tokens=180, escalate=True)
+                                     max_tokens=180, escalate=True,
+                                     is_anahtari="satis_ogrenme")
     except Exception as exc:  # noqa: BLE001
         return Oneri(urun=bulgu.urun, soru_tipi=bulgu.soru_tipi,
                      yeni_yonerge="", gerekce="",

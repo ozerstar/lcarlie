@@ -339,7 +339,8 @@ class ExternalProvider:
         return AdapterState.AVAILABLE
 
     def complete(self, messages: list[dict[str, str]], max_tokens: int,
-                 deep: bool = False) -> dict[str, Any]:
+                 deep: bool = False,
+                 is_anahtari: str | None = None) -> dict[str, Any]:
         # Once cok saglayicili zincir: OLCULDU (20.09.2026) --
         #   gemini 1,0 s | openrouter 2,2 s | [ucretli] claude 2,3 s, openai 4,5 s
         # Ucretli saglayici yalniz deep=True ile denenir. Zincir hicbir cevap
@@ -350,7 +351,8 @@ class ExternalProvider:
             _multi_generate = None  # type: ignore[assignment]
         if _multi_generate is not None:
             try:
-                out = _multi_generate(messages, max_tokens=max_tokens, deep=deep)
+                out = _multi_generate(messages, max_tokens=max_tokens, deep=deep,
+                                      is_anahtari=is_anahtari)
             except NoProvider:
                 out = None
             except Exception:  # noqa: BLE001 - zincir hatasi eski yolu engellemez
@@ -447,7 +449,8 @@ class ModelRouter:
         return [self.external, *fast] if escalate else [*fast, self.external]
 
     def generate(self, messages: list[dict[str, str]], max_tokens: int,
-                 escalate: bool = False) -> tuple[dict[str, Any], str, int]:
+                 escalate: bool = False,
+                 is_anahtari: str | None = None) -> tuple[dict[str, Any], str, int]:
         attempts = 0
         for provider in self._chain(escalate):
             if provider.state() != AdapterState.AVAILABLE:
@@ -464,7 +467,8 @@ class ModelRouter:
                 # yutmaktan iyidir -- yutsaydik gercek bir TypeError de
                 # saglayici dustu diye gorunurdu.
                 if provider is self.external and _accepts_deep(provider.complete):
-                    result = provider.complete(messages, max_tokens, deep=escalate)
+                    result = provider.complete(messages, max_tokens, deep=escalate,
+                                               is_anahtari=is_anahtari)
                 else:
                     result = provider.complete(messages, max_tokens)
                 return result, provider.tier, attempts

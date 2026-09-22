@@ -15,7 +15,7 @@
   <div class="login-frame">
     <div class="login-card">
       <div class="brand-mark">
-        <span class="brand-name">L’CARLIÉ</span>
+        <img class="brand-logo" src="img/lcarlie-mark-light.png" alt="L’CARLIÉ" width="1400" height="194" decoding="async">
         <span class="brand-rule"></span>
         <span class="brand-sub">AUTONOMOUS COMPANY INTELLIGENCE OS</span>
       </div>
@@ -38,24 +38,62 @@
 <div id="appView" class="view app-view" hidden>
 
   <header class="topbar">
+    <button type="button" class="nav-toggle" id="navToggle"
+            aria-label="Menüyü aç/kapat" aria-expanded="false" aria-controls="mainNav">
+      <span></span><span></span><span></span>
+    </button>
     <div class="tb-brand">
-      <span class="brand-name">L’CARLIÉ</span>
+      <img class="brand-logo" src="img/lcarlie-mark-light.png" alt="L’CARLIÉ" width="1400" height="194" decoding="async">
       <span class="brand-sub">AUTONOMOUS COMPANY INTELLIGENCE OS</span>
     </div>
 
     <nav class="tb-nav" id="mainNav" aria-label="Ana gezinme">
-      <button type="button" class="nav-item is-active" data-view="home">ANA SAYFA</button>
-      <button type="button" class="nav-item" data-view="analiz">ANALİZ</button>
-      <button type="button" class="nav-item" data-view="gorevler">GÖREVLER</button>
-      <button type="button" class="nav-item" data-view="ekip">EKİP</button>
-      <button type="button" class="nav-item" data-view="veri">VERİ</button>
-      <button type="button" class="nav-item" data-view="ajanlar">AJANLAR</button>
-      <button type="button" class="nav-item" data-view="hafiza">HAFIZA</button>
-      <button type="button" class="nav-item" data-view="fiyat">FİYAT</button>
-      <button type="button" class="nav-item" data-view="eticaret">E-TİCARET</button>
-      <button type="button" class="nav-item" data-view="reklam">REKLAM</button>
-      <button type="button" class="nav-item" data-view="raporlar">RAPORLAR</button>
-      <button type="button" class="nav-item" data-view="ayarlar">AYARLAR</button>
+      <div class="nav-group" data-group="izleme">
+        <button type="button" class="nav-head" aria-expanded="true">
+          <span>İZLEME</span><i class="nav-caret" aria-hidden="true"></i>
+        </button>
+        <div class="nav-body">
+          <button type="button" class="nav-item is-active" data-view="home">ANA SAYFA</button>
+          <button type="button" class="nav-item" data-view="analiz">ANALİZ</button>
+          <button type="button" class="nav-item" data-view="asistan">ASİSTAN</button>
+          <button type="button" class="nav-item" data-view="raporlar">RAPORLAR</button>
+        </div>
+      </div>
+      <div class="nav-group" data-group="is">
+        <button type="button" class="nav-head" aria-expanded="true">
+          <span>İŞ</span><i class="nav-caret" aria-hidden="true"></i>
+        </button>
+        <div class="nav-body">
+          <button type="button" class="nav-item" data-view="gorevler">GÖREVLER</button>
+          <button type="button" class="nav-item" data-view="fiyat">FİYAT</button>
+          <button type="button" class="nav-item" data-view="eticaret">E-TİCARET</button>
+          <button type="button" class="nav-item" data-view="satislar">SATIŞLAR</button>
+          <button type="button" class="nav-item" data-view="kargo">KARGO</button>
+          <button type="button" class="nav-item" data-view="musteri">MÜŞTERİLER</button>
+        </div>
+      </div>
+      <div class="nav-group" data-group="kreatif">
+        <button type="button" class="nav-head" aria-expanded="true">
+          <span>KREATİF</span><i class="nav-caret" aria-hidden="true"></i>
+        </button>
+        <div class="nav-body">
+          <button type="button" class="nav-item" data-view="kreatifParti">KREATİF</button>
+          <button type="button" class="nav-item" data-view="reklam">REKLAM</button>
+          <button type="button" class="nav-item" data-view="tasarim">TASARIM</button>
+        </div>
+      </div>
+      <div class="nav-group" data-group="org">
+        <button type="button" class="nav-head" aria-expanded="true">
+          <span>ORGANİZASYON</span><i class="nav-caret" aria-hidden="true"></i>
+        </button>
+        <div class="nav-body">
+          <button type="button" class="nav-item" data-view="ekip">EKİP</button>
+          <button type="button" class="nav-item" data-view="ajanlar">AJANLAR</button>
+          <button type="button" class="nav-item" data-view="hafiza">HAFIZA</button>
+          <button type="button" class="nav-item" data-view="veri">VERİ</button>
+          <button type="button" class="nav-item" data-view="ayarlar">AYARLAR</button>
+        </div>
+      </div>
     </nav>
 
     <div class="tb-meta">
@@ -77,7 +115,15 @@
       <ol id="activityFeed" class="feed"></ol>
     </section>
 
-    <section class="panel p-core" aria-label="L’CARLIÉ zekâ çekirdeği">
+    <section class="panel" aria-label="GÜNÜN HABERLERİ">
+          <div class="panel-head">
+            <h2 class="panel-title">GÜNÜN HABERLERİ</h2>
+          </div>
+          <div class="panel-body sect-body">
+            <div id="anaHaber" class="feed">Yükleniyor…</div>
+          </div>
+        </section>
+        <section class="panel p-core" aria-label="L’CARLIÉ zekâ çekirdeği">
       <div class="core-stack">
         <svg id="jarvisCore" class="core-svg core-state-idle" viewBox="0 0 620 470" role="img"
              aria-labelledby="coreSvgTitle" preserveAspectRatio="xMidYMid meet">
@@ -97,77 +143,115 @@
           </g>
 
           <g class="orbit-nodes">
-            <g class="onode">
-              <line class="ospoke" x1="310" y1="149" x2="310" y2="77"/>
-              <circle class="ohalo" cx="310" cy="67" r="8"/>
-              <circle class="odot" cx="310" cy="67" r="3.4"/>
-              <text class="olabel" x="310" y="45" text-anchor="middle">STRATEJİ</text>
+            <g class="onode" data-dept="EXEC,DECISION_MEM,DATA_BI,FORECAST,EXPERIMENT"
+               data-dept-ad="STRATEJİ"
+               role="button" tabindex="0"
+               aria-label="STRATEJİ departmanlarını aç">
+              <circle class="ohit" cx="310.0" cy="67.0" r="26"/>
+              <line class="ospoke" x1="310.0" y1="139.0" x2="310.0" y2="77.0"/>
+              <circle class="opulse" cx="310.0" cy="67.0" r="8"/>
+              <circle class="ohalo" cx="310.0" cy="67.0" r="8"/>
+              <circle class="odot" cx="310.0" cy="67.0" r="3.4"/>
+              <text class="olabel" x="310.0" y="43.0" text-anchor="middle">STRATEJİ</text>
             </g>
-            <g class="onode">
-              <line class="ospoke" x1="365.3" y1="169.1" x2="411.6" y2="114"/>
-              <circle class="ohalo" cx="418" cy="106.3" r="8"/>
-              <circle class="odot" cx="418" cy="106.3" r="3.4"/>
-              <text class="olabel" x="428.3" y="97" text-anchor="start">
-                <tspan x="428.3">PAZAR &amp;</tspan>
-                <tspan x="428.3" dy="11">RAKİP</tspan>
-              </text>
+            <g class="onode" data-dept="MARKET_INT,COMPETITOR_INT"
+               data-dept-ad="PAZAR & RAKİP"
+               role="button" tabindex="0"
+               aria-label="PAZAR & RAKİP departmanlarını aç">
+              <circle class="ohit" cx="408.7" cy="99.1" r="26"/>
+              <line class="ospoke" x1="366.4" y1="157.3" x2="402.9" y2="107.2"/>
+              <circle class="opulse" cx="408.7" cy="99.1" r="8"/>
+              <circle class="ohalo" cx="408.7" cy="99.1" r="8"/>
+              <circle class="odot" cx="408.7" cy="99.1" r="3.4"/>
+              <text class="olabel" x="427.3" y="84.5" text-anchor="start"><tspan x="427.3">PAZAR &</tspan><tspan x="427.3" dy="11">RAKİP</tspan></text>
             </g>
-            <g class="onode">
-              <line class="ospoke" x1="394.7" y1="220.1" x2="465.6" y2="207.6"/>
-              <circle class="ohalo" cx="475.4" cy="205.8" r="8"/>
-              <circle class="odot" cx="475.4" cy="205.8" r="3.4"/>
-              <text class="olabel" x="491.2" y="206" text-anchor="start">
-                <tspan x="491.2">ÜRÜN &amp;</tspan>
-                <tspan x="491.2" dy="11">AR-GE</tspan>
-              </text>
+            <g class="onode" data-dept="PRODUCT,RND"
+               data-dept-ad="ÜRÜN & AR-GE"
+               role="button" tabindex="0"
+               aria-label="ÜRÜN & AR-GE departmanlarını aç">
+              <circle class="ohit" cx="469.8" cy="183.1" r="26"/>
+              <line class="ospoke" x1="401.3" y1="205.3" x2="460.3" y2="186.2"/>
+              <circle class="opulse" cx="469.8" cy="183.1" r="8"/>
+              <circle class="ohalo" cx="469.8" cy="183.1" r="8"/>
+              <circle class="odot" cx="469.8" cy="183.1" r="3.4"/>
+              <text class="olabel" x="494.9" y="177.5" text-anchor="start"><tspan x="494.9">ÜRÜN &</tspan><tspan x="494.9" dy="11">AR-GE</tspan></text>
             </g>
-            <g class="onode">
-              <line class="ospoke" x1="384.5" y1="278" x2="446.8" y2="314"/>
-              <circle class="ohalo" cx="455.5" cy="319" r="8"/>
-              <circle class="odot" cx="455.5" cy="319" r="3.4"/>
-              <text class="olabel" x="469.3" y="330" text-anchor="start">
-                <tspan x="469.3">SATIŞ &amp;</tspan>
-                <tspan x="469.3" dy="11">E-TİCARET</tspan>
-              </text>
+            <g class="onode" data-dept="ECOM,B2B,MARKETPLACE,EXPORT,PHARMACY,BIZDEV"
+               data-dept-ad="SATIŞ & E-TİCARET"
+               role="button" tabindex="0"
+               aria-label="SATIŞ & E-TİCARET departmanlarını aç">
+              <circle class="ohit" cx="469.8" cy="286.9" r="26"/>
+              <line class="ospoke" x1="401.3" y1="264.7" x2="460.3" y2="283.8"/>
+              <circle class="opulse" cx="469.8" cy="286.9" r="8"/>
+              <circle class="ohalo" cx="469.8" cy="286.9" r="8"/>
+              <circle class="odot" cx="469.8" cy="286.9" r="3.4"/>
+              <text class="olabel" x="494.9" y="292.5" text-anchor="start"><tspan x="494.9">SATIŞ &</tspan><tspan x="494.9" dy="11">E-TİCARET</tspan></text>
             </g>
-            <g class="onode">
-              <line class="ospoke" x1="339.4" y1="315.8" x2="364" y2="383.5"/>
-              <circle class="ohalo" cx="367.5" cy="392.9" r="8"/>
-              <circle class="odot" cx="367.5" cy="392.9" r="3.4"/>
-              <text class="olabel" x="372.9" y="410.9" text-anchor="start">
-                <tspan x="372.9">REKLAM &amp;</tspan>
-                <tspan x="372.9" dy="11">BÜYÜME</tspan>
-              </text>
+            <g class="onode" data-dept="META_MEDIA,GOOGLE_ADS,SEO,SOCIAL,INSTAGRAM,TIKTOK,INFLUENCER,CRO"
+               data-dept-ad="REKLAM & BÜYÜME"
+               role="button" tabindex="0"
+               aria-label="REKLAM & BÜYÜME departmanlarını aç">
+              <circle class="ohit" cx="408.7" cy="370.9" r="26"/>
+              <line class="ospoke" x1="366.4" y1="312.7" x2="402.9" y2="362.8"/>
+              <circle class="opulse" cx="408.7" cy="370.9" r="8"/>
+              <circle class="ohalo" cx="408.7" cy="370.9" r="8"/>
+              <circle class="odot" cx="408.7" cy="370.9" r="3.4"/>
+              <text class="olabel" x="427.3" y="385.5" text-anchor="start"><tspan x="427.3">REKLAM &</tspan><tspan x="427.3" dy="11">BÜYÜME</tspan></text>
             </g>
-            <g class="onode">
-              <line class="ospoke" x1="280.6" y1="315.8" x2="256" y2="383.5"/>
-              <circle class="ohalo" cx="252.5" cy="392.9" r="8"/>
-              <circle class="odot" cx="252.5" cy="392.9" r="3.4"/>
-              <text class="olabel" x="247.1" y="410.9" text-anchor="end">
-                <tspan x="247.1">MÜŞTERİ</tspan>
-                <tspan x="247.1" dy="11">&amp; CRM</tspan>
-              </text>
+            <g class="onode" data-dept="CREATIVE_STRAT,BRAND,ART,CONTENT,COPY,UGC,PR"
+               data-dept-ad="KREATİF & MARKA"
+               role="button" tabindex="0"
+               aria-label="KREATİF & MARKA departmanlarını aç">
+              <circle class="ohit" cx="310.0" cy="403.0" r="26"/>
+              <line class="ospoke" x1="310.0" y1="331.0" x2="310.0" y2="393.0"/>
+              <circle class="opulse" cx="310.0" cy="403.0" r="8"/>
+              <circle class="ohalo" cx="310.0" cy="403.0" r="8"/>
+              <circle class="odot" cx="310.0" cy="403.0" r="3.4"/>
+              <text class="olabel" x="310.0" y="446.0" text-anchor="middle"><tspan x="310.0">KREATİF &</tspan><tspan x="310.0" dy="11">MARKA</tspan></text>
             </g>
-            <g class="onode">
-              <line class="ospoke" x1="235.5" y1="278" x2="173.2" y2="314"/>
-              <circle class="ohalo" cx="164.5" cy="319" r="8"/>
-              <circle class="odot" cx="164.5" cy="319" r="3.4"/>
-              <text class="olabel" x="150.7" y="330" text-anchor="end">FİNANS</text>
+            <g class="onode" data-dept="CRM,CS,CUSTOMER_INT,RETENTION"
+               data-dept-ad="MÜŞTERİ & CRM"
+               role="button" tabindex="0"
+               aria-label="MÜŞTERİ & CRM departmanlarını aç">
+              <circle class="ohit" cx="211.3" cy="370.9" r="26"/>
+              <line class="ospoke" x1="253.6" y1="312.7" x2="217.1" y2="362.8"/>
+              <circle class="opulse" cx="211.3" cy="370.9" r="8"/>
+              <circle class="ohalo" cx="211.3" cy="370.9" r="8"/>
+              <circle class="odot" cx="211.3" cy="370.9" r="3.4"/>
+              <text class="olabel" x="192.7" y="385.5" text-anchor="end"><tspan x="192.7">MÜŞTERİ</tspan><tspan x="192.7" dy="11">& CRM</tspan></text>
             </g>
-            <g class="onode">
-              <line class="ospoke" x1="225.3" y1="220.1" x2="154.4" y2="207.6"/>
-              <circle class="ohalo" cx="144.6" cy="205.8" r="8"/>
-              <circle class="odot" cx="144.6" cy="205.8" r="3.4"/>
-              <text class="olabel" x="128.8" y="206" text-anchor="end">OPERASYON</text>
+            <g class="onode" data-dept="FINANCE"
+               data-dept-ad="FİNANS"
+               role="button" tabindex="0"
+               aria-label="FİNANS departmanlarını aç">
+              <circle class="ohit" cx="150.2" cy="286.9" r="26"/>
+              <line class="ospoke" x1="218.7" y1="264.7" x2="159.7" y2="283.8"/>
+              <circle class="opulse" cx="150.2" cy="286.9" r="8"/>
+              <circle class="ohalo" cx="150.2" cy="286.9" r="8"/>
+              <circle class="odot" cx="150.2" cy="286.9" r="3.4"/>
+              <text class="olabel" x="125.1" y="292.5" text-anchor="end">FİNANS</text>
             </g>
-            <g class="onode">
-              <line class="ospoke" x1="254.7" y1="169.1" x2="208.4" y2="114"/>
-              <circle class="ohalo" cx="202" cy="106.3" r="8"/>
-              <circle class="odot" cx="202" cy="106.3" r="3.4"/>
-              <text class="olabel" x="191.7" y="97" text-anchor="end">
-                <tspan x="191.7">MEVZUAT</tspan>
-                <tspan x="191.7" dy="11">&amp; KALİTE</tspan>
-              </text>
+            <g class="onode" data-dept="FULFILLMENT,INVENTORY,PROCUREMENT,SUPPLY,AI_OPS,SECURITY"
+               data-dept-ad="OPERASYON"
+               role="button" tabindex="0"
+               aria-label="OPERASYON departmanlarını aç">
+              <circle class="ohit" cx="150.2" cy="183.1" r="26"/>
+              <line class="ospoke" x1="218.7" y1="205.3" x2="159.7" y2="186.2"/>
+              <circle class="opulse" cx="150.2" cy="183.1" r="8"/>
+              <circle class="ohalo" cx="150.2" cy="183.1" r="8"/>
+              <circle class="odot" cx="150.2" cy="183.1" r="3.4"/>
+              <text class="olabel" x="125.1" y="177.5" text-anchor="end">OPERASYON</text>
+            </g>
+            <g class="onode" data-dept="REGULATORY,LEGAL,QUALITY,RED_TEAM"
+               data-dept-ad="MEVZUAT & KALİTE"
+               role="button" tabindex="0"
+               aria-label="MEVZUAT & KALİTE departmanlarını aç">
+              <circle class="ohit" cx="211.3" cy="99.1" r="26"/>
+              <line class="ospoke" x1="253.6" y1="157.3" x2="217.1" y2="107.2"/>
+              <circle class="opulse" cx="211.3" cy="99.1" r="8"/>
+              <circle class="ohalo" cx="211.3" cy="99.1" r="8"/>
+              <circle class="odot" cx="211.3" cy="99.1" r="3.4"/>
+              <text class="olabel" x="192.7" y="84.5" text-anchor="end"><tspan x="192.7">MEVZUAT</tspan><tspan x="192.7" dy="11">& KALİTE</tspan></text>
             </g>
           </g>
 
@@ -177,7 +261,7 @@
         </svg>
 
         <div class="core-label" aria-live="polite">
-          <span class="core-brand">L’CARLIÉ</span>
+          <img class="core-brand-logo" src="img/lcarlie-mark-light.png" alt="L’CARLIÉ" width="1400" height="194" decoding="async">
           <span class="core-state" id="coreStateLabel">HAZIR</span>
           <span class="core-hint" id="coreHint"></span>
         </div>
@@ -216,7 +300,7 @@
         <ul class="kv-list" id="queueList"></ul>
 
         <h3 class="rp-sub">BEKLEYEN ONAYLAR <span class="rp-src">operatör kuyruğu</span></h3>
-        <div class="big-stat"><span id="statApprovals" class="big-num">—</span><span class="big-unit">öneri onay bekliyor</span></div>
+        <div class="big-stat big-stat-link" id="statApprovalsKart" role="button" tabindex="0" title="Bekleyen önerilere git"><span id="statApprovals" class="big-num">—</span><span class="big-unit">öneri onay bekliyor</span></div>
         <ol id="proposalList" class="proposal-list"></ol>
         <p id="proposalEmpty" class="empty-note" hidden>Bekleyen öneri yok.</p>
 
@@ -427,6 +511,9 @@
           ONAYA GÖNDER
         </button>
         <span class="fm-scope" id="fmScope">süzülen tüm ürünler</span>
+        <input type="text" id="fmGerekce" class="fm-input fm-gerekce"
+               placeholder="Gerekçe — onaylayan bunu görecek"
+               aria-label="Değişiklik gerekçesi">
       </div>
 
       <div class="fm-preview" id="fmPreviewBox" hidden>
@@ -618,7 +705,178 @@
       </div>
       <ol id="taskCycleList" class="feed feed-lg"></ol>
     </section>
-  </main>
+  
+</main>
+
+      <main class="stage stage-single view-panel" id="viewKreatifParti" hidden
+            aria-label="KREATİF PARTİLERİ">
+        <section class="panel" aria-label="KREATİF PARTİLERİ">
+          <div class="panel-head">
+            <h2 class="panel-title">KREATİF PARTİLERİ</h2>
+          </div>
+          <div class="panel-body sect-body">
+            <p class="fm-sub">Haftalık koşu tüm ürünler için araştırma ve prompt
+              üretir; <strong>görsel ancak onayınızdan sonra</strong> üretilir.</p>
+            <div id="kpListe" class="kp-liste">
+              <p class="fm-empty">Yükleniyor…</p>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <main class="stage stage-single view-panel" id="viewSatislar" hidden
+            aria-label="SATIŞLAR">
+        <section class="panel" aria-label="SATIŞLAR">
+          <div class="panel-head">
+            <h2 class="panel-title">SATIŞLAR</h2>
+          </div>
+          <div class="panel-body sect-body">
+            <p class="fm-sub">Tüm gönderiler tek yerde: kim, ne, kaça.
+            Fiyatı olmayan ya da kararsız kalınan gönderileri elle
+            işaretleyin ki veri eksik kalmasın.</p>
+            <div id="satisGovde"><p class="fm-empty">Yükleniyor…</p></div>
+          </div>
+        </section>
+      </main>
+
+
+
+      <main class="stage stage-single view-panel" id="viewAsistan" hidden
+            aria-label="ASİSTAN">
+        <section class="panel" aria-label="ASİSTAN">
+          <div class="panel-head">
+            <h2 class="panel-title">ASİSTAN</h2>
+          </div>
+
+          <div class="as-tabs" id="asSekmeler" role="tablist">
+            <button type="button" class="as-tab is-active" role="tab"
+                    data-as="hatirlatici">HATIRLATICILAR</button>
+            <button type="button" class="as-tab" role="tab"
+                    data-as="gundem">GÜNDEM &amp; HABERLER</button>
+            <button type="button" class="as-tab" role="tab"
+                    data-as="onay">ONAYLAR &amp; İMZALAR
+              <span class="pill" id="asOnaySayi" hidden></span>
+            </button>
+          </div>
+
+          <div class="panel-body sect-body" id="asPanelHatirlatici">
+            <p class="fm-sub">Kişisel hatırlatıcılarınız. Bunları yalnız siz
+            yazarsınız; makine buraya kayıt ekleyemez, sadece okur ve zamanı
+            gelince gösterir.</p>
+            <div class="sect-card">
+              <h3 class="sect-title">Yeni hatırlatıcı</h3>
+              <div class="fm-row">
+                <input id="htrBaslik" type="text" class="fm-input"
+                       placeholder="Ne hatırlatılsın?" maxlength="200">
+              </div>
+              <div class="fm-row">
+                <input id="htrZaman" type="datetime-local" class="fm-input">
+                <select id="htrTekrar" class="fm-input">
+                  <option value="">Tek seferlik</option>
+                  <option value="gunluk">Her gün</option>
+                  <option value="haftalik">Her hafta</option>
+                  <option value="aylik">Her ay</option>
+                </select>
+                <select id="htrOnem" class="fm-input">
+                  <option value="NORMAL">Normal</option>
+                  <option value="YUKSEK">Yüksek</option>
+                  <option value="DUSUK">Düşük</option>
+                </select>
+              </div>
+              <div class="fm-row">
+                <input id="htrNot" type="text" class="fm-input"
+                       placeholder="Not (isteğe bağlı)" maxlength="500">
+                <button type="button" id="htrEkle" class="btn">Ekle</button>
+              </div>
+              <p class="fm-sub" id="htrDurum"></p>
+            </div>
+            <div class="sect-card">
+              <h3 class="sect-title">Açık hatırlatıcılar</h3>
+              <div id="htrListe" class="feed">Yükleniyor…</div>
+            </div>
+          </div>
+
+          <div class="panel-body sect-body" id="asPanelGundem" hidden>
+            <div class="sect-card">
+              <h3 class="sect-title">Günün haberleri</h3>
+              <div id="asHaber" class="feed">Yükleniyor…</div>
+            </div>
+            <div class="sect-card">
+              <h3 class="sect-title">Şirket gündemi</h3>
+              <div id="asGundem" class="feed">Yükleniyor…</div>
+            </div>
+          </div>
+
+          <div class="panel-body sect-body" id="asPanelOnay" hidden>
+            <p class="fm-sub">İmzanızı bekleyen her şey burada. Rozet
+            hangisinin nereden geldiğini söyler — onay mekanizmaları farklı
+            olduğu için kaynak görünür kalıyor.</p>
+            <div class="sect-card">
+              <h3 class="sect-title">Bekleyen öneriler</h3>
+              <div id="asOneri" class="feed">Yükleniyor…</div>
+            </div>
+            <div class="sect-card">
+              <h3 class="sect-title">Onay bekleyen tasarımlar</h3>
+              <div id="asTasarimOnay" class="feed">Yükleniyor…</div>
+            </div>
+          </div>
+        </section>
+      </main>
+      <main class="stage stage-single view-panel" id="viewTasarim" hidden
+            aria-label="TASARIM">
+        <section class="panel" aria-label="TASARIM">
+          <div class="panel-head">
+            <h2 class="panel-title">TASARIM</h2>
+          </div>
+          <div class="panel-body sect-body">
+            <p class="fm-sub">Şablon kütüğü ve üretilen tasarımların
+            defteri. Jarvis şablonu veriyle doldurur, metin önce mevzuat
+            kapısından geçer; geçemezse tasarım hiç üretilmez. Onayı
+            yalnız sahip verir — makine kendi çıktısını onaylayamaz.</p>
+
+            <div class="sect-card" id="tasarimSablonKart">
+              <h3 class="sect-title">Şablon kütüğü</h3>
+              <div id="tasarimSablonlar" class="feed">Yükleniyor…</div>
+            </div>
+
+            <div class="sect-card" id="tasarimIsKart">
+              <h3 class="sect-title">Üretilen işler</h3>
+              <div id="tasarimIsler" class="feed">Yükleniyor…</div>
+            </div>
+          </div>
+        </section>
+      </main>
+      <main class="stage stage-single view-panel" id="viewKargo" hidden
+            aria-label="KARGO">
+        <section class="panel" aria-label="KARGO">
+          <div class="panel-head">
+            <h2 class="panel-title">KARGO</h2>
+          </div>
+          <div class="panel-body sect-body">
+            <p class="fm-sub">Gönderi aç, taşıyıcı ve fiyatı gör, barkodu al,
+            etiketleri HB-1006 sayfasına dizip yazdır. Barkod üretimi
+            şirketin BasitKargo bakiyesinden para düşürür ve ekranda
+            onaylanmadan yapılmaz.</p>
+            <div id="kargoGovde"><p class="fm-empty">Yükleniyor…</p></div>
+          </div>
+        </section>
+      </main>
+
+      <main class="stage stage-single view-panel" id="viewMusteri" hidden
+            aria-label="MÜŞTERİLER">
+        <section class="panel" aria-label="MÜŞTERİLER">
+          <div class="panel-head">
+            <h2 class="panel-title">MÜŞTERİLER</h2>
+          </div>
+          <div class="panel-body sect-body">
+            <p class="fm-sub">Kim kaç kez aldı, ne harcadı, en son ne zaman.
+            Satıra tıklayınca o müşterinin bütün siparişleri ve kargoları
+            açılır. Altta iade, değişim ve iptaller üç ayrı kaynaktan.</p>
+            <div id="musteriGovde"><p class="fm-empty">Yükleniyor…</p></div>
+          </div>
+        </section>
+      </main>
+
 
   <!-- ----------------------- COMMAND BAR ------------------------- -->
   <section class="cmdbar" id="cmdBar" aria-label="L’CARLIÉ komut satırı">
@@ -629,7 +887,7 @@
              placeholder="L’CARLIÉ’ye sorun… örn. “Bugün şirkette durum ne?”">
       <button type="button" id="retryBtn" class="ghost-btn" hidden>TEKRAR</button>
       <button type="button" id="stopBtn" class="ghost-btn" hidden>DURDUR</button>
-      <button type="button" id="planBtn" class="ghost-btn">PLAN</button>
+      <button type="button" id="planBtn" class="ghost-btn" data-ipucu="1" title="Sorunuzu CEVAPLAMADAN önce, hangi adımlarla cevaplayacağını gösterir. Veri okunmaz, hiçbir şey çalıştırılmaz.">PLAN</button>
       <button type="submit" id="sendBtn" class="gold-btn">GÖNDER</button>
     </form>
   </section>

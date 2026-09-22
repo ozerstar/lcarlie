@@ -97,6 +97,28 @@ KONULAR: dict[str, tuple[str, ...]] = {
         "TITCK kozmetik urun bildirim duyuru",
         "kozmetik mevzuat yonetmelik degisikligi Turkiye",
     ),
+    # ─── 22.09.2026'da eklendi: yeni kurulan departmanlar boş durmasın.
+    # Sahip: "boştakiler kendi dallarıyla ilgili internetten araştırma
+    # yapıp kendilerini geliştirsinler, daha iyi nasıl yapabilirler diye."
+    # Konular "nedir" değil "NASIL YAPILIR" biçiminde: bu dosyanın kendi
+    # ölçümü geniş soruların ansiklopedi yazısı getirdiğini söylüyor.
+    "TASARIM": (
+        "kozmetik urun katalog sayfasi tasarim kurallari nasil hazirlanir",
+        "eczane raf materyali tasarim olcu baski standartlari",
+    ),
+    "PR": (
+        "kozmetik marka basin bulteni nasil yazilir ornek",
+        "marka itibar yonetimi sikayet yaniti nasil verilir",
+    ),
+    "YAYIN": (
+        "kozmetik e-kitap icerik hazirlama saglik iddiasi sinirlari",
+        "urun katalogu icindekiler yapisi nasil kurgulanir",
+    ),
+    "ECZANE_KANAL": (
+        # Kurum/kanal adi tasiyor: bu dosyanin olcumune gore en verimli kalip.
+        "eczane kanalinda dermokozmetik urun sunumu eczaci beklentisi",
+        "eczane raf duzeni gorunurluk satis etkisi arastirma",
+    ),
     "CONTENT": (
         # 🔴 Ilk kosuda 0 bulgu geldi ve ENGELLENMEDI -- gercekten yeni bir
         #    sey bulunamadi. Konu yine de birakildi: sifir sonuc da bir

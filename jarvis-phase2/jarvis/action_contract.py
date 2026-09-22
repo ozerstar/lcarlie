@@ -42,6 +42,16 @@ INTENT_TO_CANONICAL: Mapping[str, str] = {
     "CUSTOMER_REPLY_DRAFT": "DRAFT_CUSTOMER_REPLY",
     "HUMAN_REVIEW_REQUEST": "REQUEST_HUMAN_REVIEW",
     "CODE_CHANGE_REVIEW": "REQUEST_HUMAN_REVIEW",
+    # Kreatif partisi de yeni bir DB action type UYDURMAZ: uretilen
+    # reklam gorselleri sahibin GOZUYLE bakip karar verecegi bir seydir,
+    # yani tam olarak bir insan incelemesi talebidir.
+    # Iki asama, iki ayri onay (sahip karari 21.09.2026):
+    #   KREATIF_BRIEF    -> brief + promptlar hazir, GORSEL URETIMI icin onay
+    #   KREATIF_INCELEME -> gorseller uretildi ve ekip inceledi, YAYIN icin onay
+    # Ikisi de ayni kanonik tipe duser cunku ikisi de "insan baksin" talebidir;
+    # yeni bir DB action type uydurmak icin sebep yok.
+    "KREATIF_BRIEF": "REQUEST_HUMAN_REVIEW",
+    "KREATIF_INCELEME": "REQUEST_HUMAN_REVIEW",
     "WHATSAPP_TEMPLATE_SEND": "WHATSAPP_SEND_TEMPLATE",
     "META_CAMPAIGN_CHANGE": "META_CAMPAIGN_CHANGE",
     "PRICE_CHANGE": "PRICE_CHANGE",

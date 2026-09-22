@@ -185,7 +185,8 @@ def plan(request: str, router: Any | None = None,
                 {"role": "user",
                  "content": "Istek: " + request.strip()[:1200] + "\nSorgular:"}]
     try:
-        result, tier, attempts = router.generate(messages, MAX_TOKENS)
+        result, tier, attempts = router.generate(
+            messages, MAX_TOKENS, is_anahtari="query_planner")
     except Exception as exc:  # noqa: BLE001 - araştırma model yüzünden durmaz
         return dict(base, queries=fallback, source="deterministic",
                     reason=f"model çağrısı başarısız: {str(exc)[:120]}")

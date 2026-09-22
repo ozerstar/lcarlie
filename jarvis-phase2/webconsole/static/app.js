@@ -55,6 +55,24 @@ async function api(path, options = {}) {
   return { ok: res.ok, status: res.status, body };
 }
 
+
+/* 🔴 BU İKİSİ YOKTU. TASARIM ve ASİSTAN kodu getJSON/postJSON çağırıyordu;
+ * kod tabanında yalnız api(path, options) var ve {ok,status,body} dönüyor.
+ * Sözdizimi denetimi tanımsız fonksiyonu yakalamaz -- hata ancak o satır
+ * çalışınca çıkar. İnce bir sarmalayıcı ile kapatıyoruz. */
+async function getJSON(path) {
+  const { ok, status, body } = await api(path);
+  if (!ok) throw new Error((body && body.error) || ('HTTP ' + status));
+  return body || {};
+}
+
+async function postJSON(path, veri) {
+  const { ok, status, body } = await api(path, {
+    method: 'POST', body: JSON.stringify(veri || {}) });
+  if (!ok) throw new Error((body && body.error) || ('HTTP ' + status));
+  return body || {};
+}
+
 function escapeHtml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
@@ -130,7 +148,11 @@ qs('logoutBtn').addEventListener('click', async () => {
  * VERİ / AJANLAR / RAPORLAR / AYARLAR carry the disabled attribute in the
  * markup: they are placeholders for capabilities the backend does not have
  * yet, and clicking them must not pretend otherwise. */
-const VIEWS = { home: 'viewHome', analiz: 'viewAnaliz', gorevler: 'viewGorevler',
+const VIEWS = {
+  satislar: 'viewSatislar', kargo: 'viewKargo', musteri: 'viewMusteri',
+  tasarim: 'viewTasarim',
+  asistan: 'viewAsistan',
+  kreatifParti: 'viewKreatifParti', home: 'viewHome', analiz: 'viewAnaliz', gorevler: 'viewGorevler',
                 veri: 'viewVeri', ajanlar: 'viewAjanlar', fiyat: 'viewFiyat',
                 raporlar: 'viewRaporlar', ayarlar: 'viewAyarlar',
                 eticaret: 'viewEticaret', reklam: 'viewReklam',
@@ -140,13 +162,21 @@ function setView(name) {
   if (!VIEWS[name]) return;
   state.view = name;
   Object.entries(VIEWS).forEach(([key, id]) => { qs(id).hidden = key !== name; });
+  navAktifGrubuAc(name);
   document.querySelectorAll('.nav-item').forEach((btn) => {
     btn.classList.toggle('is-active', btn.dataset.view === name);
   });
   if (name === 'gorevler') { refreshActivity(); refreshProposals(); }
   if (name === 'fiyat') loadFiyatMatrisi();
   if (name === 'eticaret') loadUrunAlanlari();
+  if (name === 'satislar') loadSatislar();
+  if (name === 'kargo') loadKargo();
+  if (name === 'musteri') loadMusteri();
   if (name === 'reklam') loadKreatif();
+  if (name === 'kreatifParti') loadKreatifParti();
+  if (name === 'tasarim') tasarimYukle();
+  if (name === 'asistan') asistanYukle();
+  if (name === 'home') anaHaberYukle();
   if (name === 'hafiza') loadHafiza();
   if (PANEL_SECTIONS[name]) loadSection(name);
 }
@@ -156,6 +186,26 @@ qs('mainNav').addEventListener('click', (event) => {
   if (!btn || btn.disabled) return;
   setView(btn.dataset.view);
 });
+
+/* "N öneri onay bekliyor" sayacı tıklanabilir.
+ * Sayıyı görmek yetmiyordu: sahip sayıyı görüp nereye bakacağını
+ * aramak zorunda kalıyordu. Gösterge kendi hedefine götürmezse
+ * bilgi değil, ek iştir.
+ * CSP inline onclick'e izin vermiyor; bağlama burada yapılır.
+ * div olduğu için klavyeyle ulaşım ayrıca eklenir -- role=button
+ * tek başına tuşları çalıştırmaz, yalnız ekran okuyucuya söyler. */
+(() => {
+  const onayKart = qs('statApprovalsKart');
+  if (!onayKart) return;
+  const gorevlereGit = () => setView('gorevler');
+  onayKart.addEventListener('click', gorevlereGit);
+  onayKart.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      gorevlereGit();
+    }
+  });
+})();
 
 /* ---------------- polling ---------------- */
 function startPolling() {
@@ -464,8 +514,139 @@ async function refreshActivity() {
 }
 
 /* ---------------- proposals ---------------- */
+
+/* ==================================================================
+   ÖNERİ GÖVDESİ — okunabilir karar ekranı
+
+   🔴 ÖNCEDEN HAM JSON BASILIYORDU:
+       escapeHtml(JSON.stringify(body.payload, null, 2))
+   Yani onaylayacak kişi şunu görüyordu:
+       {"reason": "KREATİF ONAYI — HYDRAVIE\n~ 01-1x1.jpg (1:1) DUZELT\n..."}
+   Satır sonları "\n" olarak, içerik tek blok halinde, görseller sadece
+   yol metni olarak. Bu ekranda verilen "onay" gerçekte okunmamış bir
+   onaydır.
+
+   Artık gövde AYRIŞTIRILIYOR: başlık, etiketli satırlar, uyarı kutusu,
+   karar rozetleri ve GERÇEK GÖRSEL ÖNİZLEMELERİ. Ham JSON silinmedi,
+   kapalı bir <details> altına alındı -- gerektiğinde bakılabilsin.
+   ================================================================== */
+
+const ONERI_ROZET = {
+  '+': ['o-ok', 'GEÇER'], '~': ['o-orta', 'DÜZELT'], 'x': ['o-kotu', 'RED'],
+  '✔': ['o-ok', 'GEÇER'], '✘': ['o-kotu', 'RED'],
+};
+
+function oneriBaslik(reason) {
+  const ilk = String(reason || '').split('\n')[0] || '';
+  return ilk.replace(/^[A-ZÇĞİÖŞÜ ]+—\s*/, '').trim() || ilk.trim();
+}
+
+function oneriGovdesi(payload) {
+  const reason = String((payload && payload.reason) || '');
+  if (!reason.trim()) {
+    return '<p class="o-bos">Bu önerinin gövdesi boş. Onaylamayın: ' +
+      'neyi onayladığınız görünmüyor.</p>';
+  }
+  const satirlar = reason.split('\n');
+  const parcalar = [];
+  let liste = [];
+  const listeyiBosalt = () => {
+    if (liste.length) {
+      parcalar.push('<ul class="o-liste">' + liste.join('') + '</ul>');
+      liste = [];
+    }
+  };
+
+  satirlar.forEach((ham, i) => {
+    const s = ham.trim();
+    if (!s) { listeyiBosalt(); return; }
+
+    // Görsel yolu -> gerçek önizleme
+    const gorsel = s.match(/^(\/kreatif\/\S+\.(?:jpg|jpeg|png))$/i);
+    if (gorsel) {
+      listeyiBosalt();
+      parcalar.push(`<a class="o-gorsel" href="${escapeHtml(gorsel[1])}"
+        target="_blank" rel="noopener">
+        <img src="${escapeHtml(gorsel[1])}" alt="kreatif önizleme" loading="lazy">
+        <span>büyüt</span></a>`);
+      return;
+    }
+    // Klasör / belge bağlantısı
+    const bag = s.match(/(\/kreatif\/\S+)$/);
+    if (bag && !/\.(jpg|jpeg|png)$/i.test(bag[1])) {
+      listeyiBosalt();
+      const on = s.slice(0, s.length - bag[1].length).trim();
+      parcalar.push(`<p class="o-satir">${escapeHtml(on)}
+        <a class="o-link" href="${escapeHtml(bag[1])}" target="_blank"
+           rel="noopener">${escapeHtml(bag[1])}</a></p>`);
+      return;
+    }
+    // ONAY / RET sonucu -- kararin NE ANLAMA GELDIGI
+    // 🔴 Bu satir duz paragraf olarak basilirsa goz onu atliyordu. Karari
+    // veren kisi "onaylarsam ne olur" sorusunun cevabini gormeden
+    // tiklamamali.
+    if (/^ONAY\s*=/.test(s)) {
+      listeyiBosalt();
+      const yarim = s.split(/\s(?=RET\s*=)/);
+      parcalar.push(`<p class="o-sonuc">` +
+        yarim.map((y) => `<span>${escapeHtml(y.trim())}</span>`).join('') +
+        `</p>`);
+      return;
+    }
+    // Uyarı
+    if (s.startsWith('🔴')) {
+      listeyiBosalt();
+      parcalar.push(`<p class="o-uyari">${escapeHtml(s.replace(/^🔴\s*/, ''))}</p>`);
+      return;
+    }
+    // Karar rozetli satır:  ~ 01-1x1.jpg (1:1) DUZELT [ÖLÇÜM: ...]
+    const rozet = ONERI_ROZET[s[0]];
+    if (rozet && s.length > 2) {
+      listeyiBosalt();
+      const govde = s.slice(1).trim();
+      const olcum = govde.match(/\[([^\]]+)\]/);
+      const temiz = govde.replace(/\[[^\]]+\]/, '').trim();
+      parcalar.push(`<p class="o-karar">
+        <span class="o-rozet ${rozet[0]}">${rozet[1]}</span>
+        <span>${escapeHtml(temiz)}</span>
+        ${olcum ? `<em class="o-olcum">${escapeHtml(olcum[1])}</em>` : ''}</p>`);
+      return;
+    }
+    // Madde
+    if (s.startsWith('·') || s.startsWith('-') || s.startsWith('•')) {
+      liste.push(`<li>${escapeHtml(s.replace(/^[·\-•]\s*/, ''))}</li>`);
+      return;
+    }
+    // Etiketli satır:  alan   : Satış fiyatı
+    const et = s.match(/^([A-Za-zÇĞİÖŞÜçğıöşü _]{2,18})\s*:\s*(.+)$/);
+    if (et && i > 0) {
+      listeyiBosalt();
+      parcalar.push(`<p class="o-alan"><span class="o-et">${escapeHtml(et[1].trim())}</span>
+        <span class="o-dg">${escapeHtml(et[2].trim())}</span></p>`);
+      return;
+    }
+    // İlk satır = başlık
+    listeyiBosalt();
+    parcalar.push(i === 0
+      ? `<h4 class="o-baslik${/\?\s*$/.test(s) ? ' o-soru' : ''}">${escapeHtml(s)}</h4>`
+      : `<p class="o-satir">${escapeHtml(s)}</p>`);
+  });
+  listeyiBosalt();
+  return '<div class="o-govde">' + parcalar.join('') + '</div>';
+}
+
+function oneriHamJson(payload) {
+  return `<details class="o-ham"><summary>ham kayıt</summary>
+    <pre>${escapeHtml(JSON.stringify(payload, null, 2))}</pre></details>`;
+}
+
 function proposalCardHtml(p) {
+  // 🔴 Liste kartinda artik ONERININ KONUSU var. Eskiden yalniz
+  // "REQUEST_HUMAN_REVIEW #28" yaziyordu; ayni tipte on oneri yan yana
+  // durunca hangisinin ne oldugu ANLASILMIYORDU.
+  const baslik = oneriBaslik((p.payload || {}).reason);
   return `<div class="p-type">${escapeHtml(p.action_type)} <span class="risk-badge risk-${escapeHtml(p.risk_class)}">${escapeHtml(p.risk_class)}</span></div>
+    ${baslik ? `<div class="p-konu">${escapeHtml(baslik)}</div>` : ''}
     <div class="p-meta">#${escapeHtml(p.action_id)} · ${escapeHtml(fmtDateTime(p.proposed_at))}</div>`;
 }
 
@@ -499,7 +680,8 @@ async function openProposal(actionId) {
     <h3>${escapeHtml(body.action_type)} <span class="risk-badge risk-${escapeHtml(body.risk_class)}">${escapeHtml(body.risk_class)}</span></h3>
     <p><strong>#${escapeHtml(body.action_id)}</strong> · görev ${escapeHtml(body.task_id)} · ${escapeHtml(fmtDateTime(body.proposed_at))}</p>
     <p>Son geçerlilik: ${escapeHtml(fmtDateTime(body.expires_at))}</p>
-    <div class="evidence-block">${escapeHtml(JSON.stringify(body.payload, null, 2))}</div>
+    ${oneriGovdesi(body.payload)}
+    ${oneriHamJson(body.payload)}
     <label class="reason-label">GEREKÇE
       <input id="decisionReason" type="text" class="reason-input">
     </label>
@@ -726,7 +908,7 @@ function inlineMd(s) {
 function renderProposalCard(p) {
   return `<div class="chat-card">
     ${proposalCardHtml(p)}
-    ${p.payload ? `<div class="evidence-block">${escapeHtml(JSON.stringify(p.payload, null, 2))}</div>` : ''}
+    ${p.payload ? oneriGovdesi(p.payload) : ''}
   </div>`;
 }
 /* Ozetin arkasindaki satirlar. Native <details> kullaniliyor: mobilde
@@ -777,6 +959,8 @@ function addChatMessage(role, html, cls) {
   div.className = 'chat-msg ' + role + (cls ? ' ' + cls : '');
   div.innerHTML = html;
   if (role === 'jarvis') {
+    // Ekip kararı: 7 satırı geçen cevap kısaltılır (bkz. devaminiGor).
+    requestAnimationFrame(() => devaminiGor(div));
     const copyBtn = document.createElement('button');
     copyBtn.className = 'copy-btn';
     copyBtn.type = 'button';
@@ -1356,7 +1540,18 @@ function renderExecutionSurface() {
     if (el) el.textContent = 'kaynak: ' + source;
   });
   const domainSrc = qs('domainSrc');
-  if (domainSrc) domainSrc.textContent = state.lastRun ? 'yürütme kaydı' : (state.lastPlan ? 'plan' : 'plan yok');
+  /* 🔴 "plan yok" BİR HATA DEĞİL, BOŞ DURUMDU -- ama hata gibi okunuyordu.
+     Sahip "bunlarda neden plan yok" diye sordu. Şerit, SON ÇALIŞTIRILAN
+     planın alanlarını gösteriyor; hiç plan çalıştırılmadıysa doldurulacak
+     bir şey yok. Artık ne yapılacağını söylüyor. */
+  if (domainSrc) {
+    domainSrc.textContent = state.lastRun ? 'yürütme kaydı'
+      : (state.lastPlan ? 'plan hazır, çalıştırılmadı' : 'henüz çalıştırılmadı');
+    domainSrc.title = state.lastRun || state.lastPlan ? ''
+      : 'Bu şerit son çalıştırılan analizin alanlarını gösterir. '
+        + 'ANALİZ sekmesinden PLAN ÜRET → ÇALIŞTIR deyin, buraya sonuç düşsün.';
+    domainSrc.classList.toggle('plan-henuz', !state.lastRun && !state.lastPlan);
+  }
 
   renderRail();
   renderDomains();
@@ -1500,7 +1695,9 @@ function renderLessons(block) {
       ? '—' : `%${Math.round(lesson.approval_rate * 100)}`;
     return `<div class="kv${stuck ? ' is-bad' : ''}">
       <span class="kv-k">${escapeHtml(String(lesson.summary))}</span>
-      <span class="kv-v">${stuck ? 'BEKLEMEDE' : rate} · ${lesson.sample} vaka</span>
+      <span class="kv-v">${stuck
+        ? `BEKLEMEDE · ${lesson.sample} karar`
+        : `${rate} onay · ${lesson.decided}/${lesson.sample} karara bağlandı`}</span>
     </div>`;
   }).join('');
   const meta = `${block.decisions || 0} karar · ${block.model_calls || 0} model çağrısı`;
@@ -1535,16 +1732,89 @@ function renderUsage(block) {
     return card('MODEL KULLANIMI',
       `<p class="sect-note">Okunamadı: ${escapeHtml(String(block.error))}</p>`, '');
   }
+  /* Para biçimi: kuruşun altı da görünsün. Model çağrıları kuruşun
+     onda biri mertebesinde; 2 hane yuvarlarsak hepsi "0,00 TL" olur ve
+     tablo hiçbir şey anlatmaz. */
+  const para = (x, hane) => (x === null || x === undefined)
+    ? '—'
+    : Number(x).toLocaleString('tr-TR', {
+        minimumFractionDigits: hane, maximumFractionDigits: hane });
+
   const rows = (block.providers || []).map((p) => {
     const tok = (p.prompt_tokens || 0) + (p.completion_tokens || 0);
-    return `<div class="kv${p.paid ? ' is-bad' : ''}">
-      <span class="kv-k">${escapeHtml(String(p.provider))}${p.paid ? ' · ÜCRETLİ' : ''}</span>
-      <span class="kv-v">${p.calls} çağrı · ${tok.toLocaleString('tr-TR')} token · ort ${p.avg_s}s${
-        p.failed ? ` · ${p.failed} hata` : ''}</span>
+    /* 🔴 Birim fiyat GİRDİ ve ÇIKTI diye AYRI yazılır. Tek bir "ortalama
+       fiyat" yazmak yanıltırdı: çıktı tokeni girdinin 5-8 katı ve oran
+       her işte değişir. */
+    const birim = (p.birim_girdi_usd_m === null || p.birim_girdi_usd_m === undefined)
+      ? `<i class="mk-yok">${escapeHtml(String(p.fiyat_notu || 'fiyat tanımsız'))}</i>`
+      : `girdi $${para(p.birim_girdi_usd_m, 2)} · çıktı $${para(p.birim_cikti_usd_m, 2)} /M`;
+    /* 🔴 Kurulu ama hic cagrilmamis saglayici, "0,00 TL" yazsaydi
+       "bedava calisiyor" gibi okunurdu. Ayri bir ifade gerekiyor. */
+    const maliyet = p.kullanilmadi
+      ? 'hiç çağrılmadı'
+      : ((p.maliyet_try === null || p.maliyet_try === undefined)
+          ? '—'
+          : `${para(p.maliyet_try, 4)} TL`);
+    const basi = (p.cagri_basi_try === null || p.cagri_basi_try === undefined)
+      ? ''
+      : ` · çağrı başı ${para(p.cagri_basi_try, 4)} TL`;
+    return `<div class="kv mk-satir${p.parali ? ' is-bad' : ''}${
+      p.kullanilmadi ? ' mk-bos' : ''}">
+      <span class="kv-k">
+        <span class="mk-ad"><b>${escapeHtml(String(p.provider))}</b>${
+          /* 🔴 ROZET FİYATA BAKAR, `paid` alanına DEĞİL. `paid` zincirde
+             "yalnız derin modda dene" demek; Gemini orada false ama
+             anahtarı faturalı, yani her çağrısı para harcıyor. Sahip
+             22.09.2026'da düzeltti: "gemini de ücretli bu arada." */
+          p.parali ? '<em class="mk-ucretli">ÜCRETLİ</em>'
+            : (p.parali === false ? '<em class="mk-bedava">ÜCRETSİZ</em>' : '')
+        }${
+          p.sadece_derin ? '<em class="mk-derin">yalnız derin mod</em>' : ''
+        }</span>
+        <small>${birim}</small>
+      </span>
+      <span class="kv-v">
+        <b>${escapeHtml(maliyet)}</b>
+        <small>${p.kullanilmadi
+          ? 'kurulu · zincirin sırası buraya gelmedi'
+          : `${p.calls} çağrı · ${tok.toLocaleString('tr-TR')} token · ort ${p.avg_s}s${
+              p.failed ? ` · ${p.failed} hata` : ''}${basi}`}</small>
+      </span>
     </div>`;
   }).join('');
-  const meta = `${block.total_calls || 0} çağrı · ${block.paid_calls || 0} ücretli (7 gün)`;
-  return card('MODEL KULLANIMI', rows || '<p class="sect-note">Kayıt yok.</p>', meta)
+
+  const t = block.fiyat_tablosu || {};
+  const toplam = (block.tahmini_maliyet_try === null || block.tahmini_maliyet_try === undefined)
+    ? ''
+    : `<div class="kv mk-toplam">
+        <span class="kv-k"><b>7 günün tahmini maliyeti</b></span>
+        <span class="kv-v"><b>${para(block.tahmini_maliyet_try, 2)} TL</b>
+          <small>$${para(block.tahmini_maliyet_usd, 4)} · kur ${para(t.usd_try, 2)}
+          (${escapeHtml(String(t.usd_try_tarih || ''))})</small></span>
+      </div>`;
+
+  /* Fiyatın YANINDA TARİHİ de durur. Tablo eskirse panel bunu söyler --
+     sessizce eski rakam göstermek, rakam göstermemekten kötüdür. */
+  const tabloNotu = t.gecerlilik
+    ? `<p class="sect-note${t.bayat ? ' mk-bayat' : ''}">
+        Liste fiyatları ${escapeHtml(String(t.gecerlilik))} tarihinde sağlayıcıların
+        resmî sayfalarından alındı${t.gun_gecti ? ` (${t.gun_gecti} gün önce)` : ''}.
+        ${t.bayat ? '⚠ Tablo eskimiş olabilir, güncellenmeli. ' : ''}
+        ${escapeHtml(String(t.uyari || ''))}</p>`
+    : '';
+
+  const bilinmeyen = (block.fiyati_bilinmeyen || []).length
+    ? `<p class="sect-note">Fiyatı tanımlı olmayan sağlayıcı:
+        ${escapeHtml((block.fiyati_bilinmeyen || []).join(', '))} — bunlar toplama
+        KATILMADI (sıfır sayılmadı).</p>`
+    : '';
+
+  /* "1 ücretli" yazıyordu ve YANLIŞTI: o sayı `paid` bayrağını sayıyordu,
+     gerçekte 81 çağrının 80'i para harcamıştı. */
+  const meta = `${block.total_calls || 0} çağrı · ${block.paid_calls || 0} ücretli`
+    + `${block.ucretsiz_calls ? ` · ${block.ucretsiz_calls} ücretsiz` : ''} (7 gün)`;
+  return card('MODEL KULLANIMI', rows + toplam || '<p class="sect-note">Kayıt yok.</p>', meta)
+    + tabloNotu + bilinmeyen
     + `<p class="sect-note">${escapeHtml(String(block.note || ''))}</p>`;
 }
 
@@ -1582,11 +1852,32 @@ const EKIP_RENK = {
 };
 
 function renderEkip(data) {
-  const deps = data.departmanlar || [];
+  let deps = data.departmanlar || [];
+
+  /* Çemberden bir küme seçildiyse yalnız o küme gösterilir.
+     🔴 Sahip "şu anki halinde çok karmaşık duruyor" dedi: 45 departman
+     tek sayfada alt alta. Süzgeç, ana ekrandaki düğüme tıklayınca
+     devreye girer ve kaldırılabilir -- gizlemek değil, ODAKLAMAK. */
+  let filtreBaslik = '';
+  if (ekipFiltre && ekipFiltre.kodlar && ekipFiltre.kodlar.size) {
+    const tumu = deps.length;
+    deps = deps.filter((d) => ekipFiltre.kodlar.has(d.kod));
+    const konusan = deps.filter((d) => d.renk === 'yesil').length;
+    const bulgu = deps.reduce((t, d) => t + (d.arastirma_toplam || 0), 0);
+    filtreBaslik = `
+      <div class="ek-filtre">
+        <div>
+          <strong>${escapeHtml(ekipFiltre.ad)}</strong>
+          <span> · ${deps.length}/${tumu} departman · ${konusan} birim veriden konuştu
+            · ${bulgu} dış bulgu</span>
+        </div>
+        <button type="button" id="ekFiltreKaldir">TÜMÜNÜ GÖSTER</button>
+      </div>`;
+  }
   const oz = data.ozet || {};
   const renk = oz.renk || {};
 
-  const ozet = `
+  const ozet = filtreBaslik + `
     <div class="ek-ozet">
       <div class="ek-tile"><span class="ek-n">${oz.departman ?? 0}</span><span class="ek-k">departman</span></div>
       <div class="ek-tile"><span class="ek-n">${oz.kadrosu_olan ?? 0}</span><span class="ek-k">kadrosu var</span></div>
@@ -1632,6 +1923,74 @@ function renderEkip(data) {
   return ozet + bloklar;
 }
 
+
+/* ==================================================================
+   DEPARTMANIN BUGÜNÜ
+
+   Sahip: "içlerine girdiğimde bana bugün kendileri yaptıkları işleri,
+   varsa araştırmaları, öğrendiklerini raporlasınlar düzgünce."
+
+   🔴 VERİ ZATEN VARDI, ÖZETİ YOKTU. /api/panel/ekip her departman için
+   bulguları zaman damgasıyla veriyor; panel hepsini alt alta döküyor ve
+   "bugün ne oldu" sorusunun cevabı 40 satırın içinde kayboluyordu.
+
+   🔴 "BUGÜN 0" SAKLANMAZ. Bir departman bugün hiçbir şey yapmadıysa
+   bunu açıkça yazar. Boş bırakmak, çalışmayan birimi çalışıyor gibi
+   göstermenin en sessiz yoluydu.
+   ================================================================== */
+
+function ekipBugun(d) {
+  const bulgular = d.arastirma || [];
+  const bugun = new Date().toISOString().slice(0, 10);
+  const dun = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+
+  const gunluk = (g) => bulgular.filter(
+    (b) => String(b.zaman || '').slice(0, 10) === g);
+  const bugunku = gunluk(bugun);
+  const dunku = gunluk(dun);
+
+  const uyeler = d.uyeler || [];
+  const konusan = uyeler.filter((u) => u.durum === 'KONUŞTU');
+
+  // Öğrenilen konular: bugünkü bulguların KONU alanları, tekrarsız.
+  const konular = [...new Set(bugunku.map((b) => b.konu).filter(Boolean))];
+
+  const parcalar = [];
+  if (bugunku.length) {
+    parcalar.push(`<b>${bugunku.length}</b> yeni dış bulgu okudu`);
+  } else if (dunku.length) {
+    parcalar.push(`bugün yeni bulgu yok · dün <b>${dunku.length}</b> bulgu`);
+  } else {
+    parcalar.push('bugün ve dün yeni dış bulgu yok');
+  }
+  if (uyeler.length) {
+    parcalar.push(`<b>${konusan.length}/${uyeler.length}</b> üye veriden konuştu`);
+  } else {
+    parcalar.push('kadrosu kurulmamış');
+  }
+  if ((d.pazar_toplam || 0) > 0) {
+    parcalar.push(`<b>${d.pazar_toplam}</b> elle gözlem`);
+  }
+
+  return `
+    <div class="ek-bugun">
+      <div class="ek-bugun-ust">
+        <span class="ek-bugun-lbl">BUGÜN</span>
+        <span class="ek-bugun-ozet">${parcalar.join(' · ')}</span>
+      </div>
+      ${konular.length ? `<div class="ek-bugun-konu">
+        <span>çalıştığı konular:</span> ${konular.map((k) =>
+          `<i>${escapeHtml(String(k))}</i>`).join(' ')}
+      </div>` : ''}
+      ${bugunku.length ? `<ul class="ek-bugun-liste">${bugunku.slice(0, 3).map((b) =>
+        `<li><a href="${escapeHtml(b.url || '#')}" target="_blank" rel="noopener noreferrer">${
+          escapeHtml(b.baslik || '(başlıksız)')}</a>
+          <span class="ek-bugun-kaynak">${escapeHtml(b.yayinci || '')}</span></li>`).join('')}
+        ${bugunku.length > 3 ? `<li class="ek-bugun-daha">…${bugunku.length - 3} bulgu daha aşağıda</li>` : ''}
+      </ul>` : ''}
+    </div>`;
+}
+
 function ekipSatir(d) {
   const r = EKIP_RENK[d.renk] || EKIP_RENK.gri;
   const uyeler = d.uyeler || [];
@@ -1652,6 +2011,7 @@ function ekipSatir(d) {
      🔴 "Şirket ölçümü" ile "dışarıdan okunan iddia" ayrı çizilir. Bulgu
      kartı ayrı bir blokta ve her satırda yayıncısıyla durur; ikisini aynı
      yerde göstermek, bir blog yazısını kendi ölçümümüz sanmaya yol açar. */
+  const bugunBlok = ekipBugun(d);
   const ar = d.arastirma || [];
   const arastirmaBlok = ar.length ? `
     <div class="ek-ar">
@@ -1733,6 +2093,7 @@ function ekipSatir(d) {
         <span>otonomi: ${escapeHtml(d.otonomi_tavani || '—')}</span>
         <span>eskalasyon: ${escapeHtml(d.escalation || '—')}</span>
       </div>
+      ${bugunBlok}
       ${uyeListe}
       ${arastirmaBlok}
       ${pazarBlok}
@@ -1831,7 +2192,15 @@ document.addEventListener('click', async (ev) => {
     </div>`;
 });
 
-const SECTION_RENDERERS = { ekip: renderEkip, veri: renderVeri, ajanlar: renderAjanlar,
+function renderEkipVeCekirdek(data) {
+  // Aynı veri iki yerde kullanılır: EKİP panosu ve ana ekrandaki
+  // çekirdek. Çekirdeğe ayrı bir uç açmak, iki kaynağın zamanla
+  // ayrışması demekti.
+  cekirdekDurumUygula((data && data.departmanlar) || []);
+  return renderEkip(data);
+}
+
+const SECTION_RENDERERS = { ekip: renderEkipVeCekirdek, veri: renderVeri, ajanlar: renderAjanlar,
                             raporlar: renderRaporlar, ayarlar: renderAyarlar };
 
 async function loadSection(name) {
@@ -2180,14 +2549,7 @@ function fmBind() {
   const gonder = qs('fmSubmit');
   if (gonder) {
     gonder.addEventListener('click', () => {
-      // Onay kuyrugu ucu henuz yok. Olmayan bir seyi "gonderildi" diye
-      // gostermek yalan olurdu; acikca soyleriz.
-      const tally = qs('fmTally');
-      if (tally) {
-        tally.insertAdjacentHTML('beforeend',
-          '<li class="fm-t-miss">Onay kuyruğuna gönderme ucu henüz bağlanmadı; ' +
-          'hiçbir şey gönderilmedi.</li>');
-      }
+      fmOnayaGonder();
     });
   }
 }
@@ -2377,19 +2739,179 @@ function etBind() {
   const tablo = qs('etTable');
   if (tablo) {
     tablo.addEventListener('click', (e) => {
+      const kapat = e.target.closest('[data-dk-vazgec]');
+      if (kapat) { etDuzenleKapat(); return; }
+      const gonder = e.target.closest('[data-dk-gonder]');
+      if (gonder) { etDuzenleGonder(gonder); return; }
       const b = e.target.closest('.et-op');
       if (!b) return;
-      // Duzenleme ucu henuz bagli degil. Olmayan bir seyi "kaydedildi"
-      // diye gostermek yalan olurdu; acikca soyleriz.
-      const foot = qs('etFoot');
-      if (foot) {
-        foot.className = 'fm-foot is-bad';
-        foot.textContent = `"${b.dataset.alan}" alanı için düzenleme ucu ` +
-          'henüz bağlanmadı — hiçbir değişiklik yapılmadı. Değişiklikler ' +
-          'onay kuyruğundan geçecek şekilde kurulacak.';
-      }
+      etDuzenleAc(b);
     });
   }
+}
+
+
+/* ==================================================================
+   DEĞİŞİKLİK ÖNERİSİ · onay kuyruğuna gönderme
+
+   Panelde iki düğme "henüz bağlanmadı" diyordu ve DOĞRU söylüyordu:
+   arkasında uç yoktu. Artık var ve zincir şu:
+
+       panel -> /api/degisiklik -> diske şartname -> görev ->
+       jarvis döngüsü öneriyi yazar -> ÖNERİLER'de sahip onaylar
+
+   🔴 "KAYDEDİLDİ" YAZMIYORUZ ve bu bilinçli. Sözleşmede bu eylem
+   tiplerinde execution_enabled=false; onay Wix'i/Trendyol'u
+   DEĞİŞTİRMİYOR, değişikliğin yapılmasına karar verildiğini kaydediyor.
+   Kullanıcıya "kaydedildi" demek, eski bağlanmamış hâlinden daha kötü
+   bir yalan olurdu.
+   ================================================================== */
+
+async function degisiklikGonder(govde) {
+  const r = await api('/api/degisiklik', {
+    method: 'POST', body: JSON.stringify(govde),
+  });
+  return r;
+}
+
+function etSeciliUrunAdi() {
+  const u = (etState.urunler || []).find(
+    (x) => String(x.urun_id) === String(etState.secili));
+  return u ? String(u.urun_adi || '') : '';
+}
+
+function etSatirBul(sira, alan) {
+  return (etState.rows || []).find(
+    (r) => String(r.sira) === String(sira) && String(r.alan) === String(alan));
+}
+
+function etDuzenleKapat() {
+  const eski = document.querySelector('.et-duzenle-satir');
+  if (eski) eski.remove();
+}
+
+function etDuzenleAc(dugme) {
+  etDuzenleKapat();
+  const tr = dugme.closest('tr');
+  if (!tr) return;
+  const alan = dugme.dataset.alan;
+  const sira = dugme.dataset.sira;
+  const satir = etSatirBul(sira, alan);
+  // Mevcut deger: Wix yazilabiliyorsa Wix, degilse Trendyol. Hangisinin
+  // gosterildigi ONEMLI -- onaylayan insan neyin degistigini bilmeli.
+  let mevcut = '';
+  let kaynak = '';
+  if (satir) {
+    if (satir.wix_yazilabilir && satir.wix_deger !== null && satir.wix_deger !== undefined) {
+      mevcut = String(satir.wix_deger); kaynak = 'Wix';
+    } else if (satir.trendyol_deger !== null && satir.trendyol_deger !== undefined) {
+      mevcut = String(satir.trendyol_deger); kaynak = 'Trendyol';
+    }
+  }
+  const yeni = document.createElement('tr');
+  yeni.className = 'et-duzenle-satir';
+  yeni.innerHTML = `
+    <td colspan="5">
+      <div class="dk-kutu" data-dk-alan="${escapeHtml(String(alan))}"
+           data-dk-sira="${escapeHtml(String(sira))}">
+        <div class="dk-baslik">${escapeHtml(String(alan))} — değişiklik önerisi</div>
+        <label class="dk-etiket">Şu anki değer${kaynak ? ' (' + kaynak + ')' : ''}
+          <input class="dk-girdi" type="text" value="${escapeHtml(mevcut)}" readonly></label>
+        <label class="dk-etiket">Önerilen yeni değer
+          <input class="dk-girdi" type="text" data-dk-yeni value="${escapeHtml(mevcut)}"></label>
+        <label class="dk-etiket">Gerekçe — onaylayan bunu görecek
+          <textarea class="dk-girdi dk-alan" data-dk-gerekce rows="2"
+            placeholder="Neden değişsin? Hangi ölçüme dayanıyor?"></textarea></label>
+        <div class="dk-dugmeler">
+          <button type="button" class="dk-btn dk-btn-ana" data-dk-gonder>ONAYA GÖNDER</button>
+          <button type="button" class="dk-btn" data-dk-vazgec>Vazgeç</button>
+        </div>
+        <p class="dk-not">Onay, değişikliğin yapılmasına karar verildiğini
+          kaydeder. Wix/Trendyol tarafında değişikliği insan uygular.</p>
+        <p class="dk-sonuc" data-dk-sonuc hidden></p>
+      </div>
+    </td>`;
+  tr.insertAdjacentElement('afterend', yeni);
+  const odak = yeni.querySelector('[data-dk-yeni]');
+  if (odak) odak.focus();
+}
+
+async function etDuzenleGonder(dugme) {
+  const kutu = dugme.closest('.dk-kutu');
+  if (!kutu) return;
+  const sonuc = kutu.querySelector('[data-dk-sonuc]');
+  const alan = kutu.dataset.dkAlan;
+  const satir = etSatirBul(kutu.dataset.dkSira, alan);
+  const yeni = (kutu.querySelector('[data-dk-yeni]') || {}).value || '';
+  const gerekce = (kutu.querySelector('[data-dk-gerekce]') || {}).value || '';
+  let eski = '';
+  if (satir) {
+    eski = satir.wix_yazilabilir && satir.wix_deger !== null && satir.wix_deger !== undefined
+      ? String(satir.wix_deger)
+      : String(satir.trendyol_deger === null || satir.trendyol_deger === undefined
+        ? '' : satir.trendyol_deger);
+  }
+  dugme.disabled = true;
+  const yanit = await degisiklikGonder({
+    tur: 'tek_alan', urun_id: etState.secili, urun_adi: etSeciliUrunAdi(),
+    alan, eski, yeni, gerekce,
+  });
+  dugme.disabled = false;
+  if (!sonuc) return;
+  sonuc.hidden = false;
+  const govde = yanit && yanit.body;
+  if (!govde || !govde.ok) {
+    sonuc.className = 'dk-sonuc is-bad';
+    sonuc.textContent = (govde && govde.error)
+      ? String(govde.error)
+      : 'Öneri hazırlanamadı — hiçbir değişiklik yapılmadı.';
+    return;
+  }
+  sonuc.className = 'dk-sonuc is-ok';
+  sonuc.textContent = 'Öneri onay kuyruğuna hazırlandı (görev #' +
+    String(govde.task_id || '?') + '). ÖNERİLER sekmesinde çıkacak.';
+}
+
+async function fmOnayaGonder() {
+  const tally = qs('fmTally');
+  const ekle = (sinif, metin) => {
+    if (tally) {
+      tally.insertAdjacentHTML('beforeend',
+        '<li class="' + sinif + '">' + escapeHtml(metin) + '</li>');
+    }
+  };
+  const on = fmState.preview;
+  if (!on) {
+    ekle('fm-t-miss', 'Önce önizleme alın; gönderilecek satır yok.');
+    return;
+  }
+  // 🔴 Onizlemenin DEGISEN satirlari gonderilir, hepsi degil. Degismeyen
+  // satiri onaya koymak, onaylayana yapilmayacak isi okutmaktir.
+  const ham = on.satirlar || on.rows || [];
+  const satirlar = ham.map((r) => ({
+    urun: r.urun_adi || r.urun || '',
+    eski: r.gecerli_fiyat !== undefined ? r.gecerli_fiyat : r.eski,
+    yeni: r.yeni_fiyat !== undefined ? r.yeni_fiyat : r.yeni,
+  })).filter((r) => r.eski !== undefined && r.yeni !== undefined
+    && String(r.eski) !== String(r.yeni));
+  if (!satirlar.length) {
+    ekle('fm-t-miss', 'Önizlemede değişen satır yok; hiçbir şey gönderilmedi.');
+    return;
+  }
+  const gerekce = (qs('fmGerekce') || {}).value
+    || 'Fiyat matrisi önizlemesinden toplu değişiklik önerisi.';
+  const yanit = await degisiklikGonder({
+    tur: 'toplu_fiyat', satirlar, gerekce,
+  });
+  const govde = yanit && yanit.body;
+  if (!govde || !govde.ok) {
+    ekle('fm-t-bad', (govde && govde.error)
+      ? String(govde.error) : 'Öneri hazırlanamadı — hiçbir şey gönderilmedi.');
+    return;
+  }
+  ekle('fm-t-ok', satirlar.length + ' satırlık fiyat önerisi onay kuyruğuna ' +
+    'hazırlandı (görev #' + String(govde.task_id || '?') + '). Onay, ' +
+    'değişikliğin yapılmasına karar verildiğini kaydeder; fiyatı insan uygular.');
 }
 
 etBind();
@@ -3068,3 +3590,1713 @@ function hfBind() {
 }
 
 hfBind();
+
+/* ==================================================================
+   KREATİF PARTİLERİ
+
+   Sahip 21.09.2026: "bunları panelden görebilmek istiyorum."
+
+   Burada gösterilen her şey DİSKTEKİ dosyalardan gelir; ayrı bir tablo
+   tutulmaz. Bir partinin görseli yoksa gizlenmez -- ONAY_BEKLIYOR diye
+   görünür, çünkü hangi partinin nerede takıldığı sahibin bilmesi gereken
+   şeyin ta kendisi.
+   ================================================================== */
+
+const kpState = { partiler: [], acik: null };
+
+const KP_DURUM = {
+  ONAY_BEKLIYOR: 'promptlar hazır · görsel onay bekliyor',
+  GORSEL_VAR: 'görsel üretildi · inceleme yok',
+  GORSEL_INCELENDI: 'görsel üretildi ve ekip inceledi',
+};
+
+const KP_KARAR = { GECER: 'kp-ok', DUZELT: 'kp-orta', RED: 'kp-kotu' };
+
+async function loadKreatifParti() {
+  const { body } = await api('/api/kreatif-parti');
+  kpState.partiler = (body && body.partiler) || [];
+  renderKreatifParti();
+}
+
+/* Konu -> muhatap eşlemesi arayüzde TEKRARLANMAZ; uç `\/muhatap` ile
+ * söyler. Burada iki yerde tutulsaydı biri güncellenir öteki unutulurdu
+ * ve panel yanlış departmanı gösterirdi. */
+const KP_KONULAR = [
+  ['LOGO', 'Logo / yerleşim yanlış'],
+  ['URUN', 'Karede yanlış ürün'],
+  ['METIN', 'Metin / iddia sorunu'],
+  ['MARKA', 'Marka dili, ton'],
+  ['DIGER', 'Başka bir sorun'],
+];
+
+/* 🔴 İNDİRME BAĞLANTISI: "download" özniteliği olmadan görseli
+ * kaydetmenin tek yolu sağ tık / uzun basmaydı; mobilde çoğu kez ekran
+ * görüntüsüne düşülüyordu ve o çözünürlüğü düşürür. Dosya adı da
+ * parti + kare adıyla anlamlı veriliyor.
+ *
+ * 🔴 BU YORUM ŞABLON DİZGİSİNİN DIŞINDA DURMALI. İçine yazmıştım ve
+ * içindeki ters tırnaklar dizgiyi erken kapatıp app.js'i tamamen
+ * bozmuştu (SyntaxError). Şablon dizgisi içinde ters tırnak kullanılmaz.
+ */
+function kpKare(k, partiKlasor) {
+  const sinif = KP_KARAR[k.karar] || '';
+  const olcum = [];
+  if (k.beyaz_sapma !== null && k.beyaz_sapma !== undefined) {
+    olcum.push('beyaz sapma ' + k.beyaz_sapma);
+  }
+  if (k.urun_oran !== null && k.urun_oran !== undefined) {
+    olcum.push('ürün %' + Math.round(k.urun_oran * 100));
+  }
+  const gorusler = (k.inceleme || []).map((i) =>
+    `<li><b>${escapeHtml(String(i.uye || ''))}</b> ${escapeHtml(String(i.karar || ''))} — ` +
+    `${escapeHtml(String(i.gerekce || ''))}</li>`).join('');
+  return `<figure class="kp-kare">
+    <img src="${escapeHtml(String(k.url || ''))}" alt="${escapeHtml(String(k.ust_yazi || 'kreatif'))}" loading="lazy">
+    <figcaption>
+      <span class="kp-rozet ${sinif}">${escapeHtml(String(k.karar || '?'))}</span>
+      <span class="kp-oran">${escapeHtml(String(k.oran || ''))}</span>
+      <strong>${escapeHtml(String(k.ust_yazi || ''))}</strong>
+      <span class="kp-alt">${escapeHtml(String(k.alt_yazi || ''))}</span>
+      ${olcum.length ? `<span class="kp-olcum">ÖLÇÜM: ${escapeHtml(olcum.join(' · '))}</span>` : ''}
+      ${gorusler ? `<details><summary>ekip görüşü</summary><ul class="kp-gorus">${gorusler}</ul></details>` : ''}
+      <a class="kp-link" href="${escapeHtml(String(k.etiket_url || ''))}" target="_blank" rel="noopener">ambalaj yakın planı</a>
+      <div class="kp-eylem">
+        <a class="kp-indir" download="${escapeHtml(String(partiKlasor || 'kreatif'))}-${escapeHtml(String(k.dosya || 'gorsel.jpg'))}"
+           href="${escapeHtml(String(k.url || ''))}">TAM ÇÖZÜNÜRLÜK İNDİR</a>
+        <button type="button" class="kp-itiraz-ac"
+                data-kp-itiraz="${escapeHtml(String(k.dosya || ''))}"
+                data-kp-parti="${escapeHtml(String(partiKlasor || ''))}">BUNDA SORUN VAR</button>
+      </div>
+      <div class="kp-itiraz" data-kp-form="${escapeHtml(String(k.dosya || ''))}" hidden></div>
+    </figcaption>
+  </figure>`;
+}
+
+/* İtiraz formu. Muhatap SEÇTİRİLMEZ: konu seçilince uca sorulur ve
+ * "kime gidiyor, o departman bu görsele daha önce ne demişti" ekranda
+ * yazar. Sahibe "kime soralım?" diye sormak, cevabını sistemin bilmesi
+ * gereken soruyu ona yüklemek olurdu. */
+function kpItirazFormu(parti, dosya) {
+  const secenek = KP_KONULAR.map(([k, ad]) =>
+    `<option value="${k}">${escapeHtml(ad)}</option>`).join('');
+  return `<div class="kp-if" data-kp-if-parti="${escapeHtml(parti)}" data-kp-if-dosya="${escapeHtml(dosya)}">
+    <label>Sorun ne?
+      <select class="dk-girdi" data-kp-konu>${secenek}</select></label>
+    <div class="kp-muhatap" data-kp-muhatap>muhatap sorgulanıyor…</div>
+    <label>Açıklama
+      <input class="dk-girdi" type="text" data-kp-aciklama
+             placeholder="örn. logo eski sürüm ve sağ altta olmalı"></label>
+    <div class="dk-dugmeler">
+      <button type="button" class="dk-btn dk-btn-ana" data-kp-gonder>İTİRAZI GÖNDER</button>
+      <button type="button" class="dk-btn" data-kp-vazgec>VAZGEÇ</button>
+    </div>
+    <p class="dk-sonuc" data-kp-sonuc hidden></p>
+  </div>`;
+}
+
+async function kpMuhatapGoster(kok) {
+  const kutu = kok.querySelector('[data-kp-muhatap]');
+  const konu = kok.querySelector('[data-kp-konu]').value;
+  kutu.textContent = 'muhatap sorgulanıyor…';
+  const { ok, body } = await api('/api/kreatif-itiraz/muhatap', {
+    method: 'POST',
+    body: JSON.stringify({
+      parti: kok.dataset.kpIfParti, dosya: kok.dataset.kpIfDosya, konu })
+  });
+  if (!ok || !body || body.error) {
+    kutu.textContent = (body && body.error) || 'muhatap bulunamadı';
+    return;
+  }
+  // 🔴 Bos cevap "undefined" olarak yazilmaz: kullanici bunu departman
+  // adi sanip itirazi gondermemeli. Muhatap yoksa GONDERIM de kapanir.
+  if (!body.muhatap) {
+    kutu.textContent = 'Muhatap belirlenemedi — bu görselin inceleme kaydı '
+      + 'okunamadı. İtiraz göndermeyin, kime gideceği belli değil.';
+    const g = kok.querySelector('[data-kp-gonder]');
+    if (g) g.disabled = true;
+    return;
+  }
+  const g = kok.querySelector('[data-kp-gonder]');
+  if (g) g.disabled = false;
+  const onceki = body.onceki_karari;
+  kutu.innerHTML = `<b>Muhatap: ${escapeHtml(String(body.muhatap))}</b>`
+    + (body.ust_merci
+        ? ` <span class="kp-ust">üst merci: ${escapeHtml(String(body.ust_merci))}</span>`
+        : '')
+    + (onceki
+        ? `<span class="kp-onceki">Bu görsele daha önce
+            <b>${escapeHtml(String(onceki.karar || ''))}</b> demişti:
+            “${escapeHtml(String(onceki.gerekce || '').slice(0, 220))}”</span>`
+        : '')
+    + (body.uyari ? `<span class="kp-uyari">${escapeHtml(String(body.uyari))}</span>` : '');
+}
+
+function kpPrompt(p) {
+  return `<details class="kp-prompt">
+    <summary>${escapeHtml(String(p.ad || ''))} <span class="kp-oran">${escapeHtml(String(p.oran || ''))}</span></summary>
+    <p class="kp-aci">${escapeHtml(String(p.hangi_aci || ''))}</p>
+    <p class="kp-yazi">“${escapeHtml(String(p.ust_yazi || ''))}” · ${escapeHtml(String(p.alt_yazi || ''))}</p>
+    <pre class="kp-istem">${escapeHtml(String(p.sahne_istemi || ''))}</pre>
+  </details>`;
+}
+
+function renderKreatifParti() {
+  const kutu = qs('kpListe');
+  if (!kutu) return;
+  if (!kpState.partiler.length) {
+    kutu.innerHTML = '<p class="fm-empty">Henüz kreatif partisi yok. ' +
+      'Haftalık koşu pazartesi 10:00\'da çalışır.</p>';
+    return;
+  }
+  kutu.innerHTML = kpState.partiler.map((p) => {
+    const acik = kpState.acik === p.parti;
+    const klasor = p.parti_klasor || (p.parti + '-gorseller');
+    const kareler = (p.kareler || []).map((k) => kpKare(k, klasor)).join('');
+    const promptlar = (p.promptlar || []).map(kpPrompt).join('');
+    const red = (p.red_team || []).map((r) =>
+      `<li><span class="kp-agirlik">${escapeHtml(String(r.agirlik || ''))}</span> ` +
+      `<b>“${escapeHtml(String(r.alinti || ''))}”</b> ${escapeHtml(String(r.itiraz || ''))} ` +
+      `<i>→ ${escapeHtml(String(r.duzeltme || ''))}</i></li>`).join('');
+    const kurul = (p.kurul || []).map((k) =>
+      `<li><b>${escapeHtml(String(k.uye || ''))}</b> — ${escapeHtml(String(k.soyledigi || ''))}</li>`).join('');
+    return `<article class="kp-parti${acik ? ' is-acik' : ''}">
+      <header class="kp-basi" data-kp-ac="${escapeHtml(p.parti)}">
+        <strong>${escapeHtml(String(p.urun_adi || p.parti))}</strong>
+        <span class="kp-durum">${escapeHtml(KP_DURUM[p.durum] || p.durum || '')}</span>
+        <span class="kp-tarih">${escapeHtml(String(p.uretildi || ''))}</span>
+      </header>
+      <div class="kp-ozet">
+        <span>${escapeHtml(String(p.fiyat_cumlesi || 'fiyat konumu ölçülemedi'))}</span>
+        <span>${(p.rakip_acilari || []).length} rakip açısı · ${p.kurul_sayisi} departman ·
+          ${p.silinen_cumle} cümle denetimden düştü${p.tutarsiz_reklam ?
+            ' · ⚠ ' + p.tutarsiz_reklam + ' eski reklamda çelişki' : ''}</span>
+        <a class="kp-link" href="${escapeHtml(String(p.brief_url || ''))}" target="_blank" rel="noopener">tam brief</a>
+      </div>
+      ${acik ? `<div class="kp-govde">
+        ${kareler ? `<h4>ÜRETİLEN GÖRSELLER</h4><div class="kp-kareler">${kareler}</div>` : ''}
+        <h4>HAZIR PROMPTLAR (${(p.promptlar || []).length})</h4>${promptlar}
+        ${red ? `<h4>RED TEAM</h4><ul class="kp-red">${red}</ul>` : ''}
+        ${kurul ? `<details><summary>EKİBİN GÖRÜŞÜ (${(p.kurul || []).length} departman)</summary>
+          <ul class="kp-kurul">${kurul}</ul></details>` : ''}
+      </div>` : ''}
+    </article>`;
+  }).join('');
+}
+
+function kpBind() {
+  const kutu = qs('kpListe');
+  if (!kutu) return;
+
+  // İtiraz formunu aç / kapat
+  kutu.addEventListener('click', (e) => {
+    const ac = e.target.closest('[data-kp-itiraz]');
+    if (ac) {
+      e.stopPropagation();          // parti başlığının açılmasını tetiklemesin
+      const dosya = ac.dataset.kpItiraz;
+      const alan = kutu.querySelector(`[data-kp-form="${CSS.escape(dosya)}"]`);
+      if (!alan) return;
+      if (!alan.hidden) { alan.hidden = true; alan.innerHTML = ''; return; }
+      alan.hidden = false;
+      alan.innerHTML = kpItirazFormu(ac.dataset.kpParti, dosya);
+      const form = alan.querySelector('.kp-if');
+      kpMuhatapGoster(form);
+      form.querySelector('[data-kp-konu]')
+          .addEventListener('change', () => kpMuhatapGoster(form));
+      form.querySelector('[data-kp-vazgec]').addEventListener('click', () => {
+        alan.hidden = true; alan.innerHTML = '';
+      });
+      form.querySelector('[data-kp-gonder]')
+          .addEventListener('click', () => kpItirazGonder(form));
+      return;
+    }
+  });
+
+  kutu.addEventListener('click', (e) => {
+    if (e.target.closest('.kp-itiraz') || e.target.closest('.kp-eylem')) return;
+    const b = e.target.closest('[data-kp-ac]');
+    if (!b) return;
+    const p = b.dataset.kpAc;
+    kpState.acik = (kpState.acik === p) ? null : p;
+    renderKreatifParti();
+  });
+}
+
+kpBind();
+
+/* ==================================================================
+   MENÜ · gruplar, mobil çekmece, aktif grubun kendini açması
+
+   🔴 `setView` ve `data-view` SÖZLEŞMESİNE DOKUNULMADI. Gezinme hâlâ
+   `closest('.nav-item')` üzerinden çalışıyor; buradaki kod yalnız
+   SARMALAYICININ açılıp kapanmasını yönetir. Böylece bir grup yanlış
+   davransa bile sekmeler çalışmaya devam eder.
+   ================================================================== */
+
+
+/* ==================================================================
+ * TASARIM — şablon kütüğü + iş defteri
+ *
+ * Sahip 22.09.2026: "canva ile ilgili ayrı bir sekme, ayrı müdürlük".
+ * Buradaki iki liste iki ayrı soruya cevap verir:
+ *   Şablon kütüğü -> "katalog istiyorum" dendiğinde YAPILABİLİR Mİ?
+ *   İş defteri    -> ne üretildi, onay bekleyen var mı?
+ * ================================================================== */
+async function tasarimYukle() {
+  const sablonKutu = qs('tasarimSablonlar');
+  const isKutu = qs('tasarimIsler');
+  if (!sablonKutu || !isKutu) return;
+  try {
+    const d = await getJSON('/api/tasarim');
+    const sablonlar = d.sablonlar || [];
+    if (!sablonlar.length) {
+      // Boş kütük bir HATA değil, bir DURUM: hangi işin yapılamayacağını
+      // söylemek, boş kutu göstermekten yararlı.
+      sablonKutu.innerHTML = '<p class="fm-sub">Kütükte şablon yok. '
+        + 'Şablonsuz iş türü üretilemez — bir Canva tasarımının alanları '
+        + 'işaretlenip kütüklenmeli.</p>';
+    } else {
+      sablonKutu.innerHTML = sablonlar.map((s) => {
+        const alanlar = Object.keys(s.alan_haritasi || {}).join(', ');
+        return '<details class="detail-block"><summary><strong>'
+          + escapeHtml(s.ad) + '</strong><span class="pill">' + escapeHtml(s.is_turu)
+          + '</span></summary><div class="fm-sub oo-govde">Canva: ' + escapeHtml(s.canva_id)
+          + ' · Alanlar: ' + escapeHtml(alanlar) + '<br>' + escapeHtml(s.gerekce)
+          + '</div></details>';
+      }).join('');
+    }
+
+    const isler = d.isler || [];
+    if (!isler.length) {
+      isKutu.innerHTML = '<p class="fm-sub">Henüz tasarım üretilmedi.</p>';
+      return;
+    }
+    isKutu.innerHTML = isler.map((i) => {
+      const bekliyor = i.onay_bekliyor;
+      const rozet = i.durum === 'BASARISIZ'
+        ? '<span class="pill pill-red">ÜRETİLMEDİ</span>'
+        : (bekliyor ? '<span class="pill pill-amber">ONAY BEKLİYOR</span>'
+                    : '<span class="pill">' + escapeHtml(i.onay || '-') + '</span>');
+      // Mevzuat kapısı kestiyse SEBEBİ görünsün; "üretilmedi" tek başına
+      // öğretmez, hangi ifadenin kesildiği öğretir.
+      const d2 = i.denetim || {};
+      const bulgu = (d2.bulgu || []).filter((b) => b.label === 'BLOCKED');
+      const sebep = bulgu.length
+        ? '<div class="fm-sub">Kesilen: ' + escapeHtml(bulgu.map((b) => b.matched).join(', ')) + '</div>'
+        : '';
+      const oran = d2.oran_uyarisi
+        ? '<div class="fm-sub">⚠ ' + escapeHtml(d2.oran_uyarisi) + '</div>' : '';
+      const bag = i.disa_aktarim
+        ? '<div class="fm-sub"><a href="' + escapeHtml(i.disa_aktarim)
+          + '" target="_blank" rel="noopener">çıktıyı indir</a></div>' : '';
+      return '<details class="detail-block"><summary><strong>'
+        + escapeHtml(i.istek || '(istek yok)') + '</strong>' + rozet
+        + '</summary><div class="fm-sub oo-govde">' + escapeHtml(i.is_turu) + ' · '
+        + escapeHtml(i.sablon_adi || '-') + ' · isteyen: ' + escapeHtml(i.isteyen)
+        + '</div>' + sebep + oran + bag + '</details>';
+    }).join('');
+  } catch (err) {
+    sablonKutu.textContent = 'Tasarım verisi okunamadı: ' + err;
+    isKutu.textContent = '';
+  }
+}
+
+
+/* ==================================================================
+ * ASİSTAN — hatırlatıcılar (ayrı sekme) + haberler (ana sayfa)
+ * Sahip: "kişisel asistanımı farklı bir bölümde, hatırlatıcılar ve
+ * haberleri ana sayfada görebilmek istiyorum, buranın düzeni önemli."
+ * ================================================================== */
+function haberSatiri(h) {
+  var kaynak = h.kaynak_url
+    ? '<a href="' + escapeHtml(h.kaynak_url) + '" target="_blank" rel="noopener">'
+      + escapeHtml(h.kaynak_adi || 'kaynak') + '</a>'
+    : escapeHtml(h.kaynak_adi || '');
+  return '<details class="detail-block"><summary><strong>'
+    + escapeHtml(h.baslik || '') + '</strong><span class="pill">'
+    + escapeHtml(h.aci || '') + '</span></summary>'
+    + '<div class="oo-govde">'
+    + '<div class="fm-sub">' + escapeHtml(h.ozet || '') + '</div>'
+    + (h.neden_onemli
+        ? '<div class="fm-sub">Neden önemli: ' + escapeHtml(h.neden_onemli) + '</div>'
+        : '')
+    + '<div class="fm-sub">' + kaynak + ' · ' + escapeHtml(h.gun || '') + '</div>'
+    + '</div></details>';
+}
+
+async function anaHaberYukle() {
+  var kutu = qs('anaHaber');
+  if (!kutu) return;
+  try {
+    var d = await getJSON('/api/asistan');
+    var hb = d.haberler || [];
+    if (!hb.length) {
+      // Boş olmak bir HATA değil: bülten o gün yeni bir şey bulmamış olabilir.
+      kutu.innerHTML = '<p class="fm-sub">Bugün için yeni haber yok.</p>';
+      return;
+    }
+    kutu.innerHTML = hb.map(haberSatiri).join('');
+  } catch (err) {
+    kutu.textContent = 'Haberler okunamadı: ' + err;
+  }
+}
+
+/* ASİSTAN alt sekmeleri: hatırlatıcılar · gündem&haberler · onaylar&imzalar
+ * 🔴 Sekme değişimi VERİYİ YENİDEN ÇEKMEZ; üçü de tek /api/asistan
+ * çağrısından beslenir. Her tıklamada istek atmak hızlı gezinende
+ * yarış durumu üretir. */
+var AS_PANEL = { hatirlatici: 'asPanelHatirlatici',
+                 gundem: 'asPanelGundem', onay: 'asPanelOnay' };
+
+function asSekmeSec(ad) {
+  Object.keys(AS_PANEL).forEach(function (k) {
+    var p = qs(AS_PANEL[k]);
+    if (p) p.hidden = (k !== ad);
+  });
+  document.querySelectorAll('.as-tab').forEach(function (b) {
+    b.classList.toggle('is-active', b.dataset.as === ad);
+  });
+}
+
+/* 🔴 <details> OLMALI, <div> DEGIL.
+ * Bu fonksiyon '<div class="detail-block">' uretiyordu. CSS ise tamamen
+ * <details> icin yazilmis: [open] durumu, ::-webkit-details-marker,
+ * okun donmesi. <summary> bir div icinde ACMAZ -- kart tiklanabilir
+ * gorunup tiklaninca hicbir sey yapmiyordu. */
+function onaySatiri(baslik, detay, kaynak, ek) {
+  return '<details class="detail-block"><summary><strong>'
+    + escapeHtml(baslik) + '</strong><span class="pill">'
+    + escapeHtml(kaynak) + '</span></summary><div class="fm-sub oo-govde">'
+    + escapeHtml(detay) + '</div>' + (ek || '') + '</details>';
+}
+
+/* Onay kuyrugundaki bir oneri: gercek alanlariyla, govdesiyle ve
+ * KARARIYLA. Alanlar _operator.list_pending() ciktisidir:
+ * action_id · action_type · payload · risk_class · proposed_at · expires_at
+ * (Eski kod p.title/p.summary/p.reason/p.id okuyordu; hicbiri yok.) */
+function oneriOnayKarti(p) {
+  var id = String(p.action_id);
+  var baslik = oneriBaslik((p.payload || {}).reason)
+    || p.action_type || ('Öneri #' + id);
+  return '<details class="detail-block" data-oneri="' + escapeHtml(id) + '">'
+    + '<summary><strong>' + escapeHtml(baslik) + '</strong>'
+    + '<span class="pill">' + escapeHtml(p.action_type || 'ÖNERİ') + '</span></summary>'
+    + '<div class="oo-govde">'
+    + '<p class="oo-kunye">#' + escapeHtml(id)
+    + ' · risk ' + escapeHtml(p.risk_class || '-')
+    + ' · ' + escapeHtml(fmtDateTime(p.proposed_at))
+    + '<br>son geçerlilik: ' + escapeHtml(fmtDateTime(p.expires_at)) + '</p>'
+    + oneriGovdesi(p.payload)
+    + '<label class="oo-gerekce">GEREKÇE<input type="text" class="reason-input"'
+    + ' data-oo-gerekce="' + escapeHtml(id) + '"'
+    + ' placeholder="isteğe bağlı — karar kaydına yazılır"></label>'
+    + '<div class="oo-dugmeler">'
+    + '<button type="button" class="btn-approve" data-oo-karar="APPROVED"'
+    + ' data-oo-id="' + escapeHtml(id) + '">ONAYLA</button>'
+    + '<button type="button" class="btn-reject" data-oo-karar="REJECTED"'
+    + ' data-oo-id="' + escapeHtml(id) + '">REDDET</button>'
+    + '</div>'
+    + '<p class="oo-durum" data-oo-durum="' + escapeHtml(id) + '"></p>'
+    + '</div></details>';
+}
+
+/* Karar dugmeleri. Olay delegasyonu: kartlar her yenilemede yeniden
+ * uretiliyor, tek tek baglamak kaybolan dinleyiciler birakirdi.
+ * CSP inline onclick'e izin vermiyor; baglama zaten burada olmali. */
+document.addEventListener('click', async function (e) {
+  var btn = e.target.closest('[data-oo-karar]');
+  if (!btn) return;
+  var id = btn.dataset.ooId;
+  var karar = btn.dataset.ooKarar;
+
+  /* 🔴 IKI ADIM. Bir is karari tek yanlis dokunusla onaylanmamali.
+   * Ayni karttaki diger dugme onaylama halinden cikarilir. */
+  if (btn.dataset.ooEmin !== '1') {
+    var kart = btn.closest('.detail-block');
+    if (kart) {
+      kart.querySelectorAll('[data-oo-karar]').forEach(function (b) {
+        if (b !== btn) {
+          delete b.dataset.ooEmin;
+          b.textContent = b.dataset.ooKarar === 'APPROVED' ? 'ONAYLA' : 'REDDET';
+        }
+      });
+    }
+    btn.dataset.ooEmin = '1';
+    btn.textContent = karar === 'APPROVED' ? 'EMİN MİSİN? ONAYLA' : 'EMİN MİSİN? REDDET';
+    return;
+  }
+
+  var durumEl = document.querySelector('[data-oo-durum="' + id + '"]');
+  var gerekceEl = document.querySelector('[data-oo-gerekce="' + id + '"]');
+  var gerekce = (gerekceEl && gerekceEl.value.trim())
+    || (karar === 'APPROVED' ? 'Operatör onayı' : 'Operatör reddi');
+
+  btn.disabled = true;
+  if (durumEl) { durumEl.className = 'oo-durum'; durumEl.textContent = 'Gönderiliyor…'; }
+  try {
+    await postJSON('/api/proposals/' + id + '/decide',
+                   { decision: karar, reason: gerekce });
+    if (durumEl) {
+      durumEl.className = 'oo-durum oo-ok';
+      durumEl.textContent = karar === 'APPROVED' ? 'Onaylandı.' : 'Reddedildi.';
+    }
+    /* 🔴 Listeyi yeniden cek. Karari kaydedip ekranda birakmak, sahibin
+     * ayni oneriyi ikinci kez onaylamaya calismasina yol acar. */
+    asistanYukle();
+    if (typeof refreshProposals === 'function') refreshProposals();
+    if (typeof refreshStatus === 'function') refreshStatus();
+  } catch (err) {
+    btn.disabled = false;
+    delete btn.dataset.ooEmin;
+    btn.textContent = karar === 'APPROVED' ? 'ONAYLA' : 'REDDET';
+    if (durumEl) {
+      durumEl.className = 'oo-durum oo-hata';
+      /* Sessiz basarisizlik YOK: sebep ekranda yazar. */
+      durumEl.textContent = 'Karar kaydedilemedi: ' + String(err.message || err);
+    }
+  }
+});
+
+async function asistanYukle() {
+  var d;
+  try {
+    d = await getJSON('/api/asistan');
+  } catch (err) {
+    var k = qs('htrListe'); if (k) k.textContent = 'Okunamadı: ' + err;
+    return;
+  }
+
+  /* ── 1 hatırlatıcılar */
+  var kutu = qs('htrListe');
+  if (kutu) {
+    var hs = d.hatirlaticilar || [];
+    kutu.innerHTML = hs.length ? hs.map(function (h) {
+      var rozet = h.gecikti
+        ? '<span class="pill pill-red">GECİKTİ</span>'
+        : (h.zamani_geldi ? '<span class="pill pill-amber">ZAMANI GELDİ</span>'
+                          : '<span class="pill">' + escapeHtml(h.onem) + '</span>');
+      var tk = h.tekrar ? '<span class="pill">' + escapeHtml(h.tekrar) + '</span>' : '';
+      return '<details class="detail-block"><summary><strong>'
+        + escapeHtml(h.baslik) + '</strong>' + rozet + tk + '</summary>'
+        + '<div class="oo-govde">'
+        + '<div class="fm-sub">' + escapeHtml(String(h.zaman || '').slice(0, 16))
+        + (h.not_ ? ' · ' + escapeHtml(h.not_) : '') + '</div>'
+        + '<div class="fm-sub"><button type="button" class="btn btn-sm" '
+        + 'data-htr-tamam="' + escapeHtml(String(h.id)) + '">'
+        + (h.tekrar ? 'Yapıldı, ötele' : 'Tamamlandı') + '</button></div>'
+        + '</div></details>';
+    }).join('') : '<p class="fm-sub">Açık hatırlatıcı yok.</p>';
+  }
+
+  /* ── 2 gündem & haberler */
+  var hk = qs('asHaber');
+  if (hk) {
+    var hb = d.haberler || [];
+    hk.innerHTML = hb.length ? hb.map(haberSatiri).join('')
+      : '<p class="fm-sub">Bugün için yeni haber yok.</p>';
+  }
+  var gk = qs('asGundem');
+  if (gk) {
+    var gd = d.gundem || [];
+    gk.innerHTML = gd.length ? gd.map(function (g) {
+      return '<details class="detail-block"><summary><strong>'
+        + escapeHtml(g.soru || '') + '</strong><span class="pill">'
+        + escapeHtml(g.oncelik || '') + '</span></summary>'
+        + '<div class="oo-govde">'
+        + '<div class="fm-sub">' + escapeHtml(g.neden_onemli || '') + '</div>'
+        + '<div class="fm-sub">Hedef: ' + escapeHtml(g.hedef || '-')
+        + ' · Durum: ' + escapeHtml(g.durum || '-') + '</div>'
+        + '</div></details>';
+    }).join('') : '<p class="fm-sub">Gündemde madde yok.</p>';
+  }
+
+  /* ── 3 onaylar & imzalar */
+  var ok = qs('asOneri');
+  if (ok) {
+    var op = d.oneriler || [];
+    ok.innerHTML = op.length ? op.map(oneriOnayKarti).join('')
+      : '<p class="fm-sub">Bekleyen öneri yok.</p>';
+  }
+  var tk2 = qs('asTasarimOnay');
+  if (tk2) {
+    var ts = d.tasarim_onay || [];
+    tk2.innerHTML = ts.length ? ts.map(function (t) {
+      var bag = t.disa_aktarim
+        ? '<div class="fm-sub"><a href="' + escapeHtml(t.disa_aktarim)
+          + '" target="_blank" rel="noopener">çıktıyı gör</a></div>' : '';
+      return onaySatiri(t.istek || ('Tasarım #' + t.is_id),
+                        (t.is_turu || '') + ' · ' + (t.sablon_adi || ''),
+                        'TASARIM', bag);
+    }).join('') : '<p class="fm-sub">Onay bekleyen tasarım yok.</p>';
+  }
+
+  /* sekme rozetinde toplam imza sayısı */
+  var sayi = (d.oneriler || []).length + (d.tasarim_onay || []).length;
+  var rz = qs('asOnaySayi');
+  if (rz) { rz.textContent = String(sayi); rz.hidden = (sayi === 0); }
+}
+
+document.addEventListener('click', function (e) {
+  var t = e.target.closest('.as-tab');
+  if (t) asSekmeSec(t.dataset.as);
+});
+
+document.addEventListener('click', async function (e) {
+  var ekle = e.target.closest('#htrEkle');
+  if (ekle) {
+    var b = qs('htrBaslik').value.trim();
+    var z = qs('htrZaman').value;
+    var durum = qs('htrDurum');
+    if (!b || !z) {
+      durum.textContent = 'Başlık ve zaman gerekli.';
+      return;
+    }
+    try {
+      await postJSON('/api/asistan', {
+        islem: 'ekle', baslik: b, zaman: z,
+        not_: qs('htrNot').value.trim(),
+        tekrar: qs('htrTekrar').value, onem: qs('htrOnem').value });
+      qs('htrBaslik').value = ''; qs('htrNot').value = '';
+      durum.textContent = 'Eklendi.';
+      asistanYukle();
+    } catch (err) { durum.textContent = 'Eklenemedi: ' + err; }
+    return;
+  }
+  var tamam = e.target.closest('[data-htr-tamam]');
+  if (tamam) {
+    try {
+      await postJSON('/api/asistan', {
+        islem: 'tamamla', id: Number(tamam.dataset.htrTamam) });
+      asistanYukle();
+    } catch (err) { /* liste yenilenince görünür */ }
+  }
+});
+
+const NAV_DURUM_ANAHTARI = 'jarvis.nav.kapali';
+
+function navKapaliOku() {
+  try { return new Set(JSON.parse(localStorage.getItem(NAV_DURUM_ANAHTARI) || '[]')); }
+  catch (_) { return new Set(); }
+}
+function navKapaliYaz(kume) {
+  // localStorage gizli pencerede ya da site verisi kapalıyken PATLAR;
+  // menünün açılıp kapanması buna bağlı olmamalı.
+  try { localStorage.setItem(NAV_DURUM_ANAHTARI, JSON.stringify([...kume])); }
+  catch (_) { /* tercih kaydedilemedi, menü yine çalışır */ }
+}
+
+function navGruplariKur() {
+  const nav = qs('mainNav');
+  if (!nav) return;
+  const kapali = navKapaliOku();
+
+  nav.querySelectorAll('.nav-group').forEach((g) => {
+    if (kapali.has(g.dataset.group)) {
+      g.classList.add('is-kapali');
+      const h = g.querySelector('.nav-head');
+      if (h) h.setAttribute('aria-expanded', 'false');
+    }
+  });
+
+  nav.addEventListener('click', (e) => {
+    const bas = e.target.closest('.nav-head');
+    if (!bas) return;
+    const grup = bas.closest('.nav-group');
+    if (!grup) return;
+    const kapandi = grup.classList.toggle('is-kapali');
+    bas.setAttribute('aria-expanded', kapandi ? 'false' : 'true');
+    const k = navKapaliOku();
+    if (kapandi) { k.add(grup.dataset.group); } else { k.delete(grup.dataset.group); }
+    navKapaliYaz(k);
+  });
+
+  // Mobil çekmece
+  const dugme = qs('navToggle');
+  if (dugme) {
+    dugme.addEventListener('click', () => {
+      const acik = nav.classList.toggle('is-acik');
+      dugme.setAttribute('aria-expanded', acik ? 'true' : 'false');
+    });
+  }
+  // Sekme seçilince mobil çekmece kapanır -- açık kalırsa içeriğin
+  // üstünü örtüyor ve kullanıcı her seferinde elle kapatmak zorunda.
+  nav.addEventListener('click', (e) => {
+    if (!e.target.closest('.nav-item')) return;
+    nav.classList.remove('is-acik');
+    if (dugme) dugme.setAttribute('aria-expanded', 'false');
+  });
+}
+
+/* Aktif sekmenin grubu KAPALIYSA kendini açar. Aksi halde bir sekmeye
+ * (ör. bildirimle) geçildiğinde hangi grupta olduğu görünmezdi. */
+function navAktifGrubuAc(name) {
+  const dugme = document.querySelector(`.nav-item[data-view="${name}"]`);
+  const grup = dugme && dugme.closest('.nav-group');
+  if (grup && grup.classList.contains('is-kapali')) {
+    grup.classList.remove('is-kapali');
+    const h = grup.querySelector('.nav-head');
+    if (h) h.setAttribute('aria-expanded', 'true');
+    const k = navKapaliOku(); k.delete(grup.dataset.group); navKapaliYaz(k);
+  }
+}
+
+navGruplariKur();
+
+/* ==================================================================
+   ZEKÂ ÇEKİRDEĞİ · tıklanabilir departman düğümleri + canlı durum
+
+   Sahip: "çevresindeki yazılar basılabilir olsun, o departmanın
+   sayfalarına yönlendirsin… çalışan birimler ana ekranda çalıştıkları
+   çıksın… konuşurken hareket etsin."
+
+   Düğümlerin durumu UYDURULMAZ: /api/panel/ekip her departman için zaten
+   bir renk hesaplıyor (yesil=veriden konuştu, sari=bekliyor,
+   kirmizi=veri yok, gri=kadrosuz). Düğüm, kümesindeki departmanların
+   renklerinden türetilir. Yeni bir "çalışıyor" tanımı icat etmek,
+   panelin iki yerde iki farklı şey söylemesi demekti.
+   ================================================================== */
+
+let ekipFiltre = null;   // {ad, kodlar:Set} — çemberden seçilen küme
+
+function cekirdekDugumleriKur() {
+  const svg = qs('jarvisCore');
+  if (!svg) return;
+
+  const ac = (g) => {
+    const kodlar = (g.dataset.dept || '').split(',').filter(Boolean);
+    if (!kodlar.length) return;
+    ekipFiltre = { ad: g.dataset.deptAd || '', kodlar: new Set(kodlar) };
+    setView('ekip');
+  };
+
+  svg.addEventListener('click', (e) => {
+    const g = e.target.closest('.onode');
+    if (g) ac(g);
+  });
+  // Klavye: düğümler role="button" tabindex="0"; fare olmadan da açılmalı.
+  svg.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const g = e.target.closest('.onode');
+    if (!g) return;
+    e.preventDefault();
+    ac(g);
+  });
+}
+
+/* Departman renklerini düğümlere taşır.
+   Bir düğüm, kümesinde EN AZ BİR yeşil departman varsa "çalışıyor". */
+function cekirdekDurumUygula(deps) {
+  const svg = qs('jarvisCore');
+  if (!svg || !Array.isArray(deps)) return;
+  const renkler = {};
+  deps.forEach((d) => { if (d && d.kod) renkler[d.kod] = d.renk; });
+
+  svg.querySelectorAll('.onode').forEach((g) => {
+    const kodlar = (g.dataset.dept || '').split(',').filter(Boolean);
+    let calisan = 0, kadrolu = 0;
+    kodlar.forEach((k) => {
+      const r = renkler[k];
+      if (r && r !== 'gri') kadrolu += 1;
+      if (r === 'yesil') calisan += 1;
+    });
+    g.classList.toggle('is-calisiyor', calisan > 0);
+    g.classList.toggle('is-bos', kadrolu === 0);
+    const ad = g.dataset.deptAd || '';
+    g.setAttribute('aria-label', calisan
+      ? `${ad}: ${calisan} birim çalışıyor — aç`
+      : (kadrolu ? `${ad}: bekliyor — aç` : `${ad}: kadrosuz — aç`));
+    // Çalışan düğüm sayısı kadar gecikme: hepsi aynı anda yanıp sönmesin.
+    g.style.setProperty('--gecikme', `${(kodlar.length % 5) * 0.4}s`);
+  });
+}
+
+/* Konuşma/dinleme hareketi. `core-state-*` sınıfı zaten vardı; buraya
+ * eklenen şey, durumun DIŞARIDAN tek bir yerden sürülmesi. */
+function cekirdekDurumu(durum) {
+  const svg = qs('jarvisCore');
+  if (!svg) return;
+  ['idle', 'dinliyor', 'dusunuyor', 'konusuyor'].forEach(
+    (d) => svg.classList.remove('core-state-' + d));
+  svg.classList.add('core-state-' + (durum || 'idle'));
+  const et = qs('coreStateLabel');
+  if (et) {
+    et.textContent = { dinliyor: 'DİNLİYOR', dusunuyor: 'DÜŞÜNÜYOR',
+                       konusuyor: 'KONUŞUYOR' }[durum] || 'HAZIR';
+  }
+}
+
+cekirdekDugumleriKur();
+
+
+/* Süzgeci kaldırma düğmesi. Delege dinleyici: EKİP panosu her yenilemede
+ * yeniden çizildiği için düğmeye doğrudan bağlanmak bir yenilemede kopardı. */
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#ekFiltreKaldir')) return;
+  ekipFiltre = null;
+  loadSection('ekip');
+});
+
+/* ==================================================================
+   SOHBET CEVABI · 7 satır + "devamını gör"
+
+   🔴 BU TASARIMI BEN SEÇMEDİM, EKİP SEÇTİ.
+   Sahip "bu görsel düzeltmeyi kreatif ekibe görev olarak ver, red team
+   çürütsün, müdür karar versin" dedi. Zincir koştu:
+     Sanat Yönetmeni    -> 6 satır
+     Kreatif Direktör   -> 7 satır + "devamını gör"
+     Marka Stratejisti  -> dinamik sınırlama
+     Red team           -> 3 itiraz (hepsi YÜKSEK)
+     Direktör kararı    -> Kreatif Direktör'ün önerisi, red team'in
+                           "yükseklik ekrana göre değişsin" itirazı
+                           KABUL EDİLEREK
+   Karar dosyası: state/tasarim/sohbet-cevap-kutusu-20260921-1609.json
+
+   Uygulanan maddeler (kararda yazdığı gibi):
+     · .chat-msg en fazla 7 satır
+     · 7. satırın altı "devamını gör" ile açılır
+     · düğme 0.85rem, 24px yükseklik, 10px padding
+     · max-width 78ch korunur
+     · düğme YALNIZ taşma varsa görünür
+   ================================================================== */
+
+const SOHBET_SATIR_SINIRI = 7;
+
+function devaminiGor(mesaj) {
+  // Taşma var mı? scrollHeight, clamp'lenmiş clientHeight'ı aşıyorsa var.
+  // 🔴 Ölçüm render'dan SONRA yapılmalı; yoksa her mesaja düğme konur ve
+  // kısa cevapta "devamını gör" boş yere görünür (red team'in itirazı).
+  if (!mesaj || mesaj.dataset.devamKuruldu) return;
+  mesaj.classList.add('is-kisali');
+  const tasma = mesaj.scrollHeight - mesaj.clientHeight > 4;
+  if (!tasma) {
+    mesaj.classList.remove('is-kisali');
+    mesaj.dataset.devamKuruldu = '1';
+    return;
+  }
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'chat-devam';
+  btn.textContent = 'DEVAMINI GÖR';
+  btn.addEventListener('click', () => {
+    const acik = mesaj.classList.toggle('is-acik');
+    mesaj.classList.toggle('is-kisali', !acik);
+    btn.textContent = acik ? 'DARALT' : 'DEVAMINI GÖR';
+  });
+  mesaj.appendChild(btn);
+  mesaj.dataset.devamKuruldu = '1';
+}
+
+/* ==================================================================
+   SATIŞLAR · tüm gönderiler, elle açıklama, dağıtım, stok
+
+   🔴 BAĞLI OLMAYAN KANAL GİZLENMEZ. `mart.siparis` içindeki 37 siparişin
+   hepsi Wix (kanal=WEB); Trendyol siparişleri sisteme HİÇ alınmıyor
+   (`raw.trendyol_order` tablosu yok). Panel "tüm platformlar" diye
+   göstermez, eksiği YAZAR -- eksik ciroyu tam göstermek, sahibin yanlış
+   karar vermesine yol açar.
+   ================================================================== */
+
+const SATIS_TUR_ETIKET = {
+  SATIS: 'satış', UGC: 'UGC içerik', INFLUENCER: 'influencer',
+  NUMUNE: 'numune', HEDIYE: 'hediye', IADE: 'iade',
+  DEGISIM: 'değişim', BILINMIYOR: 'bilinmiyor',
+};
+
+let satisVeri = null;
+
+async function loadSatislar() {
+  const { body } = await api('/api/satislar');
+  satisVeri = body || {};
+  renderSatislar();
+}
+
+function satisPara(x) {
+  if (x === null || x === undefined || x === '') return '—';
+  const n = Number(x);
+  return Number.isFinite(n) ? n.toLocaleString('tr-TR', {
+    minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' TL' : String(x);
+}
+
+function satisNotFormu(sip) {
+  const ref = sip ? sip.entity_id : '';
+  const urun = sip && sip.urunler ? String(sip.urunler).split(' x')[0] : '';
+  const turler = (satisVeri.turler || []).map((t) =>
+    `<option value="${escapeHtml(t)}">${escapeHtml(SATIS_TUR_ETIKET[t] || t)}</option>`).join('');
+  return `<div class="sn-form" data-sn-ref="${escapeHtml(String(ref))}">
+    <div class="sn-satir">
+      <label>Bu gönderi neydi?
+        <select class="dk-girdi" data-sn-tur>${turler}</select></label>
+      <label>Kime gitti
+        <input class="dk-girdi" type="text" data-sn-alici placeholder="ad / hesap"></label>
+    </div>
+    <div class="sn-satir">
+      <label>Ürün
+        <input class="dk-girdi" type="text" data-sn-urun value="${escapeHtml(urun)}"></label>
+      <label>Adet
+        <input class="dk-girdi" type="number" min="0" step="1" data-sn-adet value="1"></label>
+      <label>Değeri (fiyatsızsa siz yazın)
+        <input class="dk-girdi" type="number" min="0" step="0.01" data-sn-fiyat></label>
+    </div>
+    <label>Not
+      <input class="dk-girdi" type="text" data-sn-not placeholder="neden bedelsiz gitti, hangi iş için"></label>
+    <div class="dk-dugmeler">
+      <button type="button" class="dk-btn dk-btn-ana" data-sn-kaydet>KAYDET</button>
+    </div>
+    <p class="dk-sonuc" data-sn-sonuc hidden></p>
+  </div>`;
+}
+
+function renderSatislar() {
+  const kutu = qs('satisGovde');
+  if (!kutu || !satisVeri) return;
+  const sip = satisVeri.siparisler || [];
+  const bekleyen = satisVeri.aciklama_bekleyen || [];
+  const dagitim = satisVeri.dagitim || [];
+  const stok = satisVeri.stok || [];
+  const notlar = satisVeri.notlar || [];
+
+  const dogrulanan = sip.filter((s) => s.ciro_sinifi === 'DOGRULANMIS').length;
+  const toplamCiro = sip.reduce((t, s) =>
+    t + (Number(s.ciro_dogrulanmis_net) || 0), 0);
+
+  const ozet = `
+    <div class="ek-ozet">
+      <div class="ek-tile"><span class="ek-n">${sip.length}</span><span class="ek-k">gönderi</span></div>
+      <div class="ek-tile"><span class="ek-n">${dogrulanan}</span><span class="ek-k">doğrulanmış satış</span></div>
+      <div class="ek-tile ${bekleyen.length ? 'ek-tile-uyari' : ''}">
+        <span class="ek-n">${bekleyen.length}</span><span class="ek-k">açıklama bekliyor</span></div>
+      <div class="ek-tile"><span class="ek-n">${satisPara(toplamCiro)}</span><span class="ek-k">doğrulanmış ciro</span></div>
+    </div>
+    <p class="o-uyari">${escapeHtml(satisVeri.kanal_notu || '')}</p>`;
+
+  const bekleyenBlok = bekleyen.length ? `
+    <h3 class="rp-sub">AÇIKLAMA BEKLEYEN GÖNDERİLER
+      <span class="rp-src">fiyatı yok, iptal ya da yalnız beyan edilmiş — ne olduğunu siz yazın</span></h3>
+    <div class="sn-liste">
+      ${bekleyen.map((s) => `
+        <details class="sn-kart">
+          <summary>
+            <span class="sn-gun">${escapeHtml(String(s.gun || ''))}</span>
+            <span class="sn-no">#${escapeHtml(String(s.siparis_no || ''))}</span>
+            <span class="sn-urun">${escapeHtml(String(s.urunler || '—'))}</span>
+            <span class="sn-durum">${escapeHtml(String(s.ciro_sinifi || ''))} · ${escapeHtml(String(s.odeme_durumu || ''))}</span>
+          </summary>
+          ${satisNotFormu(s)}
+        </details>`).join('')}
+    </div>` : '<p class="sect-note">Açıklama bekleyen gönderi yok.</p>';
+
+  const dagitimBlok = `
+    <h3 class="rp-sub">ÜRÜN DAĞITIMI
+      <span class="rp-src">satılan ve bedelsiz giden AYRI sayılır</span></h3>
+    <div class="tablo-kab"><table>
+      <thead><tr><th>Ürün</th><th>Satılan</th><th>Bedelsiz</th><th>Toplam çıkan</th></tr></thead>
+      <tbody>${dagitim.map((d) => `<tr>
+        <td>${escapeHtml(String(d.urun_adi || ''))}</td>
+        <td>${Number(d.satilan_adet || 0)}</td>
+        <td>${Number(d.bedelsiz_adet || 0)}</td>
+        <td><b>${Number(d.toplam_cikan || 0)}</b></td></tr>`).join('')}</tbody>
+    </table></div>`;
+
+  const stokBlok = `
+    <h3 class="rp-sub">STOK
+      <span class="rp-src">elle sayım — platformun kendi stok sayısından ayrıdır</span></h3>
+    <div class="tablo-kab"><table>
+      <thead><tr><th>Ürün</th><th>Adet</th><th>Nerede</th><th>Sayım</th><th>Giren</th></tr></thead>
+      <tbody>${stok.length ? stok.map((s) => `<tr>
+        <td>${escapeHtml(String(s.urun_adi || ''))}</td>
+        <td><b>${Number(s.adet || 0)}</b></td>
+        <td>${escapeHtml(String(s.nerede || ''))}</td>
+        <td>${escapeHtml(String(s.sayim_zamani || '').slice(0, 10))}
+          ${Number(s.gun_gecti) > 14 ? '<span class="sn-eski">· ' + s.gun_gecti + ' gün önce</span>' : ''}</td>
+        <td>${escapeHtml(String(s.giren || ''))}</td></tr>`).join('')
+        : '<tr><td colspan="5" class="fm-empty">Henüz sayım girilmemiş.</td></tr>'}</tbody>
+    </table></div>
+    <div class="sn-form" id="stokForm">
+      <div class="sn-satir">
+        <label>Ürün<input class="dk-girdi" type="text" id="stokUrun"
+          list="stokUrunListe" placeholder="ürün adı"></label>
+        <label>Sayılan adet<input class="dk-girdi" type="number" min="0" step="1" id="stokAdet"></label>
+        <label>Nerede<input class="dk-girdi" type="text" id="stokNerede" value="DEPO"></label>
+      </div>
+      <label>Not<input class="dk-girdi" type="text" id="stokNot" placeholder="isteğe bağlı"></label>
+      <div class="dk-dugmeler">
+        <button type="button" class="dk-btn dk-btn-ana" id="stokKaydet">SAYIMI KAYDET</button>
+      </div>
+      <p class="dk-sonuc" id="stokSonuc" hidden></p>
+      <datalist id="stokUrunListe">${dagitim.map((d) =>
+        `<option value="${escapeHtml(String(d.urun_adi || ''))}"></option>`).join('')}</datalist>
+    </div>`;
+
+  const notBlok = notlar.length ? `
+    <h3 class="rp-sub">ELLE GİRİLEN AÇIKLAMALAR<span class="rp-src">${notlar.length} kayıt</span></h3>
+    <div class="tablo-kab"><table>
+      <thead><tr><th>Tarih</th><th>Tür</th><th>Ürün</th><th>Adet</th><th>Değer</th><th>Kime</th><th>Not</th></tr></thead>
+      <tbody>${notlar.map((n) => `<tr>
+        <td>${escapeHtml(String(n.girildi || '').slice(0, 10))}</td>
+        <td><span class="sn-tur">${escapeHtml(SATIS_TUR_ETIKET[n.tur] || n.tur || '')}</span></td>
+        <td>${escapeHtml(String(n.urun_adi || ''))}</td>
+        <td>${n.adet === null ? '—' : Number(n.adet)}</td>
+        <td>${satisPara(n.elle_fiyat)}</td>
+        <td>${escapeHtml(String(n.alici || '—'))}</td>
+        <td>${escapeHtml(String(n.not_metni || ''))}</td></tr>`).join('')}</tbody>
+    </table></div>` : '';
+
+  const tumBlok = `
+    <h3 class="rp-sub">TÜM GÖNDERİLER<span class="rp-src">${sip.length} kayıt</span></h3>
+    <div class="tablo-kab"><table>
+      <thead><tr><th>Tarih</th><th>No</th><th>Kanal</th><th>Ürünler</th>
+        <th>Tutar</th><th>Ödeme</th><th>Ciro sınıfı</th><th>Not</th></tr></thead>
+      <tbody>${sip.map((s) => `<tr class="${s.ciro_sinifi === 'IPTAL' ? 'sn-iptal' : ''}">
+        <td>${escapeHtml(String(s.gun || ''))}</td>
+        <td>#${escapeHtml(String(s.siparis_no || ''))}</td>
+        <td>${escapeHtml(String(s.kanal || ''))}</td>
+        <td>${escapeHtml(String(s.urunler || '—'))}</td>
+        <td>${satisPara(s.toplam)}</td>
+        <td>${escapeHtml(String(s.odeme_durumu || ''))}</td>
+        <td>${escapeHtml(String(s.ciro_sinifi || ''))}</td>
+        <td>${Number(s.not_sayisi) > 0 ? '✔' : ''}</td></tr>`).join('')}</tbody>
+    </table></div>`;
+
+  kutu.innerHTML = ozet + bekleyenBlok + dagitimBlok + stokBlok + notBlok + tumBlok;
+}
+
+/* Delege dinleyiciler: panel her yenilemede yeniden çizildiği için
+ * düğmeye doğrudan bağlanmak bir yenilemede kopardı. */
+document.addEventListener('click', async (e) => {
+  const kaydet = e.target.closest('[data-sn-kaydet]');
+  if (kaydet) {
+    const form = kaydet.closest('.sn-form');
+    const al = (sec) => { const el = form.querySelector(sec); return el ? el.value : ''; };
+    const sonuc = form.querySelector('[data-sn-sonuc]');
+    kaydet.disabled = true;
+    const { body } = await api('/api/satis/not', {
+      method: 'POST',
+      body: JSON.stringify({
+        siparis_ref: form.dataset.snRef || '',
+        tur: al('[data-sn-tur]'), alici: al('[data-sn-alici]'),
+        urun_adi: al('[data-sn-urun]'), adet: al('[data-sn-adet]'),
+        elle_fiyat: al('[data-sn-fiyat]'), not_metni: al('[data-sn-not]'),
+      }),
+    });
+    kaydet.disabled = false;
+    if (sonuc) {
+      sonuc.hidden = false;
+      sonuc.className = 'dk-sonuc ' + (body && body.ok ? 'is-ok' : 'is-bad');
+      sonuc.textContent = body && body.ok
+        ? 'Kaydedildi. Bu gönderi artık açıklanmış sayılıyor.'
+        : ((body && body.hata) || 'Kaydedilemedi.');
+    }
+    if (body && body.ok) setTimeout(loadSatislar, 700);
+    return;
+  }
+
+  if (e.target.closest('#stokKaydet')) {
+    const btn = e.target.closest('#stokKaydet');
+    const sonuc = qs('stokSonuc');
+    btn.disabled = true;
+    const { body } = await api('/api/stok', {
+      method: 'POST',
+      body: JSON.stringify({
+        urun_adi: (qs('stokUrun') || {}).value || '',
+        adet: (qs('stokAdet') || {}).value || '',
+        nerede: (qs('stokNerede') || {}).value || 'DEPO',
+        not_metni: (qs('stokNot') || {}).value || '',
+      }),
+    });
+    btn.disabled = false;
+    if (sonuc) {
+      sonuc.hidden = false;
+      sonuc.className = 'dk-sonuc ' + (body && body.ok ? 'is-ok' : 'is-bad');
+      sonuc.textContent = body && body.ok
+        ? `Sayım kaydedildi: ${body.urun_adi} = ${body.adet}`
+        : ((body && body.hata) || 'Kaydedilemedi.');
+    }
+    if (body && body.ok) setTimeout(loadSatislar, 700);
+  }
+});
+
+/* ============================ KARGO ============================
+ * Sahip 21.09.2026: *"taşıyıcıyı seçebilmek, karşı ödemeli mi biz mi
+ * ödemeli gibi bilgileri seçebilme gibi panel istiyorum. burası bizim
+ * merkez üssümüz."*
+ *
+ * Dört iş var ve YALNIZ BİRİ PARA HARCAR:
+ *   taslak aç  · ücretsiz
+ *   fiyat sor  · ücretsiz
+ *   BARKOD AL  · 🔴 şirket bakiyesinden düşer, geri alınamaz
+ *   etiket üret· ücretsiz
+ *
+ * 🔴 BARKOD DÜĞMESİ TEK TIKLA ÇALIŞMAZ. Önce taşıyıcı seçilir, sonra
+ * ekranda tutarı yazan bir onay şeridi çıkar, para ancak o şeritteki
+ * ONAYLA'ya basılınca harcanır. Sebebi biçimsel değil: yanlışlıkla
+ * tıklanan bir düğme burada gerçek para demek.
+ */
+
+let kargoVeri = null;
+let kargoSecili = new Set();
+
+async function loadKargo() {
+  const kutu = qs('kargoGovde');
+  if (kutu && !kargoVeri) kutu.innerHTML = '<p class="fm-empty">Yükleniyor…</p>';
+  const { body } = await api('/api/kargo');
+  kargoVeri = body || {};
+  renderKargo();
+}
+
+function kargoPara(x) {
+  if (x === null || x === undefined || x === '') return '—';
+  const n = Number(x);
+  return Number.isFinite(n)
+    ? n.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' TL'
+    : String(x);
+}
+
+function kargoTarih(x) {
+  if (!x) return '—';
+  const d = new Date(x);
+  return Number.isNaN(d.getTime()) ? String(x).slice(0, 10)
+    : d.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+}
+
+/* Sipariş → kargo → teslimat zinciri. Üç zaman damgasından hangileri
+ * dolu ise o kadar halka yanar; uç `lastState`i zaten Türkçe veriyor. */
+function kargoZincir(g) {
+  const adim = [
+    ['açıldı', g.olusturuldu],
+    ['kargoda', g.kargoya_verildi],
+    ['teslim', g.teslim_edildi],
+  ];
+  return `<div class="kg-zincir">${adim.map(([ad, zaman]) => `
+    <span class="kg-halka ${zaman ? 'kg-halka-dolu' : ''}" title="${escapeHtml(ad)}">
+      <b>${escapeHtml(ad)}</b><i>${zaman ? kargoTarih(zaman) : '—'}</i></span>`).join('')}</div>`;
+}
+
+function kargoSatir(g) {
+  const id = escapeHtml(String(g.siparis_id || ''));
+  const secili = kargoSecili.has(g.siparis_id) ? 'checked' : '';
+  const kapida = g.karsi_odemeli
+    ? `<span class="kg-rozet kg-rozet-kapida">kapıda ${kargoPara(g.kapida_tutar)}</span>`
+    : '';
+  const tahsil = g.tahsilat_durumu
+    ? `<span class="kg-rozet">${escapeHtml(g.tahsilat_durumu)}</span>` : '';
+  const takip = g.takip_linki
+    ? `<a class="kg-takip" href="${escapeHtml(g.takip_linki)}" target="_blank" rel="noopener noreferrer">takip →</a>`
+    : '';
+  return `<article class="kg-kart" data-kg-id="${id}">
+    <header class="kg-ust">
+      <label class="kg-sec"><input type="checkbox" data-kg-sec="${id}" ${secili}>
+        <span>etiket</span></label>
+      <div class="kg-kim">
+        <b>${escapeHtml(g.alici || '—')}</b>
+        <span>${escapeHtml(g.nere || '')}</span>
+      </div>
+      <div class="kg-durum">
+        <span class="kg-son">${escapeHtml(g.son_durum || g.durum || '—')}</span>
+        ${kapida}${tahsil}
+      </div>
+    </header>
+    <div class="kg-orta">
+      <p class="kg-icerik">${escapeHtml(g.icerik || '—')}
+        ${g.desi ? `<span class="kg-desi">${escapeHtml(String(g.desi))} desi</span>` : ''}</p>
+      ${kargoZincir(g)}
+    </div>
+    <footer class="kg-alt">
+      <span class="kg-tasiyici">${escapeHtml(g.tasiyici_adi || g.tasiyici || 'taşıyıcı seçilmedi')}</span>
+      <span class="kg-barkod">${g.barkod ? escapeHtml(g.barkod) : 'barkod yok'}</span>
+      ${takip}
+      <span class="kg-ucret" title="Uç üç rakamı ayrı veriyor; toplanmadı">
+        kargo ${kargoPara(g.ucret)}${g.ek_ucret ? ' · ek ' + kargoPara(g.ek_ucret) : ''}</span>
+      ${g.barkod ? '' : `<button type="button" class="dk-btn kg-fiyat-btn" data-kg-fiyat="${id}">TAŞIYICI VE FİYAT</button>`}
+    </footer>
+    <div class="kg-secim" data-kg-secim="${id}" hidden></div>
+  </article>`;
+}
+
+function kargoYeniForm() {
+  const turler = (kargoVeri.odeme_turleri || ['CASH', 'CREDIT_CARD']).map((t) =>
+    `<option value="${escapeHtml(t)}">${t === 'CASH' ? 'nakit' : 'kredi kartı'}</option>`).join('');
+  return `<details class="kg-yeni">
+    <summary>YENİ GÖNDERİ AÇ <span class="kg-bedava">ücretsiz · barkod üretmez</span></summary>
+    <div class="kg-form" id="kargoForm">
+      <div class="kg-satir">
+        <label>Alıcı adı<input class="dk-girdi" type="text" data-kf="alici" autocomplete="off"></label>
+        <label>Telefon<input class="dk-girdi" type="tel" data-kf="telefon" placeholder="5551112233"></label>
+      </div>
+      <div class="kg-satir">
+        <label>İl<input class="dk-girdi" type="text" data-kf="il"></label>
+        <label>İlçe<input class="dk-girdi" type="text" data-kf="ilce"></label>
+        <label>Desi<input class="dk-girdi" type="number" min="0.1" step="0.1" data-kf="desi" value="1"></label>
+      </div>
+      <label>Açık adres<input class="dk-girdi" type="text" data-kf="adres"></label>
+      <div class="kg-satir">
+        <label>İçerik<input class="dk-girdi" type="text" data-kf="icerik" placeholder="Vireon x1"></label>
+        <label>Kendi referansınız<input class="dk-girdi" type="text" data-kf="referans" placeholder="isteğe bağlı"></label>
+      </div>
+      <div class="kg-satir kg-kapida-satir">
+        <label class="kg-onay"><input type="checkbox" data-kf="karsi_odemeli">
+          <span>Karşı ödemeli (parayı kapıda kurye tahsil etsin)</span></label>
+        <label>Kapıda tahsil edilecek<input class="dk-girdi" type="number" min="0" step="0.01" data-kf="kapida_tutar" disabled></label>
+        <label>Nasıl<select class="dk-girdi" data-kf="kapida_tur" disabled>${turler}</select></label>
+      </div>
+      <div class="dk-dugmeler">
+        <button type="button" class="dk-btn dk-btn-ana" id="kargoTaslakBtn">TASLAK OLUŞTUR</button>
+      </div>
+      <p class="dk-sonuc" id="kargoTaslakSonuc" hidden></p>
+    </div>
+  </details>`;
+}
+
+function renderKargo() {
+  const kutu = qs('kargoGovde');
+  if (!kutu || !kargoVeri) return;
+  const liste = kargoVeri.gonderiler || [];
+  const kararlar = kargoVeri.kararlar || [];
+
+  const hata = kargoVeri.gonderi_hatasi
+    ? `<p class="o-uyari">${escapeHtml(kargoVeri.gonderi_hatasi)}</p>` : '';
+
+  const barkodsuz = liste.filter((g) => !g.barkod).length;
+  const yolda = liste.filter((g) => g.kargoya_verildi && !g.teslim_edildi).length;
+  const kapidaAdet = liste.filter((g) => g.karsi_odemeli).length;
+
+  const ozet = `<div class="ek-ozet">
+    <div class="ek-tile"><span class="ek-n">${liste.length}</span><span class="ek-k">gönderi</span></div>
+    <div class="ek-tile ${barkodsuz ? 'ek-tile-uyari' : ''}">
+      <span class="ek-n">${barkodsuz}</span><span class="ek-k">barkod bekliyor</span></div>
+    <div class="ek-tile"><span class="ek-n">${yolda}</span><span class="ek-k">yolda</span></div>
+    <div class="ek-tile"><span class="ek-n">${kapidaAdet}</span><span class="ek-k">kapıda ödemeli</span></div>
+  </div>`;
+
+  const etiketCubugu = `<div class="kg-etiket-cubuk">
+    <span id="kargoSecimSayi">${kargoSecili.size} gönderi seçili</span>
+    <button type="button" class="dk-btn" id="kargoEtiketBtn" ${kargoSecili.size ? '' : 'disabled'}>
+      HB-1006 ETİKET SAYFASI ÜRET</button>
+    <span class="kg-bedava">ücretsiz · sayfada 6 etiket</span>
+    <p class="dk-sonuc" id="kargoEtiketSonuc" hidden></p>
+  </div>`;
+
+  const kararBlok = kararlar.length ? `<section class="kg-bolum">
+    <h3>BARKOD KARARLARI <span class="kg-alt-baslik">para harcayan her çağrının kaydı</span></h3>
+    <table class="kg-tablo"><thead><tr>
+      <th>tarih</th><th>gönderi</th><th>taşıyıcı</th><th>tutar</th><th>sonuç</th><th>veren</th>
+    </tr></thead><tbody>
+      ${kararlar.map((k) => `<tr>
+        <td>${kargoTarih(k.verildi)}</td>
+        <td>${escapeHtml(k.siparis_id || '')}</td>
+        <td>${escapeHtml(k.tasiyici || '')}</td>
+        <td>${kargoPara(k.gosterilen_ucret)}</td>
+        <td class="kg-karar-${escapeHtml(k.karar || '')}">${escapeHtml(k.karar || '')}${
+          k.hata ? ` <i title="${escapeHtml(k.hata)}">?</i>` : ''}</td>
+        <td>${escapeHtml(k.veren || '')}</td></tr>`).join('')}
+    </tbody></table></section>` : '';
+
+  kutu.innerHTML = hata + ozet + kargoYeniForm() + etiketCubugu
+    + `<section class="kg-bolum"><h3>GÖNDERİLER</h3>
+       <div class="kg-liste">${liste.map(kargoSatir).join('') ||
+         '<p class="fm-empty">Gönderi yok.</p>'}</div></section>`
+    + kararBlok
+    + `<section class="kg-bolum" id="kargoKapida">
+        <h3>KAPIDA ÖDEME <span class="kg-alt-baslik">Wix ciro hattında görünmeyen para</span></h3>
+        <button type="button" class="dk-btn" id="kargoKapidaBtn">HESAPLA</button>
+        <div id="kargoKapidaGovde"></div></section>`;
+
+  kargoBagla();
+}
+
+/* ------------------------------------------------- olay bağlama */
+function kargoBagla() {
+  const kutu = qs('kargoGovde');
+  if (!kutu) return;
+
+  // karşı ödemeli kutusu tutar alanını açar/kapar
+  const kapidaKutu = kutu.querySelector('[data-kf="karsi_odemeli"]');
+  if (kapidaKutu) {
+    kapidaKutu.addEventListener('change', () => {
+      ['kapida_tutar', 'kapida_tur'].forEach((ad) => {
+        const el = kutu.querySelector(`[data-kf="${ad}"]`);
+        if (el) el.disabled = !kapidaKutu.checked;
+      });
+    });
+  }
+
+  const taslakBtn = qs('kargoTaslakBtn');
+  if (taslakBtn) taslakBtn.addEventListener('click', kargoTaslakGonder);
+
+  kutu.querySelectorAll('[data-kg-sec]').forEach((kutucuk) => {
+    kutucuk.addEventListener('change', () => {
+      const id = kutucuk.dataset.kgSec;
+      if (kutucuk.checked) kargoSecili.add(id); else kargoSecili.delete(id);
+      const sayi = qs('kargoSecimSayi');
+      if (sayi) sayi.textContent = `${kargoSecili.size} gönderi seçili`;
+      const btn = qs('kargoEtiketBtn');
+      if (btn) btn.disabled = kargoSecili.size === 0;
+    });
+  });
+
+  kutu.querySelectorAll('[data-kg-fiyat]').forEach((btn) => {
+    btn.addEventListener('click', () => kargoFiyatSor(btn.dataset.kgFiyat, btn));
+  });
+
+  const etiketBtn = qs('kargoEtiketBtn');
+  if (etiketBtn) etiketBtn.addEventListener('click', kargoEtiketUret);
+
+  const kapidaBtn = qs('kargoKapidaBtn');
+  if (kapidaBtn) kapidaBtn.addEventListener('click', kargoKapidaYukle);
+}
+
+function kargoSonuc(id, metin, kotu) {
+  const el = qs(id);
+  if (!el) return;
+  el.hidden = false;
+  el.textContent = metin;
+  el.classList.toggle('dk-sonuc-hata', !!kotu);
+}
+
+async function kargoTaslakGonder() {
+  const kutu = qs('kargoForm');
+  if (!kutu) return;
+  const al = (ad) => {
+    const el = kutu.querySelector(`[data-kf="${ad}"]`);
+    if (!el) return '';
+    return el.type === 'checkbox' ? el.checked : el.value;
+  };
+  const btn = qs('kargoTaslakBtn');
+  btn.disabled = true;
+  kargoSonuc('kargoTaslakSonuc', 'taslak açılıyor…', false);
+  const { ok, body } = await api('/api/kargo/taslak', {
+    method: 'POST',
+    body: JSON.stringify({
+      alici: al('alici'), telefon: al('telefon'), il: al('il'),
+      ilce: al('ilce'), adres: al('adres'), icerik: al('icerik'),
+      desi: al('desi'), referans: al('referans'),
+      karsi_odemeli: al('karsi_odemeli'),
+      kapida_tutar: al('kapida_tutar'), kapida_tur: al('kapida_tur'),
+    }),
+  });
+  btn.disabled = false;
+  if (!ok || !body || body.error) {
+    kargoSonuc('kargoTaslakSonuc', (body && body.error) || 'taslak açılamadı', true);
+    return;
+  }
+  kargoSonuc('kargoTaslakSonuc',
+    `taslak açıldı: ${body.siparis_id} — henüz barkod YOK, para harcanmadı.`, false);
+  kargoVeri = null;
+  loadKargo();
+}
+
+async function kargoFiyatSor(siparisId, btn) {
+  const alan = document.querySelector(`[data-kg-secim="${CSS.escape(siparisId)}"]`);
+  if (!alan) return;
+  btn.disabled = true;
+  alan.hidden = false;
+  alan.innerHTML = '<p class="fm-empty">fiyatlar soruluyor…</p>';
+  const { ok, body } = await api('/api/kargo/fiyat', {
+    method: 'POST', body: JSON.stringify({ siparis_id: siparisId }) });
+  btn.disabled = false;
+  if (!ok || !body || body.error) {
+    alan.innerHTML = `<p class="o-uyari">${escapeHtml((body && body.error) || 'fiyat alınamadı')}</p>`;
+    return;
+  }
+  const fiyatlar = body.fiyatlar || [];
+  if (!fiyatlar.length) {
+    alan.innerHTML = `<p class="o-uyari">${escapeHtml(body.uyari || 'uç fiyat döndürmedi')}</p>`;
+    return;
+  }
+  alan.innerHTML = `<div class="kg-fiyatlar">
+    ${fiyatlar.map((f) => {
+      const gun = f.gun ? `${Math.round(f.gun * 10) / 10} gün` : '';
+      const kapidaEk = f.kapida_ucret
+        ? `kapıda +${kargoPara(f.kapida_ucret)}` : '';
+      const ek = [gun, kapidaEk, f.risk ? String(f.risk) : ''].filter(Boolean).join(' · ');
+      return `<button type="button" class="kg-fiyat${f.kapali ? ' kg-fiyat-kapali' : ''}"
+        ${f.kapali ? 'disabled title="Bu gönderi için kapalı"' : ''}
+        data-kg-sec-tasiyici="${escapeHtml(f.tasiyici)}"
+        data-kg-sec-ad="${escapeHtml(f.ad || f.tasiyici)}"
+        data-kg-sec-ucret="${escapeHtml(String(f.ucret === null ? '' : f.ucret))}"
+        data-kg-sec-kapida="${escapeHtml(String(f.kapida_ucret || 0))}"
+        data-kg-sec-siparis="${escapeHtml(siparisId)}">
+        <b>${escapeHtml(f.ad || f.tasiyici)}</b>
+        <i>${kargoPara(f.ucret)}</i>
+        ${ek ? `<u>${escapeHtml(ek)}</u>` : ''}
+        ${f.kapali ? '<u>kapalı</u>' : ''}</button>`;
+    }).join('')}
+  </div>
+  <div class="kg-onay-serit" data-kg-serit hidden></div>`;
+  alan.querySelectorAll('[data-kg-sec-tasiyici]').forEach((b) => {
+    b.addEventListener('click', () => kargoOnaySerit(alan, b.dataset));
+  });
+}
+
+/* 🔴 İKİNCİ ADIM. Taşıyıcıya tıklamak para harcamaz; yalnız tutarı yazan
+ * onay şeridini açar. Para ancak buradaki ONAYLA'dan geçer. */
+function kargoOnaySerit(alan, veri) {
+  const serit = alan.querySelector('[data-kg-serit]');
+  if (!serit) return;
+  const tutar = veri.kgSecUcret === '' ? null : Number(veri.kgSecUcret);
+  const kapidaEk = Number(veri.kgSecKapida || 0);
+  serit.hidden = false;
+  serit.innerHTML = `
+    <p class="kg-uyari-para">Bu işlem şirketin BasitKargo bakiyesinden
+      <b>${kargoPara(tutar)}</b> düşürür ve
+      ${escapeHtml(veri.kgSecAd || veri.kgSecTasiyici)} kargosunu çağırır.
+      ${kapidaEk ? `Karşı ödeme için ayrıca <b>${kargoPara(kapidaEk)}</b> ek ücret var.` : ''}
+      Geri alınamaz.</p>
+    <div class="dk-dugmeler">
+      <button type="button" class="dk-btn dk-btn-ana" data-kg-onayla>ONAYLA VE BARKOD AL</button>
+      <button type="button" class="dk-btn" data-kg-vazgec>VAZGEÇ</button>
+    </div>
+    <p class="dk-sonuc" data-kg-barkod-sonuc hidden></p>`;
+  serit.querySelector('[data-kg-vazgec]').addEventListener('click', () => {
+    serit.hidden = true; serit.innerHTML = '';
+  });
+  serit.querySelector('[data-kg-onayla]').addEventListener('click', async (ev) => {
+    const dugme = ev.currentTarget;
+    dugme.disabled = true;
+    const sonuc = serit.querySelector('[data-kg-barkod-sonuc]');
+    sonuc.hidden = false;
+    sonuc.classList.remove('dk-sonuc-hata');
+    sonuc.textContent = 'barkod üretiliyor…';
+    const { ok, body } = await api('/api/kargo/barkod', {
+      method: 'POST',
+      body: JSON.stringify({
+        siparis_id: veri.kgSecSiparis,
+        tasiyici: veri.kgSecTasiyici,
+        gosterilen_ucret: tutar,
+      }),
+    });
+    if (!ok || !body || body.error) {
+      sonuc.classList.add('dk-sonuc-hata');
+      sonuc.textContent = (body && body.error) || 'barkod üretilemedi';
+      dugme.disabled = false;
+      return;
+    }
+    sonuc.textContent = `barkod: ${body.barkod || '(uç kod döndürmedi)'} · ${kargoPara(body.ucret)} harcandı`;
+    kargoVeri = null;
+    setTimeout(loadKargo, 1200);
+  });
+}
+
+async function kargoEtiketUret() {
+  const btn = qs('kargoEtiketBtn');
+  btn.disabled = true;
+  kargoSonuc('kargoEtiketSonuc', 'etiketler alınıyor ve sayfaya diziliyor…', false);
+  const { ok, body } = await api('/api/kargo/etiket', {
+    method: 'POST', body: JSON.stringify({ siparisler: [...kargoSecili] }) });
+  btn.disabled = false;
+  if (!ok || !body || body.hata || body.error) {
+    kargoSonuc('kargoEtiketSonuc', (body && (body.hata || body.error)) || 'etiket üretilemedi', true);
+    return;
+  }
+  const el = qs('kargoEtiketSonuc');
+  el.hidden = false;
+  el.classList.remove('dk-sonuc-hata');
+  el.innerHTML = `${escapeHtml(body.ozet || '')} — <a href="${escapeHtml(body.baglanti)}"
+    download>${escapeHtml(body.dosya)}</a> · HB-1006 sayfasına dizildi`;
+}
+
+async function kargoKapidaYukle() {
+  const govde = qs('kargoKapidaGovde');
+  const btn = qs('kargoKapidaBtn');
+  btn.disabled = true;
+  govde.innerHTML = '<p class="fm-empty">gönderiler taranıyor…</p>';
+  const { ok, body } = await api('/api/kargo/kapida');
+  btn.disabled = false;
+  if (!ok || !body || body.error || body.hata) {
+    govde.innerHTML = `<p class="o-uyari">${escapeHtml((body && (body.error || body.hata)) || 'okunamadı')}</p>`;
+    return;
+  }
+  const satirlar = body.satirlar || [];
+  govde.innerHTML = `
+    <div class="ek-ozet">
+      <div class="ek-tile"><span class="ek-n">${body.kapida_adet}</span><span class="ek-k">kapıda ödemeli gönderi</span></div>
+      <div class="ek-tile"><span class="ek-n">${kargoPara(body.kapida_toplam)}</span><span class="ek-k">kapıda tahsil edilen</span></div>
+      <div class="ek-tile"><span class="ek-n">${kargoPara(body.elle_tahsil)}</span><span class="ek-k">bunun Wix'te olmayanı</span></div>
+      <div class="ek-tile ${body.sinifsiz_gonderi ? 'ek-tile-uyari' : ''}">
+        <span class="ek-n">${body.sinifsiz_gonderi || 0}</span><span class="ek-k">sınıfsız gönderi</span></div>
+    </div>
+    <p class="o-uyari">${escapeHtml(body.not || '')}</p>
+    <table class="kg-tablo"><thead><tr>
+      <th>tarih</th><th>sınıf</th><th>ürün</th><th>kapıda</th>
+      <th>tahsilat</th><th>Wix siparişi</th>
+    </tr></thead><tbody>
+      ${satirlar.map((s) => `<tr>
+        <td>${kargoTarih(s.gun)}</td>
+        <td class="kg-sinif-${escapeHtml(s.sinif || '')}">${escapeHtml(s.sinif || '')}</td>
+        <td>${escapeHtml(s.urun || '')}</td>
+        <td>${kargoPara(s.cod_tutar)}</td>
+        <td>${escapeHtml(s.cod_durum || '')}</td>
+        <td>${s.siparis_id ? escapeHtml(s.siparis_id) : '<i>yok</i>'}</td></tr>`).join('')}
+    </tbody></table>`;
+}
+
+/* ========================== MÜŞTERİLER ==========================
+ * Sahip: *"müşteri kartı — kim kaç kere almış"* ve *"iade değişim takibi"*.
+ * İkisi aynı sekmede: ikisi de satış SONRASI konular.
+ *
+ * 🔴 Kişisel veri burada yalnız GÖSTERİLİR. Uç, adı istek anında Wix
+ * kaydından okuyup veriyor; hiçbir tabloya ve şirket hafızasına yazılmıyor.
+ */
+
+let musteriVeri = null;
+let iadeVeri = null;
+
+async function loadMusteri() {
+  const kutu = qs('musteriGovde');
+  if (kutu && !musteriVeri) kutu.innerHTML = '<p class="fm-empty">Yükleniyor…</p>';
+  const [m, i] = await Promise.all([api('/api/musteri'), api('/api/iade')]);
+  musteriVeri = (m && m.body) || {};
+  iadeVeri = (i && i.body) || {};
+  renderMusteri();
+}
+
+function musteriPara(x) {
+  if (x === null || x === undefined || x === '') return '—';
+  const n = Number(x);
+  return Number.isFinite(n) ? n.toLocaleString('tr-TR', {
+    minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' TL' : String(x);
+}
+
+function musteriSatir(m) {
+  const kere = Number(m.siparis) || 0;
+  const odenen = Number(m.odenen) || 0;
+  /* 🔴 "2 sipariş" tek başına yanıltıyor: ikisi de iptalse müşteri hiç
+     para ödememiştir. Ölçümde tam böyle bir kayıt çıktı (2 sipariş,
+     0 TL). Bu yüzden ödenen sayısı her zaman yanında yazılıyor. */
+  const kereMetni = odenen === kere
+    ? `${kere} kez aldı`
+    : `${kere} sipariş · ${odenen} tanesi ödendi`;
+  return `<button type="button" class="ms-satir" data-ms-id="${escapeHtml(String(m.buyer_id))}">
+    <span class="ms-ad">${escapeHtml(m.gorunen_ad || '')}
+      ${kere > 1 ? '<em class="ms-tekrar">tekrar eden</em>' : ''}</span>
+    <span class="ms-kere">${escapeHtml(kereMetni)}</span>
+    <span class="ms-harcama">${musteriPara(m.harcama)}</span>
+    <span class="ms-tarih">${escapeHtml(String(m.son || ''))}</span>
+  </button>`;
+}
+
+function iadeBolumu() {
+  const v = iadeVeri || {};
+  const wix = v.wix_para_iadesi || [];
+  const iptal = v.iptal_siparis || [];
+  const gelen = v.gelen_kargo || [];
+  const beyan = v.elle_beyan || [];
+
+  const tablo = (baslik, satirlar, ciz) => `
+    <div class="ms-iade-kutu">
+      <h4>${escapeHtml(baslik)} <b>${satirlar.length}</b></h4>
+      ${satirlar.length
+        ? `<table class="kg-tablo">${ciz(satirlar)}</table>`
+        : '<p class="fm-empty">kayıt yok</p>'}
+    </div>`;
+
+  return `<section class="kg-bolum">
+    <h3>İADE VE DEĞİŞİM
+      <span class="kg-alt-baslik">üç ayrı kaynak · toplanmaz</span></h3>
+    <p class="o-uyari">${escapeHtml(v.not || '')}</p>
+    <div class="ms-iade-izgara">
+      ${tablo('Wix para iadesi', wix, (r) => `
+        <thead><tr><th>tarih</th><th>sipariş</th><th>tutar</th></tr></thead>
+        <tbody>${r.map((x) => `<tr><td>${escapeHtml(String(x.gun))}</td>
+          <td>${escapeHtml(String(x.siparis_no || ''))}</td>
+          <td>${musteriPara(x.toplam)}</td></tr>`).join('')}</tbody>`)}
+      ${tablo('İptal edilen sipariş', iptal, (r) => `
+        <thead><tr><th>tarih</th><th>ürün</th><th>tutar</th></tr></thead>
+        <tbody>${r.map((x) => `<tr><td>${escapeHtml(String(x.gun))}</td>
+          <td>${escapeHtml(x.urunler || '—')}</td>
+          <td>${musteriPara(x.toplam)}</td></tr>`).join('')}</tbody>`)}
+      ${tablo('Geri gelen kargo', gelen, (r) => `
+        <thead><tr><th>tarih</th><th>ürün</th><th>durum</th></tr></thead>
+        <tbody>${r.map((x) => `<tr><td>${escapeHtml(String(x.gun))}</td>
+          <td>${escapeHtml(x.urun || '—')}</td>
+          <td>${escapeHtml(x.son_hareket || x.durum || '')}</td></tr>`).join('')}</tbody>`)}
+      ${tablo('Elle beyan edilen', beyan, (r) => `
+        <thead><tr><th>tarih</th><th>tür</th><th>ürün</th></tr></thead>
+        <tbody>${r.map((x) => `<tr><td>${escapeHtml(String(x.gun))}</td>
+          <td>${escapeHtml(x.tur || '')}</td>
+          <td>${escapeHtml(x.urun_adi || '')}</td></tr>`).join('')}</tbody>`)}
+    </div>
+  </section>`;
+}
+
+function renderMusteri() {
+  const kutu = qs('musteriGovde');
+  if (!kutu || !musteriVeri) return;
+  const liste = musteriVeri.musteriler || [];
+
+  const ozet = `<div class="ek-ozet">
+    <div class="ek-tile"><span class="ek-n">${musteriVeri.toplam_musteri || 0}</span>
+      <span class="ek-k">müşteri</span></div>
+    <div class="ek-tile"><span class="ek-n">${musteriVeri.tekrar_eden || 0}</span>
+      <span class="ek-k">birden fazla alan</span></div>
+    <div class="ek-tile"><span class="ek-n">${musteriVeri.tekrar_orani ?? '—'}%</span>
+      <span class="ek-k">tekrar oranı</span></div>
+    <div class="ek-tile ${(iadeVeri && iadeVeri.kayitli_iade_toplami) ? '' : 'ek-tile-uyari'}">
+      <span class="ek-n">${(iadeVeri && iadeVeri.kayitli_iade_toplami) || 0}</span>
+      <span class="ek-k">kayıtlı iade</span></div>
+  </div>`;
+
+  kutu.innerHTML = ozet
+    + `<p class="o-uyari">${escapeHtml(musteriVeri.not || '')}</p>`
+    + `<section class="kg-bolum"><h3>MÜŞTERİLER
+         <span class="kg-alt-baslik">satır tıklanınca geçmişi açılır</span></h3>
+       <div class="ms-baslik">
+         <span>müşteri</span><span>kaç kez</span><span>harcama</span><span>son</span>
+       </div>
+       <div class="ms-liste">${liste.map(musteriSatir).join('')
+         || '<p class="fm-empty">Müşteri yok.</p>'}</div>
+       <div class="ms-kart" id="musteriKart" hidden></div>
+     </section>`
+    + iadeBolumu();
+
+  kutu.querySelectorAll('[data-ms-id]').forEach((btn) => {
+    btn.addEventListener('click', () => musteriKartAc(btn.dataset.msId, btn));
+  });
+}
+
+async function musteriKartAc(kimlik, btn) {
+  const kart = qs('musteriKart');
+  if (!kart) return;
+  document.querySelectorAll('.ms-satir').forEach((x) =>
+    x.classList.toggle('is-active', x === btn));
+  kart.hidden = false;
+  kart.innerHTML = '<p class="fm-empty">geçmiş okunuyor…</p>';
+  const { ok, body } = await api('/api/musteri/kart?id=' + encodeURIComponent(kimlik));
+  if (!ok || !body || body.hata || body.error) {
+    kart.innerHTML = `<p class="o-uyari">${escapeHtml((body && (body.hata || body.error)) || 'okunamadı')}</p>`;
+    return;
+  }
+  const m = body.musteri || {};
+  const sip = body.siparisler || [];
+  kart.innerHTML = `
+    <div class="ms-kart-ust">
+      <div>
+        <b>${escapeHtml(m.gorunen_ad || '')}</b>
+        <span>${escapeHtml(m.eposta || '')}${m.telefon ? ' · ' + escapeHtml(m.telefon) : ''}</span>
+      </div>
+      <div class="ms-kart-sayi">
+        <span><i>${body.siparis_adedi}</i> sipariş</span>
+        <span><i>${body.odenen_adet}</i> ödendi</span>
+        <span><i>${musteriPara(body.harcama)}</i> harcama</span>
+      </div>
+    </div>
+    <table class="kg-tablo"><thead><tr>
+      <th>tarih</th><th>ürünler</th><th>tutar</th><th>ödeme</th><th>kargo</th>
+    </tr></thead><tbody>
+      ${sip.map((s) => `<tr>
+        <td>${escapeHtml(String(s.gun))}</td>
+        <td class="ms-urun">${escapeHtml(s.urunler || '—')}</td>
+        <td>${musteriPara(s.toplam)}</td>
+        <td class="${s.odeme_durumu === 'PAID' ? 'ms-odendi' : 'ms-odenmedi'}">
+          ${escapeHtml(s.odeme_durumu || '')}</td>
+        <td>${escapeHtml(s.kargo || '—')}</td></tr>`).join('')}
+    </tbody></table>`;
+}
+
+/* ==================== AÇILIR GRUP MENÜSÜ (masaüstü) ====================
+ * Sahip 22.09.2026: *"üst menüyü kendi aralarında grupla ve açılan menü
+ * tarzında olsun. daha premium durur. ve bu kadar karmaşık olmaz."*
+ *
+ * 🔴 BU AYNI ZAMANDA BİR YAPISAL DÜZELTME. Üst çubuk 16 sekmeyi yan yana
+ * taşıyordu; ölçümde menü 1215px kaplayıp sağdaki saat bloğunu 45px'e
+ * sıkıştırmış ve tarihi üç satıra bölmüştü. Artık çubukta 4 grup adı var;
+ * sekmeler açılır panelde. Yeni sekme eklemek çubuğu bir daha zorlamaz.
+ *
+ * Mevcut `is-kapali` akordeonuna DOKUNULMADI: o mobil çekmecenin
+ * mekanizması ve orada doğru davranış o. Masaüstü açılır menüsü ayrı bir
+ * sınıf (`is-acik`) kullanır; ikisi çakışmaz.
+ */
+(function () {
+  var nav = document.getElementById('mainNav');
+  if (!nav) return;
+
+  // Açılır menü yalnız masaüstünde; altında çekmece var.
+  var masaustu = window.matchMedia('(min-width: 861px)');
+
+  function hepsiniKapat(haric) {
+    nav.querySelectorAll('.nav-group.is-acik').forEach(function (g) {
+      if (g === haric) return;
+      g.classList.remove('is-acik');
+      var h = g.querySelector('.nav-head');
+      if (h) h.setAttribute('aria-expanded', 'false');
+    });
+  }
+
+  /* 🔴 YAKALAMA (capture) EVRESİNDE dinliyoruz ve `stopPropagation`
+     çağırıyoruz: aynı düğmeye bağlı eski akordeon dinleyicisi masaüstünde
+     çalışmamalı, yoksa iki mekanizma birbirini iptal eder. */
+  nav.addEventListener('click', function (e) {
+    if (!masaustu.matches) return;
+    var bas = e.target.closest('.nav-head');
+    if (!bas || !nav.contains(bas)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var grup = bas.closest('.nav-group');
+    if (!grup) return;
+    var acildi = !grup.classList.contains('is-acik');
+    hepsiniKapat(grup);
+    grup.classList.toggle('is-acik', acildi);
+    bas.setAttribute('aria-expanded', acildi ? 'true' : 'false');
+  }, true);
+
+  // Sekme seçilince menü kapanır.
+  nav.addEventListener('click', function (e) {
+    if (!masaustu.matches) return;
+    if (e.target.closest('.nav-item')) hepsiniKapat(null);
+  });
+
+  // Dışarı tıklama ve Escape kapatır. Açık kalan menü içeriğin üstünü
+  // örter; kullanıcı her seferinde düğmeye dönmek zorunda kalmamalı.
+  document.addEventListener('click', function (e) {
+    if (!masaustu.matches) return;
+    if (!e.target.closest('#mainNav')) hepsiniKapat(null);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    hepsiniKapat(null);
+  });
+
+  // Genişlik değişince açık menü kalıntısı kalmasın.
+  masaustu.addEventListener('change', function () { hepsiniKapat(null); });
+})();
+
+/* Aktif sekmenin grubunu çubukta işaretler. Açılır menüde sekmeler
+ * görünmediği için, hangi bölümde olunduğu yalnız grup adından anlaşılır;
+ * işaret olmasa kullanıcı nerede olduğunu kaybeder. */
+(function () {
+  var nav = document.getElementById('mainNav');
+  if (!nav) return;
+  var eski = window.navAktifGrubuAc;
+  window.navAktifGrubuAc = function (ad) {
+    try { if (typeof eski === 'function') eski(ad); } catch (_) { /* yoksay */ }
+    var dugme = nav.querySelector('.nav-item[data-view="' + ad + '"]');
+    var grup = dugme && dugme.closest('.nav-group');
+    nav.querySelectorAll('.nav-group').forEach(function (g) {
+      g.classList.toggle('grup-aktif', g === grup);
+    });
+  };
+})();
+
+async function kpItirazGonder(form) {
+  const sonuc = form.querySelector('[data-kp-sonuc]');
+  const btn = form.querySelector('[data-kp-gonder]');
+  btn.disabled = true;
+  sonuc.hidden = false;
+  sonuc.classList.remove('dk-sonuc-hata');
+  sonuc.textContent = 'gönderiliyor…';
+  const { ok, body } = await api('/api/kreatif-itiraz', {
+    method: 'POST',
+    body: JSON.stringify({
+      parti: form.dataset.kpIfParti,
+      dosya: form.dataset.kpIfDosya,
+      konu: form.querySelector('[data-kp-konu]').value,
+      aciklama: form.querySelector('[data-kp-aciklama]').value,
+    }),
+  });
+  btn.disabled = false;
+  if (!ok || !body || body.error) {
+    sonuc.classList.add('dk-sonuc-hata');
+    sonuc.textContent = (body && body.error) || 'itiraz gönderilemedi';
+    return;
+  }
+  sonuc.textContent = `İtiraz ${body.muhatap} departmanına açıldı. `
+    + 'Bir sonraki kreatif koşusu bu itirazı okumak zorunda.';
+}

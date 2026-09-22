@@ -1,3 +1,61 @@
+# =============================================================================
+# L'CARLIE Jarvis - kaynak deposu
+#
+# 🔴 BURADA YALNIZ KAYNAK DURUR.
+#    22.09.2026'da canli sunucu bu depoya esitlenirken rsync calisma
+#    verisini de cekti: 2576 dosya, 1.272.354 satir. Icinde 318 MB
+#    varliklar/, 39 MB venv-mcp/, 15 MB nltk_data/ vardi - hicbiri
+#    kaynak degil, hicbiri daha once izlenmiyordu. Islemeden once
+#    farkedildi. Bu dosya o hatanin tekrarlanmamasi icin var.
+# =============================================================================
+
+# --- sanal ortamlar ----------------------------------------------------------
+venv/
+venv-*/
+.venv/
+
+# --- calisma verisi: uretimde olusur, kaynak degildir ------------------------
+state/
+varliklar/
+nltk_data/
+evidence/out/
+*.log
+*.sqlite
+*.db
+
+# --- dagitim yedekleri -------------------------------------------------------
+.backup-*/
+*.yedek-*
+*.yedek.*
+*.oncesi
+*.oncesi-*
+*.bak
+
+# --- python ------------------------------------------------------------------
 __pycache__/
 *.pyc
 *.pyo
+*.egg-info/
+
+# --- 🔴 SIRLAR: bu agaca hic girmemeli --------------------------------------
+#     Desenler hem onek hem sonek varyantlarini kapsar: '.env' ve '*.env'
+#     tek baslarina '.action-env' ile '.env.yedek.<zaman>' adlarini
+#     YAKALAMIYOR (olculdu, ayni gun orchestrator deposunda yasandi).
+.env
+.env.*
+*.env
+*.env.*
+.action-env
+*-env
+*-env.*
+.*-env
+.*-env.*
+*secret*
+*credential*
+*.pem
+*.key
+
+# --- isletim sistemi ---------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini

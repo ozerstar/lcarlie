@@ -1,3 +1,39 @@
+@charset "utf-8";
+
+/* ==================================================================
+   TİPOGRAFİ — marka fontu, panelin kendi dosyasından
+
+   🔴 NEDEN @font-face GEREKTİ. `--font-ui` değişkeni "Inter" ile
+   başlıyordu ama Inter hiçbir yerden YÜKLENMİYORDU: ne @font-face vardı
+   ne de bir font sağlayıcı bağlantısı. Üstelik olamazdı da -- konsolun
+   CSP'si 'self'; dışarıdan font çekmek engelli. Yani tarayıcı her zaman
+   sistem yedeğine düşüyordu ve panel "daktilo gibi" görünüyordu.
+
+   Marka fontu (Metropolis) zaten sunucuda duruyordu: varliklar/fontlar.
+   Aynı dosyalar reklam görsellerinde de kullanılıyor; panel ile reklam
+   artık AYNI yazı tipini konuşuyor.
+   ================================================================== */
+@font-face {
+  font-family: "Metropolis"; font-style: normal; font-weight: 300;
+  font-display: swap; src: url("fonts/Metropolis-Light.otf") format("opentype");
+}
+@font-face {
+  font-family: "Metropolis"; font-style: normal; font-weight: 400;
+  font-display: swap; src: url("fonts/Metropolis-Regular.otf") format("opentype");
+}
+@font-face {
+  font-family: "Metropolis"; font-style: normal; font-weight: 500;
+  font-display: swap; src: url("fonts/Metropolis-Medium.otf") format("opentype");
+}
+@font-face {
+  font-family: "Metropolis"; font-style: normal; font-weight: 600;
+  font-display: swap; src: url("fonts/Metropolis-SemiBold.otf") format("opentype");
+}
+@font-face {
+  font-family: "Metropolis"; font-style: normal; font-weight: 700;
+  font-display: swap; src: url("fonts/Metropolis-Bold.otf") format("opentype");
+}
+
 /* =====================================================================
    L'CARLIE OS - Web Console
    Premium dark technology / luxury enterprise AI command center.
@@ -48,7 +84,7 @@
   --info: #8ea8c4;
 
   --font-display: "Didot", "Bodoni MT", "Playfair Display", "Hoefler Text", Georgia, "Times New Roman", serif;
-  --font-ui: "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-ui: "Metropolis", "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
   --font-mono: "JetBrains Mono", "SF Mono", "Cascadia Mono", Consolas, "Liberation Mono", monospace;
 
   --radius: 3px;
@@ -99,7 +135,7 @@ body::before {
 }
 .brand-sub {
   display: block;
-  font-size: 0.5rem;
+  font-size: 0.78rem;
   letter-spacing: 0.34em;
   color: var(--ivory-3);
   margin-top: 6px;
@@ -139,7 +175,7 @@ body::before {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  font-size: 0.56rem;
+  font-size: 0.82rem;
   letter-spacing: 0.24em;
   color: var(--ivory-3);
 }
@@ -150,7 +186,7 @@ body::before {
   padding: 12px 13px;
   color: var(--ivory);
   font-family: var(--font-ui);
-  font-size: 0.9rem;
+  font-size: 1.00rem;
   letter-spacing: 0.04em;
 }
 .login-form input:focus {
@@ -166,7 +202,7 @@ body::before {
   background: linear-gradient(180deg, rgba(201, 169, 97, 0.2), rgba(201, 169, 97, 0.07));
   color: var(--champagne);
   font-family: var(--font-ui);
-  font-size: 0.64rem;
+  font-size: 0.86rem;
   font-weight: 600;
   letter-spacing: 0.26em;
   cursor: pointer;
@@ -179,7 +215,7 @@ body::before {
 .login-error {
   margin: 0;
   color: var(--crit);
-  font-size: 0.76rem;
+  font-size: 0.95rem;
   letter-spacing: 0.02em;
   text-align: center;
 }
@@ -187,7 +223,7 @@ body::before {
   margin: 26px 0 0;
   text-align: center;
   font-family: var(--font-display);
-  font-size: 0.7rem;
+  font-size: 0.90rem;
   letter-spacing: 0.2em;
   color: var(--ivory-4);
 }
@@ -210,7 +246,7 @@ body::before {
   background: linear-gradient(180deg, rgba(255, 253, 248, 0.026), transparent);
 }
 .tb-brand .brand-name { font-size: 1.06rem; letter-spacing: 0.26em; }
-.tb-brand .brand-sub { font-size: 0.45rem; letter-spacing: 0.3em; margin-top: 5px; }
+.tb-brand .brand-sub { font-size: 0.74rem; letter-spacing: 0.3em; margin-top: 5px; }
 
 .tb-nav { display: flex; align-items: center; gap: 2px; justify-self: center; }
 .nav-item {
@@ -220,7 +256,7 @@ body::before {
   padding: 7px 13px;
   color: var(--ivory-2);
   font-family: var(--font-ui);
-  font-size: 0.58rem;
+  font-size: 0.82rem;
   font-weight: 500;
   letter-spacing: 0.2em;
   cursor: pointer;
@@ -244,11 +280,11 @@ body::before {
   justify-self: end;
 }
 .tb-clock { text-align: right; line-height: 1.15; }
-.tb-date { display: block; font-size: 0.5rem; letter-spacing: 0.18em; color: var(--ivory-3); }
+.tb-date { display: block; font-size: 0.78rem; letter-spacing: 0.18em; color: var(--ivory-3); }
 .tb-time {
   display: block;
   font-family: var(--font-mono);
-  font-size: 0.92rem;
+  font-size: 1.00rem;
   letter-spacing: 0.08em;
   color: var(--ivory);
 }
@@ -261,7 +297,7 @@ body::before {
 }
 .tb-live.is-warn .live-dot { background: var(--warn); box-shadow: 0 0 0 3px rgba(217, 168, 79, 0.14); }
 .tb-live.is-error .live-dot { background: var(--crit); box-shadow: 0 0 0 3px rgba(205, 111, 104, 0.14); }
-.live-text { font-size: 0.55rem; letter-spacing: 0.2em; color: var(--ivory-2); white-space: nowrap; }
+.live-text { font-size: 0.78rem; letter-spacing: 0.2em; color: var(--ivory-2); white-space: nowrap; }
 
 .tb-operator { display: flex; align-items: center; gap: 8px; }
 .op-avatar {
@@ -269,12 +305,12 @@ body::before {
   display: grid; place-items: center;
   border: 1px solid var(--line-strong);
   border-radius: 50%;
-  font-size: 0.6rem;
+  font-size: 0.82rem;
   letter-spacing: 0.04em;
   color: var(--gold-hi);
 }
 .op-name {
-  font-size: 0.6rem;
+  font-size: 0.82rem;
   letter-spacing: 0.12em;
   color: var(--ivory-2);
   max-width: 110px;
@@ -290,7 +326,7 @@ body::before {
   padding: 7px 12px;
   color: var(--ivory-2);
   font-family: var(--font-ui);
-  font-size: 0.55rem;
+  font-size: 0.78rem;
   letter-spacing: 0.18em;
   cursor: pointer;
   transition: border-color 0.18s ease, color 0.18s ease;
@@ -302,7 +338,7 @@ body::before {
   background: linear-gradient(180deg, rgba(201, 169, 97, 0.22), rgba(201, 169, 97, 0.08));
   color: var(--champagne);
   font-family: var(--font-ui);
-  font-size: 0.57rem;
+  font-size: 0.82rem;
   font-weight: 600;
   letter-spacing: 0.2em;
   padding: 9px 20px;
@@ -354,7 +390,7 @@ body::before {
 }
 .panel-title {
   margin: 0;
-  font-size: 0.58rem;
+  font-size: 0.82rem;
   font-weight: 600;
   letter-spacing: 0.26em;
   color: var(--gold-hi);
@@ -362,7 +398,7 @@ body::before {
 }
 .panel-count {
   font-family: var(--font-mono);
-  font-size: 0.6rem;
+  font-size: 0.82rem;
   letter-spacing: 0.06em;
   color: var(--ivory-4);
 }
@@ -496,7 +532,7 @@ body::before {
 .core-foot { margin-top: 10px; text-align: center; }
 .core-chain {
   margin: 0;
-  font-size: 0.53rem;
+  font-size: 0.78rem;
   letter-spacing: 0.26em;
   color: var(--ivory-3);
 }
@@ -504,7 +540,7 @@ body::before {
 .core-sign {
   margin: 9px 0 0;
   font-family: var(--font-display);
-  font-size: 0.72rem;
+  font-size: 0.90rem;
   letter-spacing: 0.2em;
   color: var(--ivory-4);
 }
@@ -566,7 +602,7 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
 
 .f-head { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
 .f-tag {
-  font-size: 0.48rem;
+  font-size: 0.74rem;
   font-weight: 700;
   letter-spacing: 0.16em;
   padding: 2px 6px;
@@ -577,18 +613,18 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
 }
 .f-time {
   font-family: var(--font-mono);
-  font-size: 0.56rem;
+  font-size: 0.82rem;
   letter-spacing: 0.04em;
   color: var(--ivory-4);
   margin-left: auto;
   white-space: nowrap;
 }
-.f-text { font-size: 0.76rem; color: var(--ivory-2); line-height: 1.45; }
+.f-text { font-size: 0.95rem; color: var(--ivory-2); line-height: 1.45; }
 .f-sub {
   display: block;
   margin-top: 4px;
   font-family: var(--font-mono);
-  font-size: 0.58rem;
+  font-size: 0.82rem;
   color: var(--ivory-4);
 }
 
@@ -618,22 +654,22 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
   text-align: center;
   background: var(--glass);
 }
-.m-label { display: block; font-size: 0.48rem; letter-spacing: 0.2em; color: var(--ivory-4); }
+.m-label { display: block; font-size: 0.74rem; letter-spacing: 0.2em; color: var(--ivory-4); }
 .m-value {
   display: block;
   margin-top: 5px;
   font-family: var(--font-mono);
-  font-size: 0.82rem;
+  font-size: 1.00rem;
   color: var(--ivory);
 }
-.m-value.m-na { color: var(--ivory-4); font-size: 0.7rem; letter-spacing: 0.08em; }
+.m-value.m-na { color: var(--ivory-4); font-size: 0.90rem; letter-spacing: 0.08em; }
 /* Yuzdenin altindaki ham olcum ("8,6 / 13,7 GiB"). Yuzde tek basina
    yaniltici olabilir; sayinin nereden ciktigi hep goruntude kalsin. */
 .m-sub {
   display: block;
   margin-top: 4px;
   font-family: var(--font-mono);
-  font-size: 0.5rem;
+  font-size: 0.78rem;
   line-height: 1.35;
   letter-spacing: 0.02em;
   color: var(--ivory-4);
@@ -643,7 +679,7 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
 
 .rp-note {
   margin: 10px 0 0;
-  font-size: 0.62rem;
+  font-size: 0.86rem;
   line-height: 1.5;
   color: var(--ivory-4);
 }
@@ -651,7 +687,7 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
   margin: 22px 0 9px;
   padding-bottom: 6px;
   border-bottom: 1px solid var(--line-soft);
-  font-size: 0.52rem;
+  font-size: 0.78rem;
   font-weight: 600;
   letter-spacing: 0.22em;
   color: var(--ivory-2);
@@ -662,7 +698,7 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
 }
 .rp-src {
   font-family: var(--font-mono);
-  font-size: 0.52rem;
+  font-size: 0.78rem;
   font-weight: 400;
   letter-spacing: 0.02em;
   color: var(--ivory-4);
@@ -676,7 +712,7 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
   justify-content: space-between;
   gap: 10px;
   padding: 7px 0;
-  font-size: 0.68rem;
+  font-size: 0.90rem;
   color: var(--ivory-2);
   border-bottom: 1px solid rgba(242, 239, 233, 0.04);
 }
@@ -685,7 +721,7 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.55rem;
+  font-size: 0.78rem;
   letter-spacing: 0.14em;
   color: var(--ivory-3);
   white-space: nowrap;
@@ -704,7 +740,7 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
 .svc-state.s-error::before { background: var(--crit); }
 .svc-state.s-off { color: var(--ivory-4); }
 
-.kv-val { font-family: var(--font-mono); font-size: 0.74rem; color: var(--ivory); }
+.kv-val { font-family: var(--font-mono); font-size: 0.95rem; color: var(--ivory); }
 .kv-val.kv-alert { color: var(--warn); }
 
 .big-stat { display: flex; align-items: baseline; gap: 10px; margin: 4px 0 10px; }
@@ -715,7 +751,7 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
   color: var(--champagne);
 }
 .big-num.is-zero { color: var(--ivory-4); }
-.big-unit { font-size: 0.58rem; letter-spacing: 0.14em; color: var(--ivory-4); }
+.big-unit { font-size: 0.82rem; letter-spacing: 0.14em; color: var(--ivory-4); }
 
 .proposal-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .proposal-list-lg { overflow-y: auto; flex: 1; min-height: 0; padding-right: 4px; }
@@ -730,7 +766,7 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
 }
 .proposal-card:hover { border-color: var(--gold-dim); border-left-color: var(--gold); background: var(--glass-2); }
 .proposal-card .p-type {
-  font-size: 0.7rem;
+  font-size: 0.90rem;
   font-weight: 600;
   letter-spacing: 0.08em;
   color: var(--ivory);
@@ -742,7 +778,7 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
 .proposal-card .p-meta {
   margin-top: 5px;
   font-family: var(--font-mono);
-  font-size: 0.58rem;
+  font-size: 0.82rem;
   color: var(--ivory-4);
 }
 
@@ -751,7 +787,7 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
   padding: 1px 6px;
   border: 1px solid currentColor;
   border-radius: 2px;
-  font-size: 0.48rem;
+  font-size: 0.74rem;
   font-weight: 700;
   letter-spacing: 0.12em;
 }
@@ -760,7 +796,7 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
 .risk-HIGH { color: #d98a4f; }
 .risk-CRITICAL { color: var(--crit); }
 
-.empty-note { color: var(--ivory-4); font-size: 0.7rem; margin: 6px 0 0; }
+.empty-note { color: var(--ivory-4); font-size: 0.90rem; margin: 6px 0 0; }
 
 .qa-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
 .qa-btn {
@@ -770,7 +806,7 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
   padding: 10px 8px;
   color: var(--ivory-2);
   font-family: var(--font-ui);
-  font-size: 0.52rem;
+  font-size: 0.78rem;
   letter-spacing: 0.14em;
   cursor: pointer;
   transition: border-color 0.18s ease, color 0.18s ease;
@@ -789,7 +825,7 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
   padding: 11px 13px;
   color: var(--ivory);
   font-family: var(--font-ui);
-  font-size: 0.82rem;
+  font-size: 1.00rem;
 }
 .analiz-form input:focus { outline: none; border-color: var(--gold-dim); }
 .analiz-result:empty { display: none; }
@@ -827,7 +863,7 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
   padding: 12px 14px;
   color: var(--ivory);
   font-family: var(--font-ui);
-  font-size: 0.84rem;
+  font-size: 1.00rem;
   letter-spacing: 0.01em;
 }
 .cmd-form input::placeholder { color: var(--ivory-4); }
@@ -842,7 +878,7 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
   max-width: 78ch;
   padding: 10px 13px 24px;
   border-radius: var(--radius);
-  font-size: 0.8rem;
+  font-size: 0.95rem;
   line-height: 1.5;
 }
 .chat-msg.user {
@@ -868,7 +904,7 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
   border: 0;
   color: var(--ivory-4);
   font-family: var(--font-ui);
-  font-size: 0.52rem;
+  font-size: 0.78rem;
   letter-spacing: 0.14em;
   cursor: pointer;
   opacity: 0;
@@ -878,16 +914,16 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
 .chat-msg .copy-btn:hover { color: var(--gold-hi); }
 .chat-msg p { margin: 0 0 6px; }
 .chat-msg p:last-of-type { margin-bottom: 0; }
-.chat-msg h4, .chat-msg h5, .chat-msg h6 { margin: 8px 0 4px; font-size: 0.78rem; color: var(--gold-hi); letter-spacing: 0.06em; }
+.chat-msg h4, .chat-msg h5, .chat-msg h6 { margin: 8px 0 4px; font-size: 0.95rem; color: var(--gold-hi); letter-spacing: 0.06em; }
 .chat-msg ul { margin: 4px 0; padding-left: 18px; }
-.chat-msg code { font-family: var(--font-mono); font-size: 0.74rem; color: var(--champagne); }
+.chat-msg code { font-family: var(--font-mono); font-size: 0.95rem; color: var(--champagne); }
 .chat-msg pre {
   background: var(--ink-0);
   border: 1px solid var(--line-soft);
   border-radius: var(--radius);
   padding: 9px 11px;
   overflow-x: auto;
-  font-size: 0.7rem;
+  font-size: 0.90rem;
 }
 .stage-dot {
   display: inline-block;
@@ -942,7 +978,7 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
 .modal-close:hover { color: var(--champagne); }
 .modal-card h3 {
   margin: 0 0 12px;
-  font-size: 0.86rem;
+  font-size: 1.00rem;
   font-weight: 600;
   letter-spacing: 0.1em;
   color: var(--champagne);
@@ -951,14 +987,14 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
   gap: 10px;
   flex-wrap: wrap;
 }
-.modal-card p { font-size: 0.74rem; color: var(--ivory-2); }
+.modal-card p { font-size: 0.95rem; color: var(--ivory-2); }
 .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
 .modal-actions button {
   flex: 1;
   padding: 11px;
   border-radius: var(--radius);
   font-family: var(--font-ui);
-  font-size: 0.58rem;
+  font-size: 0.82rem;
   font-weight: 600;
   letter-spacing: 0.2em;
   cursor: pointer;
@@ -983,14 +1019,14 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
   padding: 11px 12px;
   margin-top: 10px;
   font-family: var(--font-mono);
-  font-size: 0.68rem;
+  font-size: 0.90rem;
   color: var(--ivory-2);
   white-space: pre-wrap;
   word-break: break-word;
   max-height: 260px;
   overflow-y: auto;
 }
-.reason-label { display: block; margin-top: 16px; font-size: 0.52rem; letter-spacing: 0.2em; color: var(--ivory-3); }
+.reason-label { display: block; margin-top: 16px; font-size: 0.78rem; letter-spacing: 0.2em; color: var(--ivory-3); }
 .reason-input {
   width: 100%;
   margin-top: 7px;
@@ -1000,13 +1036,13 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
   background: var(--ink-2);
   color: var(--ivory);
   font-family: var(--font-ui);
-  font-size: 0.8rem;
+  font-size: 0.95rem;
 }
 .reason-input:focus { outline: none; border-color: var(--gold-dim); }
 
 /* ------------------------------ plan ------------------------------ */
 .plan-request { font-style: italic; color: var(--ivory-3); margin: 2px 0 8px; }
-.plan-status-text { font-size: 0.76rem; margin: 0 0 14px; color: var(--ivory-2); }
+.plan-status-text { font-size: 0.95rem; margin: 0 0 14px; color: var(--ivory-2); }
 .plan-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
 .plan-chip {
   display: inline-flex;
@@ -1016,11 +1052,11 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
   padding: 5px 10px;
   background: var(--glass);
 }
-.plan-chip-label { font-size: 0.46rem; letter-spacing: 0.16em; color: var(--ivory-4); }
-.plan-chip-value { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.06em; color: var(--ivory); margin-top: 2px; }
+.plan-chip-label { font-size: 0.74rem; letter-spacing: 0.16em; color: var(--ivory-4); }
+.plan-chip-value { font-size: 0.90rem; font-weight: 600; letter-spacing: 0.06em; color: var(--ivory); margin-top: 2px; }
 .plan-mode-DEEP .plan-chip-value { color: var(--gold-hi); }
 .plan-group { margin-bottom: 14px; }
-.plan-group-title { font-size: 0.5rem; letter-spacing: 0.2em; color: var(--ivory-4); margin-bottom: 7px; }
+.plan-group-title { font-size: 0.78rem; letter-spacing: 0.2em; color: var(--ivory-4); margin-bottom: 7px; }
 .plan-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
 .plan-step {
   border: 1px solid var(--line-soft);
@@ -1030,14 +1066,14 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
   padding: 10px 12px;
 }
 .plan-step.is-blocked { border-left-color: var(--crit); }
-.plan-step-head { font-size: 0.74rem; color: var(--ivory); letter-spacing: 0.03em; }
+.plan-step-head { font-size: 0.95rem; color: var(--ivory); letter-spacing: 0.03em; }
 .plan-step-head strong { color: var(--gold-hi); margin-right: 6px; }
-.plan-deps { color: var(--ivory-4); font-size: 0.64rem; }
-.plan-step-desc { font-size: 0.72rem; margin-top: 3px; color: var(--ivory-2); }
-.plan-step-target { font-family: var(--font-mono); font-size: 0.6rem; color: var(--ivory-4); margin-top: 4px; word-break: break-word; }
+.plan-deps { color: var(--ivory-4); font-size: 0.86rem; }
+.plan-step-desc { font-size: 0.90rem; margin-top: 3px; color: var(--ivory-2); }
+.plan-step-target { font-family: var(--font-mono); font-size: 0.82rem; color: var(--ivory-4); margin-top: 4px; word-break: break-word; }
 .plan-flags { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 5px; }
 .plan-flag {
-  font-size: 0.46rem;
+  font-size: 0.74rem;
   font-weight: 700;
   letter-spacing: 0.12em;
   border: 1px solid currentColor;
@@ -1047,11 +1083,11 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
 }
 .plan-flag-blocked { color: var(--crit); }
 .plan-flag-human { color: var(--ok); }
-.plan-unavailable { display: block; font-size: 0.6rem; color: var(--ivory-4); margin-top: 3px; }
-.plan-meta { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font-size: 0.7rem; margin: 16px 0 0; }
+.plan-unavailable { display: block; font-size: 0.82rem; color: var(--ivory-4); margin-top: 3px; }
+.plan-meta { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font-size: 0.90rem; margin: 16px 0 0; }
 .plan-meta dt { color: var(--ivory-4); letter-spacing: 0.06em; }
 .plan-meta dd { margin: 0; color: var(--ivory-2); word-break: break-word; }
-.plan-note { font-size: 0.64rem; color: var(--ivory-4); margin-top: 14px; }
+.plan-note { font-size: 0.86rem; color: var(--ivory-4); margin-top: 14px; }
 
 /* ------------------------ execution surface ------------------------
    Additive only: same tokens, same hairlines, same gold. Nothing here
@@ -1069,7 +1105,7 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
 }
 .exec-title {
   margin: 0;
-  font-size: 0.55rem;
+  font-size: 0.78rem;
   font-weight: 600;
   letter-spacing: 0.24em;
   color: var(--gold-hi);
@@ -1077,13 +1113,13 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
 .exec-src {
   margin-left: auto;
   font-family: var(--font-mono);
-  font-size: 0.55rem;
+  font-size: 0.78rem;
   color: var(--ivory-4);
 }
-.exec-note { font-size: 0.64rem; color: var(--ivory-4); margin: 12px 0 0; line-height: 1.5; }
+.exec-note { font-size: 0.86rem; color: var(--ivory-4); margin: 12px 0 0; line-height: 1.5; }
 
 .exec-state-chip {
-  font-size: 0.5rem;
+  font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.18em;
   border: 1px solid currentColor;
@@ -1122,7 +1158,7 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
 }
 .exec-stage-label {
   display: block;
-  font-size: 0.55rem;
+  font-size: 0.78rem;
   font-weight: 600;
   letter-spacing: 0.14em;
   color: var(--ivory-2);
@@ -1130,7 +1166,7 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
 .exec-stage-state {
   display: block;
   margin-top: 6px;
-  font-size: 0.48rem;
+  font-size: 0.74rem;
   font-weight: 700;
   letter-spacing: 0.14em;
   color: var(--ivory-4);
@@ -1139,7 +1175,7 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
   display: block;
   margin-top: 5px;
   font-family: var(--font-mono);
-  font-size: 0.55rem;
+  font-size: 0.78rem;
   color: var(--ivory-4);
   word-break: break-word;
 }
@@ -1170,9 +1206,9 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
   background: var(--glass);
   padding: 11px 12px;
 }
-.dom-name { display: block; font-size: 0.56rem; font-weight: 600; letter-spacing: 0.16em; color: var(--ivory); }
-.dom-state { display: block; margin-top: 7px; font-size: 0.48rem; font-weight: 700; letter-spacing: 0.14em; color: var(--ivory-4); }
-.dom-meta { display: block; margin-top: 6px; font-family: var(--font-mono); font-size: 0.54rem; color: var(--ivory-4); word-break: break-word; }
+.dom-name { display: block; font-size: 0.82rem; font-weight: 600; letter-spacing: 0.16em; color: var(--ivory); }
+.dom-state { display: block; margin-top: 7px; font-size: 0.74rem; font-weight: 700; letter-spacing: 0.14em; color: var(--ivory-4); }
+.dom-meta { display: block; margin-top: 6px; font-family: var(--font-mono); font-size: 0.78rem; color: var(--ivory-4); word-break: break-word; }
 .dom-card.st-absent { opacity: 0.42; }
 .dom-card.st-wait   { border-top-color: var(--warn); }
 .dom-card.st-wait   .dom-state { color: var(--warn); }
@@ -1189,10 +1225,10 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
 
 /* -- evidence table -- */
 .ev-wrap { overflow-x: auto; }
-.ev-table { width: 100%; border-collapse: collapse; font-size: 0.68rem; min-width: 660px; }
+.ev-table { width: 100%; border-collapse: collapse; font-size: 0.90rem; min-width: 660px; }
 .ev-table th {
   text-align: left;
-  font-size: 0.46rem;
+  font-size: 0.74rem;
   font-weight: 600;
   letter-spacing: 0.16em;
   color: var(--ivory-4);
@@ -1207,7 +1243,7 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
   border-bottom: 1px solid rgba(242, 239, 233, 0.04);
   word-break: break-word;
 }
-.ev-table td.ev-mono { font-family: var(--font-mono); font-size: 0.62rem; color: var(--ivory-3); }
+.ev-table td.ev-mono { font-family: var(--font-mono); font-size: 0.86rem; color: var(--ivory-3); }
 .ev-na { color: var(--ivory-4); }
 .ev-flag { color: var(--crit); font-weight: 700; }
 .ev-ok { color: var(--ok); }
@@ -1223,26 +1259,26 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
 }
 .pr-block h4 {
   margin: 0 0 9px;
-  font-size: 0.5rem;
+  font-size: 0.78rem;
   font-weight: 600;
   letter-spacing: 0.2em;
   color: var(--ivory-2);
 }
 .pr-block ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
-.pr-block li { font-size: 0.7rem; color: var(--ivory-2); line-height: 1.45; }
+.pr-block li { font-size: 0.90rem; color: var(--ivory-2); line-height: 1.45; }
 .pr-code {
   display: inline-block;
   font-family: var(--font-mono);
-  font-size: 0.56rem;
+  font-size: 0.82rem;
   letter-spacing: 0.04em;
   color: var(--gold);
   margin-right: 6px;
 }
-.pr-sev { font-size: 0.46rem; font-weight: 700; letter-spacing: 0.12em; border: 1px solid currentColor; border-radius: 2px; padding: 1px 5px; margin-right: 6px; }
+.pr-sev { font-size: 0.74rem; font-weight: 700; letter-spacing: 0.12em; border: 1px solid currentColor; border-radius: 2px; padding: 1px 5px; margin-right: 6px; }
 .pr-sev.sev-CRITICAL { color: var(--crit); }
 .pr-sev.sev-WARN { color: var(--warn); }
 .pr-sev.sev-INFO { color: var(--info); }
-.pr-empty { font-size: 0.64rem; color: var(--ivory-4); }
+.pr-empty { font-size: 0.86rem; color: var(--ivory-4); }
 
 /* --------------------------- scrollbars --------------------------- */
 .feed, .rp-scroll, .chat-log, .analiz-body, .modal-card, .proposal-list-lg, .evidence-block {
@@ -1272,7 +1308,7 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
   body { font-size: 13px; }
   .stage { gap: 12px; padding: 12px; }
   .tb-brand .brand-sub { display: none; }
-  .nav-item { padding: 7px 8px; font-size: 0.55rem; letter-spacing: 0.13em; }
+  .nav-item { padding: 7px 8px; font-size: 0.78rem; letter-spacing: 0.13em; }
   .tb-meta { gap: 12px; }
   .op-name { max-width: 82px; }
 }
@@ -1299,17 +1335,17 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
 @media (max-width: 760px) {
   body { font-size: 13px; }
   .topbar { padding: 10px 12px; gap: 10px; }
-  .tb-brand .brand-name { font-size: 0.9rem; letter-spacing: 0.2em; }
+  .tb-brand .brand-name { font-size: 1.00rem; letter-spacing: 0.2em; }
   /* below ~370px the header's right cluster no longer fits on one line;
      let it wrap instead of forcing the whole page to scroll sideways. */
   .tb-meta { gap: 9px; row-gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
   .tb-date, .op-name { display: none; }
-  .nav-item { padding: 6px 7px; font-size: 0.52rem; letter-spacing: 0.1em; }
+  .nav-item { padding: 6px 7px; font-size: 0.78rem; letter-spacing: 0.1em; }
   .stage { padding: 10px; gap: 10px; }
   .core-stack { max-width: 100%; }
   .core-label { width: 34%; }
   .feed, .rp-scroll, .proposal-list-lg, .analiz-body { max-height: 52vh; }
-  .core-chain { font-size: 0.46rem; letter-spacing: 0.16em; }
+  .core-chain { font-size: 0.74rem; letter-spacing: 0.16em; }
   .core-chain span { margin: 0 4px; }
   .metric-row { grid-template-columns: repeat(3, 1fr); }
   .qa-grid { grid-template-columns: 1fr; }
@@ -1411,25 +1447,25 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
   padding: 10px 14px; background: rgba(127,127,127,0.07);
 }
-.sect-card-head h3 { margin: 0; font-size: 0.82rem; letter-spacing: 0.08em; }
-.sect-meta { font-size: 0.75rem; opacity: 0.75; }
+.sect-card-head h3 { margin: 0; font-size: 1.00rem; letter-spacing: 0.08em; }
+.sect-meta { font-size: 0.95rem; opacity: 0.75; }
 .kv {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 9px 14px; border-top: 1px solid var(--line, #2a332a); min-height: 40px;
 }
-.kv-k { overflow-wrap: anywhere; font-size: 0.86rem; }
-.kv-v { text-align: right; overflow-wrap: anywhere; font-size: 0.84rem; opacity: 0.9; }
+.kv-k { overflow-wrap: anywhere; font-size: 1.00rem; }
+.kv-v { text-align: right; overflow-wrap: anywhere; font-size: 1.00rem; opacity: 0.9; }
 .kv.is-bad .kv-v { color: #e2695a; }
 .kv.is-warn .kv-v { opacity: 0.7; }
-.chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; }
+.chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.90rem; }
 .chip-good { background: rgba(95,187,160,0.18); color: #5fbba0; }
 .chip-bad  { background: rgba(226,105,90,0.18); color: #e2695a; }
 .chip-warn { background: rgba(227,174,94,0.18); color: #e3ae5e; }
 .chip-flat { background: rgba(127,127,127,0.15); }
-.sect-note { margin: 0; padding: 8px 14px; font-size: 0.78rem; opacity: 0.72; }
+.sect-note { margin: 0; padding: 8px 14px; font-size: 0.95rem; opacity: 0.72; }
 .sect-empty { padding: 18px 14px; opacity: 0.7; }
 .sect-empty.is-bad { color: #e2695a; }
-.sect-pre { margin: 0; padding: 12px 14px; font-size: 0.76rem; overflow-x: auto; }
+.sect-pre { margin: 0; padding: 12px 14px; font-size: 0.95rem; overflow-x: auto; }
 @media (max-width: 520px) {
   .sect-body { padding: 10px; gap: 10px; }
   .kv { flex-direction: column; align-items: flex-start; gap: 3px; }
@@ -1888,7 +1924,7 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
 }
 .hf-kart.is-bad { border-top-color: var(--crit, #cd6f68); }
 .hf-kart-b {
-  font-size: .52rem;
+  font-size: 0.78rem;
   font-weight: 600;
   letter-spacing: .22em;
   opacity: .62;
@@ -1904,7 +1940,7 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
 
 .hf-form { display: flex; flex-direction: column; gap: 8px; margin-bottom: 6px; }
 .hf-label {
-  font-size: .52rem;
+  font-size: 0.78rem;
   font-weight: 600;
   letter-spacing: .18em;
   opacity: .6;
@@ -1915,7 +1951,7 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
   border-radius: var(--radius);
   color: var(--ivory);
   font-family: var(--font-ui);
-  font-size: .85rem;
+  font-size: 1.00rem;
   line-height: 1.55;
   padding: 10px 12px;
   resize: vertical;
@@ -1962,7 +1998,7 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
   border-radius: var(--radius);
   color: inherit;
   font-family: var(--font-ui);
-  font-size: .5rem;
+  font-size: 0.78rem;
   font-weight: 600;
   letter-spacing: .18em;
   padding: 5px 12px;
@@ -1990,9 +2026,9 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
 .ek-tile{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);
   border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:4px}
 .ek-n{font-size:1.6rem;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-.ek-k{font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;opacity:.6}
+.ek-k{font-size:0.90rem;letter-spacing:.1em;text-transform:uppercase;opacity:.6}
 .ek-legend{gap:6px;justify-content:center}
-.ek-lg{display:flex;align-items:center;gap:7px;font-size:.78rem;opacity:.85}
+.ek-lg{display:flex;align-items:center;gap:7px;font-size:0.95rem;opacity:.85}
 
 .ek-dot{width:9px;height:9px;border-radius:50%;flex:0 0 9px;display:inline-block}
 .ek-dot.ek-yesil{background:#37d19a;box-shadow:0 0 7px rgba(55,209,154,.55)}
@@ -2000,14 +2036,14 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
 .ek-dot.ek-kirmizi{background:#e0564a;box-shadow:0 0 7px rgba(224,86,74,.5)}
 .ek-dot.ek-gri{background:#5d6873}
 
-.ek-not{font-size:.76rem;opacity:.55;margin:0 0 18px;line-height:1.5}
+.ek-not{font-size:0.95rem;opacity:.55;margin:0 0 18px;line-height:1.5}
 
 .ek-aile{margin-bottom:18px}
 .ek-aile-head{display:flex;align-items:baseline;gap:12px;
   border-bottom:1px solid rgba(201,160,82,.35);padding-bottom:5px;margin-bottom:4px}
-.ek-aile-ad{font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;
+.ek-aile-ad{font-size:0.90rem;letter-spacing:.14em;text-transform:uppercase;
   color:#c9a052;font-weight:600}
-.ek-aile-say{font-size:.72rem;opacity:.5;font-variant-numeric:tabular-nums}
+.ek-aile-say{font-size:0.90rem;opacity:.5;font-variant-numeric:tabular-nums}
 
 .ek-dep{border-bottom:1px solid rgba(255,255,255,.06)}
 .ek-dep[open]{background:rgba(255,255,255,.02)}
@@ -2016,64 +2052,64 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
 .ek-dep-head::-webkit-details-marker{display:none}
 .ek-dep-head:hover{background:rgba(255,255,255,.035)}
 .ek-dep.ek-gri .ek-dep-head{opacity:.5}
-.ek-kod{font-family:ui-monospace,monospace;font-size:.76rem;font-weight:600;
+.ek-kod{font-family:ui-monospace,monospace;font-size:0.95rem;font-weight:600;
   min-width:124px}
-.ek-ad{font-size:.88rem;opacity:.8;flex:1;min-width:0;overflow:hidden;
+.ek-ad{font-size:1.00rem;opacity:.8;flex:1;min-width:0;overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
-.ek-say{font-family:ui-monospace,monospace;font-size:.75rem;opacity:.65;
+.ek-say{font-family:ui-monospace,monospace;font-size:0.95rem;opacity:.65;
   font-variant-numeric:tabular-nums;min-width:38px;text-align:right}
 
-.ek-rozet{font-family:ui-monospace,monospace;font-size:.62rem;letter-spacing:.06em;
+.ek-rozet{font-family:ui-monospace,monospace;font-size:0.86rem;letter-spacing:.06em;
   padding:2px 7px;border-radius:3px;white-space:nowrap}
 .ek-rz-calisiyor{background:rgba(55,209,154,.14);color:#5cc192}
 .ek-rz-kismi{background:rgba(224,169,60,.14);color:#d9a441}
 .ek-rz-yok{background:rgba(255,255,255,.06);color:#8b95a1}
 
 .ek-dep-govde{padding:4px 4px 18px 26px;display:flex;flex-direction:column;gap:10px}
-.ek-misyon{font-size:.86rem;opacity:.85}
+.ek-misyon{font-size:1.00rem;opacity:.85}
 .ek-meta{display:flex;flex-wrap:wrap;gap:14px;font-family:ui-monospace,monospace;
-  font-size:.7rem;opacity:.5}
+  font-size:0.90rem;opacity:.5}
 
 .ek-uye{border-left:2px solid rgba(255,255,255,.1);padding:7px 0 7px 12px}
 .ek-uye.is-konustu{border-left-color:#37d19a}
 .ek-uye-ust{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
-.ek-uye-ad{font-weight:600;font-size:.9rem}
-.ek-uye-durum{font-family:ui-monospace,monospace;font-size:.64rem;
+.ek-uye-ad{font-weight:600;font-size:1.00rem}
+.ek-uye-durum{font-family:ui-monospace,monospace;font-size:0.86rem;
   letter-spacing:.07em;opacity:.55}
-.ek-uye-gorev{font-size:.82rem;opacity:.65;margin-top:2px}
-.ek-uye-soz{font-size:.86rem;margin-top:6px;line-height:1.5}
-.ek-uye-eksik{font-family:ui-monospace,monospace;font-size:.68rem;
+.ek-uye-gorev{font-size:1.00rem;opacity:.65;margin-top:2px}
+.ek-uye-soz{font-size:1.00rem;margin-top:6px;line-height:1.5}
+.ek-uye-eksik{font-family:ui-monospace,monospace;font-size:0.90rem;
   color:#e0a93c;margin-top:5px}
-.ek-uye-okur{font-family:ui-monospace,monospace;font-size:.66rem;
+.ek-uye-okur{font-family:ui-monospace,monospace;font-size:0.86rem;
   opacity:.38;margin-top:4px;word-break:break-word}
-.ek-bos{font-size:.84rem;opacity:.5;margin:0}
+.ek-bos{font-size:1.00rem;opacity:.5;margin:0}
 
 /* ---- soru sor ---- */
 .ek-sor{margin-top:6px;padding-top:12px;border-top:1px dashed rgba(255,255,255,.1)}
-.ek-sor-lbl{display:block;font-size:.7rem;letter-spacing:.1em;
+.ek-sor-lbl{display:block;font-size:0.90rem;letter-spacing:.1em;
   text-transform:uppercase;opacity:.55;margin-bottom:7px}
 .ek-sor-row{display:flex;gap:8px;flex-wrap:wrap}
 .ek-sor-in{flex:1;min-width:220px;background:rgba(0,0,0,.25);
   border:1px solid rgba(255,255,255,.14);border-radius:6px;padding:9px 12px;
-  color:inherit;font:inherit;font-size:.86rem}
+  color:inherit;font:inherit;font-size:1.00rem}
 .ek-sor-in:focus{outline:2px solid #c9a052;outline-offset:1px}
 .ek-sor-btn{background:rgba(201,160,82,.18);border:1px solid rgba(201,160,82,.5);
-  color:#c9a052;border-radius:6px;padding:9px 18px;font:inherit;font-size:.76rem;
+  color:#c9a052;border-radius:6px;padding:9px 18px;font:inherit;font-size:0.95rem;
   letter-spacing:.08em;cursor:pointer}
 .ek-sor-btn:hover:not(:disabled){background:rgba(201,160,82,.3)}
 .ek-sor-btn:disabled{opacity:.5;cursor:default}
 
 .ek-cevap{margin-top:12px;background:rgba(0,0,0,.22);border-radius:8px;
   padding:14px 16px;border:1px solid rgba(255,255,255,.08)}
-.ek-cevap-metin{font-size:.88rem;line-height:1.65;white-space:pre-wrap}
-.ek-bekle{font-size:.84rem;opacity:.6;margin:0}
-.ek-hata{font-size:.84rem;color:#e0564a;margin:0}
-.ek-uyari{margin-top:10px;font-size:.8rem;color:#e0a93c;
+.ek-cevap-metin{font-size:1.00rem;line-height:1.65;white-space:pre-wrap}
+.ek-bekle{font-size:1.00rem;opacity:.6;margin:0}
+.ek-hata{font-size:1.00rem;color:#e0564a;margin:0}
+.ek-uyari{margin-top:10px;font-size:0.95rem;color:#e0a93c;
   background:rgba(224,169,60,.1);border-radius:5px;padding:8px 11px}
-.ek-dogru{margin-top:10px;font-size:.78rem;color:#5cc192;opacity:.8}
+.ek-dogru{margin-top:10px;font-size:0.95rem;color:#5cc192;opacity:.8}
 .ek-cevap-alt{display:flex;flex-wrap:wrap;gap:14px;margin-top:11px;
   padding-top:9px;border-top:1px solid rgba(255,255,255,.07);
-  font-family:ui-monospace,monospace;font-size:.66rem;opacity:.45}
+  font-family:ui-monospace,monospace;font-size:0.86rem;opacity:.45}
 
 @media (max-width:700px){
   .ek-kod{min-width:96px}
@@ -2087,17 +2123,17 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
    yazısını kendi ölçümümüz sanmaya yol açardı. */
 .ek-ar{margin-top:8px;border-left:2px solid rgba(201,160,82,.45);padding:8px 0 8px 12px}
 .ek-ar-head{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
-.ek-ar-lbl{font-family:ui-monospace,monospace;font-size:.64rem;letter-spacing:.12em;
+.ek-ar-lbl{font-family:ui-monospace,monospace;font-size:0.86rem;letter-spacing:.12em;
   color:#c9a052;font-weight:600}
-.ek-ar-say{font-family:ui-monospace,monospace;font-size:.66rem;opacity:.45}
+.ek-ar-say{font-family:ui-monospace,monospace;font-size:0.86rem;opacity:.45}
 .ek-ar-item{margin-bottom:9px}
-.ek-ar-baslik{font-size:.84rem;color:inherit;text-decoration:none;
+.ek-ar-baslik{font-size:1.00rem;color:inherit;text-decoration:none;
   border-bottom:1px solid rgba(255,255,255,.18)}
 .ek-ar-baslik:hover{border-bottom-color:#c9a052;color:#c9a052}
-.ek-ar-meta{font-family:ui-monospace,monospace;font-size:.64rem;opacity:.42;margin-top:2px}
-.ek-ar-ozet{font-size:.78rem;opacity:.62;margin-top:3px;line-height:1.5}
-.ek-ar-not{font-size:.68rem;opacity:.42;margin:8px 0 0;font-style:italic}
-.ek-ar-son{font-size:.66rem;opacity:.5;margin-top:2px}
+.ek-ar-meta{font-family:ui-monospace,monospace;font-size:0.86rem;opacity:.42;margin-top:2px}
+.ek-ar-ozet{font-size:0.95rem;opacity:.62;margin-top:3px;line-height:1.5}
+.ek-ar-not{font-size:0.90rem;opacity:.42;margin:8px 0 0;font-style:italic}
+.ek-ar-son{font-size:0.86rem;opacity:.5;margin-top:2px}
 .ek-tile-uyari{border-color:rgba(224,169,60,.4)}
 .ek-tile-uyari .ek-ar-son{color:#e0a93c;opacity:.9}
 /* ---- elle girilen pazar gözlemi ----
@@ -2106,22 +2142,1704 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
    gözlemi yorumdan ayırır; aynı kutuya girselerdi hepsi "veri" okunurdu. */
 .ek-pz{margin-top:8px;border-left:2px solid rgba(92,193,146,.45);padding:8px 0 8px 12px}
 .ek-pz-item{margin-bottom:9px}
-.ek-pz-sev{font-family:ui-monospace,monospace;font-size:.6rem;letter-spacing:.06em;
+.ek-pz-sev{font-family:ui-monospace,monospace;font-size:0.82rem;letter-spacing:.06em;
   padding:2px 6px;border-radius:3px;margin-right:7px;vertical-align:1px}
 .ek-sev-fact{background:rgba(92,193,146,.16);color:#5cc192}
 .ek-sev-interpretation{background:rgba(201,160,82,.16);color:#c9a052}
 .ek-sev-hypothesis{background:rgba(120,140,200,.16);color:#8ea2d8}
 .ek-sev-not_connected{background:rgba(255,255,255,.07);color:#8b95a1}
-.ek-pz-metin{font-size:.84rem}
+.ek-pz-metin{font-size:1.00rem}
 .ek-pz-ekle{margin-top:6px}
-.ek-pz-ekle summary{cursor:pointer;font-size:.76rem;color:#5cc192;opacity:.85;
+.ek-pz-ekle summary{cursor:pointer;font-size:0.95rem;color:#5cc192;opacity:.85;
   list-style:none}
 .ek-pz-ekle summary::-webkit-details-marker{display:none}
 .ek-pz-ekle summary:hover{opacity:1}
 .ek-pz-form{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
 .ek-pz-in{flex:1;min-width:190px;background:rgba(0,0,0,.25);
   border:1px solid rgba(255,255,255,.14);border-radius:6px;padding:8px 11px;
-  color:inherit;font:inherit;font-size:.82rem}
+  color:inherit;font:inherit;font-size:1.00rem}
 .ek-pz-in:focus{outline:2px solid #5cc192;outline-offset:1px}
 .ek-pz-kisa{flex:0 0 120px;min-width:120px}
 .ek-pz-sonuc{margin-top:8px}
+
+/* ---- DEĞİŞİKLİK ÖNERİSİ kutusu (E-TİCARET satır içi düzenleme) ----
+   Tablo satırının ALTINA açılır. Ayrı bir kipe (modal) geçilmemesi
+   bilinçli: onaylayan kişi neyin değiştiğini görmek için üstteki satırı
+   görmeye devam etmeli. */
+.et-duzenle-satir > td { padding: 0; }
+.dk-kutu {
+  display: flex; flex-direction: column; gap: .5rem;
+  padding: .85rem 1rem; border-left: 3px solid var(--accent, #3ab0d1);
+  background: rgba(58, 176, 209, .06);
+}
+.dk-baslik {
+  font-weight: 600; letter-spacing: .02em; text-transform: uppercase;
+  font-size: 0.95rem; opacity: .85;
+}
+.dk-etiket {
+  display: flex; flex-direction: column; gap: .25rem;
+  font-size: 0.95rem; opacity: .9;
+}
+.dk-girdi {
+  font: inherit; font-size: 1.00rem; padding: .4rem .55rem;
+  border: 1px solid rgba(128, 128, 128, .35); border-radius: 4px;
+  background: rgba(0, 0, 0, .18); color: inherit; width: 100%;
+}
+.dk-girdi[readonly] { opacity: .6; }
+.dk-alan { resize: vertical; min-height: 2.6rem; }
+.dk-dugmeler { display: flex; gap: .5rem; flex-wrap: wrap; }
+.dk-btn {
+  font: inherit; font-size: 0.95rem; letter-spacing: .04em;
+  padding: .4rem .9rem; border-radius: 4px; cursor: pointer;
+  border: 1px solid rgba(128, 128, 128, .45);
+  background: transparent; color: inherit;
+}
+.dk-btn-ana {
+  border-color: var(--accent, #3ab0d1);
+  background: rgba(58, 176, 209, .18); font-weight: 600;
+}
+.dk-btn:disabled { opacity: .5; cursor: progress; }
+.dk-not { margin: 0; font-size: 0.90rem; opacity: .65; }
+.dk-sonuc { margin: 0; font-size: 0.95rem; }
+.dk-sonuc.is-ok { color: #6fcf97; }
+.dk-sonuc.is-bad { color: #eb5757; }
+.fm-gerekce { min-width: 16rem; flex: 1 1 16rem; }
+
+@media (max-width: 640px) {
+  .dk-kutu { padding: .7rem .75rem; }
+  .dk-dugmeler .dk-btn { flex: 1 1 auto; }
+}
+
+
+/* ---- okuma konforu ----
+   Kucuk puntolar yukari cekilince satir araligi da acilmali; aksi halde
+   metin blok halinde gorunuyor. Mobilde dokunma hedefleri de buyutuldu. */
+body { line-height: 1.5; -webkit-font-smoothing: antialiased; }
+h1, h2, h3, h4 { line-height: 1.25; }
+p, li, td, th { line-height: 1.55; }
+table { font-variant-numeric: tabular-nums; }
+
+@media (max-width: 720px) {
+  button, .nav-item, .qa-btn, .dk-btn { min-height: 2.4rem; }
+  table { font-size: 0.86rem; }
+}
+
+
+/* ==================================================================
+   ÖNERİ KARTI · okunabilir karar ekranı
+   Ham JSON yerine ayrıştırılmış gövde. Amaç tek: onaylayan kişi NEYİ
+   onayladığını okuyarak görsün.
+   ================================================================== */
+.o-govde {
+  display: flex; flex-direction: column; gap: .55rem;
+  margin: .9rem 0; padding: 1rem 1.1rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, .09);
+  background: rgba(255, 255, 255, .035);
+}
+.o-baslik {
+  margin: 0 0 .15rem; font-size: 1.02rem; font-weight: 600;
+  letter-spacing: .005em; line-height: 1.3;
+}
+.o-satir { margin: 0; font-size: .92rem; }
+.o-liste { margin: 0; padding-left: 1.1rem; display: flex;
+           flex-direction: column; gap: .3rem; font-size: .9rem; }
+
+/* etiketli satır: alan / değer ikilisi */
+.o-alan {
+  margin: 0; display: grid; grid-template-columns: 8.5rem 1fr;
+  gap: .25rem .9rem; align-items: baseline; font-size: .92rem;
+  padding: .3rem 0; border-bottom: 1px solid rgba(255, 255, 255, .055);
+}
+.o-alan:last-of-type { border-bottom: 0; }
+.o-et {
+  font-size: .74rem; letter-spacing: .09em; text-transform: uppercase;
+  opacity: .62; font-weight: 500;
+}
+.o-dg { font-weight: 500; overflow-wrap: anywhere; }
+
+/* karar rozetli satır */
+.o-karar {
+  margin: 0; display: flex; gap: .55rem; align-items: baseline;
+  flex-wrap: wrap; font-size: .92rem; padding: .35rem 0;
+}
+.o-rozet {
+  flex: 0 0 auto; font-size: .68rem; font-weight: 700; letter-spacing: .08em;
+  padding: .2rem .5rem; border-radius: 3px; text-transform: uppercase;
+}
+.o-ok   { background: rgba(111, 207, 151, .16); color: #7fe0aa; }
+.o-orta { background: rgba(242, 201, 76, .16);  color: #f2c94c; }
+.o-kotu { background: rgba(235, 87, 87, .16);   color: #ff7b7b; }
+.o-olcum { font-style: normal; font-size: .78rem; opacity: .72; }
+
+.o-uyari {
+  margin: .2rem 0 0; padding: .6rem .8rem; border-radius: 7px;
+  font-size: .86rem; line-height: 1.5;
+  border-left: 3px solid #eb5757; background: rgba(235, 87, 87, .09);
+}
+.o-bos {
+  padding: .8rem 1rem; border-radius: 8px; font-size: .92rem;
+  border: 1px solid rgba(235, 87, 87, .4); background: rgba(235, 87, 87, .08);
+}
+
+/* görsel önizleme — onay ekranında GERÇEK görseli görmek şart */
+.o-gorsel {
+  position: relative; display: block; border-radius: 8px; overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .12); max-width: 19rem;
+  text-decoration: none; background: rgba(0, 0, 0, .25);
+}
+.o-gorsel img { display: block; width: 100%; height: auto; }
+.o-gorsel span {
+  position: absolute; right: .45rem; bottom: .45rem;
+  font-size: .66rem; letter-spacing: .08em; text-transform: uppercase;
+  padding: .2rem .5rem; border-radius: 3px;
+  background: rgba(0, 0, 0, .62); color: #fff;
+}
+.o-link { color: var(--accent, #3ab0d1); overflow-wrap: anywhere; }
+.o-ham { margin-top: .3rem; font-size: .8rem; opacity: .6; }
+.o-ham pre {
+  margin: .4rem 0 0; padding: .6rem .7rem; border-radius: 6px; overflow-x: auto;
+  background: rgba(0, 0, 0, .3); font-size: .76rem; line-height: 1.45;
+}
+.p-konu {
+  font-size: .88rem; font-weight: 500; line-height: 1.35;
+  margin: .25rem 0 .1rem; overflow-wrap: anywhere;
+}
+
+/* ==================================================================
+   KREATİF PARTİLERİ panosu
+   ================================================================== */
+.kp-liste { display: flex; flex-direction: column; gap: .9rem; }
+.kp-parti {
+  border: 1px solid rgba(255, 255, 255, .09); border-radius: 11px;
+  background: rgba(255, 255, 255, .03); overflow: hidden;
+}
+.kp-parti.is-acik { border-color: rgba(58, 176, 209, .45); }
+.kp-basi {
+  display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: baseline;
+  padding: .9rem 1.1rem; cursor: pointer;
+}
+.kp-basi:hover { background: rgba(255, 255, 255, .03); }
+.kp-basi strong { font-size: 1rem; font-weight: 600; }
+.kp-durum {
+  font-size: .72rem; letter-spacing: .07em; text-transform: uppercase;
+  padding: .2rem .55rem; border-radius: 3px;
+  background: rgba(58, 176, 209, .14); color: #7fd4ec;
+}
+.kp-tarih { font-size: .78rem; opacity: .55; margin-left: auto; }
+.kp-ozet {
+  display: flex; flex-direction: column; gap: .3rem;
+  padding: 0 1.1rem .9rem; font-size: .86rem; opacity: .85;
+}
+.kp-govde {
+  padding: .3rem 1.1rem 1.2rem; display: flex; flex-direction: column; gap: .7rem;
+  border-top: 1px solid rgba(255, 255, 255, .07);
+}
+.kp-govde h4 {
+  margin: .6rem 0 .1rem; font-size: .74rem; letter-spacing: .1em;
+  text-transform: uppercase; opacity: .6; font-weight: 600;
+}
+.kp-kareler {
+  display: grid; gap: .8rem;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+}
+.kp-kare {
+  margin: 0; border: 1px solid rgba(255, 255, 255, .1); border-radius: 9px;
+  overflow: hidden; background: rgba(0, 0, 0, .22);
+}
+.kp-kare img { display: block; width: 100%; height: auto; }
+.kp-kare figcaption {
+  display: flex; flex-direction: column; gap: .3rem;
+  padding: .6rem .7rem; font-size: .82rem;
+}
+.kp-kare strong { font-weight: 600; line-height: 1.3; }
+.kp-alt { opacity: .7; font-size: .78rem; }
+.kp-olcum { font-size: .74rem; opacity: .6; }
+.kp-rozet {
+  align-self: flex-start; font-size: .66rem; font-weight: 700;
+  letter-spacing: .08em; padding: .18rem .45rem; border-radius: 3px;
+}
+.kp-oran { font-size: .72rem; opacity: .55; }
+.kp-gorus, .kp-red, .kp-kurul {
+  margin: .4rem 0 0; padding-left: 1.05rem;
+  display: flex; flex-direction: column; gap: .35rem; font-size: .84rem;
+}
+.kp-agirlik {
+  font-size: .66rem; font-weight: 700; letter-spacing: .07em;
+  padding: .12rem .4rem; border-radius: 3px;
+  background: rgba(242, 201, 76, .15); color: #f2c94c;
+}
+.kp-prompt {
+  border: 1px solid rgba(255, 255, 255, .08); border-radius: 8px;
+  padding: .55rem .75rem; background: rgba(0, 0, 0, .18);
+}
+.kp-prompt summary { cursor: pointer; font-weight: 500; font-size: .9rem; }
+.kp-aci { margin: .4rem 0 .2rem; font-size: .82rem; opacity: .7; }
+.kp-yazi { margin: 0 0 .4rem; font-size: .86rem; }
+.kp-istem {
+  margin: 0; padding: .65rem .75rem; border-radius: 6px; overflow-x: auto;
+  background: rgba(0, 0, 0, .34); font-size: .78rem; line-height: 1.5;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.kp-link { color: var(--accent, #3ab0d1); font-size: .82rem; }
+
+@media (max-width: 720px) {
+  .o-alan { grid-template-columns: 1fr; gap: .1rem; }
+  .o-govde { padding: .8rem .85rem; }
+  .kp-basi, .kp-ozet, .kp-govde { padding-left: .85rem; padding-right: .85rem; }
+  .kp-tarih { margin-left: 0; }
+  .kp-kareler { grid-template-columns: 1fr; }
+  .o-gorsel { max-width: 100%; }
+}
+
+
+
+/* ---- önerinin SORUSU ve kararın SONUCU ----
+   Onay ekranında iki şey her şeyden önce okunmalı: ne isteniyor, ve
+   onaylarsam ne olur. İkisi de eskiden gövdenin içinde kaybolmuştu. */
+.o-baslik.o-soru {
+  font-size: 1.12rem; font-weight: 600; line-height: 1.35;
+  padding: .15rem 0 .55rem; border-bottom: 1px solid rgba(255,255,255,.09);
+  margin-bottom: .35rem;
+}
+.o-sonuc {
+  display: flex; flex-wrap: wrap; gap: .4rem .9rem; margin: .35rem 0 0;
+  padding: .55rem .8rem; border-radius: 7px; font-size: .86rem;
+  border: 1px solid rgba(58,176,209,.32); background: rgba(58,176,209,.08);
+}
+.o-sonuc span { flex: 1 1 13rem; }
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   TASARIM KATMANI
+   Sahip: "2. elmiş gibi duruyor… 100 bin dolarlık sayfaymış izlenimi
+   verelim… menüler sekmeli olsun, açılınca açılsın, animasyon koy…
+   metinler tam okunmuyor."
+
+   Palet DEĞİŞTİRİLMEDİ: kömür siyahı + şampanya altını zaten kurulu ve
+   markaya ait. Değişen şey uygulama — logo, hiyerarşi, hareket, okunurluk.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ---- LOGO ----
+   🔴 Yazıyla yazılmış "L’CARLIÉ" yerine gerçek marka işareti. Sistem
+   fontuyla dizilmiş bir marka adı, markanın kendisi değildir; É'nin
+   aksanı fonta göre kayıyordu. İşaret beyaz + şeffaf üretildi
+   (scripts: logo-uret.py), harflerin konturu birebir korundu. */
+.brand-logo {
+  display: block; width: auto; height: 1.55rem;
+  max-width: min(58vw, 15rem); object-fit: contain;
+  filter: drop-shadow(0 1px 8px rgba(201, 169, 97, .18));
+}
+.login-card .brand-logo { height: 2.5rem; max-width: min(72vw, 20rem); margin-inline: auto; }
+.tb-brand { display: flex; flex-direction: column; gap: .3rem; min-width: 0; }
+.tb-brand .brand-sub {
+  font-size: .58rem; letter-spacing: .26em; opacity: .42;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ---- AÇILIŞ EKRANI ---- */
+.login-view { position: relative; overflow: hidden; }
+.login-view::before {
+  content: ""; position: absolute; inset: -30%;
+  background: radial-gradient(ellipse at 50% 38%,
+    rgba(201, 169, 97, .10), transparent 62%);
+  animation: nefes 9s ease-in-out infinite; pointer-events: none;
+}
+@keyframes nefes { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+.login-card { position: relative; animation: yukari .7s cubic-bezier(.16,.84,.44,1) both; }
+.login-card .brand-mark {
+  display: flex; flex-direction: column; align-items: center; gap: .75rem;
+}
+@keyframes yukari {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ---- MENÜ: gruplu, açılır, animasyonlu ---- */
+.tb-nav {
+  display: flex; gap: .15rem; align-items: stretch;
+  min-width: 0; overflow-x: auto; scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch; scroll-snap-type: x proximity;
+}
+.tb-nav::-webkit-scrollbar { height: 3px; }
+.tb-nav::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 2px; }
+
+.nav-group { position: relative; flex: 0 0 auto; scroll-snap-align: start; }
+.nav-head {
+  display: flex; align-items: center; gap: .4rem;
+  padding: .42rem .7rem; border: 0; border-radius: var(--radius);
+  background: transparent; color: var(--ivory-3); cursor: pointer;
+  font: inherit; font-size: .68rem; font-weight: 600; letter-spacing: .16em;
+  white-space: nowrap; transition: color .18s ease, background .18s ease;
+}
+.nav-head:hover { color: var(--gold-hi); background: var(--glass); }
+.nav-caret {
+  width: 5px; height: 5px; border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-1px);
+  transition: transform .26s cubic-bezier(.16,.84,.44,1); opacity: .7;
+}
+.nav-group.is-kapali .nav-caret { transform: rotate(-45deg) translateY(1px); }
+
+.nav-body {
+  display: flex; gap: .1rem; overflow: hidden;
+  /* Açılma/kapanma: grid-template-rows ile yükseklik animasyonu.
+     max-height hilesi yerine bu kullanıldı -- içerik ne kadar uzun
+     olursa olsun süre aynı kalır ve zıplama olmaz. */
+  transition: opacity .24s ease, transform .26s cubic-bezier(.16,.84,.44,1);
+}
+.nav-group.is-kapali .nav-body {
+  width: 0; opacity: 0; transform: translateX(-6px); pointer-events: none;
+}
+
+.nav-item {
+  position: relative; flex: 0 0 auto;
+  padding: .42rem .72rem; border: 0; border-radius: var(--radius);
+  background: transparent; color: var(--ivory-2); cursor: pointer;
+  font: inherit; font-size: .72rem; letter-spacing: .1em; white-space: nowrap;
+  transition: color .18s ease, background .18s ease;
+}
+.nav-item::after {
+  content: ""; position: absolute; left: .72rem; right: .72rem; bottom: .12rem;
+  height: 1px; background: var(--gold); transform: scaleX(0);
+  transform-origin: left; transition: transform .26s cubic-bezier(.16,.84,.44,1);
+}
+.nav-item:hover { color: var(--champagne); background: var(--glass); }
+.nav-item:hover::after, .nav-item.is-active::after { transform: scaleX(1); }
+.nav-item.is-active { color: var(--gold-hi); }
+
+/* mobil menü düğmesi */
+.nav-toggle {
+  display: none; flex-direction: column; gap: 4px; justify-content: center;
+  width: 2.5rem; height: 2.5rem; padding: 0 .55rem; cursor: pointer;
+  border: 1px solid var(--line); border-radius: var(--radius);
+  background: transparent;
+}
+.nav-toggle span {
+  display: block; height: 1.5px; background: var(--gold);
+  transition: transform .26s cubic-bezier(.16,.84,.44,1), opacity .2s ease;
+}
+.nav-toggle[aria-expanded="true"] span:nth-child(1) { transform: translateY(5.5px) rotate(45deg); }
+.nav-toggle[aria-expanded="true"] span:nth-child(2) { opacity: 0; }
+.nav-toggle[aria-expanded="true"] span:nth-child(3) { transform: translateY(-5.5px) rotate(-45deg); }
+
+/* ---- GÖRÜNÜM GEÇİŞİ ----
+   Sekme değişince içerik beliriyor. Hareket KISA (.28s) ve tek yönlü;
+   uzun animasyon paneli yavaş hissettirir. */
+.view:not([hidden]) { animation: belir .28s cubic-bezier(.16,.84,.44,1) both; }
+@keyframes belir {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .view:not([hidden]), .login-card { animation: none; }
+  .login-view::before { animation: none; }
+  * { transition-duration: .01ms !important; }
+}
+
+/* ---- OKUNURLUK ----
+   🔴 Ölçüldü: app.css içinde 18 adet kırpma kuralı vardı
+   (text-overflow: ellipsis / white-space: nowrap). Panelin ÇERÇEVESİNDE
+   (sekme adı, rozet) bu doğru; ama İÇERİK metninde cümleyi yarıda
+   kesiyordu ve sahip "metinler tam okunmuyor" dedi.
+   Aşağıdaki kural yalnız içerik alanlarını serbest bırakır. */
+.view p, .view li, .view td, .view .kv-k, .view .sect-note,
+.view figcaption, .view summary, .view .o-satir, .view .o-dg {
+  white-space: normal; text-overflow: clip; overflow: visible;
+  overflow-wrap: anywhere; hyphens: auto;
+}
+.view .kv {
+  display: flex; gap: .5rem 1rem; align-items: baseline;
+  flex-wrap: wrap; justify-content: space-between;
+}
+.view .kv-k { flex: 1 1 18rem; min-width: 0; line-height: 1.5; }
+.view .kv-v { flex: 0 0 auto; white-space: nowrap; opacity: .75; }
+
+/* geniş tabloların kendi kaydırma kabı olsun; sayfa yana kaymasın */
+.view table { width: 100%; }
+.view .tablo-kab, .view .fm-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* ---- MOBİL ---- */
+@media (max-width: 860px) {
+  .nav-toggle { display: flex; }
+  .topbar {
+    display: grid; grid-template-columns: auto 1fr auto;
+    align-items: center; gap: .6rem; row-gap: .5rem;
+  }
+  .tb-nav {
+    grid-column: 1 / -1; order: 3;
+    display: grid; grid-template-rows: 0fr;
+    transition: grid-template-rows .3s cubic-bezier(.16,.84,.44,1);
+    overflow: hidden;
+  }
+  .tb-nav.is-acik { grid-template-rows: 1fr; }
+  .tb-nav > * { min-height: 0; }
+  .tb-nav-ic { overflow: hidden; }
+
+  /* mobilde gruplar alt alta, akordeon gibi */
+  .tb-nav { flex-direction: column; }
+  .nav-group { width: 100%; }
+  .nav-head { width: 100%; justify-content: space-between; padding: .7rem .2rem; }
+  .nav-body { flex-direction: column; width: 100%; }
+  .nav-group.is-kapali .nav-body { height: 0; }
+  .nav-item { width: 100%; text-align: left; padding: .62rem .8rem; }
+  .nav-item::after { left: .8rem; right: auto; width: 1.4rem; }
+
+  .brand-logo { height: 1.25rem; }
+  .tb-brand .brand-sub { display: none; }
+  .tb-meta { gap: .5rem; }
+  .tb-clock, .tb-operator .op-name { display: none; }
+}
+
+@media (max-width: 480px) {
+  .login-card { padding: 1.6rem 1.1rem; }
+  .login-card .brand-logo { height: 2rem; }
+}
+
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   TASARIM · 2. GEÇİŞ — ekrana bakılarak düzeltilenler
+   İlk geçiş canlıda görüldü ve iki kusur ölçüldü:
+   1) Menü grup başlıkları kendi öğelerinden KOPUK duruyordu; iki ayrı
+      satır gibi okunuyor, hangi başlığın hangi sekmeleri topladığı
+      anlaşılmıyordu.
+   2) Sağ sütunda etiket ve değer yan yana sıkışıp satır ortasından
+      kırılıyordu ("BEKLEYEN / ONAYLAR   operatör / kuyruğu").
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ---- MENÜ GRUPLARI: başlık ve öğeleri tek sütunda bağla ---- */
+.tb-nav { align-items: flex-start; gap: 0; }
+
+.nav-group {
+  display: flex; flex-direction: column; gap: 1px;
+  padding: 0 .7rem; position: relative;
+}
+/* gruplar arası ince ayraç — nerede bitip nerede başladığı görünsün */
+.nav-group + .nav-group::before {
+  content: ""; position: absolute; left: 0; top: .34rem; bottom: .34rem;
+  width: 1px; background: var(--line-soft);
+}
+.nav-head {
+  padding: .1rem .08rem .22rem; gap: .32rem;
+  font-size: .56rem; letter-spacing: .2em; color: var(--ivory-4);
+  border-bottom: 1px solid var(--line-soft); border-radius: 0;
+  transition: color .18s ease, border-color .18s ease;
+}
+.nav-head:hover { background: transparent; color: var(--gold); border-bottom-color: var(--line-strong); }
+.nav-group:has(.nav-item.is-active) .nav-head {
+  color: var(--gold-dim); border-bottom-color: var(--line-strong);
+}
+.nav-caret { width: 4px; height: 4px; opacity: .55; }
+
+.nav-body { gap: 0; padding-top: .12rem; }
+.nav-item { padding: .34rem .5rem; font-size: .69rem; letter-spacing: .09em; }
+.nav-item::after { left: .5rem; right: .5rem; bottom: .06rem; }
+
+/* ---- SAĞ SÜTUN: etiket üstte, değer altta ----
+   Rayda ~280 px var; etiketi ve değeri yan yana koymak ikisini de
+   ortadan kırıyordu. Alt alta dizilince ikisi de tam okunuyor. */
+.rail .kv, .p-rail .kv, aside .kv {
+  flex-direction: column; align-items: flex-start; gap: .12rem;
+  padding: .42rem 0; border-bottom: 1px solid var(--line-soft);
+}
+.rail .kv:last-child, .p-rail .kv:last-child, aside .kv:last-child { border-bottom: 0; }
+.rail .kv-k, .p-rail .kv-k, aside .kv-k {
+  flex: 1 1 auto; font-size: .62rem; letter-spacing: .13em;
+  color: var(--ivory-3); text-transform: uppercase;
+}
+.rail .kv-v, .p-rail .kv-v, aside .kv-v {
+  flex: 1 1 auto; white-space: normal; overflow-wrap: anywhere;
+  font-size: .82rem; color: var(--ivory); opacity: 1; text-align: left;
+}
+
+/* ---- ÜST BAR SAĞ TARAFI ----
+   Saat ve durum öğeleri arasında nefes payı; "—" yer tutucular
+   hizasız duruyordu. */
+.tb-meta { align-items: center; gap: .85rem; }
+.tb-clock { display: flex; flex-direction: column; line-height: 1.15; text-align: right; }
+.tb-date { font-size: .58rem; letter-spacing: .14em; color: var(--ivory-4); }
+.tb-time { font-size: .84rem; color: var(--ivory-2); font-variant-numeric: tabular-nums; }
+.tb-live { display: flex; align-items: center; gap: .38rem; white-space: nowrap; }
+.live-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--ok);
+  box-shadow: 0 0 0 0 rgba(143, 185, 154, .55); animation: nabiz 2.4s ease-out infinite;
+}
+@keyframes nabiz {
+  0%   { box-shadow: 0 0 0 0 rgba(143, 185, 154, .5); }
+  70%  { box-shadow: 0 0 0 7px rgba(143, 185, 154, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(143, 185, 154, 0); }
+}
+
+/* ---- kart ve panellere derinlik ---- */
+.panel, .card, .kp-parti, .proposal-card {
+  transition: border-color .22s ease, transform .22s cubic-bezier(.16,.84,.44,1),
+              box-shadow .22s ease;
+}
+.kp-parti:hover, .proposal-card:hover {
+  border-color: var(--line-strong);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, .35);
+}
+
+@media (max-width: 860px) {
+  .nav-group { padding: 0; }
+  .nav-group + .nav-group::before { display: none; }
+  .nav-group + .nav-group { border-top: 1px solid var(--line-soft); }
+  .nav-head { padding: .7rem .2rem; font-size: .62rem; border-bottom: 0; }
+  .nav-body { padding-top: 0; padding-bottom: .3rem; }
+}
+
+
+/* ---- SAĞ SÜTUN BAŞLIKLARI — doğru seçici ----
+   İlk denemede `.kv` hedeflendi ama sağ ray onu KULLANMIYOR; işaretleme
+   `.rp-sub` başlığı ve içine gömülü `.rp-src` kaynak etiketinden oluşuyor.
+   Yanlış seçiciye yazılan kural sessizce hiçbir şey yapmamıştı.
+
+   İkisi ~280 px'lik rayda yan yana sığmıyor ve ikisi de ortadan kırılıyordu
+   ("BEKLEYEN / ONAYLAR   operatör / kuyruğu"). Kaynak etiketi kendi
+   satırına alındı. */
+.rp-sub {
+  display: flex; flex-direction: column; align-items: flex-start; gap: .1rem;
+  margin: 1.15rem 0 .45rem; line-height: 1.3;
+  font-size: .68rem; letter-spacing: .15em; color: var(--ivory-2);
+}
+.rp-sub .rp-src {
+  font-size: .6rem; letter-spacing: .08em; color: var(--ivory-4);
+  text-transform: none; font-weight: 400; white-space: normal;
+  overflow-wrap: anywhere;
+}
+.rp-scroll {
+  overflow-y: auto; overscroll-behavior: contain;
+  scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent;
+}
+.rp-scroll::-webkit-scrollbar { width: 4px; }
+.rp-scroll::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 2px; }
+.big-stat { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
+.big-unit { font-size: .74rem; color: var(--ivory-3); overflow-wrap: anywhere; }
+
+/* ---- MOBİL MENÜ · ÇAKIŞMA DÜZELTMESİ ----
+   🔴 EKRANDA GÖRÜLDÜ: sekmeler üst üste biniyordu — "ANA SAYFA" ile
+   "GÖREVLER", "ANALİZ" ile "FİYAT" aynı pikselleri paylaşıyordu.
+
+   Sebep benim kendi çelişkimdi: çekmece animasyonu için `.tb-nav`ya
+   `display: grid; grid-template-rows: 0fr` verdim, akordeon için de
+   `flex-direction: column`. Grid kazanınca DÖRT grup tek grid hücresine
+   yığıldı ve üst üste bindi. `flex-direction` grid'de hiçbir şey yapmaz.
+
+   Tek mekanizma seçildi: flex sütun + max-height ile açılma. grid-rows
+   animasyonu daha zarifti ama iç sarmalayıcı ister; işaretlemeyi
+   değiştirmektense çalışan yol tercih edildi. */
+@media (max-width: 860px) {
+  .tb-nav {
+    grid-column: 1 / -1; order: 3;
+    display: flex !important; flex-direction: column; align-items: stretch;
+    grid-template-rows: none;
+    gap: 0; max-height: 0; overflow: hidden;
+    transition: max-height .32s cubic-bezier(.16, .84, .44, 1);
+  }
+  .tb-nav.is-acik {
+    max-height: 34rem; overflow-y: auto; overscroll-behavior: contain;
+    border-top: 1px solid var(--line-soft); margin-top: .5rem;
+  }
+  .nav-group { position: static; display: flex; flex-direction: column; }
+  .nav-body { display: flex; flex-direction: column; width: 100%; }
+  .nav-group.is-kapali .nav-body {
+    max-height: 0; opacity: 0; transform: none; width: 100%;
+  }
+  .nav-body {
+    max-height: 22rem; opacity: 1;
+    transition: max-height .28s cubic-bezier(.16,.84,.44,1), opacity .2s ease;
+  }
+  .nav-item { width: 100%; text-align: left; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   MOBİL DÜZEN — sahne ve ızgaraların tek sütuna inmesi
+
+   🔴 EKRANDA GÖRÜLDÜ: telefon genişliğinde ana sahne hâlâ ÜÇ SÜTUNDU
+   (`--rail 336px` + orta + `--rail 336px` = 1000 px'den geniş). Sağdaki
+   SİSTEM DURUMU paneli ekrandan taşıp kesiliyor, orta sütundaki metin
+   ("VERİ + ARAŞTIRMA + ANALİZ…") harf harf dikey akıyordu.
+
+   Yan yana duran her ızgara tek sütuna iner; ray genişliği sabit
+   olmaktan çıkar.
+   ══════════════════════════════════════════════════════════════════════ */
+@media (max-width: 1024px) {
+  :root { --rail: 100%; }
+  .stage, .stage-split {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 1rem;
+  }
+  .stage > * { min-width: 0; }
+  /* Çekirdek görsel ortada kalsın ama taşmasın */
+  .p-core { order: -1; }
+  .proposed-body { grid-template-columns: minmax(0, 1fr); }
+  .dom-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 720px) {
+  .metric-row { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .qa-grid { grid-template-columns: minmax(0, 1fr); }
+  .plan-meta { grid-template-columns: minmax(0, 1fr); }
+  .dom-grid { grid-template-columns: minmax(0, 1fr); }
+
+  /* Sağ ray telefonda kendi yüksekliğini alsın; sabit yükseklik +
+     iç kaydırma telefonda iki kaydırma alanı demek ve kullanılamaz. */
+  .rp-scroll { max-height: none; overflow: visible; }
+
+  /* Sohbet çubuğu tabanda sabit kalırken içeriğin altını örtmesin */
+  .stage { padding-bottom: 1rem; }
+}
+
+/* Hiçbir ekranda sayfa YANA kaymasın: taşan tek şey kendi kabında
+   kaydırılabilir olan tablolar/diyagramlar olsun. */
+html, body { max-width: 100%; overflow-x: hidden; }
+.view table, .view pre, .kp-istem, .o-ham pre { max-width: 100%; }
+
+/* ---- ÇEKİRDEK GÖRSEL · mobil ----
+   🔴 EKRANDA GÖRÜLDÜ: telefonda departman çemberi panellerin ARKASINDA
+   kalıyordu; `.p-core` şeffaf ve dolgusuz olduğu için ızgarada yükseklik
+   talep etmiyor, içindeki çember taşıp komşularının üstüne biniyordu.
+   Kendi yüksekliğini alması sağlandı ve taşan kısım kırpıldı. */
+@media (max-width: 1024px) {
+  .p-core {
+    position: relative; overflow: hidden;
+    min-height: min(78vw, 22rem);
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: .5rem;
+  }
+  .p-core > * { max-width: 100%; }
+}
+
+@media (max-width: 560px) {
+  /* Çok dar ekranda çember okunmuyor: 12 departman etiketi üst üste
+     biniyor. Görsel gizlenmez, KÜÇÜLTÜLÜR -- gizlemek departman
+     durumunu telefondan tamamen kaldırmak olurdu. */
+  .p-core { min-height: min(86vw, 19rem); }
+  .p-core svg, .p-core canvas { max-width: 100%; height: auto; }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   ZEKÂ ÇEKİRDEĞİ · merkez logo, tıklanabilir düğümler, canlı durum
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ---- merkezdeki marka işareti ----
+   🔴 Burada da yazı vardı (<span class="core-brand">). Diskin içinde
+   sistem fontuyla dizilmiş bir ad, marka işareti değildir. */
+.core-brand-logo {
+  display: block; width: auto; height: 1.15rem; margin: 0 auto .18rem;
+  max-width: 68%; object-fit: contain; opacity: .95;
+  filter: drop-shadow(0 0 10px rgba(201, 169, 97, .25));
+}
+
+/* ---- düğümler: tıklanabilir ---- */
+.onode { cursor: pointer; }
+.ohit { fill: transparent; stroke: none; }          /* dokunma hedefi */
+.onode:focus-visible { outline: none; }
+.onode:focus-visible .ohalo { stroke: var(--gold-hi); stroke-width: 2; }
+.onode .odot, .onode .ohalo, .onode .olabel, .onode .ospoke {
+  transition: fill .22s ease, stroke .22s ease, opacity .22s ease;
+}
+.onode:hover .odot { fill: var(--gold-hi); }
+.onode:hover .ohalo { stroke: var(--gold); opacity: .9; }
+.onode:hover .olabel { fill: var(--champagne); }
+.onode:hover .ospoke { stroke: var(--gold-dim); opacity: .9; }
+
+/* ---- CANLI DURUM ----
+   Çalışan birim, ana ekranda kendini belli eder. Nabız her düğümde
+   farklı gecikmeyle başlar (--gecikme), aksi halde on düğüm aynı anda
+   yanıp sönüyor ve yanıp sönen bir pano "alarm" gibi okunuyor. */
+.opulse { fill: none; stroke: var(--ok); stroke-width: 1.2; opacity: 0; }
+.onode.is-calisiyor .opulse {
+  animation: dugum-nabiz 2.8s ease-out infinite;
+  animation-delay: var(--gecikme, 0s);
+}
+.onode.is-calisiyor .odot { fill: var(--ok); }
+.onode.is-calisiyor .olabel { fill: var(--ivory); }
+@keyframes dugum-nabiz {
+  0%   { r: 8;  opacity: .55; }
+  70%  { r: 20; opacity: 0; }
+  100% { r: 20; opacity: 0; }
+}
+/* Kadrosu olmayan küme: gizlenmez, SÖNÜK gösterilir. Gizlemek,
+   kurulmamış bir birimi yokmuş gibi göstermek olurdu. */
+.onode.is-bos .odot { fill: var(--ivory-4); }
+.onode.is-bos .olabel { fill: var(--ivory-4); }
+.onode.is-bos .ospoke { opacity: .25; }
+
+/* ---- KONUŞMA HAREKETİ ---- */
+.core-svg .core-aura { transition: opacity .3s ease; }
+.core-state-dinliyor .core-aura  { animation: aura-dinle 1.6s ease-in-out infinite; }
+.core-state-dusunuyor .core-aura { animation: aura-dusun 2.2s linear infinite; }
+.core-state-konusuyor .core-aura { animation: aura-konus .9s ease-in-out infinite; }
+.core-state-dinliyor .ring-inner,
+.core-state-konusuyor .ring-inner { stroke: var(--gold); }
+@keyframes aura-dinle { 0%,100% { opacity:.35; r:74; } 50% { opacity:.7; r:82; } }
+@keyframes aura-dusun { 0% { opacity:.3; } 50% { opacity:.6; } 100% { opacity:.3; } }
+@keyframes aura-konus { 0%,100% { opacity:.45; r:76; } 50% { opacity:.95; r:88; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .onode.is-calisiyor .opulse,
+  .core-state-dinliyor .core-aura,
+  .core-state-dusunuyor .core-aura,
+  .core-state-konusuyor .core-aura { animation: none; opacity: .5; }
+}
+
+/* ---- EKİP panosu: çemberden gelen küme süzgeci ---- */
+.ek-filtre {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; flex-wrap: wrap;
+  margin: 0 0 1rem; padding: .7rem 1rem; border-radius: 8px;
+  border: 1px solid var(--line-strong); background: rgba(201, 169, 97, .07);
+}
+.ek-filtre strong { font-size: .95rem; letter-spacing: .04em; }
+.ek-filtre span { font-size: .82rem; color: var(--ivory-3); }
+.ek-filtre button {
+  font: inherit; font-size: .74rem; letter-spacing: .08em; cursor: pointer;
+  padding: .35rem .8rem; border-radius: 4px; color: inherit;
+  border: 1px solid var(--line-strong); background: transparent;
+}
+.ek-filtre button:hover { background: var(--glass-2); color: var(--gold-hi); }
+
+@media (max-width: 720px) {
+  .core-brand-logo { height: .95rem; }
+}
+
+
+.ek-bugun {
+  margin: 0 0 .8rem; padding: .7rem .85rem; border-radius: 8px;
+  border-left: 2px solid var(--gold-dim); background: rgba(201, 169, 97, .05);
+}
+.ek-bugun-ust { display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap; }
+.ek-bugun-lbl {
+  font-size: .62rem; letter-spacing: .16em; color: var(--gold);
+  font-weight: 600; flex: 0 0 auto;
+}
+.ek-bugun-ozet { font-size: .86rem; color: var(--ivory-2); }
+.ek-bugun-ozet b { color: var(--ivory); font-weight: 600; }
+.ek-bugun-konu {
+  margin-top: .4rem; font-size: .78rem; color: var(--ivory-3);
+  display: flex; gap: .4rem; flex-wrap: wrap; align-items: baseline;
+}
+.ek-bugun-konu i {
+  font-style: normal; padding: .1rem .45rem; border-radius: 3px;
+  background: var(--glass-2); color: var(--ivory-2);
+}
+.ek-bugun-liste {
+  margin: .5rem 0 0; padding-left: 1rem;
+  display: flex; flex-direction: column; gap: .3rem; font-size: .84rem;
+}
+.ek-bugun-liste a { color: var(--champagne); }
+.ek-bugun-kaynak { color: var(--ivory-4); font-size: .74rem; margin-left: .4rem; }
+.ek-bugun-daha { color: var(--ivory-4); list-style: none; margin-left: -1rem; }
+
+.plan-henuz { color: var(--ivory-4); font-style: italic; cursor: help; }
+.plan-henuz::after { content: " ⓘ"; opacity: .7; }
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   DİKEY RİTİM — punto büyümesinin karşılığı
+
+   🔴 BU BENİM YAPTIĞIM BİR GERİLEMENİN DÜZELTMESİ.
+   Tipografi geçişinde 141 font-size kuralı büyütüldü ama ARALIKLARA
+   dokunulmadı. Sonuç ölçüldü:
+       .kv  padding 9px + min-height 40px
+       .kv-k / .kv-v  font-size 1.00rem (16 px) × line-height 1.55 = 24.8 px
+       24.8 + 9 + 9 = 42.8 px  >  40 px
+   Yani her satır kendi kutusundan taşıyor ve komşusuna değiyor. Sahip
+   "her yerde sayfalar eziliyor, yazılar okunmuyor" dedi; sebebi buydu.
+
+   Ders: punto ölçeği değiştirilirken ARALIK ÖLÇEĞİ de değiştirilmeli.
+   İkisi tek bir şeydir; birini büyütüp diğerini bırakmak, metni kendi
+   kabına sıkıştırmaktır.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* --- etiket/değer satırları --- */
+.kv {
+  min-height: 0;                /* içerik yüksekliği belirlesin */
+  padding: 0.75rem 0.95rem;
+  gap: 0.5rem 1rem;
+  align-items: baseline;
+}
+.kv-k, .kv-v { line-height: 1.5; }
+
+/* --- bölüm gövdeleri ve notlar --- */
+.sect-note { padding: 0.65rem 0.95rem; line-height: 1.55; }
+.sect-empty { padding: 1.15rem 0.95rem; line-height: 1.55; }
+.sect-pre { padding: 0.85rem 0.95rem; line-height: 1.5; }
+.sect-body { padding: 0.95rem; display: flex; flex-direction: column; gap: 0.8rem; }
+
+/* --- listeler: satırlar birbirine yapışmasın --- */
+.svc-list, .kv-list, .proposal-list, .dom-grid, .detail-rows {
+  display: flex; flex-direction: column; gap: 0.45rem;
+}
+.svc-list > li, .kv-list > li, .proposal-list > li {
+  padding: 0.5rem 0.2rem; line-height: 1.5;
+}
+.detail-rows > li { padding: 0.25rem 0; line-height: 1.5; }
+
+/* --- kartlar ve paneller --- */
+.panel { }
+.panel-head { padding: 0.9rem 1rem; }
+.proposal-card { padding: 0.8rem 0.9rem; display: flex; flex-direction: column; gap: 0.3rem; }
+.metric { padding: 0.7rem 0.5rem; }
+.metric-row { gap: 0.6rem; }
+
+/* --- form satırları (AYARLAR burada eziliyordu) --- */
+.view label { display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 0.9rem; }
+.view input[type="text"], .view input[type="number"], .view input[type="password"],
+.view select, .view textarea {
+  padding: 0.5rem 0.65rem; line-height: 1.45;
+}
+.view fieldset { padding: 0.9rem 1rem; margin-bottom: 1rem; }
+.view h3, .view h4 { margin-top: 1.4rem; margin-bottom: 0.5rem; }
+.view h3:first-child, .view h4:first-child { margin-top: 0; }
+
+/* --- tablolar --- */
+.view table { border-collapse: separate; border-spacing: 0; }
+.view th, .view td { padding: 0.6rem 0.7rem; line-height: 1.5; vertical-align: top; }
+
+/* --- genel: art arda gelen bloklar arasında nefes --- */
+.view p + p, .view p + ul, .view ul + p, .view div + h3, .view div + h4 {
+  margin-top: 0.7rem;
+}
+
+@media (max-width: 520px) {
+  .kv { padding: 0.7rem 0.75rem; gap: 0.25rem; }
+  .sect-body { padding: 0.75rem; gap: 0.7rem; }
+  .view th, .view td { padding: 0.5rem 0.55rem; }
+}
+
+
+.chat-msg.is-kisali {
+  max-height: calc(7 * 1.5 * 0.95rem);
+  overflow: hidden;
+  padding-bottom: 2.1rem;
+}
+.chat-msg.is-kisali::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 1.9rem; height: 2.4rem;
+  background: linear-gradient(to bottom, transparent, var(--ink-1));
+  pointer-events: none;
+}
+.chat-msg.is-acik { max-height: none; overflow: visible; }
+.chat-devam {
+  position: absolute; left: 13px; bottom: 6px;
+  height: 24px; padding: 0 10px;
+  font: inherit; font-size: 0.85rem; letter-spacing: .06em; cursor: pointer;
+  color: var(--gold); background: transparent;
+  border: 1px solid var(--line-strong); border-radius: 3px;
+}
+.chat-devam:hover { background: var(--glass-2); color: var(--gold-hi); }
+.chat-log { max-height: 20vh; }
+@media (max-width: 860px) { .chat-log { max-height: 18vh; } }
+
+.sn-liste { display: flex; flex-direction: column; gap: .5rem; margin-bottom: 1.2rem; }
+.sn-kart { border: 1px solid var(--line-soft); border-radius: 8px; background: rgba(255,255,255,.02); }
+.sn-kart[open] { border-color: var(--line-strong); }
+.sn-kart > summary {
+  display: flex; gap: .8rem; flex-wrap: wrap; align-items: baseline;
+  padding: .7rem .9rem; cursor: pointer; font-size: .88rem;
+}
+.sn-gun { color: var(--ivory-3); font-size: .8rem; }
+.sn-no { color: var(--gold); font-weight: 600; }
+.sn-urun { flex: 1 1 14rem; min-width: 0; overflow-wrap: anywhere; }
+.sn-durum { font-size: .74rem; color: var(--ivory-4); letter-spacing: .06em; }
+.sn-form {
+  display: flex; flex-direction: column; gap: .6rem;
+  padding: .9rem 1rem; border-top: 1px solid var(--line-soft);
+}
+.sn-satir { display: flex; gap: .8rem; flex-wrap: wrap; }
+.sn-satir > label { flex: 1 1 11rem; min-width: 0; margin-bottom: 0; }
+.sn-tur {
+  font-size: .72rem; letter-spacing: .06em; padding: .12rem .45rem;
+  border-radius: 3px; background: var(--glass-2); color: var(--ivory-2);
+}
+.sn-iptal td { opacity: .5; text-decoration: line-through; }
+.sn-eski { color: var(--warn); font-size: .74rem; }
+#stokForm { border: 1px solid var(--line-soft); border-radius: 8px; margin-top: .8rem; }
+
+@media (max-width: 720px) {
+  .sn-satir { flex-direction: column; gap: .5rem; }
+  .sn-kart > summary { gap: .35rem; }
+}
+
+/* ============================ KARGO ============================
+ * Panelin kendi dilini kullanır: --radius 3px (yuvarlak değil, keskin),
+ * --gold vurgu, --line saç teli çizgi, --ivory-2/3 kademeli metin.
+ * Kendi renk/yarıçap değerlerimi yazsaydım bölüm, sayfanın geri kalanına
+ * yapıştırılmış gibi dururdu. */
+.kg-bolum { margin-top: 30px; }
+.kg-bolum h3 {
+  font-size: 12px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--ivory-2); font-weight: 500;
+  margin: 0 0 14px; padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+}
+.kg-alt-baslik {
+  font-size: 11px; letter-spacing: .02em; text-transform: none;
+  color: var(--ivory-3); font-weight: 400;
+}
+.kg-bedava { font-size: 11px; color: var(--ivory-3); letter-spacing: .02em; }
+
+/* -- yeni gönderi formu -- */
+.kg-yeni {
+  margin-top: 22px; border: 1px solid var(--line);
+  border-radius: var(--radius); background: var(--glass);
+}
+.kg-yeni > summary {
+  cursor: pointer; padding: 14px 18px; font-size: 11px; letter-spacing: .14em;
+  color: var(--ivory-2); display: flex; align-items: baseline; gap: 12px;
+  flex-wrap: wrap;
+}
+.kg-yeni[open] > summary { border-bottom: 1px solid var(--line); }
+.kg-form { padding: 16px 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+.kg-satir { display: flex; gap: 14px; flex-wrap: wrap; }
+.kg-satir > label, .kg-form > label {
+  display: flex; flex-direction: column; gap: 6px; flex: 1 1 190px;
+  font-size: 11px; letter-spacing: .04em; color: var(--ivory-3);
+}
+.kg-onay {
+  flex-direction: row !important; align-items: center; gap: 9px;
+  flex: 1 1 100%; color: var(--ivory-2); font-size: 12px;
+}
+.kg-onay input { width: auto; }
+.kg-kapida-satir { align-items: flex-end; }
+
+/* -- gönderi kartları -- */
+.kg-liste { display: flex; flex-direction: column; gap: 10px; }
+.kg-kart {
+  border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--glass); padding: 15px 18px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.kg-ust { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+.kg-sec {
+  display: flex; align-items: center; gap: 7px; font-size: 10px;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--ivory-3);
+  cursor: pointer; padding-top: 3px;
+}
+.kg-kim { display: flex; flex-direction: column; gap: 3px; flex: 1 1 200px; min-width: 0; }
+.kg-kim b { font-size: 15px; color: var(--ivory); font-weight: 500; }
+.kg-kim span { font-size: 12px; color: var(--ivory-3); }
+.kg-durum { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.kg-son { font-size: 12px; letter-spacing: .03em; color: var(--ivory-2); }
+.kg-rozet {
+  font-size: 10px; letter-spacing: .06em; padding: 4px 9px;
+  border-radius: var(--radius); border: 1px solid var(--line-soft);
+  color: var(--ivory-3); white-space: nowrap;
+}
+.kg-rozet-kapida {
+  border-color: var(--line-strong); color: var(--gold);
+}
+.kg-orta { display: flex; gap: 20px; flex-wrap: wrap; align-items: center; }
+.kg-icerik { margin: 0; font-size: 13px; color: var(--ivory-2); flex: 1 1 220px; }
+.kg-desi { font-size: 11px; color: var(--ivory-4); margin-left: 9px; }
+
+/* -- sipariş → kargo → teslimat zinciri -- */
+.kg-zincir { display: flex; gap: 6px; align-items: stretch; }
+.kg-halka {
+  display: flex; flex-direction: column; gap: 3px; padding: 6px 11px;
+  border-radius: var(--radius); border: 1px solid var(--line-soft);
+  min-width: 80px; color: var(--ivory-4);
+}
+.kg-halka-dolu { border-color: var(--line-strong); color: var(--ivory-2); }
+.kg-halka b {
+  font-size: 9px; letter-spacing: .12em; text-transform: uppercase;
+  font-weight: 500;
+}
+.kg-halka-dolu b { color: var(--gold); }
+.kg-halka i { font-size: 11px; font-style: normal; font-variant-numeric: tabular-nums; }
+
+.kg-alt {
+  display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+  font-size: 11px; color: var(--ivory-3); padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+}
+.kg-barkod, .kg-ucret { font-variant-numeric: tabular-nums; }
+.kg-ucret { margin-left: auto; }
+.kg-takip { color: var(--gold); text-decoration: none; letter-spacing: .04em; }
+.kg-takip:hover { color: var(--gold-hi); }
+
+/* -- taşıyıcı seçimi -- */
+.kg-secim { border-top: 1px solid var(--line-soft); padding-top: 14px; }
+.kg-fiyatlar { display: flex; gap: 9px; flex-wrap: wrap; }
+.kg-fiyat {
+  display: flex; flex-direction: column; gap: 4px; align-items: flex-start;
+  padding: 10px 14px; border-radius: var(--radius); cursor: pointer;
+  border: 1px solid var(--line); background: var(--glass-2);
+  color: var(--ivory-2); font: inherit; transition: border-color .15s ease;
+}
+.kg-fiyat:hover { border-color: var(--line-strong); }
+.kg-fiyat b { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; font-weight: 500; }
+.kg-fiyat i {
+  font-style: normal; font-size: 15px; color: var(--ivory);
+  font-variant-numeric: tabular-nums;
+}
+.kg-fiyat u {
+  text-decoration: none; font-size: 10px; letter-spacing: .04em;
+  color: var(--ivory-3);
+}
+.kg-fiyat-kapali { opacity: .4; cursor: not-allowed; }
+.kg-fiyat-kapali:hover { border-color: var(--line); }
+.kg-fiyat-kapali u { color: var(--crit); }
+
+/* 🔴 Para uyarısı. Sayfadaki tek altın çerçeveli kutu: yanlışlıkla
+   tıklanabilecek bir düğmenin yanında sessiz durmamalı. */
+.kg-onay-serit {
+  margin-top: 14px; padding: 15px 17px; border-radius: var(--radius);
+  border: 1px solid var(--gold-dim); background: var(--glass-2);
+}
+.kg-uyari-para { margin: 0 0 12px; font-size: 13px; line-height: 1.55; color: var(--ivory); }
+.kg-uyari-para b { color: var(--gold); font-variant-numeric: tabular-nums; }
+
+/* -- etiket çubuğu -- */
+.kg-etiket-cubuk {
+  margin-top: 18px; padding: 14px 18px; border-radius: var(--radius);
+  border: 1px solid var(--line); background: var(--glass);
+  display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+}
+.kg-etiket-cubuk > span:first-child { font-size: 12px; color: var(--ivory-2); }
+.kg-etiket-cubuk .dk-sonuc { flex: 1 1 100%; margin: 0; }
+.kg-etiket-cubuk a { color: var(--gold); }
+
+/* -- tablolar -- */
+.kg-tablo { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 12px; }
+.kg-tablo th {
+  text-align: left; font-weight: 500; letter-spacing: .1em;
+  text-transform: uppercase; font-size: 9px; color: var(--ivory-3);
+  padding: 8px 12px 8px 0; border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.kg-tablo td {
+  padding: 9px 12px 9px 0; border-bottom: 1px solid var(--line-soft);
+  color: var(--ivory-2); font-variant-numeric: tabular-nums;
+}
+.kg-sinif-ELLE_SATIS { color: var(--gold); }
+.kg-sinif-UNKNOWN, .kg-sinif-YON_BILINMIYOR { color: var(--warn); }
+.kg-sinif-IADE { color: var(--crit); }
+.kg-tablo td i { color: var(--ivory-4); font-style: normal; }
+.kg-karar-ONAYLANDI { color: var(--gold); }
+.kg-karar-HATA { color: var(--crit); }
+.kg-karar-ISTENDI { color: var(--warn); }
+
+/* Dar ekranda YALNIZ tablo kendi kutusunda kayar; sayfa gövdesi yana
+   kaymaz. Kartlar tek sütuna iner. */
+@media (max-width: 720px) {
+  .kg-tablo { display: block; overflow-x: auto; white-space: nowrap; }
+  .kg-ucret { margin-left: 0; }
+  .kg-zincir { flex-wrap: wrap; }
+  .kg-halka { min-width: 70px; flex: 1 1 70px; }
+  .kg-alt { gap: 10px; }
+  .kg-kart { padding: 13px 14px; }
+  .kg-form { padding: 14px 14px 18px; }
+}
+
+/* ========================== MÜŞTERİLER ==========================
+ * 🔴 Bu bölümde HİÇBİR kutuya sabit `height` verilmedi; yükseklik her
+ * yerde içerikten gelir. Panelde metinlerin birbirini ezmesinin sebebi
+ * tam buydu: punto büyütülünce sabit yükseklikli kutular içeriği
+ * kesiyordu. Satırlar grid + gap ile dizilir, iç boşluk padding'ledir. */
+.ms-baslik, .ms-satir {
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.4fr)
+                         minmax(0, 1fr) minmax(0, .8fr);
+  gap: 14px; align-items: center;
+}
+.ms-baslik {
+  padding: 0 14px 8px;
+  font-size: 9px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--ivory-3); border-bottom: 1px solid var(--line);
+}
+.ms-liste { display: flex; flex-direction: column; }
+.ms-satir {
+  width: 100%; text-align: left; padding: 13px 14px;
+  background: transparent; border: 0;
+  border-bottom: 1px solid var(--line-soft);
+  color: inherit; font: inherit; cursor: pointer;
+  transition: background .15s ease;
+}
+.ms-satir:hover { background: var(--glass); }
+.ms-satir.is-active { background: var(--glass-2); }
+.ms-ad {
+  font-size: 14px; color: var(--ivory);
+  display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap;
+  min-width: 0; overflow-wrap: anywhere;
+}
+.ms-tekrar {
+  font-style: normal; font-size: 9px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--gold);
+  border: 1px solid var(--line-strong); border-radius: var(--radius);
+  padding: 2px 7px; white-space: nowrap;
+}
+.ms-kere { font-size: 12px; color: var(--ivory-2); }
+.ms-harcama {
+  font-size: 13px; color: var(--ivory); font-variant-numeric: tabular-nums;
+}
+.ms-tarih {
+  font-size: 11px; color: var(--ivory-3); font-variant-numeric: tabular-nums;
+}
+
+/* -- açılan kart -- */
+.ms-kart {
+  margin-top: 16px; padding: 16px 18px;
+  border: 1px solid var(--line-strong); border-radius: var(--radius);
+  background: var(--glass);
+}
+.ms-kart-ust {
+  display: flex; gap: 20px; flex-wrap: wrap;
+  justify-content: space-between; align-items: flex-start;
+  padding-bottom: 12px; border-bottom: 1px solid var(--line);
+}
+.ms-kart-ust > div:first-child {
+  display: flex; flex-direction: column; gap: 4px; min-width: 0;
+}
+.ms-kart-ust b { font-size: 17px; color: var(--ivory); font-weight: 500; }
+.ms-kart-ust span { font-size: 12px; color: var(--ivory-3); overflow-wrap: anywhere; }
+.ms-kart-sayi { display: flex; gap: 20px; flex-wrap: wrap; }
+.ms-kart-sayi > span {
+  display: flex; flex-direction: column; gap: 3px;
+  font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ivory-3);
+}
+.ms-kart-sayi i {
+  font-style: normal; font-size: 16px; letter-spacing: 0;
+  text-transform: none; color: var(--gold);
+  font-variant-numeric: tabular-nums;
+}
+.ms-urun { white-space: normal; overflow-wrap: anywhere; }
+.ms-odendi { color: var(--ok); }
+.ms-odenmedi { color: var(--crit); }
+
+/* -- iade ızgarası -- */
+.ms-iade-izgara {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+.ms-iade-kutu {
+  border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--glass); padding: 14px 16px; min-width: 0;
+}
+.ms-iade-kutu h4 {
+  margin: 0 0 6px; font-size: 11px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--ivory-2); font-weight: 500;
+  display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+}
+.ms-iade-kutu h4 b {
+  font-size: 18px; color: var(--gold); letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+.ms-iade-kutu .kg-tablo { margin-top: 4px; }
+.ms-iade-kutu .kg-tablo td { white-space: normal; overflow-wrap: anywhere; }
+
+@media (max-width: 720px) {
+  /* Dört sütun dar ekranda okunmaz; ad üstte, ölçüler altında. */
+  .ms-baslik { display: none; }
+  .ms-satir {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 12px; padding: 14px 12px;
+  }
+  .ms-ad { grid-column: 1 / -1; }
+  .ms-tarih { text-align: right; }
+  .ms-kart { padding: 14px; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   YERLEŞİM ONARIMI — "yazılar birbirini eziyor" (22.09.2026)
+
+   Sahip iki kez bildirdi; ikinci seferinde *"buna kalıcı ve kesin sonuç
+   bul"* dedi. Önceki denemem punto ve boşluk ayarlamakla uğraşmıştı; o
+   yüzden geri geldi. Bu sefer sebep ÖLÇÜLDÜ.
+
+   ÖLÇÜM (tarayıcıda, gerçek veriyle, 1920px):
+     AJANLAR   .sect-card kutusu 143px, içeriği 1585px  → 1585'i 143'e sığdırıyor
+     AJANLAR   .sect-card kutusu  81px, içeriği  896px
+     VERİ      .sect-card kutusu  35px, içeriği  111px
+     RAPORLAR  .sect-card kutusu 176px, içeriği  362px
+     AYARLAR   .sect-card kutusu  45px, içeriği  150px
+     ÜST ÇUBUK menü sütunu 1215px aldı, sağ blok 314px'e sıkıştı,
+               saat kutusuna 45px kaldı → tarih 3 satıra bölündü ve
+               menüyle 27px ÇAKIŞTI.
+
+   🔴 KÖK NEDEN — TEK BİR CSS KURALI:
+   `.sect-body` yüksekliği sınırlı bir flex sütunu (`overflow-y: auto`).
+   `.sect-card` ise `overflow: hidden` taşıyor. CSS'te bir flex çocuğuna
+   `overflow: hidden` vermek, o çocuğun OTOMATİK ASGARİ BOYUTUNU SIFIRLAR.
+   Normalde bir flex çocuğu içeriğinden (min-content) kısa olamaz; bu kural
+   o korumayı kaldırıyor. Sonuç: kartlar 626px'lik alana zorla paylaştırılıp
+   içerikleri satır ortasından kesiliyor.
+
+   Bu yüzden puntoyu büyütmek durumu KÖTÜLEŞTİRDİ: aynı ezilmiş kutuya
+   daha çok yazı girdi. Semptomu değil sebebi düzeltmek gerekiyordu.
+
+   ÇÖZÜMÜN KALICILIĞI: aşağıdaki kurallar "şu kart şu kadar olsun" demiyor.
+   "Hiçbir kutu içeriğinden kısa olamaz" diyor. Yeni sekme, yeni kart,
+   daha uzun metin — hiçbiri bunu tekrar bozamaz.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* --- 1) Kaydırılan kapların çocukları EZİLMEZ ------------------------ */
+/* Kap zaten kaydırılabilir; sığmayan içerik kesilmek yerine kaydırılır. */
+.sect-body > *,
+.panel-body > *,
+.feed > *,
+.rp-scroll > *,
+.proposal-list-lg > *,
+.analiz-body > * {
+  flex-shrink: 0;
+}
+
+/* Kartın kendi `overflow: hidden`ı yuvarlak köşeyi kırpmak için duruyor;
+   kaldırmıyoruz ama artık ezilmeye yol açamaz. */
+.sect-card,
+.detail-block {
+  flex: 0 0 auto;
+  min-height: min-content;
+}
+
+/* --- 2) Üst çubuk: menü büyüyünce sağ blok ezilmez ------------------- */
+/* 🔴 ESKİSİ: `minmax(200px,1fr) auto minmax(200px,1fr)`
+   Ortadaki `auto` menü sütunu içeriği kadar BÜYÜYOR; bugün üç sekme daha
+   eklenince 1215px'e çıktı ve yanları ezdi. Yeni düzen tersini yapar:
+   marka ve sağ blok içerikleri kadar yer alır (`auto`), ESNEYEN taraf
+   menüdür (`minmax(0, 1fr)` — asgarisi SIFIR, yani gerçekten esner). */
+.topbar {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+/* 🔴 İLK DENEMEDE `flex-wrap: wrap` VERDİM, ÖLÇÜM ÇİRKİN ÇIKTI: menü
+   5 satıra sarıldı ve çubuk 75px'ten 127px'e şişti. Menü sarmaz; sığar.
+   Sığmadığı gün de yana kayar -- çubuk yine bozulmaz. */
+.tb-nav {
+  min-width: 0;
+  flex-wrap: nowrap;
+  /* 🔴 DÜZ `center` YAZILAMAZ. Ortalanan bir flex kabı taşınca içerik İKİ
+     YANDAN birden taşar; sol taraf hem ulaşılamaz olur hem de markanın
+     üstüne biner. Ekranda görüldü: "…INTELLIGENCE OS" yazısının üstünde
+     "ANA SAYFA" duruyordu. `safe` anahtar kelimesi, taşma durumunda
+     hizalamayı başa çevirir. */
+  justify-content: safe center;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+/* HESAP: marka 306 + menü 1215 + sağ blok 400 + boşluk 36 + dolgu 40
+   = 1997px, ekran 1920px. 77px eksik -- bu yüzden bir şey mutlaka
+   eziliyordu. Menü en büyük parça ve şişkinliği harf aralığından
+   geliyor: ~120 harf × 0.2em × 13px ≈ 312px sadece boşluk.
+   0.2em → 0.12em ve dolgu 13 → 9px, birlikte ~200px kazandırır. */
+.tb-nav .nav-item {
+  padding-left: 9px;
+  padding-right: 9px;
+  letter-spacing: 0.12em;
+}
+
+/* Marka bloğu son çare olarak kısalır, ama ASLA menünün üstüne taşmaz.
+   Ekranda görülen "…INTELLIGENCE OS" üzerine binen "ANA SAYFA" buydu:
+   yazı kendi sütununun dışına akıyordu. */
+.tb-brand { min-width: 0; }
+.tb-brand .brand-sub {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+  max-width: 100%;
+  /* Alt yazının genişliği harf aralığından geliyordu: 34 harf × 0.3em.
+     0.16em hâlâ "boşluklu büyük harf" görünümünü korur ama ~55px
+     daraltır ve logonun altına sığar. */
+  letter-spacing: 0.16em;
+}
+/* Sağ blok asla sarmaz; tarih ve saat tek satırda kalır. */
+.tb-meta { flex-wrap: nowrap; }
+.tb-clock, .tb-date, .tb-time { white-space: nowrap; }
+
+/* --- 3) Flex satırlarda kelimeler birbirine yapışmaz ----------------- */
+/* 🔴 `display: flex` elemanlar ARASINDAKİ BOŞLUĞU SİLER. Kaynakta
+   `</strong> <span>` yazıyor ama ekranda "Satış AnalistiKONUŞTU" çıktı.
+   Boşluk metinle değil `gap` ile verilir. */
+.detail-block > summary {
+  gap: 10px;
+  flex-wrap: wrap;
+}
+/* 🔴 `space-between` DENENDİ, YANLIŞ DURDU: satırda üç öğe var (ok
+   işareti, ad, durum) ve ad tam ortaya kaçıyordu. Adı sola yapıştırıp
+   durumu sağa itmek için boşluğu ADIN SAĞINA vermek gerekiyor. */
+.detail-block > summary > strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  margin-right: auto;
+}
+
+/* --- 4) Metin taşıyan esnek kutular daralabilsin --------------------- */
+/* Flex/grid çocuğunun varsayılan asgarisi min-content'tir; uzun bir ürün
+   adı kutuyu şişirip komşusunun üstüne taşırır. `min-width: 0` bunu
+   engeller, `overflow-wrap` de kelimeyi kırar. */
+.kv-k, .kv-v,
+.sect-card-head h3, .sect-meta,
+.ek-k, .ek-n {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.sect-card-head { flex-wrap: wrap; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   AÇILIR GRUP MENÜSÜ — masaüstü (22.09.2026)
+
+   Sahip: *"üst menüyü kendi aralarında grupla ve açılan menü tarzında
+   olsun. daha premium durur. ve bu kadar karmaşık olmaz."*
+
+   Çubukta artık 4 grup adı duruyor, 16 sekme değil. Bu aynı zamanda
+   ölçülmüş bir sorunu kökünden kaldırıyor: menü 1215px kaplayıp saat
+   bloğunu 45px'e sıkıştırıyordu.
+
+   860px ALTINDA DEVREDE DEĞİL: orada mevcut çekmece/akordeon çalışır.
+   Açılır panel dar ekranda parmağa göre değil, üstelik çekmecenin kendisi
+   zaten aynı işi yapıyor.
+   ══════════════════════════════════════════════════════════════════════ */
+@media (min-width: 861px) {
+  /* 🔴 `overflow: visible` ŞART. Çubuğa daha önce `overflow-x: auto`
+     koymuştum (16 sekme sığmadığında yana kaysın diye). CSS'te
+     `overflow-x` kaydırılabilir yapılınca `overflow-y: visible` da
+     otomatik `auto` olur -- ve mutlak konumlu açılır panel çubuğun
+     İÇİNE hapsolur. Ekranda görüldü: menüye tıklandı, hiçbir şey
+     açılmadı, çubukta küçük bir kaydırma çubuğu belirdi.
+     Çubukta artık 4 başlık var; kaydırma emniyetine gerek kalmadı. */
+  .tb-nav { align-items: stretch; gap: 4px; overflow: visible; }
+
+  .nav-group { position: relative; display: flex; }
+
+  /* Grup adı artık bir DÜĞME gibi durmalı: tıklanabilir olduğu
+     anlaşılmalı. Eskiden yalnız bir etiketti. */
+  .nav-group > .nav-head {
+    display: flex; align-items: center; gap: 7px;
+    padding: 8px 14px; cursor: pointer;
+    background: none; border: 0; border-radius: var(--radius);
+    color: var(--ivory-2); font-family: var(--font-ui);
+    font-size: 0.82rem; font-weight: 500; letter-spacing: 0.16em;
+    text-transform: uppercase; white-space: nowrap;
+    transition: color .15s ease, background .15s ease;
+  }
+  .nav-group > .nav-head:hover { color: var(--ivory); background: var(--glass); }
+  .nav-group.is-acik > .nav-head { color: var(--gold); background: var(--glass-2); }
+  /* İçinde bulunulan bölümün grubu her zaman belli olur. */
+  .nav-group.grup-aktif > .nav-head { color: var(--gold); }
+  .nav-group.grup-aktif > .nav-head::after {
+    content: ""; position: absolute; left: 14px; right: 14px; bottom: 2px;
+    height: 1px; background: var(--gold);
+  }
+
+  .nav-caret {
+    width: 5px; height: 5px; opacity: .7;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: rotate(45deg) translate(-1px, -1px);
+    transition: transform .18s ease;
+  }
+  .nav-group.is-acik .nav-caret {
+    transform: rotate(-135deg) translate(-2px, -2px);
+  }
+
+  /* --- açılan panel --- */
+  .nav-group > .nav-body {
+    position: absolute; top: calc(100% + 6px); left: 0; z-index: 60;
+    display: flex; flex-direction: column; min-width: 208px;
+    padding: 6px;
+    background: var(--ink-2);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, .55);
+    /* 🔴 `display:none` KULLANILMADI: geçiş animasyonu olmaz ve menü
+       "yapışkan" hissettirir. Görünmezken tıklanamaz olması için
+       `visibility` + `pointer-events` birlikte kapatılır; yalnız opaklık
+       yeterli olmazdı, altındaki içeriğe tıklamayı engellerdi. */
+    opacity: 0; visibility: hidden; pointer-events: none;
+    transform: translateY(-6px);
+    transition: opacity .16s ease, transform .16s ease, visibility 0s linear .16s;
+  }
+  .nav-group.is-acik > .nav-body {
+    opacity: 1; visibility: visible; pointer-events: auto;
+    transform: translateY(0);
+    transition: opacity .16s ease, transform .16s ease, visibility 0s;
+  }
+  /* Sağdaki gruplar ekranın dışına taşmasın: panel sağa yaslanır. */
+  .nav-group:nth-last-child(-n+2) > .nav-body { left: auto; right: 0; }
+
+  .nav-group > .nav-body .nav-item {
+    width: 100%; text-align: left; white-space: nowrap;
+    padding: 9px 12px; border-radius: var(--radius);
+    border-bottom: 0; letter-spacing: 0.12em;
+  }
+  .nav-group > .nav-body .nav-item:hover { background: var(--glass-2); color: var(--ivory); }
+  .nav-group > .nav-body .nav-item.is-active { color: var(--gold); background: var(--glass-2); }
+  /* Alttaki altın çizgi açılır listede yanlış duruyor: orada seçim
+     rengi ve zemin zaten belli ediyor. */
+  .nav-group > .nav-body .nav-item::after { display: none; }
+
+  /* Gruplar arası dikey ayraç artık gereksiz: her grup kendi düğmesi. */
+  .nav-group + .nav-group::before { display: none; }
+
+  /* 🔴 Çubuk artık sıkışık olmadığı için önceki daraltmalar GERİ ALINDI.
+     Onlar 16 sekmeyi yan yana sığdırmak içindi; bugün 4 grup adı var. */
+  .tb-nav .nav-item { padding-left: 12px; padding-right: 12px; }
+  .tb-brand .brand-sub { letter-spacing: 0.26em; }
+}
+/* --- MODEL KULLANIMI satırı: fiyat ve maliyet iki kademeli --- */
+/* Her satırda dört bilgi var (sağlayıcı, birim fiyat, maliyet, hacim).
+   Tek satıra dizmek okunmaz hale getiriyordu; ad ve rakam üstte, ayrıntı
+   altta küçük puntoda. */
+.kv.mk-satir { align-items: flex-start; }
+.mk-satir .kv-k, .mk-satir .kv-v {
+  display: flex; flex-direction: column; gap: 3px; min-width: 0;
+}
+.mk-satir .kv-v { align-items: flex-end; }
+.mk-satir b { font-weight: 500; color: var(--ivory); }
+.mk-satir small {
+  font-size: 0.78rem; color: var(--ivory-3); line-height: 1.45;
+  font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
+}
+.mk-satir .kv-v small { text-align: right; }
+/* 🔴 Rozet, sütun yönlü bir flex kabının çocuğu olduğu için satır
+   boyunca UZUYORDU (ekranda görüldü). Ad ve rozet kendi satır kabına
+   alındı; rozet artık metnini sarar. */
+.mk-ad {
+  display: flex; align-items: baseline; gap: 8px;
+  flex-wrap: wrap; min-width: 0;
+}
+.mk-ucretli {
+  font-style: normal; font-size: 0.66rem; letter-spacing: .12em;
+  color: var(--warn); border: 1px solid var(--line-strong);
+  border-radius: var(--radius); padding: 1px 6px;
+  white-space: nowrap; flex: 0 0 auto;
+}
+.mk-yok { font-style: normal; color: var(--ivory-4); }
+.kv.mk-toplam { border-top: 1px solid var(--line-strong); }
+.kv.mk-toplam .kv-k b, .kv.mk-toplam .kv-v b { color: var(--gold); }
+.kv.mk-toplam .kv-v { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.kv.mk-toplam small { font-size: 0.78rem; color: var(--ivory-3); }
+.sect-note.mk-bayat { color: var(--warn); }
+
+@media (max-width: 760px) {
+  /* Dar ekranda sağa yaslamak rakamları kenara sıkıştırıyor. */
+  .mk-satir .kv-v, .kv.mk-toplam .kv-v { align-items: flex-start; }
+  .mk-satir .kv-v small { text-align: left; }
+}
+
+/* Hic cagrilmamis saglayici: listede DURUR ama solgun. Gizlemek,
+   "sistemde yok" izlenimi verirdi -- oysa bagli, yalniz sirasi gelmiyor.
+   Sahip zaten bunu sordu (22.09.2026): "neden chat gpt yok?" */
+.kv.mk-bos .kv-k b, .kv.mk-bos .kv-v b { color: var(--ivory-3); }
+.kv.mk-bos { opacity: .72; }
+.kv.mk-bos.is-bad .kv-v { color: inherit; }
+
+/* Rozetler: ÜCRETLİ/ÜCRETSİZ maliyeti, "yalnız derin mod" yönlendirmeyi
+   anlatır. İkisi ayrı şey ve aynı rozette birleştirilemez -- birleşikken
+   panel Gemini'yi ücretsiz gösteriyordu. */
+.mk-bedava {
+  font-style: normal; font-size: 0.66rem; letter-spacing: .12em;
+  color: var(--ok); border: 1px solid var(--line-soft);
+  border-radius: var(--radius); padding: 1px 6px;
+  white-space: nowrap; flex: 0 0 auto;
+}
+.mk-derin {
+  font-style: normal; font-size: 0.66rem; letter-spacing: .06em;
+  color: var(--ivory-4); white-space: nowrap; flex: 0 0 auto;
+}
+
+/* --- KREATİF: indirme ve itiraz --- */
+.kp-eylem { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.kp-indir, .kp-itiraz-ac {
+  font: inherit; font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  padding: 7px 11px; border-radius: var(--radius); cursor: pointer;
+  border: 1px solid var(--line); background: var(--glass-2);
+  color: var(--ivory-2); text-decoration: none;
+}
+.kp-indir:hover { border-color: var(--line-strong); color: var(--gold); }
+.kp-itiraz-ac:hover { border-color: var(--crit); color: var(--crit); }
+.kp-itiraz { margin-top: 10px; }
+.kp-if {
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 13px; border-radius: var(--radius);
+  border: 1px solid var(--line-strong); background: var(--glass);
+}
+.kp-if > label {
+  display: flex; flex-direction: column; gap: 5px;
+  font-size: 11px; letter-spacing: .04em; color: var(--ivory-3);
+}
+/* Muhatap kutusu: sahip GÖNDERMEDEN önce kime yazdığını görür. */
+.kp-muhatap {
+  display: flex; flex-direction: column; gap: 5px;
+  padding: 10px 12px; border-radius: var(--radius);
+  border: 1px solid var(--line); background: var(--glass-2);
+  font-size: 12px; color: var(--ivory-2);
+}
+.kp-muhatap b { color: var(--gold); }
+.kp-ust { font-size: 10px; letter-spacing: .06em; color: var(--ivory-4); }
+.kp-onceki { font-size: 11px; color: var(--ivory-3); line-height: 1.5; }
+.kp-uyari { font-size: 11px; color: var(--warn); }
+
+/* ROZET VE FORM SATIRI — TASARIM/ASİSTAN sekmeleri için
+ * 🔴 Bu sınıflar kullanılıyordu ama TANIMLI DEĞİLDİ: pill, pill-red,
+ * pill-amber, btn-sm, fm-row. Rozetler biçimsiz düz metin olarak
+ * görünüyordu. Renkler mevcut tema değişkenlerinden türetiliyor ki
+ * koyu/açık temada ikisinde de okunsun. */
+.pill {
+  display: inline-block;
+  padding: 2px 8px;
+  margin-left: 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  white-space: nowrap;
+  border: 1px solid currentColor;
+  opacity: .85;
+}
+.pill-red   { color: #e2725b; }
+.pill-amber { color: #d8a24a; }
+
+/* 🔴 flex-wrap ŞART: dar ekranda alanlar yan yana sığmayınca taşıyordu.
+ * min-width:0 da şart -- flex çocuğunun otomatik asgari boyutu içeriğe
+ * eşit olduğu için input'lar satırı zorluyor (bu oturumda sayfa
+ * genelinde aynı tuzağa düşülmüştü). */
+.fm-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 8px 0;
+}
+.fm-row > * { min-width: 0; }
+.fm-row > .fm-input { flex: 1 1 180px; }
+
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+
+/* Onay sayaci tiklanabilir. Imlec ve odak halkasi olmadan tiklanabilir
+   oldugu anlasilmaz; goruntusu ayni kalan bir baglanti, olmayan bir
+   baglantiyla ayni ise yarar. */
+.big-stat-link { cursor: pointer; border-radius: 10px; }
+.big-stat-link:hover { background: rgba(255, 255, 255, .06); }
+.big-stat-link:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+
+/* ASİSTAN alt sekmeleri
+ * 🔴 overflow-x: auto + flex-wrap: nowrap — dar ekranda üç sekme alt alta
+ * düşmesin, kaydırılsın. Bu oturumda üst menüde aynı tuzağa düşülmüştü:
+ * sarma, başlığı iki satıra bölüp paneli aşağı itiyordu. */
+.as-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  gap: 4px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--hat, rgba(255,255,255,.12));
+}
+.as-tab {
+  flex: 0 0 auto;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 10px 14px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .05em;
+  color: inherit;
+  opacity: .6;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.as-tab:hover { opacity: .85; }
+.as-tab.is-active {
+  opacity: 1;
+  border-bottom-color: currentColor;
+}
+
+
+/* ========================================================================
+   ONAY KARTI ICINDE KARAR  (22.09.2026)
+   Karar modal'da degil kartin icinde veriliyor: telefonda modal fazladan
+   dokunus demek, ayrica .modal-actions ve .btn-approve'un HIC mobil
+   kurali yoktu (olculdu). Mobil once yazildi: dugmeler once ALT ALTA ve
+   tam genislikte, genis ekranda yan yana.
+   ===================================================================== */
+.oo-govde { padding: 0 14px 14px 32px; }
+.oo-kunye {
+  margin: 0 0 10px;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--ivory-3, #9a9a96);
+}
+.oo-gerekce {
+  display: block;
+  margin-top: 14px;
+  font-size: 0.70rem;
+  letter-spacing: 0.14em;
+  color: var(--ivory-3, #9a9a96);
+}
+.oo-gerekce .reason-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 6px;
+  /* 🔴 16px: iOS Safari daha kucuk yazi tipli bir alana odaklanildiginda
+     sayfayi ZORLA yakinlastirir ve duzen bozulur. */
+  font-size: 16px;
+  min-height: 44px;
+  padding: 10px 12px;
+}
+.oo-dugmeler {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+.oo-dugmeler button {
+  width: 100%;
+  /* 44px dokunma hedefi asgarisi; karar dugmesi oldugu icin 48px. */
+  min-height: 48px;
+  border-radius: var(--radius, 8px);
+  font-family: var(--font-ui, inherit);
+  font-size: 0.82rem;
+  font-weight: 600;
+  /* Dar ekranda 0.2em harf araligi "EMIN MISIN? ONAYLA" metnini tasirdi. */
+  letter-spacing: 0.10em;
+  cursor: pointer;
+}
+.oo-dugmeler button:disabled { opacity: .55; cursor: default; }
+.oo-durum { margin: 10px 0 0; font-size: 0.85rem; min-height: 1.2em; }
+.oo-durum.oo-ok { color: var(--champagne, #d8c9a3); }
+.oo-durum.oo-hata { color: #e2776a; }
+
+@media (min-width: 560px) {
+  .oo-dugmeler { flex-direction: row; }
+  .oo-dugmeler button { flex: 1; }
+}
+@media (max-width: 480px) {
+  /* 32px sol girinti dar ekranda govdeyi daraltiyordu. */
+  .oo-govde { padding: 0 12px 14px 14px; }
+}
+
+/* Modal da mobilde ele alinmamisti: iki dugme yan yana sikisiyordu. */
+@media (max-width: 560px) {
+  .modal-actions { flex-direction: column; }
+  .modal-actions button { width: 100%; min-height: 48px; letter-spacing: 0.10em; }
+  .reason-input { font-size: 16px; min-height: 44px; }
+}
+
+
+/* ========================================================================
+   MOBIL: iOS zorla yakinlastirma kapatildi  (22.09.2026)
+   iOS Safari, 16px'ten kucuk yazi tipli bir alana odaklaninca sayfayi
+   zorla yakinlastirir ve kullanici geri cikamaz. Olculdu: panelde genel
+   bir girdi kurali yoktu; .fm-input 12px (12 yerde), .reason-input
+   0.95rem idi. Kural yalniz dar ekranda gecerli -- masaustundeki yogun
+   tablolar oldugu gibi kalir.
+   ===================================================================== */
+@media (max-width: 760px) {
+  input, textarea, select { font-size: 16px; }
+  /* Dokunulacak her alan parmakla secilebilsin. Yogun tablo hucreleri
+     haric tutulur: onlar .fm-scroll icinde zaten yatay kayiyor. */
+  input:not(.fm-input):not(.fm-num),
+  textarea,
+  select { min-height: 44px; }
+}

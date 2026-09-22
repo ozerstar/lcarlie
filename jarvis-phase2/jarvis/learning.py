@@ -91,6 +91,66 @@ def _tally(rows: list[dict[str, Any]], dimension: str) -> dict[str, dict[str, in
     return out
 
 
+
+# ----------------------------------------------------------------------
+# 🔴 PANELDE İÇ KOD ADI GÖSTERİLİYORDU
+#
+# Ders satırları şöyle çıkıyordu:
+#     "Onay hazırlığı 'EVIDENCE_OR_REVIEW_NEEDED' olan 6 kararın..."
+#     "Karar tipi 'MEDIA_BUDGET': karara bağlanan 17 vakanın..."
+# Sahip haklı olarak "ne demek istiyor, anlamıyorum" dedi. Bunlar
+# veritabanının iç kodları; panelde okunacak metin DEĞİL.
+#
+# Sözlükte OLMAYAN bir kod olduğu gibi gösterilir -- uydurma bir Türkçe
+# karşılık yazmak, kodu gizleyip yanlış anlam vermek olurdu.
+TURKCE_DEGER: dict[str, str] = {
+    # karar tipi
+    "MEDIA_BUDGET": "reklam bütçesi",
+    "CREATIVE_TEST": "kreatif testi",
+    "PRODUCT_PRIORITY": "ürün önceliği",
+    "OFFER_TEST": "teklif testi",
+    "CRO_CHANGE": "site dönüşüm değişikliği",
+    # onay hazırlığı
+    "NO_ACTION": "eylem gerekmiyor",
+    "EVIDENCE_OR_REVIEW_NEEDED": "kanıt ya da inceleme bekliyor",
+    # red team
+    "CHALLENGE": "itiraz etti",
+    "SUPPORT": "destekledi",
+    "INSUFFICIENT_EVIDENCE": "kanıtı yetersiz buldu",
+    # kanıt kalitesi
+    "LOW": "zayıf", "MEDIUM": "orta", "HIGH": "güçlü",
+}
+
+
+# 🔴 AYNI KOD, FARKLI ANLAM — ÜRETİMDE YAKALANDI
+# `LOW` iki boyutta birden geçiyor ve ANLAMI AYNI DEĞİL:
+#   kanit_kalitesi = LOW  -> "zayıf" (kanıt zayıf, kötü)
+#   risk_class     = LOW  -> "düşük risk" (risk düşük, İYİ)
+# Tek sözlük kullanınca panel "Jarvis önerisi — risk sınıfı — zayıf" yazdı;
+# oysa o öneriler DÜŞÜK RİSKLİ, yani tam tersi. Sözlük artık boyutu da
+# gözetir; boyuta özel karşılık yoksa genel sözlüğe düşer.
+BOYUTA_GORE: dict[tuple[str, str], str] = {
+    ("risk_class", "LOW"): "düşük risk",
+    ("risk_class", "MEDIUM"): "orta risk",
+    ("risk_class", "HIGH"): "yüksek risk",
+    ("risk_class", "CRITICAL"): "kritik risk",
+    ("action_type", "REQUEST_HUMAN_REVIEW"): "insan incelemesi talebi",
+    ("action_type", "DRAFT_CUSTOMER_REPLY"): "müşteri yanıtı taslağı",
+    ("action_type", "META_CAMPAIGN_CHANGE"): "Meta kampanya değişikliği",
+    ("action_type", "PRICE_CHANGE"): "fiyat değişikliği",
+    ("action_type", "WIX_PUBLISH"): "Wix yayını",
+    ("action_type", "WHATSAPP_SEND_TEMPLATE"): "WhatsApp şablon gönderimi",
+}
+
+
+def _oku(deger: str, boyut: str = "") -> str:
+    """İç kodu Türkçeye çevirir. Bilinmiyorsa OLDUĞU GİBİ bırakır."""
+    ozel = BOYUTA_GORE.get((boyut, str(deger)))
+    if ozel:
+        return ozel
+    return TURKCE_DEGER.get(str(deger), str(deger))
+
+
 def _lessons_for(rows: list[dict[str, Any]], dimension: str, label: str,
                  skipped: list[dict[str, str]]) -> list[Lesson]:
     lessons: list[Lesson] = []
@@ -102,14 +162,32 @@ def _lessons_for(rows: list[dict[str, Any]], dimension: str, label: str,
             continue
         decided = counts["decided"]
         rate = (counts["approved"] / decided) if decided else None
+        # 🔴 SAYI EKİ KODDA ÜRETİLMEZ — CÜMLE YENİDEN KURULUR.
+        # Eski biçim "{approved}'i onaylanmış" yazıyordu ve Türkçe'de bu
+        # sayıya göre değişir: 3'ü, 12'si, 14'ü, 20'si, 6'sı. Panelde
+        # "12'i onaylanmış", "6'i onaylanmış" diye YANLIŞ çıkıyordu.
+        # Ek üretmeye çalışmak yerine "N tanesi" kalıbı kullanılır; bu
+        # kalıp HER sayıyla doğrudur.
+        #
+        # 🔴 AYRICA İKİ SAYI BİRDEN YAZILIR. Cümle "karara bağlanan 17
+        # vaka" derken rozette "21 vaka" yazıyordu ve ikisinin farkı
+        # hiçbir yerde açıklanmıyordu. Artık toplam da, karara bağlanan
+        # da aynı cümlede.
+        okunur = _oku(value, dimension)
         if counts["stuck"] and not decided:
-            summary = (f"{label} '{value}' olan {counts['sample']} kararın "
-                       f"HİÇBİRİ karara bağlanmamış — hepsi beklemede.")
+            summary = (f"{label} — {okunur}: {counts['sample']} kararın "
+                       f"tamamı hâlâ beklemede, hiçbiri karara bağlanmamış. "
+                       f"Bunlar sizin kararınızı bekliyor.")
         elif rate is not None:
-            summary = (f"{label} '{value}': karara bağlanan {decided} vakanın "
-                       f"{counts['approved']}'i onaylanmış (%{rate * 100:.0f}).")
+            bekleyen = (f" {counts['stuck']} tanesi hâlâ bekliyor."
+                        if counts["stuck"] else "")
+            summary = (f"{label} — {okunur}: toplam {counts['sample']} karardan "
+                       f"{decided} tanesi karara bağlanmış, bunlardan "
+                       f"{counts['approved']} tanesi onaylanmış "
+                       f"(%{rate * 100:.0f}).{bekleyen}")
         else:
-            summary = f"{label} '{value}': {counts['sample']} vaka, karar yok."
+            summary = (f"{label} — {okunur}: {counts['sample']} karar var, "
+                       f"henüz hiçbiri karara bağlanmamış.")
         lessons.append(Lesson(
             code=f"{dimension}:{value}", dimension=dimension, value=value,
             sample=counts["sample"], decided=decided, approved=counts["approved"],
@@ -119,8 +197,25 @@ def _lessons_for(rows: list[dict[str, Any]], dimension: str, label: str,
     return lessons
 
 
-def analyze(decisions: list[dict[str, Any]]) -> LearningReport:
-    """Karar kayıtlarından ders çıkarır."""
+# 🔴 İKİ AYRI KAYNAK, AYNI PANODA — KARIŞTIRILMADAN
+# `core.karar`  : şirketin karar defteri (reklam bütçesi, kreatif testi…)
+# `mart.ai_oneri_sonuc` : Jarvis'in KENDİ önerilerinin sonucu
+# İkisini tek havuza atmak "onay oranı" sayısını anlamsız kılardı: biri
+# insanın işletme kararı, öteki makinenin önerisi. Ders satırı hangi
+# kaynaktan geldiğini SÖYLER.
+KAYNAK_ETIKET = {
+    "sirket": "Şirket kararları",
+    "jarvis": "Jarvis'in kendi önerileri",
+}
+
+
+def analyze(decisions: list[dict[str, Any]],
+            own_proposals: list[dict[str, Any]] | None = None) -> LearningReport:
+    """Karar kayıtlarından ders çıkarır.
+
+    `own_proposals` verilirse Jarvis'in kendi önerileri de AYRI boyutlar
+    olarak eklenir; verilmezse davranış eskisiyle birebir aynıdır.
+    """
     skipped: list[dict[str, str]] = []
     lessons: list[Lesson] = []
     for dimension, label in (("red_team_sonucu", "Red-team sonucu"),
@@ -128,6 +223,12 @@ def analyze(decisions: list[dict[str, Any]]) -> LearningReport:
                              ("karar_tipi", "Karar tipi"),
                              ("kanit_kalitesi", "Kanıt kalitesi")):
         lessons.extend(_lessons_for(decisions, dimension, label, skipped))
+
+    # Jarvis'in kendi önerileri -- ayrı etiketle, aynı sayma mantığıyla.
+    if own_proposals:
+        for dimension, label in (("action_type", "Jarvis önerisi — eylem tipi"),
+                                 ("risk_class", "Jarvis önerisi — risk sınıfı")):
+            lessons.extend(_lessons_for(own_proposals, dimension, label, skipped))
 
     # En eyleme donuk ders once: hic karara baglanmayanlar, sonra dusuk
     # onay orani. Yuksek onay orani bir sorun degil, bilgi.
@@ -170,9 +271,25 @@ def run(memory: Any) -> dict[str, Any]:
         return dict(payload, status="UNAVAILABLE", error=str(exc)[:250],
                     note="Karar sonuçları okunamadı; ders üretilmedi.")
 
-    report = analyze(decisions)
+    # 🔴 Kendi önerileri OKUNAMAZSA ders yine üretilir, sessizce değil.
+    # Migration 024 öncesinde bu görünüm yoktu; eski bir kurulumda ya da
+    # geri alma sonrası burada patlamak, ŞİRKET derslerini de yok ederdi.
+    kendi_oneri: list = []
+    kendi_hata = ""
+    try:
+        kendi_oneri = list(memory._fetch("own_proposals").records)
+    except Exception as exc:  # noqa: BLE001
+        kendi_hata = str(exc)[:200]
+
+    report = analyze(decisions, kendi_oneri)
     payload.update(report.to_dict())
     payload["status"] = "OK"
+    payload["kendi_oneri_sayisi"] = len(kendi_oneri)
+    if kendi_hata:
+        payload["kendi_oneri_hatasi"] = kendi_hata
+        payload["kendi_oneri_notu"] = (
+            "Jarvis'in kendi önerileri okunamadı; dersler yalnız şirket "
+            "karar defterinden çıkarıldı.")
 
     try:
         payload["providers"] = provider_outcomes(memory.get_learning_loop().records)

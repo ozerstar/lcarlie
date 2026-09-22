@@ -70,7 +70,31 @@ class CodingTaskDenied(FirewallError):
     a denied coding attempt."""
 
 WORKER_ID = "jarvis-operational-loop"
-LEASE_SECONDS = 60
+# 🔴 KIRA_NEDEN — 60 SANİYE KODLAMA GÖREVLERİNİ İMKÂNSIZ KILIYORDU.
+#
+# Ölçüldü 21.09.2026: `CODE_CHANGE_REVIEW` görevi açıldı, döngü onu aldı,
+# CodingExecutor modeli çağırdı ve koşu 10 dakikayı aştı. Dönüşte:
+#     ERROR: invalid or expired lease
+#     CONTEXT: PL/pgSQL function ai_fail_task(...) line 18
+# Kira çoktan bitmişti; görev LEASED'te asılı kaldı, öneri yazılamadı.
+#
+# Bu, modülün KENDİ belgesiyle çelişiyordu. coding_executor.py docstring:
+#   "A CodingExecutor run can legitimately take much longer than a typical
+#    Jarvis cycle" ve ücretsiz katmanda "several minutes of retry/backoff".
+# Yani sistem kendi kendini geliştirebilsin diye kurulmuştu ama kira süresi
+# bunu yapısal olarak engelliyordu.
+#
+# NEDEN GLOBAL OLARAK YÜKSELTİLDİ, göreve göre değil:
+# `core.ai_claim_task(worker, saniye)` kirayı ALIRKEN veriyor; hangi niyet
+# olduğu ancak görev alındıktan SONRA (idempotency_key'den) anlaşılıyor.
+# Kirayı sonradan uzatacak bir fonksiyon veritabanında YOK (arandı).
+#
+# UZUN KİRANIN BEDELİ VE NEDEN KABUL EDİLEBİLİR:
+# Döngü çökerse görev bu süre boyunca kilitli kalır. Burada tek bir işçi
+# var (WORKER_ID tek), yani kira "iki işçi aynı görevi almasın" derdine
+# karşı duruyor ve o dert bu kurulumda yok denecek kadar küçük. Buna
+# karşılık kısa kiranın bedeli ölçüldü: kodlama yeteneği HİÇ çalışmıyordu.
+LEASE_SECONDS = 1800
 
 
 # --------------------------------------------------------------------------
@@ -182,6 +206,71 @@ def _build_agency_payload(slug: str | None) -> dict[str, str] | None:
                             str(spec.get("concept_name") or ""),
                             str(metin)[:400]) if parca))
     return payload
+
+
+# --------------------------------------------------------------------------
+# Kreatif partisi kopruusu. CODE_CHANGE_REVIEW ile AYNI desendir: is burada
+# yapilmaz, DISARIDA yapilmis ve diske yazilmis bir sonuc okunur.
+#
+# 🔴 UretIM BU DONGUDE KOSMAZ ve bu bilincli. Brief + 4 gorsel + ekip
+# incelemesi olculdugunde ~8 dakika suruyor; 5 dakikalik dongude kosarsa
+# dongu kendi kendini bloklar. Uretimi ayri bir timer yapar
+# (lcarlie-kreatif-hat), bitince `jarvis-operator create-task
+# KREATIF_INCELEME <parti>` ile gorevi acar. Dongu yalniz SONUCU okuyup
+# sahibin onay kuyruguna koyar.
+#
+# 🔴 INCELEME YOKSA ONERI YAZILMAZ. Ekip bakmadan sahibin onune gorsel
+# konmaz -- akisin butun anlami o ara adimdi.
+KREATIF_KOK = Path(os.environ.get(
+    "KREATIF_BRIEF_DIR", "/opt/lcarlie/jarvis-phase2/state/kreatif-brief"))
+KREATIF_TABAN_URL = os.environ.get("KREATIF_TABAN_URL", "/kreatif")
+
+
+def _build_brief_payload(slug: str) -> dict[str, str]:
+    """Brief + promptlar hazir -> GORSEL URETIMI icin sahibin onayi.
+
+    🔴 SAHIP KARARI (21.09.2026): "brief verilsin, uretim benim onayim
+    olmadan yapilmasin ama promptlar hazirlansin."
+
+    Bu yuzden haftalik kosu HIC GORSEL URETMEZ. Uretilen sey arastirmadir:
+    rakip ne yapmis, ne tutmus, urun ne, hangi cumleler denetimden gecti ve
+    image modeline yapistirilacak promptlar. Gorsel ancak sahip bu oneriyi
+    ONAYLAYINCA uretilir -- fatura da, yayin riski de o andan sonra baslar.
+    """
+    if not slug:
+        raise CodingTaskDenied(
+            "KREATIF_BRIEF bir parti adi ister: jarvis:KREATIF_BRIEF:<parti>")
+    yol = KREATIF_KOK / f"{slug}.json"
+    if not yol.exists():
+        raise CodingTaskDenied(f"brief bulunamadi: {yol}")
+    try:
+        brief = json.loads(yol.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise CodingTaskDenied(f"brief okunamadi: {exc}") from exc
+    from .kreatif_ozet import brief_ozeti
+    return {"subject_ref": f"kreatif-brief:{slug}",
+            "reason": brief_ozeti(brief, slug, KREATIF_TABAN_URL)}
+
+
+def _build_kreatif_payload(slug: str) -> dict[str, str]:
+    if not slug:
+        raise CodingTaskDenied(
+            "KREATIF_INCELEME bir parti adi ister: jarvis:KREATIF_INCELEME:<parti>")
+    klasor = KREATIF_KOK / f"{slug}-gorseller"
+    yol = klasor / "inceleme.json"
+    if not yol.exists():
+        raise CodingTaskDenied(
+            f"kreatif partisi incelenmemis, oneri yazilmadi: {yol}")
+    try:
+        inceleme = json.loads(yol.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise CodingTaskDenied(f"inceleme okunamadi: {exc}") from exc
+    kareler = inceleme.get("gorseller") or []
+    if not kareler:
+        raise CodingTaskDenied(f"partide kare yok: {slug}")
+    from .kreatif_ozet import onay_ozeti
+    return {"subject_ref": f"kreatif:{slug}",
+            "reason": onay_ozeti(inceleme, slug, KREATIF_TABAN_URL)}
 
 
 def _build_coding_review_payload(slug: str) -> dict[str, str]:
@@ -404,7 +493,13 @@ def run_cycle(host: str | None = "lcarlie") -> dict[str, Any]:
             if internal_intent is None:
                 raise FirewallError(f"idempotency_key does not follow jarvis:<intent>:<slug>: {key!r}")
 
-            if internal_intent == "CODE_CHANGE_REVIEW":
+            if internal_intent == "KREATIF_BRIEF":
+                state["kreatif_brief_count"] = state.get("kreatif_brief_count", 0) + 1
+                payload = _build_brief_payload(slug)
+            elif internal_intent == "KREATIF_INCELEME":
+                state["kreatif_task_count"] = state.get("kreatif_task_count", 0) + 1
+                payload = _build_kreatif_payload(slug)
+            elif internal_intent == "CODE_CHANGE_REVIEW":
                 # CodingExecutor runs here, inside the firewall try/except: a
                 # scope violation, failing tests, or a run error all become a
                 # CodingTaskDenied -> caught below -> task fails, no proposal.
@@ -414,9 +509,31 @@ def run_cycle(host: str | None = "lcarlie") -> dict[str, Any]:
                 # Once burada HER zaman genel bir yer tutucu yaziliyordu ve
                 # onay kuyruguna ici bos oneri dusuyordu. Ajans sartnamesi
                 # varsa gercek metin kullanilir; yoksa eski davranis surer.
-                payload = (_build_agency_payload(slug)
-                           or {"subject_ref": key,
-                               "reason": f"Automated proposal from operator-originated task {key}"})
+                payload = _build_agency_payload(slug)
+                if payload is None:
+                    if slug:
+                        # 🔴 SARTNAME_YOK — SLUG VERILDI AMA DOSYA YOK.
+                        # Eskiden burada genel bir yer tutucu yaziliyordu ve
+                        # onay kuyruguna "Automated proposal from
+                        # operator-originated task ..." diye ICI BOS bir oneri
+                        # dusuyordu. agency_store.py bunu kendi docstring'inde
+                        # zaten KUSUR diye tarif ediyor: "Onaylayacak insan
+                        # reklamin NE DEDIGINI goremiyor. Ici bos bir oneriyi
+                        # onaylamak, onay degildir."
+                        #
+                        # Uretimde olculdu: bir degisiklik onerisinin sartname
+                        # dosyasi silinince gorev yine de PROPOSED oldu ve
+                        # kuyruga anlamsiz bir satir dustu -- onaylanabilir
+                        # halde. Slug verilmisse cagiran taraf bir sartname
+                        # KASTETMISTIR; dosya yoksa bu bir hatadir, yer tutucu
+                        # degil. Gorev duser, kuyruk temiz kalir.
+                        raise CodingTaskDenied(
+                            f"SARTNAME_YOK: '{slug}' icin sartname dosyasi "
+                            "bulunamadi; ici bos oneri yazilmadi")
+                    # Slug hic verilmemisse eski davranis surer: elle acilmis
+                    # sade gorevler bozulmaz.
+                    payload = {"subject_ref": key,
+                               "reason": f"Automated proposal from operator-originated task {key}"}
 
             validated = validate_proposal(internal_intent, payload, contract,
                                           idempotency_key=f"action:{key}")

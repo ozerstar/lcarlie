@@ -52,6 +52,18 @@ CAPABILITY_TABLE: tuple[Capability, ...] = (
     Capability("JUDGEMENT", ("ne öneriyorsun", "ne oneriyorsun", "ne yapmalıyım", "ne yapmaliyim",
                              "ne yapabiliriz", "tavsiyen", "recommend", "what should i do",
                              "yorumla", "fikrin ne")),
+    # 🔴 INSPECT'TEN ÖNCE. "katalog hazırla" içindeki "hazır", "afişe bak"
+    # içindeki "bak" INSPECT'e düşürürdü; ilk eşleşen kazanıyor.
+    # Lemmalar AYIRT EDİCİ: tek başına "post" yok, çünkü "kartpostal"
+    # içinde de geçiyor (bu tuzağa bugün düşüldü).
+    Capability("TASARIM", ("tasarım", "tasarim", "katalog", "kataloğ",
+                           "afiş", "afis", "poster", "broşür", "brosur",
+                           "raf etiketi", "raf stopper", "wobbler",
+                           "fiyat kartı", "fiyat karti", "roll-up", "rollup",
+                           "flyer", "instagram gönderi", "instagram gonderi",
+                           "story", "reels kapak", "şablon", "sablon",
+                           "kartvizit", "davetiye", "stand", "banner",
+                           "görsel hazırla", "gorsel hazirla")),
     Capability("INSPECT_OR_STATUS", ("incele", "bak", "kontrol et", "göz at", "goz at",
                                      "durum", "ne oluyor", "status", "sağlık", "saglik",
                                      "sistem", "system", "şirket", "sirket", "company",

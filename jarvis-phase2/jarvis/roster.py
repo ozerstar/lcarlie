@@ -34,6 +34,16 @@ SPEAKS = "KONUŞTU"          # veriye bakti, bir sey soyledi
 NO_DATA = "VERİ YOK"        # kaynagi okunamadi
 NEEDS_RESEARCH = "ARAŞTIRMA GEREKİR"   # dis kaynak olmadan konusamaz
 NEEDS_INPUT = "GİRDİ BEKLER"           # baskalarinin bulgusunu girdi alir
+# 🔴 "VERİ YOK" ile "İŞLEV YOK" AYRI DURUMLAR — birlestirilmeleri panele yalan
+# soyletiyordu. Olculdu (22.09.2026): tasarim ekibinin okudugu
+# `tasarim_sablonlari` sorgusu 93 SATIR donuyor, ama 21 uye "VERİ YOK"
+# raporluyordu. Veri oradaydi; eksik olan, o satirlara bakinca ne soyleyecegini
+# tanimlayan SPEAKERS islevi idi.
+#
+# Ikisi ayni etikete sikistirilinca "veri gelmiyor" sanilip kaynak aranir --
+# oysa yazilmasi gereken sey koddur. Ayni tuzagin baska adlari:
+# "bulamadi != bakamadi", "soramadim != veri yok".
+ISLEV_YOK = "İŞLEV YAZILMADI"          # veri okunuyor, konusma islevi yok
 
 
 @dataclass(frozen=True)
@@ -83,9 +93,9 @@ ROSTER: tuple[Member, ...] = (
     Member("growth", "Büyüme Uzmanı",
            "Karar özetinden büyüme sinyalini okur.",
            ("decision_summary",)),
-    Member("ai_prompt_engineering", "Yapay Zekâ Altyapısı",
-           "Model ve yetenek durumunu okur.",
-           ("capability_state",)),
+    Member("ai_prompt_engineering", "AI ve Motor Sorumlusu",
+           "Hangi işin hangi model kademesinde çalıştığını denetler; riskine göre yanlış kademedekini bildirir.",
+           ("capability_state", "model_kademe")),
     # 🔴 20.09.2026: bu iki uye YAPISAL OLARAK SESSIZDI. Ikisi de 'financial'
     # adli bir sorgu okuyordu ve o sorgu izin listesinde HIC YOKTU; ustelik
     # ai_reader'in mart.ekonomi_gunluk ve mart.nakit_gunluk uzerinde hicbir
@@ -109,6 +119,162 @@ ROSTER: tuple[Member, ...] = (
     Member("creative_hypothesis", "Kreatif Hipotez Uzmanı",
            "Açık hipotezleri ve her birinin nasıl yanlışlanacağını okur.",
            ("creative_hypotheses",)),
+    # ══════════════════════════════════════════════════════════════
+    # MARKA DEPARTMANI (22.09.2026'da büyütüldü)
+    # Sahip: "brand ekibine büyük görev var, iş tanımlarını büyüt ve
+    # aktif hale getir." Aktif olmak = veriye bakıp bir şey söyleyebilmek.
+    # ══════════════════════════════════════════════════════════════
+    Member("marka_kimlik", "Marka Kimlik Sorumlusu",
+           "Şablon kütüğündeki marka kurallarını okur: hangi şablon logo, "
+           "renk ve tipografi kuralını taşıyor, hangisinde kural yazılmamış.",
+           ("tasarim_sablonlari",)),
+    Member("marka_mimarisi", "Marka Mimarisi Uzmanı",
+           "Ürün kartını okur: seriler ve alt markalar (Babyline) nasıl "
+           "ayrışıyor, hangi ürün hangi çatı altında duruyor.",
+           ("urun_karti", "urun_bilgi")),
+    Member("marka_deneyimi", "Marka Deneyimi Uzmanı",
+           "Üretilen işleri ve gönderileri okur: müşteri markayla nerede "
+           "temas ediyor — raf, kutu, kargo, sosyal.",
+           ("tasarim_isleri", "operations_shipments")),
+    Member("marka_sagligi", "Marka Sağlığı Analisti",
+           "İçerik performansını ve kreatif kapsamını okur: marka hangi "
+           "mesajla görülüyor, hangi mesaj hiç denenmemiş.",
+           ("content_performance", "creative_coverage")),
+
+    # ══════════════════════════════════════════════════════════════
+    # HALKLA İLİŞKİLER (PR) — 22.09.2026'da KURULDU, önceden yoktu
+    # ══════════════════════════════════════════════════════════════
+    Member("halkla_iliskiler_muduru", "Halkla İlişkiler Müdürü",
+           "Günlük dış bülteni ve içerik performansını okur: sektörde ne "
+           "konuşuluyor, bizim hangi mesajımız karşılık buluyor.",
+           ("gunluk_brief", "content_performance")),
+    Member("basin_iliskileri", "Basın İlişkileri Uzmanı",
+           "Dış haberleri ve pazar araştırmasını okur: hangi gelişme bizim "
+           "için haber değeri taşıyor, kime hangi açıyla anlatılır.",
+           ("gunluk_brief", "market_research")),
+    Member("kriz_iletisimi", "Kriz İletişimi Sorumlusu",
+           "Cevapsız mesajları ve karar özetini okur: hangi konu büyümeden "
+           "önce cevaplanmalı, hangi mevzuat riski kamuya yansıyabilir.",
+           ("crm_unanswered", "decision_summary")),
+    Member("itibar_izleme", "İtibar ve Şikâyet İzleme",
+           "Müşteri dilini ve cevapsızları okur: tekrar eden şikâyet hangisi, "
+           "hangi cümle sık kuruluyor.",
+           ("customer_voice", "crm_unanswered")),
+    Member("isbirligi_sorumlusu", "İş Birliği ve Influencer Sorumlusu",
+           "Kreatif kapsamı ve içerik performansını okur: hangi iş birliği "
+           "biçimi denendi, hangisi ölçülmedi.",
+           ("creative_coverage", "content_performance")),
+    Member("kurumsal_editor", "Kurumsal İçerik Editörü",
+           "Üretilen işleri ve ürün bilgisini okur: kurumsal metinlerde "
+           "hangi ürün bilgisi kullanılmış, kaynağı var mı.",
+           ("tasarim_isleri", "urun_bilgi")),
+
+    # ══════════════════════════════════════════════════════════════
+    # YAYIN DEPARTMANI — katalog ve KİTAP (22.09.2026, sahip talebi)
+    # "katalog ve kitap için hukuk birimi, editörler ve grafik
+    #  tasarımcılar çok fazla çalışmaları lazım"
+    #
+    # 🔴 Katalog ile kitap AYRI editörlük ister: katalog ürün verisini
+    # dizer, kitap metin yazar. Mevzuat riskleri de ayrı.
+    # ══════════════════════════════════════════════════════════════
+    Member("katalog_editoru", "Katalog Editörü",
+           "Katalog şablonlarını ve ürün bilgisini okur: hangi sayfa hangi "
+           "alanı istiyor, o alanın onaylı karşılığı var mı.",
+           ("tasarim_sablonlari", "urun_bilgi")),
+    Member("kitap_editoru", "Kitap Editörü",
+           "Kitap şablonlarını okur: bölüm yapısı, künye ve kaynakça "
+           "sayfası eksik mi, hangi bölüm yazılmamış.",
+           ("tasarim_sablonlari", "tasarim_isleri")),
+    Member("yayin_hukuk", "Yayın Hukuk ve Mevzuat Denetçisi",
+           "Karar özetini ve ürün bilgisini okur: yayına girecek metinde "
+           "hangi ifade iddiaya dönüşür, hangisi belge ister.",
+           ("decision_summary", "urun_bilgi")),
+    Member("kaynakca_sorumlusu", "Kaynakça ve Doğrulama Sorumlusu",
+           "Pazar araştırmasını ve ürün bilgisini okur: kitapta yazılan "
+           "genel bilginin kaynağı var mı, hangisi kaynaksız.",
+           ("market_research", "urun_bilgi")),
+    Member("dizgi_baski", "Dizgi ve Baskı Sorumlusu",
+           "Şablon kütüğünü okur: hangi iş hangi ölçü ve dpi ile basılacak, "
+           "hangisi Canva'ya sığmıyor ve harici motor istiyor.",
+           ("tasarim_sablonlari",)),
+
+    # ══════════════════════════════════════════════════════════════
+    # TASARIM DEPARTMANI (22.09.2026)
+    # Sahip: "burası ayrı departman: editörü var, grafik tasarımcısı,
+    # metacısı, her şeyi olan departman burası."
+    #
+    # 🔴 Her üyenin `reads` alanı GERÇEKTEN okuduğu sorgudur. Kaynağı
+    # olmayan üye panelde "girdi bekler" der; uydurma cümle kurmaz.
+    # ══════════════════════════════════════════════════════════════
+
+    # ── Yönetim
+    Member("tasarim_direktoru", "Tasarım Direktörü",
+           "Tasarım defterini okur: ne üretildi, kaçı onay bekliyor, "
+           "kaçı reddedildi ve hangi gerekçeyle.",
+           ("tasarim_isleri",)),
+    Member("produksiyon_muduru", "Kreatif Prodüksiyon Müdürü",
+           "İş akışının darboğazını okur: onay kuyruğunda kaç iş bekliyor, "
+           "hangi iş türü hiç üretilemiyor.",
+           ("tasarim_isleri", "tasarim_sablonlari")),
+
+    # ── Üretim
+    Member("sablon_sorumlusu", "Şablon Sorumlusu",
+           "Kütüğü okur: hangi iş türünün şablonu var, hangisi yok. "
+           "Şablonsuz istek üretilemez, eksik olanı söyler.",
+           ("tasarim_sablonlari",)),
+    Member("grafik_tasarimci", "Grafik Tasarımcı",
+           "Üretilen işlerin hangi şablon ve yerleşimle çıktığını okur; "
+           "oran uyarısı almış olanları ayırır.",
+           ("tasarim_isleri", "tasarim_sablonlari")),
+    Member("dizgi_uzmani", "Dizgi ve Tipografi Uzmanı",
+           "Şablona giden metinlerin uzunluğunu okur: hangi başlık "
+           "çerçeveye sığmayacak kadar uzun.",
+           ("tasarim_isleri",)),
+    Member("varlik_sorumlusu", "Görsel Varlık Sorumlusu",
+           "Hangi ürün görseli hangi işte kullanıldı, çerçeve oranına "
+           "uyuyor mu okur.",
+           ("tasarim_isleri", "tasarim_sablonlari")),
+    Member("kesim_uzmani", "Ürün Kesim ve Rötuş Uzmanı",
+           "Ürün kesimlerinin ölçüsünü okur: hangi kesim hangi çerçeveye "
+           "uygun, hangisi yeniden çekilmeli.",
+           ("tasarim_sablonlari",)),
+    Member("video_editoru", "Video Editörü",
+           "Videoya dönecek kreatifleri okur: hangi tasarım Reels/Story "
+           "ölçüsünde üretilmiş.",
+           ("tasarim_isleri",)),
+
+    # ── Marka ve uyum
+    Member("marka_muhafizi", "Marka Muhafızı",
+           "Mevzuat kapısının bulgularını okur: hangi ifade kesildi, "
+           "hangi iş bu yüzden hiç üretilmedi.",
+           ("tasarim_isleri",)),
+    Member("tasarim_metin_yazari", "Kreatif Metin Yazarı",
+           "Şablona giden başlık, alt başlık ve sloganları okur: hangi "
+           "mesaj kaç kez kullanıldı, tekrar var mı.",
+           ("tasarim_isleri",)),
+    Member("tasarim_mevzuat", "Tasarım Mevzuat Denetçisi",
+           "BLOCKED ile VERIFY bulgularını ayırır: hangisi kesin yasak, "
+           "hangisi belge ile kullanılabilir.",
+           ("tasarim_isleri",)),
+
+    # ── Kanal ve ölçüm
+    Member("meta_kreatif", "Meta Reklam Kreatifçisi",
+           "Reklam kayıtlarını okur: üretilen hangi kreatif biçimi ve "
+           "hangi CTA daha çok link tıklaması getiriyor.",
+           ("kreatif_performans", "tasarim_isleri")),
+    Member("sosyal_editor", "Sosyal Medya Editörü",
+           "Format uyumunu okur: feed, kare ve story ölçülerinden "
+           "hangileri üretilmiş, hangisi eksik.",
+           ("tasarim_isleri", "tasarim_sablonlari")),
+    Member("baski_uzmani", "Baskı ve Katalog Uzmanı",
+           "Baskıya giden işleri okur: katalog, afiş, raf etiketi — ölçü "
+           "ve oran uyarısı almış olanları ayırır.",
+           ("tasarim_isleri", "tasarim_sablonlari")),
+    Member("tasarim_performans", "Kreatif Performans Analisti",
+           "Üretilen tasarımla reklam performansını eşler: hangi tasarım "
+           "yayına girdi, ne getirdi.",
+           ("tasarim_isleri", "kreatif_performans")),
+
     Member("creative_copy", "Başlık ve CTA Analisti",
            "Kreatif metnini performansla birlikte okur: hangi CTA ve hangi biçim "
            "daha çok link tıklaması getiriyor.",
@@ -178,6 +344,16 @@ ROSTER: tuple[Member, ...] = (
     Member("managing_director", "Genel Müdür (sentez)",
            "Hepsini tek özete indirir ve çelişkiyi işaretler.",
            (), mode="synthesis"),
+    # 🔴 21.09.2026'da EKLENDİ. Kadroda işbölümünü planlayan kimse yoktu;
+    # bu yüzden hangi departmanın neyi araştıracağı KODDA sabitti ve
+    # 45 departmanın 39'u hiç araştırma yapmıyordu. Bu rol kapsamı
+    # veriden okur ve planı yazar -- plan artık koda değil, karara bağlı.
+    Member("is_planlama", "İş Planlama Müdürü",
+           "Hangi birimin neyi, hangi sıklıkta araştıracağını planlar; "
+           "kapsama boşluğunu ölçer.",
+           ("departments", "creative_coverage", "market_research",
+            "evidence_readiness"),
+           mode="data"),
     # --- ajans rolleri (uretim tarafi)
     Member("CREATIVE_DIRECTOR", "Kreatif Direktör",
            "Kampanyanın açısını kurar, konseptleri belirler.",
@@ -208,6 +384,48 @@ BY_KEY = {m.key: m for m in ROSTER}
 #    gorunur kilar (bkz. eslenmeyen_uyeler). Kodlar core.departman.kod ile
 #    ayni olmak zorunda -- panoda departman basligi oradan geliyor.
 UYE_DEPARTMAN: dict[str, str] = {
+    # --- 22.09.2026: departmansiz 30 uye baglandi -------------------------
+    # 🔴 `eslenmeyen_uyeler()` kendi aciklamasinda "Bos donmeli; test bunu
+    # bekcilik eder" diyor -- ama 30 donuyordu. TASARIM/MARKA/PR/YAYIN
+    # ekipleri kadroya eklenmis, departman eslemesi yapilmamisti.
+    #
+    # Departmansiz uye yalnizca panelde susan bir isim degil: `_ekip_sor()`
+    # departman kodundan kadroyu buluyor, dolayisiyla o uyelere HESAP
+    # SORULAMIYOR ve bilgi istenemiyor. Sahip 22.09.2026: "hepsinin kendi
+    # mudurleri var, ben onlarla konusurum."
+    "tasarim_direktoru": "TASARIM",
+    "produksiyon_muduru": "TASARIM",
+    "sablon_sorumlusu": "TASARIM",
+    "grafik_tasarimci": "TASARIM",
+    "dizgi_uzmani": "TASARIM",
+    "varlik_sorumlusu": "TASARIM",
+    "kesim_uzmani": "TASARIM",
+    "video_editoru": "TASARIM",
+    "marka_muhafizi": "TASARIM",
+    "tasarim_metin_yazari": "TASARIM",
+    "tasarim_mevzuat": "TASARIM",
+    "meta_kreatif": "TASARIM",
+    "sosyal_editor": "TASARIM",
+    "baski_uzmani": "TASARIM",
+    "tasarim_performans": "TASARIM",
+    "dizgi_baski": "TASARIM",
+
+    "marka_kimlik": "BRAND",
+    "marka_mimarisi": "BRAND",
+    "marka_deneyimi": "BRAND",
+    "marka_sagligi": "BRAND",
+
+    "halkla_iliskiler_muduru": "PR",
+    "basin_iliskileri": "PR",
+    "kriz_iletisimi": "PR",
+    "itibar_izleme": "PR",
+    "isbirligi_sorumlusu": "PR",
+
+    "kurumsal_editor": "YAYIN",
+    "katalog_editoru": "YAYIN",
+    "kitap_editoru": "YAYIN",
+    "yayin_hukuk": "YAYIN",
+    "kaynakca_sorumlusu": "YAYIN",
     # ticari
     "ecommerce_sales": "ECOM",
     "product_portfolio": "PRODUCT",
@@ -262,6 +480,7 @@ UYE_DEPARTMAN: dict[str, str] = {
     "growth": "EXEC",
     "strategy": "EXEC",
     "managing_director": "EXEC",
+    "is_planlama": "EXEC",
     "GROWTH_STRATEGIST": "EXEC",
 }
 
@@ -269,6 +488,34 @@ UYE_DEPARTMAN: dict[str, str] = {
 def eslenmeyen_uyeler() -> tuple[str, ...]:
     """Departmani olmayan uyeler. Bos donmeli; test bunu bekcilik eder."""
     return tuple(m.key for m in ROSTER if m.key not in UYE_DEPARTMAN)
+
+
+# --------------------------------------------------------------------------
+# DEPARTMAN SORUMLUSU
+# --------------------------------------------------------------------------
+# 🔴 Sahip 22.09.2026: "hepsinin kendi mudurleri var, ben onlarla konusurum.
+# Hesap sorarim veya bilgi isterim. Bu konusanlara da zaten moderatorluk
+# yapacak olan bu mudurler."
+#
+# `_ekip_sor()` departmanin TUM kadrosunu kanit olarak topluyor; bu harita
+# o cevabin KIMIN agzindan verildigini soyler. Sorumlusu tanimlanmamis
+# departman, muhatabi olmayan departmandir.
+DEPARTMAN_SORUMLUSU: dict[str, str] = {
+    "TASARIM": "tasarim_direktoru",
+    "BRAND": "marka_kimlik",
+    "PR": "halkla_iliskiler_muduru",
+    "YAYIN": "kurumsal_editor",
+    "CREATIVE_STRAT": "CREATIVE_DIRECTOR",
+    "EXEC": "managing_director",
+}
+
+
+def departman_sorumlusu(kod: str) -> Member | None:
+    """Departmanin muhatabi. Tanimli degilse None -- uydurulmaz."""
+    anahtar = DEPARTMAN_SORUMLUSU.get(kod)
+    if not anahtar:
+        return None
+    return BY_KEY.get(anahtar)
 
 
 def departman_uyeleri() -> dict[str, tuple[Member, ...]]:
@@ -482,9 +729,46 @@ def _say_decisions(rows: dict[str, list]) -> str:
 
 
 def _say_capability(rows: dict[str, list]) -> str:
+    """AI ve Motor Sorumlusu: hangi iş hangi modelde, doğru yerde mi.
+
+    🔴 BU CÜMLE BİR ÖLÇÜMDEN DOĞDU (22.09.2026). Altı çağrı yerinin
+    dördü kodda `escalate=True` istiyordu ama zincir her zaman en küçük
+    modelden başlayıp ilk cevapta durduğu için istek hiç karşılanmadı:
+    defterde 79 gemini çağrısına karşılık 1 claude vardı. Yani müşteriye
+    giden metinler en küçük modelle üretiliyordu ve panelde hiçbir yerde
+    görünmüyordu. Bu rol artık onu görünür kılıyor.
+    """
     durum = rows.get("capability_state", [])
-    return (f"{len(durum)} yetenek kaydı okunabiliyor."
-            if durum else "Yetenek durumu okunamadı.")
+    atama = rows.get("model_kademe", [])
+    if not atama:
+        return ("Kademe kaydı okunamadı — hangi işin hangi modelle "
+                "çalıştığı doğrulanamıyor."
+                + (f" {len(durum)} yetenek kaydı okunabiliyor." if durum else ""))
+
+    muhakeme = [a for a in atama if str(a.get("kademe")) == "muhakeme"]
+    hizli = [a for a in atama if str(a.get("kademe")) == "hizli"]
+    # 🔴 ASIL DENETİM: müşteriye giden ya da karar besleyen bir iş hızlı
+    # kademede duruyorsa bu bir bulgudur, sessiz geçilemez.
+    yanlis = [a for a in atama
+              if str(a.get("kademe")) == "hizli"
+              and str(a.get("risk")) in ("MUSTERIYE", "KARARA")]
+
+    metin = (f"{len(atama)} iş kademeye bağlı: {len(muhakeme)} muhakeme, "
+             f"{len(hizli)} hızlı.")
+    if muhakeme:
+        metin += (" Muhakemede olanlar: "
+                  + ", ".join(sorted(str(a.get("is_anahtari")) for a in muhakeme)[:6])
+                  + ".")
+    if yanlis:
+        metin += (f" 🔴 {len(yanlis)} iş riskine göre YANLIŞ kademede: "
+                  + ", ".join(sorted(str(a.get("is_anahtari")) for a in yanlis))
+                  + " — müşteriye giden ya da karar besleyen iş hızlı "
+                    "kademede çalışmamalı.")
+    else:
+        metin += " Riskine göre yanlış kademede iş yok."
+    if not durum:
+        metin += " Yetenek durumu okunamadı."
+    return metin
 
 
 # Hangi uye hangi cumleyi kurar. Ayni veriyi okuyan iki uye ayni cumleyi
@@ -861,7 +1145,379 @@ def _say_accounting(rows: dict[str, list]) -> str:
     return metin
 
 
+# --------------------------------------------------------------------------
+# TASARIM / CANVA EKİBİ KONUŞMACILARI (22.09.2026)
+# --------------------------------------------------------------------------
+# Kadroya eklenmişlerdi ama konuşma işlevleri yazılmamıştı; panelde
+# "VERİ YOK" görünüyorlardı. Her biri AYNI iki kaynağa bakar ama FARKLI
+# soruyu sorar -- aksi halde 21 üye aynı cümleyi kurardı ve kadro
+# kalabalıklaşırdı, zenginleşmezdi.
+def _tasarim_sayilar(rows: dict[str, list]) -> dict:
+    s = rows.get("tasarim_sablonlari", []) or []
+    i = rows.get("tasarim_isleri", []) or []
+    canvali = [r for r in s if r.get("canva_id")]
+    return {
+        "sablon": len(s),
+        "aktif": sum(1 for r in s if r.get("aktif")),
+        "canvali": len(canvali),
+        "canvasiz": len(s) - len(canvali),
+        "is": len(i),
+        "onay_bekleyen": sum(1 for r in i if r.get("onay_bekliyor")),
+        "basarisiz": sum(1 for r in i
+                         if str(r.get("durum") or "").upper() == "BASARISIZ"),
+        "turler": len({str(r.get("is_turu") or "") for r in s if r.get("is_turu")}),
+        "isler": i,
+        "sablonlar": s,
+    }
+
+
+def _say_sablon_sorumlusu(rows: dict[str, list]) -> str:
+    d = _tasarim_sayilar(rows)
+    if not d["sablon"]:
+        return "Şablon kütüğü boş."
+    return (f"{d['sablon']} şablon kayıtlı, {d['aktif']} tanesi aktif. "
+            f"🔴 Yalnız {d['canvali']} tanesinin Canva bağlantısı var; "
+            f"{d['canvasiz']} şablon kâğıt üstünde tanımlı ama Canva'da "
+            f"karşılığı yok — bunlardan üretim yapılamaz.")
+
+
+def _say_tasarim_direktoru(rows: dict[str, list]) -> str:
+    d = _tasarim_sayilar(rows)
+    if not d["is"]:
+        return ("Hiç tasarım işi açılmamış. Şablon var, üreten yok: iş "
+                "kuyruğu boş olduğu sürece ekip çalışmaz.")
+    return (f"{d['is']} tasarım işi var; {d['onay_bekleyen']} tanesi onay "
+            f"bekliyor, {d['basarisiz']} tanesi başarısız bitti. "
+            "İş sayısı şablon sayısının çok altında — darboğaz üretimde "
+            "değil, iş açmakta.")
+
+
+def _say_kreatif_produksiyon(rows: dict[str, list]) -> str:
+    d = _tasarim_sayilar(rows)
+    if not d["sablon"]:
+        return "Şablon kütüğü boş; üretim planlanamaz."
+    oran = (d["is"] / d["sablon"] * 100) if d["sablon"] else 0
+    return (f"{d['sablon']} şablona karşılık {d['is']} iş açılmış "
+            f"(%{oran:.1f}). Kapasite kullanılmıyor: üretilebilir şablon "
+            f"sayısı {d['canvali']} ile sınırlı, asıl tıkanma orada.")
+
+
+def _say_grafik_tasarimci(rows: dict[str, list]) -> str:
+    d = _tasarim_sayilar(rows)
+    turler = sorted({str(r.get("is_turu") or "") for r in d["sablonlar"]
+                     if r.get("is_turu")})
+    if not turler:
+        return "Şablon türü tanımlı değil."
+    return (f"{len(turler)} farklı iş türü için şablon var "
+            f"({', '.join(turler[:6])}…). Ama {d['canvasiz']} tanesi "
+            "Canva'ya bağlı değil; tasarımcı bunlar için sıfırdan başlamak "
+            "zorunda kalır.")
+
+
+def _say_gorsel_varlik(rows: dict[str, list]) -> str:
+    d = _tasarim_sayilar(rows)
+    olculu = [r for r in d["sablonlar"] if r.get("en") and r.get("boy")]
+    if not olculu:
+        return "Şablonlarda ölçü bilgisi yok."
+    return (f"{len(olculu)}/{d['sablon']} şablonun en-boy ölçüsü tanımlı. "
+            "Ölçüsü olmayan şablon, çıktı boyutu belirsiz olduğu için "
+            "baskıya ve reklama hazır sayılmaz.")
+
+
+def _say_tasarim_mevzuat(rows: dict[str, list]) -> str:
+    d = _tasarim_sayilar(rows)
+    if not d["is"]:
+        return ("Denetlenecek tasarım işi yok. Mevzuat kapısı üretimden "
+                "ÖNCE çalışır; iş açılmadıkça denetim de yapılmaz.")
+    return (f"{d['is']} iş üretildi ve {d['onay_bekleyen']} tanesi hâlâ onay "
+            "bekliyor. Onaysız tasarım yayına giremez; bekleyen iş, "
+            "üretilmiş ama kullanılamayan iştir.")
+
+
+def _say_meta_reklam_kreatifci(rows: dict[str, list]) -> str:
+    """🔴 OKUMADIĞI KAYNAĞI 'SIFIR' DİYE RAPORLAMA — okumadigi_kaynak.
+
+    İlk hâli "0 tasarım şablonu ve 63 reklam kreatifi kayıtlı" diyordu.
+    Oysa bu üye `tasarim_sablonlari` sorgusunu HİÇ OKUMUYOR (yalnız
+    `kreatif_performans` ve `tasarim_isleri`). Sıfır, şablon olmadığı
+    anlamına gelmiyordu -- bakmadığı anlamına geliyordu. Kütükte 93 şablon
+    var. Bütün oturum boyunca kovaladığım tuzağın kendi kodumdaki hâli.
+    """
+    k = rows.get("kreatif_performans", []) or []
+    isler = rows.get("tasarim_isleri", []) or []
+    olculur = [r for r in k if r.get("yeterli_ornek")]
+    return (f"{len(k)} reklam kreatifi kayıtlı, {len(olculur)} tanesi "
+            f"ölçülebilir örnekleme sahip. Tasarım tarafında {len(isler)} iş "
+            "açılmış. İkisi arasında bağ kurulmamış: hangi tasarım işinden "
+            "çıkan reklamın tuttuğu bilinmiyor.")
+
+
+def _say_kreatif_performans_analisti(rows: dict[str, list]) -> str:
+    k = rows.get("kreatif_performans", []) or []
+    d = _tasarim_sayilar(rows)
+    if not k:
+        return "Ölçülecek kreatif kaydı yok."
+    olculur = [r for r in k if r.get("yeterli_ornek")]
+    return (f"{len(k)} kreatifin {len(olculur)} tanesi ölçülebilir örnekleme "
+            f"sahip. Tasarım tarafında {d['is']} iş var; ikisi eşleşmediği "
+            "için 'hangi tasarım işi hangi reklam sonucunu verdi' sorusu "
+            "bugün cevaplanamıyor.")
+
+
+def _say_video_editoru(rows: dict[str, list]) -> str:
+    d = _tasarim_sayilar(rows)
+    video = [r for r in d["sablonlar"]
+             if "video" in str(r.get("is_turu") or "").lower()]
+    return (f"{len(video)} video şablonu tanımlı, toplam {d['is']} iş "
+            "açılmış. Video üretimi için şablon tek başına yetmez; "
+            "kaynak çekim ve süre şartnamesi de gerekir.")
+
+
+def _say_sosyal_medya_editoru(rows: dict[str, list]) -> str:
+    d = _tasarim_sayilar(rows)
+    sosyal = [r for r in d["sablonlar"]
+              if any(x in str(r.get("is_turu") or "").lower()
+                     for x in ("instagram", "story", "reels", "sosyal", "post"))]
+    return (f"{len(sosyal)} sosyal medya şablonu var. Açılmış iş sayısı "
+            f"{d['is']}; yayın ritmi kurulabilmesi için iş kuyruğunun "
+            "düzenli beslenmesi gerekiyor.")
+
+
+def _say_baski_katalog(rows: dict[str, list]) -> str:
+    d = _tasarim_sayilar(rows)
+    baski = [r for r in d["sablonlar"]
+             if any(x in str(r.get("is_turu") or "").lower()
+                    for x in ("afis", "katalog", "kitap", "brosur", "kart"))]
+    return (f"{len(baski)} baskı/katalog şablonu tanımlı. Baskıya gitmeden "
+            "önce ölçü ve Canva bağlantısı şart; şu an "
+            f"{d['canvasiz']} şablonda Canva karşılığı yok.")
+
+
+def _say_dizgi_baski(rows: dict[str, list]) -> str:
+    d = _tasarim_sayilar(rows)
+    return (f"{d['sablon']} şablonun baskı hazırlığı için ölçü ve Canva "
+            f"bağlantısı gerekir; {d['canvasiz']} şablonda Canva karşılığı "
+            "yok. Bunlar baskıya gönderilemez.")
+
+
+def _say_dizgi_uzmani(rows: dict[str, list]) -> str:
+    d = _tasarim_sayilar(rows)
+    return (f"{d['is']} tasarım işi üretildi. Tipografi denetimi üretilmiş iş "
+            "üzerinde yapılır; iş kuyruğu boş kaldıkça dizgi kalitesi de "
+            "ölçülemez.")
+
+
+def _say_kesim_uzmani(rows: dict[str, list]) -> str:
+    d = _tasarim_sayilar(rows)
+    return (f"{d['sablon']} şablon tanımlı. Ürün kesim işi şablona değil "
+            "kaynak çekime bağlıdır; kesilmiş görsel arşivi ayrı tutulur ve "
+            "şablon kütüğünden izlenemez.")
+
+
+def _say_marka_muhafizi(rows: dict[str, list]) -> str:
+    d = _tasarim_sayilar(rows)
+    return (f"{d['is']} iş üretilmiş, {d['onay_bekleyen']} tanesi onay "
+            "bekliyor. Marka çizgisi denetimi onaydan ÖNCE yapılır; "
+            "bekleyen iş yığını denetimin de geciktiği anlamına gelir.")
+
+
+def _say_tasarim_metin_yazari(rows: dict[str, list]) -> str:
+    d = _tasarim_sayilar(rows)
+    alanli = [r for r in d["sablonlar"] if r.get("canva_id")]
+    return (f"Metin yazılabilecek şablon sayısı {len(alanli)} "
+            f"(toplam {d['sablon']}). Canva'ya bağlı olmayan şablonda metin "
+            "alanı yoktur; yazılan metnin gideceği yer yok demektir.")
+
+
+def _say_katalog_editoru(rows: dict[str, list]) -> str:
+    d = _tasarim_sayilar(rows)
+    u = rows.get("urun_bilgi", []) or []
+    katalog = [r for r in d["sablonlar"]
+               if "katalog" in str(r.get("is_turu") or "").lower()]
+    return (f"{len(u)} ürün kaydı ve {len(katalog)} katalog şablonu var. "
+            "Katalog üretimi için ikisinin eşleşmesi gerekir; şu an ürün "
+            "başına hangi şablonun kullanılacağı tanımlı değil.")
+
+
+def _say_kitap_editoru(rows: dict[str, list]) -> str:
+    d = _tasarim_sayilar(rows)
+    kitap = [r for r in d["sablonlar"]
+             if "kitap" in str(r.get("is_turu") or "").lower()]
+    return (f"{len(kitap)} kitap şablonu tanımlı, açılmış iş {d['is']}. "
+            "Kitap işi uzun soluklu; şablon hazır olsa bile içerik akışı "
+            "olmadan üretim başlamaz.")
+
+
+def _say_kurumsal_editor(rows: dict[str, list]) -> str:
+    d = _tasarim_sayilar(rows)
+    u = rows.get("urun_bilgi", []) or []
+    return (f"{len(u)} ürün metni ve {d['is']} tasarım işi var. Kurumsal "
+            "içerik ikisini birleştirir; iş kuyruğu boşken düzenlenecek "
+            "çıktı da yok.")
+
+
+def _say_marka_kimlik(rows: dict[str, list]) -> str:
+    d = _tasarim_sayilar(rows)
+    return (f"{d['sablon']} şablonun {d['canvali']} tanesi Canva'da mevcut. "
+            "Marka kimliğinin tutarlı uygulanabilmesi şablonun gerçekten "
+            "var olmasına bağlı; şartname tek başına kimlik taşımaz.")
+
+
+def _say_marka_deneyimi(rows: dict[str, list]) -> str:
+    d = _tasarim_sayilar(rows)
+    o = rows.get("operations_shipments", []) or []
+    return (f"{d['is']} tasarım işi ve {len(o)} gönderi kaydı okunuyor. "
+            "Müşterinin gördüğü deneyim ikisinin toplamı; tasarım tarafı "
+            "henüz bu kadar az işle deneyimi etkileyecek hacimde değil.")
+
+
+# --------------------------------------------------------------------------
+# MARKA / PR / YAYIN / EXEC KONUŞMACILARI (22.09.2026)
+# --------------------------------------------------------------------------
+# 🔴 Sahip: "Boş konuşanı sevmem, herkes kendi alanında uzman olmak zorunda."
+# Her işlev KENDİ kaynağındaki sayıyı söyler; kaynağı boşsa bunu açıkça
+# söyler ve genel geçer cümle kurmaz. "Marka bilinirliğini artırmalıyız"
+# gibi her şirkette doğru olan cümle, hiçbir şirkette bir şey söylemez.
+def _say_marka_mimarisi(rows: dict[str, list]) -> str:
+    k = rows.get("urun_karti", []) or []
+    b = rows.get("urun_bilgi", []) or []
+    if not k:
+        return "Ürün kartı okunamadı; portföy mimarisi çıkarılamaz."
+    yayinda = [r for r in k if r.get("wix_yayinda")]
+    return (f"{len(k)} ürün kartı, {len(yayinda)} tanesi yayında; "
+            f"{len(b)} üründe tam metin var. Marka mimarisi ürün adlarının "
+            "tutarlılığına bağlı — ad değişikliği URL ve SEO'yu da etkiler, "
+            "bu yüzden teknik değil ticari karardır.")
+
+
+def _say_marka_sagligi(rows: dict[str, list]) -> str:
+    c = rows.get("content_performance", []) or []
+    k = rows.get("creative_coverage", []) or []
+    if not c:
+        return "İçerik performansı okunamadı; marka sağlığı ölçülemez."
+    kapsanan = {str(r.get("ad_adi") or "") for r in k if r.get("ad_adi")}
+    return (f"{len(c)} içerik kaydı ve {len(k)} kreatif kapsama satırı var; "
+            f"reklamı olan ayrı kreatif sayısı {len(kapsanan)}. Marka sağlığı "
+            "için tek başına yeterli değil: beğeni ve erişim var ama "
+            "hatırlanma ve tercih ölçümü yok.")
+
+
+def _say_halkla_iliskiler(rows: dict[str, list]) -> str:
+    g = rows.get("gunluk_brief", []) or []
+    c = rows.get("content_performance", []) or []
+    if not g and not c:
+        return "Gündem ve içerik verisi okunamadı; PR gündemi kurulamaz."
+    return (f"{len(g)} günlük brief kaydı ve {len(c)} içerik ölçümü "
+            "okunuyor. PR tarafında yayımlanmış bülten ya da basın çıktısı "
+            "kaydı YOK — yani şu an ölçülecek bir PR faaliyeti bulunmuyor.")
+
+
+def _say_basin_iliskileri(rows: dict[str, list]) -> str:
+    g = rows.get("gunluk_brief", []) or []
+    m = rows.get("market_research", []) or []
+    return (f"{len(m)} pazar bulgusu ve {len(g)} gündem kaydı var. Basın "
+            "ilişkisi için haber değeri taşıyan bir olay gerekir; "
+            "kayıtlarda ürün lansmanı, ödül ya da ölçülmüş bir başarı "
+            "bildirimi bulunmuyor.")
+
+
+def _say_kriz_iletisimi(rows: dict[str, list]) -> str:
+    c = rows.get("crm_unanswered", []) or []
+    d = rows.get("decision_summary", []) or []
+    if not c:
+        return ("Cevapsız mesaj kaydı okunamadı; kriz sinyali "
+                "değerlendirilemez.")
+    return (f"{len(c)} cevapsız müşteri mesajı var. Kriz iletişimi için eşik "
+            "tek mesaj değil, aynı konuda YIĞILMA — bugün için tekil "
+            f"şikâyet düzeyinde. {len(d)} karar özeti kaydı izleniyor.")
+
+
+def _say_itibar_izleme(rows: dict[str, list]) -> str:
+    v = rows.get("customer_voice", []) or []
+    c = rows.get("crm_unanswered", []) or []
+    if not v:
+        return "Müşteri sesi kaydı okunamadı; itibar izlenemez."
+    return (f"{len(v)} müşteri sesi kaydı ve {len(c)} cevapsız mesaj "
+            "okunuyor. Dışarıdaki itibar (yorum siteleri, sosyal medya "
+            "bahsi) bu kaynaklarda YOK — itibar şu an yalnız bize "
+            "yazılanlardan ölçülüyor, bu eksik bir görüntüdür.")
+
+
+def _say_isbirligi_sorumlusu(rows: dict[str, list]) -> str:
+    k = rows.get("creative_coverage", []) or []
+    c = rows.get("content_performance", []) or []
+    return (f"{len(k)} kreatif kapsama ve {len(c)} içerik kaydı var. "
+            "İş birliği tarafında anlaşma, brief ya da ödeme kaydı "
+            "tutulmuyor; hangi iş birliğinin ne getirdiği bugün "
+            "ölçülemiyor.")
+
+
+def _say_yayin_hukuk(rows: dict[str, list]) -> str:
+    d = rows.get("decision_summary", []) or []
+    u = rows.get("urun_bilgi", []) or []
+    return (f"{len(u)} ürün metni denetim kapsamında, {len(d)} karar özeti "
+            "izleniyor. Yayın öncesi hukuk denetimi metin ÜRETİLDİKTEN "
+            "sonra değil, brief aşamasında yapılmalı; aksi halde çekilmiş "
+            "içerik son anda çöpe gider.")
+
+
+def _say_kaynakca_sorumlusu(rows: dict[str, list]) -> str:
+    m = rows.get("market_research", []) or []
+    u = rows.get("urun_bilgi", []) or []
+    kaynakli = [r for r in m if r.get("kaynak")]
+    return (f"{len(m)} pazar bulgusunun {len(kaynakli)} tanesinde kaynak "
+            f"belirtilmiş. {len(u)} ürün metni doğrulama kapsamında. "
+            "Kaynağı olmayan bulgu iddiadır ve yayına giremez.")
+
+
+def _say_is_planlama(rows: dict[str, list]) -> str:
+    dep = rows.get("departments", []) or []
+    k = rows.get("creative_coverage", []) or []
+    m = rows.get("market_research", []) or []
+    e = rows.get("evidence_readiness", []) or []
+    if not dep:
+        return "Departman listesi okunamadı; planlama yapılamaz."
+    calisan = [r for r in dep if str(r.get("durum") or "") == "CALISIYOR"]
+    yok = [r for r in dep if str(r.get("durum") or "") == "YOK"]
+    return (f"{len(dep)} departmanın {len(calisan)} tanesi çalışıyor, "
+            f"{len(yok)} tanesi hiç kurulmamış. {len(m)} pazar bulgusu ve "
+            f"{len(k)} kreatif kapsama kaydı var; kanıt hazırlığı "
+            f"{len(e)} satır. Planlama önceliği kurulmamış departmanlarda.")
+
+
 SPEAKERS: dict[str, Callable[[dict[str, list]], str]] = {
+    "marka_mimarisi": _say_marka_mimarisi,
+    "marka_sagligi": _say_marka_sagligi,
+    "halkla_iliskiler_muduru": _say_halkla_iliskiler,
+    "basin_iliskileri": _say_basin_iliskileri,
+    "kriz_iletisimi": _say_kriz_iletisimi,
+    "itibar_izleme": _say_itibar_izleme,
+    "isbirligi_sorumlusu": _say_isbirligi_sorumlusu,
+    "yayin_hukuk": _say_yayin_hukuk,
+    "kaynakca_sorumlusu": _say_kaynakca_sorumlusu,
+    "is_planlama": _say_is_planlama,
+    "dizgi_baski": _say_dizgi_baski,
+    "dizgi_uzmani": _say_dizgi_uzmani,
+    "kesim_uzmani": _say_kesim_uzmani,
+    "marka_muhafizi": _say_marka_muhafizi,
+    "tasarim_metin_yazari": _say_tasarim_metin_yazari,
+    "katalog_editoru": _say_katalog_editoru,
+    "kitap_editoru": _say_kitap_editoru,
+    "kurumsal_editor": _say_kurumsal_editor,
+    "marka_kimlik": _say_marka_kimlik,
+    "marka_deneyimi": _say_marka_deneyimi,
+    # tasarim / Canva ekibi (22.09.2026)
+    "sablon_sorumlusu": _say_sablon_sorumlusu,
+    "tasarim_direktoru": _say_tasarim_direktoru,
+    "produksiyon_muduru": _say_kreatif_produksiyon,
+    "grafik_tasarimci": _say_grafik_tasarimci,
+    "varlik_sorumlusu": _say_gorsel_varlik,
+    "tasarim_mevzuat": _say_tasarim_mevzuat,
+    "meta_kreatif": _say_meta_reklam_kreatifci,
+    "tasarim_performans": _say_kreatif_performans_analisti,
+    "video_editoru": _say_video_editoru,
+    "sosyal_editor": _say_sosyal_medya_editoru,
+    "baski_uzmani": _say_baski_katalog,
     "finance": _say_finance,
     "accounting_control": _say_accounting,
     # kreatif + marka (20.09.2026)
@@ -947,8 +1603,14 @@ def opinions(memory: Any, only: tuple[str, ...] = ()) -> list[dict[str, Any]]:
                          statement="Okuması gereken veri açık değil: "
                                    + ", ".join(eksik))
         elif konusmaci is None:
-            kayit.update(status=NO_DATA,
-                         statement="Bu üye için henüz bir okuma tanımlı değil.")
+            okunan = sum(len(r) for r in rows.values())
+            kayit.update(
+                status=ISLEV_YOK,
+                rows={q: len(r) for q, r in rows.items()},
+                statement=(
+                    f"Okuduğu kaynaklarda {okunan} satır var ve erişilebiliyor; "
+                    "eksik olan veri değil, bu üyenin o satırlara bakınca ne "
+                    "söyleyeceğini tanımlayan işlev. Yazılana kadar susuyor."))
         else:
             kayit.update(status=SPEAKS, statement=konusmaci(rows),
                          rows={q: len(r) for q, r in rows.items()})

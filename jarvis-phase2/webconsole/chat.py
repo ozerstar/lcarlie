@@ -42,11 +42,82 @@ STAGE_LABELS = {
     "JUDGEMENT_UNGROUNDED": (),
     "INSPECT_OR_STATUS": ("Company Memory okunuyor", "Kanıtlar doğrulanıyor"),
     "UNCLASSIFIED": ("Company Memory okunuyor",),
+    "TASARIM": ("Şablon kütüğü okunuyor", "Üretilebilirlik denetleniyor"),
 }
 
 
 def _answer(kind: str, **fields: Any) -> dict[str, Any]:
     return {"kind": kind, **fields}
+
+
+def _tasarim_cevabi(text: str) -> dict[str, Any]:
+    """Tasarım isteğine GERÇEK bir cevap üretir — kütüğe bakarak.
+
+    Panelde "katalog istiyorum" yazıldığında bugüne kadar hiçbir şey
+    olmuyordu: cümle hiçbir yeteneğe uymuyor, Company Memory'de "katalog"
+    diye kanıt aranıyor, bulunamayınca boş dönüyordu.
+
+    Artık cevap kütükten geliyor ve üç durumu ayırıyor. Hiçbirinde
+    uydurma yok; eksik olan neyse adıyla söyleniyor.
+    """
+    from jarvis import tasarim
+
+    tur = tasarim.is_turu_cikar(text)
+    try:
+        ozet = tasarim.kutuk_ozet()
+        hepsi = tasarim.kutuk()
+    except Exception as exc:  # noqa: BLE001
+        return _answer("ERROR", message=f"şablon kütüğü okunamadı: {exc}")
+
+    if not tur:
+        # Ne istendiği çıkarılamadı: TAHMİN ETME, seçenekleri göster.
+        uretilebilir = sorted({k["is_turu"] for k in hepsi if k["uretilebilir"]})
+        tanimli = sorted({k["is_turu"] for k in hepsi})
+        return _answer(
+            "TASARIM",
+            message=("Ne üretmemi istediğinizi cümleden çıkaramadım. "
+                     f"Kütükte {ozet['toplam']} şablon tanımlı, "
+                     f"{ozet['hazir']} tanesi bugün üretilebilir."),
+            uretilebilir=uretilebilir, tanimli=tanimli)
+
+    eslesen = [k for k in hepsi if k["is_turu"] == tur]
+    hazir = [k for k in eslesen if k["uretilebilir"]]
+
+    if hazir:
+        k = hazir[0]
+        alanlar = list((k.get("alan_haritasi") or {}).keys()) or k["beklenen_alanlar"]
+        return _answer(
+            "TASARIM",
+            message=(f"«{k['ad']}» şablonu hazır ({k['sablon_kodu']}). "
+                     "Üretmek için şu alanların içeriği gerekiyor."),
+            is_turu=tur, sablon=k["sablon_kodu"], olcu=f"{k['en']}x{k['boy']}",
+            gereken_alanlar=alanlar,
+            marka_kurali=k.get("marka_kurallari"),
+            mevzuat_kurali=k.get("mevzuat_kurallari"),
+            not_=("Metin önce mevzuat kapısından geçer; geçemezse tasarım "
+                  "üretilmez. Üretilen tasarımı yalnız siz onaylayabilirsiniz."))
+
+    if eslesen:
+        k = eslesen[0]
+        olcu = (f"{k['en_mm']}x{k['boy_mm']} mm @{k['dpi']} dpi"
+                if k.get("en_mm") else f"{k['en']}x{k['boy']} px")
+        return _answer(
+            "TASARIM",
+            message=(f"«{k['ad']}» kütükte TANIMLI ama henüz üretilemiyor. "
+                     "Şartnamesi hazır; eksik olan tek şey bu ölçüde bir "
+                     "Canva tasarımı açıp alanlarını işaretlemek."),
+            is_turu=tur, sablon=k["sablon_kodu"], olcu=olcu,
+            gereken_alanlar=k["beklenen_alanlar"],
+            motor=k.get("motor"),
+            marka_kurali=k.get("marka_kurallari"),
+            mevzuat_kurali=k.get("mevzuat_kurallari"))
+
+    return _answer(
+        "TASARIM",
+        message=(f"'{tur}' kütükte hiç tanımlı değil. Önce şartnamesi "
+                 "yazılmalı: ölçü, doldurulacak alanlar, marka ve mevzuat "
+                 "kuralı."),
+        is_turu=tur)
 
 
 def route(message: str, runtime, operator) -> dict[str, Any]:
@@ -56,6 +127,12 @@ def route(message: str, runtime, operator) -> dict[str, Any]:
         return _answer("ERROR", message="empty message")
 
     capability = intents.classify(text)
+
+    if capability == "TASARIM":
+        # 🔴 Model çağrısı YOK. Cevap tamamen kütükten; uydurma imkânsız.
+        sonuc = _tasarim_cevabi(text)
+        _remember(text, sonuc)
+        return sonuc
 
     if capability == "WHY":
         match = ACTION_ID_RE.search(text)
@@ -94,9 +171,11 @@ def route(message: str, runtime, operator) -> dict[str, Any]:
                         ("vireon", "durum", "sistem", "gündem", "gundem", "task", "proposal"))
         if not has_topic:
             return _answer("REQUIRES_REASONING_CAPABILITY",
-                           message=("Bu soru şirket hafızasından mekanik olarak çekilebilecek "
-                                    "bir veriye dayanmıyor; bir model/muhakeme yeteneği "
-                                    "gerektiriyor ve bu ortamda henüz bağlanmadı."))
+                           message=("Bu soru bir KONUYA bağlanmadığı için şirket verisinden "
+                                    "cevaplanamıyor. Model bağlı ve çalışıyor; eksik olan "
+                                    "hangi ürün, kanal ya da dönem hakkında konuştuğumuz. "
+                                    "Konuyu yazın, aynı soruyu kanıta bağlayıp cevaplayayım "
+                                    "(ör. \"HYDRAVIE için ne öneriyorsun?\")."))
 
     result = runtime.handle(text)
     envelope = result["envelope"]

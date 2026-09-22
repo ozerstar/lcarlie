@@ -17,9 +17,24 @@ tarafından kullanılmıyordu.
 
 SIRA NEDEN BÖYLE
 Sahibin kuralı (20.09.2026): "ücretsizleri kullan, çok karmaşık işlemler
-için ücretlilere git." Sıra buna göre: önce ücretsiz ve hızlı olan, sonra
-ücretsiz yedek, en son ücretli. Ücretli sağlayıcı yalnız `deep=True` ile
-istenirse denenir; normal akışta hiç çağrılmaz.
+için ücretlilere git." Sıra buna göre: önce ucuz ve hızlı olan, sonra
+ücretsiz yedek, en son pahalı olan.
+
+🔴 GEMINI DE PARA HARCAR — `paid=False` OLMASI BUNU DEĞİŞTİRMEZ.
+Sahip 22.09.2026'da düzeltti: *"gemini de ücretli bu arada."* Haklı ve bu
+modülün eski açıklaması yanıltıcıydı ("önce ücretsiz olan" diyordu).
+Gemini anahtarı FATURALI (aşağıdaki veri sınırı notunun dayanağı da bu),
+yani her çağrı ücretlendirilir: 1M token başına 0,30 $ girdi / 2,50 $ çıktı.
+Ölçüldü: 7 günde 4,46 TL'nin 4,14 TL'si Gemini'den geldi.
+
+`paid` alanı MALİYET DEĞİL YÖNLENDİRME bayrağıdır: "yalnızca `deep=True`
+ile denensin" demektir. Gemini'ye `paid=True` verilirse normal akışta hiç
+çağrılmaz ve sistem susar. Panel bu yüzden "para harcıyor mu" bilgisini bu
+alandan değil, `model_fiyat` tablosundaki birim fiyattan türetir.
+
+⚠️ `deep=True` "daha güçlü modele git" DEMEK DEĞİL: sıra yine baştan başlar
+ve ilk başarılı cevapta durur. Gemini cevap verdiği sürece Claude/OpenAI'ye
+sıra gelmez.
 
 Sunucudaki PROVIDER_ORDER değişkeni nvidia ile başlıyordu -- ölçümde en kötü
 performans gösteren sağlayıcı. Bu modül o sırayı kullanmaz, ölçülmüş sırayı
@@ -181,7 +196,33 @@ PROVIDERS: tuple[Provider, ...] = (
 )
 
 
+# ══════════════════════════════════════════════════════════════════════
+# İŞ KADEMELERİ — hangi iş hangi modelle yapılır
+#
+# 🔴 Bu liste FİYAT sırası değil, YETENEK sırasıdır. Her kademenin kendi
+# birinci tercihi ve kendi yedekleri vardır. Sistemin susmaması için her
+# kademenin sonunda mutlaka çalıştığı kanıtlanmış bir sağlayıcı durur.
+KADEME: dict[str, tuple[str, ...]] = {
+    # Yüksek hacim, düşük risk. 79 çağrıda 0 hata ile ölçüldü.
+    "hizli": ("gemini", "openrouter"),
+    # Müşteriye giden metin ve karar besleyen analiz. Claude birinci:
+    # 20.09 ölçümünde en iyi cevabı o verdi. gpt-5-mini ikinci ve daha
+    # ucuz. Gemini EN SONDA duruyor -- kalite tercihi değil, sistemin
+    # susmaması için son çare.
+    "muhakeme": ("claude", "openai", "gemini", "openrouter"),
+}
+VARSAYILAN_KADEME = "hizli"
+
+
+def _kademe_sirasi(kademe: str) -> tuple:
+    """Kademenin sağlayıcı nesnelerini sırayla döndürür."""
+    adlar = KADEME.get(kademe) or KADEME[VARSAYILAN_KADEME]
+    sozluk = {p.name: p for p in PROVIDERS}
+    return tuple(sozluk[a] for a in adlar if a in sozluk)
+
+
 def _record_usage(provider, model: str, started: float, *,
+                  is_anahtari: str | None = None, kademe: str | None = None,
                   prompt_tokens: int | None = None,
                   completion_tokens: int | None = None,
                   ok: bool = True, error: str = "") -> None:
@@ -189,6 +230,7 @@ def _record_usage(provider, model: str, started: float, *,
     try:
         from .usage import record
         record(provider.name, model, provider.paid,
+               is_anahtari=is_anahtari, kademe=kademe,
                prompt_tokens=prompt_tokens, completion_tokens=completion_tokens,
                elapsed_s=round(time.perf_counter() - started, 2),
                ok=ok, error=error)
@@ -206,23 +248,39 @@ def available(env: dict[str, str] | None = None) -> list[str]:
 
 
 def generate(messages: list[dict[str, str]], max_tokens: int = 400,
-             deep: bool = False, env: dict[str, str] | None = None
-             ) -> dict[str, Any]:
-    """Sırayla dener, ilk başarılı cevabı döndürür.
+             deep: bool = False, env: dict[str, str] | None = None,
+             kademe: str | None = None,
+             is_anahtari: str | None = None) -> dict[str, Any]:
+    """İŞİN KADEMESİNE göre model seçer, düşerse yedeğe iner.
 
-    `deep=False` (varsayilan) ucretli saglayicilari HIC denemez. Sahibin
-    kurali: ucretsizleri kullan, karmasik islerde ucretliye git.
+    `kademe="hizli"`     sınıflandırma, sorgu üretimi, kısa özet
+    `kademe="muhakeme"`  müşteriye giden metin, karar besleyen analiz
+
+    🔴 `deep=True` ARTIK GERÇEKTEN ÇALIŞIYOR. Eskiden "ücretliyi de dene"
+    demekti ama sıra yine gemini'den başladığı için hiçbir etkisi yoktu:
+    gemini cevap verince zincir orada duruyordu. Ölçüldü -- 79 gemini
+    çağrısına karşılık 1 claude, oysa dört çağrı yeri `escalate=True`
+    istiyordu. Şimdi `deep=True` doğrudan MUHAKEME kademesini seçer ve
+    o kademenin birinci tercihi Claude'dur.
 
     Her denemenin sonucu `attempts` icinde raporlanir -- hangi saglayici
     neden dustu gorunur olmadan siralama duzeltilemez.
     """
     cfg = env if env is not None else load_env()
     attempts: list[dict[str, str]] = []
+    if kademe is None and is_anahtari:
+        # 🔴 KADEMEYI KOD DEGIL KAYIT DEFTERI BELIRLER. Defter okunamazsa
+        # modul kendi gomulu emniyetine duser; sistem susmaz.
+        try:
+            from .kademe_kayit import kademe as _kayittan
+            kademe = _kayittan(is_anahtari)
+        except Exception:  # noqa: BLE001 - defter cagriyi durduramaz
+            kademe = None
+    if kademe is None:
+        kademe = "muhakeme" if deep else VARSAYILAN_KADEME
+    sira = _kademe_sirasi(kademe)
 
-    for provider in PROVIDERS:
-        if provider.paid and not deep:
-            attempts.append({"provider": provider.name, "result": "atlandi (ucretli)"})
-            continue
+    for provider in sira:
         key = cfg.get(provider.env_key)
         if not key:
             attempts.append({"provider": provider.name, "result": "anahtar yok"})
@@ -242,7 +300,8 @@ def generate(messages: list[dict[str, str]], max_tokens: int = 400,
             attempts.append({"provider": provider.name,
                              "result": f"HTTP {exc.code}: {mask(detail)}"})
             _record_usage(provider, model, started, ok=False,
-                          error=f"HTTP {exc.code}")
+                          error=f"HTTP {exc.code}",
+                          is_anahtari=is_anahtari, kademe=kademe)
             continue
         except Exception as exc:  # noqa: BLE001 - bir saglayici digerini engellemez
             attempts.append({"provider": provider.name,
@@ -254,13 +313,15 @@ def generate(messages: list[dict[str, str]], max_tokens: int = 400,
             continue
         gecen = round(time.perf_counter() - started, 2)
         _record_usage(provider, model, started, prompt_tokens=giris_tok,
-                      completion_tokens=cikis_tok)
+                      completion_tokens=cikis_tok,
+                      is_anahtari=is_anahtari, kademe=kademe)
         return {"text": text, "provider": provider.name, "model": model,
+                "kademe": kademe, "is_anahtari": is_anahtari,
                 "paid": provider.paid, "finish_reason": finish,
                 "truncated": finish.lower() in {"length", "max_tokens"},
                 "prompt_tokens": giris_tok, "completion_tokens": cikis_tok,
                 "elapsed_s": gecen,
                 "attempts": attempts}
 
-    raise NoProvider("hiçbir dış sağlayıcı yanıt vermedi: "
+    raise NoProvider(f"[{kademe}] hiçbir dış sağlayıcı yanıt vermedi: "
                      + "; ".join(f"{a['provider']}={a['result']}" for a in attempts))

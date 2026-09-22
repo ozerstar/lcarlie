@@ -52,6 +52,12 @@ class CompanyMemory:
         # pg_catalog only -- readable by PUBLIC, and unlike
         # information_schema it is not filtered by the caller's privileges,
         # so a missing EXECUTE grant cannot masquerade as a missing function.
+        # Hangi isin hangi model kademesinde calistigi (migrasyon 028).
+        # Motor sorumlusu bu gorunumu okuyup atamayi degerlendirir.
+        "model_kademe": (
+            "SELECT row_to_json(x) FROM (SELECT is_anahtari, kademe, risk,"
+            " gerekce, atayan, atandi FROM mart.model_kademe_guncel) x;"
+        ),
         "capability_state": (
             "SELECT row_to_json(x) FROM (SELECT "
             "(SELECT extversion FROM pg_extension WHERE extname='vector') "
@@ -175,6 +181,26 @@ class CompanyMemory:
             "b.brief_key,b.provider,b.model,b.created_at,"
             "b.konu,b.icerik,b.kimden,b.kime,b.durum "
             "FROM mart.gunluk_brief b LIMIT 5) x;"
+        ),
+        # Şablon kütüğü: hangi iş türü üretilebilir, hangisi üretilemez.
+        # 🔴 Sonda noktalı virgül ŞART — çerçeve ` ROLLBACK;` ekliyor.
+        "tasarim_sablonlari": (
+            "SELECT row_to_json(x) FROM (SELECT sablon_id AS entity_id,"
+            "'core.tasarim_sablon' AS source,sablon_id::text AS source_record_id,"
+            "eklendi AS observed_at,is_turu,ad,canva_id,en,boy,"
+            "(SELECT count(*) FROM jsonb_object_keys(alan_haritasi)) AS alan_sayisi,"
+            "left(gerekce,120) AS gerekce,aktif "
+            "FROM core.tasarim_sablon ORDER BY is_turu,sablon_id) x;"
+        ),
+        # Tasarım departmanının defteri: ne üretildi, onaylandı mı.
+        # 🔴 Sonda noktalı virgül ŞART — çerçeve ` ROLLBACK;` ekliyor.
+        "tasarim_isleri": (
+            "SELECT row_to_json(x) FROM (SELECT is_id AS entity_id,"
+            "'mart.tasarim_guncel' AS source,is_id::text AS source_record_id,"
+            "uretildi AS observed_at,is_turu,sablon_adi,isteyen,"
+            "left(istek,120) AS istek,canva_tasarim,durum,onay,"
+            "onay_bekliyor,maliyet_tl "
+            "FROM mart.tasarim_guncel ORDER BY uretildi DESC LIMIT 60) x;"
         ),
         "kreatif_performans": (
             "SELECT row_to_json(x) FROM (SELECT ad_id AS entity_id,"
@@ -353,6 +379,18 @@ class CompanyMemory:
         # Bu uc gorunum ai_reader'a ZATEN acikti (olculdu); yeni grant
         # gerekmedi. Jarvis'in KENDI onerileri (core.ai_action_proposal)
         # hala kapali -- ogrenme dongusunun o yarisi ayri bir izin isi.
+        # 🔴 Jarvis'in KENDI onerilerinin sonucu. 21.09.2026'da migration
+        # 024 ile acildi: core.ai_action_proposal HALA KAPALI, yalniz
+        # mart.ai_oneri_sonuc gorunumu okunabiliyor (payload, gerekce metni
+        # ve kimlik alanlari disarida). Bu satirin ustundeki eski yorum
+        # "ogrenme dongusunun o yarisi ayri bir izin isi" diyordu; is yapildi.
+        "own_proposals": (
+            "SELECT row_to_json(x) FROM (SELECT action_id AS entity_id,"
+            "'mart.ai_oneri_sonuc' AS source,action_id AS source_record_id,"
+            "proposed_at AS observed_at,action_type,risk_class,durum,"
+            "state,karar_saati,decided_at "
+            "FROM mart.ai_oneri_sonuc ORDER BY action_id DESC LIMIT 200) x;"
+        ),
         "decision_outcomes": (
             "SELECT row_to_json(x) FROM (SELECT karar_id AS entity_id,"
             "'mart.ai_human_approval_dashboard' AS source,"

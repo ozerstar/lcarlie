@@ -20,6 +20,7 @@ framework, no new package install.
 from __future__ import annotations
 
 import json
+import re
 import os
 import sys
 import subprocess
@@ -48,6 +49,7 @@ from jarvis.action_contract import ContractCache, ContractError  # noqa: E402
 from jarvis.execution_planner import plan_request  # noqa: E402
 from jarvis.execution_runtime import ExecutionDenied, ExecutionRuntime  # noqa: E402
 from jarvis.context import ContextCompiler  # noqa: E402
+from jarvis import degisiklik
 from jarvis.memory import CompanyMemory, MemoryError as JarvisMemoryError  # noqa: E402
 from jarvis.operator import OperatorSession  # noqa: E402
 from jarvis.phase2 import Phase2Runtime  # noqa: E402
@@ -60,6 +62,13 @@ import chat  # noqa: E402
 
 STATE_DIR = Path(os.environ.get("JARVIS_STATE_DIR", "/opt/lcarlie/jarvis-phase2/state"))
 STATIC_DIR = HERE / "static"
+# Uretilen reklam gorselleri. Statik klasorun ALTINDA DEGIL:
+# oraya konsaydi oturum acmamis herkese acik olurdu.
+KREATIF_DIR = (HERE.parent / "state" / "kreatif-brief").resolve()
+# 🔴 Etiketlerde MÜŞTERİ ADI VE AÇIK ADRESİ var. Statik klasöre
+# konsaydı kimlik kapısının dışında kalırdı; `/etiket/` yolu
+# `_route_kreatif` ile aynı oturum kapısından geçer.
+ETIKET_DIR = (HERE.parent / "state" / "kargo-etiket").resolve()
 BIND_HOST = os.environ.get("JARVIS_WEB_BIND", "0.0.0.0")
 BIND_PORT = int(os.environ.get("JARVIS_WEB_PORT", "8091"))
 
@@ -278,6 +287,349 @@ def _tail_jsonl(path: Path, limit: int) -> list[dict]:
     return out
 
 
+# ══════════════════════════════════════════════════════════════════════
+# SATIŞ MERKEZİ
+#
+# Sahip 21.09.2026: *"satışlar diye bir bölüm aç, tüm platformlardaki
+# satışları orada topla… fiyatı olmayan gönderilerin yanına elle
+# yazmam için kutu koy… hangi üründen kaç tane dağıtıldı orada
+# yazılsın… stok takibi için panel aç."*
+#
+# 🔴 ÖLÇÜLEN SINIR, GİZLENMİYOR: `mart.siparis` içindeki 37 siparişin
+# HEPSİ kanal='WEB' (Wix). `raw.trendyol_order` diye bir tablo YOK --
+# Trendyol siparişleri hiç alınmıyor. Panel bunu "tüm platformlar" diye
+# göstermez; hangi kanalın bağlı olduğunu ve hangisinin OLMADIĞINI yazar.
+# Bağlı olmayan kanalı sessizce atlamak, eksik ciroyu tam göstermek olurdu.
+# ══════════════════════════════════════════════════════════════════════
+
+SATIS_TURLERI = ("SATIS", "UGC", "INFLUENCER", "NUMUNE", "HEDIYE",
+                 "IADE", "DEGISIM", "BILINMIYOR")
+
+
+def _sql_oku(sql: str, rol: str = "ai_reader", zaman: int = 25) -> list[dict]:
+    """Salt okuma. row_to_json satirlarini dict listesine cevirir."""
+    tam = (f"\\set ON_ERROR_STOP on\nBEGIN;\n"
+           f"SET SESSION AUTHORIZATION {rol};\n{sql}\nCOMMIT;\n")
+    p = subprocess.run(
+        ["docker", "exec", "-i", "lcarlie-postgres", "psql", "-X", "-q", "-At",
+         "-U", "n8n", "-d", "n8n", "-f", "-"],
+        input=tam, capture_output=True, text=True, timeout=zaman, check=False)
+    if p.returncode:
+        raise JarvisMemoryError((p.stderr or p.stdout).strip()[:300])
+    out = []
+    for satir in (p.stdout or "").splitlines():
+        satir = satir.strip()
+        if not satir or satir in ("BEGIN", "COMMIT", "SET"):
+            continue
+        try:
+            out.append(json.loads(satir))
+        except ValueError:
+            continue
+    return out
+
+
+def _satis_merkezi() -> dict:
+    """Birleşik satış tablosu + dağıtım + stok + kanal durumu."""
+    veri: dict = {}
+
+    # --- siparişler (kalemleriyle)
+    try:
+        veri["siparisler"] = _sql_oku(
+            "SELECT row_to_json(x) FROM (SELECT s.siparis_id AS entity_id,"
+            " s.siparis_no, s.gun, s.kanal, s.odeme_durumu, s.odeme_yontemi,"
+            " s.teslimat_durumu, s.toplam, s.ciro_sinifi,"
+            " s.ciro_dogrulanmis_net, s.ciro_beyan_edilmis_net, s.olcumde,"
+            " (SELECT count(*) FROM mart.siparis_kalem k"
+            "    WHERE k.siparis_id = s.siparis_id) AS kalem_sayisi,"
+            " (SELECT string_agg(k.urun_adi || ' x' || k.adet::int, ', ')"
+            "    FROM mart.siparis_kalem k WHERE k.siparis_id = s.siparis_id) AS urunler,"
+            " (SELECT count(*) FROM core.gonderi_notu n"
+            "    WHERE n.siparis_ref = s.siparis_id::text) AS not_sayisi"
+            " FROM mart.siparis s ORDER BY s.gun DESC, s.siparis_id DESC LIMIT 300) x;"
+)
+    except Exception as exc:  # noqa: BLE001
+        veri["siparisler"], veri["siparis_hatasi"] = [], str(exc)[:200]
+
+    # --- kanal durumu: neyin bağlı olduğu ve neyin OLMADIĞI
+    kanallar: dict[str, int] = {}
+    for sp in veri.get("siparisler") or []:
+        k = str(sp.get("kanal") or "?")
+        kanallar[k] = kanallar.get(k, 0) + 1
+    veri["kanallar"] = kanallar
+    veri["kanal_notu"] = (
+        "Bu tabloda yalnız " + (", ".join(kanallar) or "hiçbir kanal") +
+        " var. Trendyol siparişleri sisteme HİÇ alınmıyor "
+        "(raw.trendyol_order tablosu yok); Trendyol satışları burada "
+        "GÖRÜNMEZ. Toplam ciro bu yüzden eksiktir.")
+
+    # --- ürün dağıtımı: satılan ve bedelsiz AYRI
+    try:
+        veri["dagitim"] = _sql_oku(
+            "SELECT row_to_json(x) FROM (SELECT * FROM mart.urun_dagitim"
+            " ORDER BY toplam_cikan DESC) x;")
+    except Exception as exc:  # noqa: BLE001
+        veri["dagitim"], veri["dagitim_hatasi"] = [], str(exc)[:200]
+
+    # --- stok: en son sayım
+    try:
+        veri["stok"] = _sql_oku(
+            "SELECT row_to_json(x) FROM (SELECT * FROM mart.stok_guncel"
+            " ORDER BY urun_adi) x;")
+    except Exception as exc:  # noqa: BLE001
+        veri["stok"], veri["stok_hatasi"] = [], str(exc)[:200]
+
+    # --- elle girilen gönderi notları
+    try:
+        veri["notlar"] = _sql_oku(
+            "SELECT row_to_json(x) FROM (SELECT not_id, siparis_ref, tur, alici,"
+            " urun_adi, adet, elle_fiyat, not_metni, giren, girildi"
+            " FROM core.gonderi_notu ORDER BY girildi DESC LIMIT 200) x;")
+    except Exception as exc:  # noqa: BLE001
+        veri["notlar"], veri["not_hatasi"] = [], str(exc)[:200]
+
+    # --- fiyatı olmayan / kararsız gönderiler: elle doldurulacaklar
+    # 🔴 Bunlar "eksik veri" değil, HENÜZ AÇIKLANMAMIŞ gönderilerdir.
+    # Panel bunları öne çıkarır ki sahip tek tek işaretleyebilsin.
+    notlu = {str(n.get("siparis_ref")) for n in (veri.get("notlar") or [])}
+    bekleyen = []
+    for sp in veri.get("siparisler") or []:
+        if str(sp.get("entity_id")) in notlu:
+            continue
+        bedelsiz = (sp.get("odeme_durumu") == "NOT_PAID"
+                    or not sp.get("toplam")
+                    or sp.get("ciro_sinifi") in ("IPTAL", "BEYAN_EDILMIS"))
+        if bedelsiz:
+            bekleyen.append(sp)
+    veri["aciklama_bekleyen"] = bekleyen
+    veri["turler"] = list(SATIS_TURLERI)
+    return veri
+
+
+def _gonderi_notu_ekle(siparis_ref: str, tur: str, alici: str, urun_adi: str,
+                       adet, elle_fiyat, not_metni: str, giren: str) -> dict:
+    """Gönderi notunu human_approver olarak yazar.
+
+    🔴 `_pazar_bulgu_ekle` ile AYNI yol: değerler argv'den değil stdin'den,
+    rastgele etiketli dolar-tırnak içinde JSON olarak gider. Bu projede
+    kabuk tırnaklaması defalarca bozdu; argv yolu iki kez yorumlanır.
+    """
+    import secrets
+
+    tur = (tur or "").strip().upper()
+    if tur not in SATIS_TURLERI:
+        return {"hata": f"tür şunlardan biri olmalı: {', '.join(SATIS_TURLERI)}"}
+    urun_adi = (urun_adi or "").strip()[:300]
+    if not urun_adi:
+        return {"hata": "ürün adı zorunlu — hangi ürünün gittiği yazılmadan kayıt olmaz"}
+
+    def _sayi(x):
+        if x in (None, "", "-"):
+            return None
+        try:
+            d = float(str(x).replace(",", "."))
+        except ValueError:
+            return None
+        return d if d >= 0 else None
+
+    yuk = json.dumps({
+        "siparis_ref": (siparis_ref or "").strip()[:120] or None,
+        "tur": tur, "alici": (alici or "").strip()[:200] or None,
+        "urun_adi": urun_adi, "adet": _sayi(adet), "elle_fiyat": _sayi(elle_fiyat),
+        "not_metni": (not_metni or "").strip()[:1000] or None,
+        "giren": (giren or "operator")[:80],
+    }, ensure_ascii=False)
+
+    etiket = "gn" + secrets.token_hex(8)
+    if f"${etiket}$" in yuk:
+        return {"hata": "kodlama çakışması, kayıt yapılmadı"}
+    sql = (
+        "\\set ON_ERROR_STOP on\n"
+        "BEGIN;\n"
+        "SET SESSION AUTHORIZATION human_approver;\n"
+        "INSERT INTO core.gonderi_notu"
+        " (siparis_ref,tur,alici,urun_adi,adet,elle_fiyat,not_metni,giren)\n"
+        "SELECT j->>'siparis_ref', j->>'tur', j->>'alici', j->>'urun_adi',\n"
+        "       (j->>'adet')::numeric, (j->>'elle_fiyat')::numeric,\n"
+        "       j->>'not_metni', j->>'giren'\n"
+        f"  FROM (SELECT ${etiket}${yuk}${etiket}$::jsonb AS j) t;\n"
+        "COMMIT;\n")
+    try:
+        r = subprocess.run(
+            ["docker", "exec", "-i", "lcarlie-postgres", "psql", "-X", "-q",
+             "-U", "n8n", "-d", "n8n", "-f", "-"],
+            input=sql, capture_output=True, text=True, timeout=20, check=False)
+    except Exception as exc:  # noqa: BLE001
+        return {"hata": f"kayıt yapılamadı: {str(exc)[:160]}"}
+    if r.returncode:
+        return {"hata": f"kayıt reddedildi: {(r.stderr or '').strip()[:220]}"}
+    return {"ok": True, "tur": tur, "urun_adi": urun_adi}
+
+
+def _stok_sayim_ekle(urun_adi: str, adet, nerede: str, not_metni: str,
+                     giren: str) -> dict:
+    """Elle stok sayımını human_approver olarak yazar."""
+    import secrets
+
+    urun_adi = (urun_adi or "").strip()[:300]
+    if not urun_adi:
+        return {"hata": "ürün adı zorunlu"}
+    try:
+        sayi = int(float(str(adet).replace(",", ".")))
+    except (TypeError, ValueError):
+        return {"hata": "adet sayı olmalı"}
+    if sayi < 0:
+        return {"hata": "adet negatif olamaz"}
+
+    yuk = json.dumps({
+        "urun_adi": urun_adi, "adet": sayi,
+        "nerede": (nerede or "DEPO").strip()[:80] or "DEPO",
+        "not_metni": (not_metni or "").strip()[:500] or None,
+        "giren": (giren or "operator")[:80]}, ensure_ascii=False)
+    etiket = "st" + secrets.token_hex(8)
+    if f"${etiket}$" in yuk:
+        return {"hata": "kodlama çakışması, kayıt yapılmadı"}
+    sql = (
+        "\\set ON_ERROR_STOP on\n"
+        "BEGIN;\n"
+        "SET SESSION AUTHORIZATION human_approver;\n"
+        "INSERT INTO core.stok_sayim (urun_adi,adet,nerede,not_metni,giren)\n"
+        "SELECT j->>'urun_adi', (j->>'adet')::int, j->>'nerede',\n"
+        "       j->>'not_metni', j->>'giren'\n"
+        f"  FROM (SELECT ${etiket}${yuk}${etiket}$::jsonb AS j) t;\n"
+        "COMMIT;\n")
+    try:
+        r = subprocess.run(
+            ["docker", "exec", "-i", "lcarlie-postgres", "psql", "-X", "-q",
+             "-U", "n8n", "-d", "n8n", "-f", "-"],
+            input=sql, capture_output=True, text=True, timeout=20, check=False)
+    except Exception as exc:  # noqa: BLE001
+        return {"hata": f"kayıt yapılamadı: {str(exc)[:160]}"}
+    if r.returncode:
+        return {"hata": f"kayıt reddedildi: {(r.stderr or '').strip()[:220]}"}
+    return {"ok": True, "urun_adi": urun_adi, "adet": sayi}
+
+
+def _etiket_belgesi(siparisler: list) -> dict:
+    """`scripts/kargo-etiket.py` ile HB-1006 sayfası üretir.
+
+    🔴 Betik AYRI SÜREÇTE çağrılır, içeri import edilmez. Sebep: betik
+    `python-docx` ve `Pillow` yükler ve altı etiketi uçtan indirir; bunu
+    web sunucusunun içinde yapmak, uç yavaşladığında paneli kilitler.
+    """
+    idler = [str(x).strip() for x in siparisler if str(x).strip()][:60]
+    if not idler:
+        return {"hata": "etiketi alınacak gönderi seçilmedi"}
+    try:
+        r = subprocess.run(
+            ["/opt/lcarlie/jarvis-phase2/venv/bin/python",
+             "/opt/lcarlie/jarvis-phase2/scripts/kargo-etiket.py", *idler],
+            capture_output=True, text=True, timeout=180, check=False,
+            cwd="/opt/lcarlie/jarvis-phase2")
+    except Exception as exc:  # noqa: BLE001
+        return {"hata": f"etiket üretilemedi: {str(exc)[:200]}"}
+    ciktilar = [s.strip() for s in (r.stdout or "").splitlines() if s.strip()]
+    dosya = next((s for s in reversed(ciktilar) if s.endswith(".docx")), None)
+    if r.returncode or not dosya:
+        return {"hata": "etiket alınamadı: "
+                        + ((r.stderr or "").strip()[:300] or "bilinmeyen sebep")}
+    return {"ok": True, "dosya": Path(dosya).name,
+            "baglanti": "/etiket/" + Path(dosya).name,
+            "ozet": ciktilar[-2] if len(ciktilar) > 1 else ""}
+
+
+def _kreatif_partiler(limit: int = 12) -> dict:
+    """Diskteki kreatif partilerini panel icin ozetler.
+
+    🔴 VERITABANINA GITMEZ. Brief ve inceleme zaten dosya olarak duruyor;
+    ayni seyi bir de tabloya yazmak iki dogruluk kaynagi yaratirdi.
+
+    🔴 EKSIK ASAMA GIZLENMEZ. Bir partinin gorseli yoksa `gorsel: 0` ve
+    `durum: "ONAY_BEKLIYOR"` diye gorunur -- panelde bos birakip "yakinda"
+    demek, hangi partinin nerede takildigini saklamak olurdu.
+    """
+    kok = KREATIF_DIR
+    if not kok.is_dir():
+        return {"partiler": [], "not": "henüz kreatif partisi yok"}
+    partiler = []
+    for brief_yolu in sorted(kok.glob("*.json"), reverse=True):
+        if brief_yolu.stem.endswith("-gorseller"):
+            continue
+        try:
+            b = json.loads(brief_yolu.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        parti = brief_yolu.stem
+        gorsel_kok = kok / f"{parti}-gorseller"
+        inceleme = None
+        ince_yolu = gorsel_kok / "inceleme.json"
+        if ince_yolu.is_file():
+            try:
+                inceleme = json.loads(ince_yolu.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                inceleme = None
+        kareler = []
+        for g in (inceleme or {}).get("gorseller") or []:
+            o = g.get("olcum") or {}
+            kareler.append({
+                "dosya": g.get("dosya"), "oran": g.get("oran"),
+                "ust_yazi": g.get("ust_yazi"), "alt_yazi": g.get("alt_yazi"),
+                "karar": g.get("direktor_karari"),
+                "gerekce": str(g.get("direktor_gerekce") or "")[:400],
+                "beyaz_sapma": o.get("beyaz_sapma"),
+                "urun_oran": o.get("urun_oran"),
+                # 🔴 `departman` ARAYUZE GECMELI: sahip "bu gorselde logo
+                # yanlis" dediginde muhatabin kim oldugu bu alandan okunur.
+                # Eskiden yalniz `uye` (insan adi) geciyordu ve panel
+                # kime yazilacagini soyleyemiyordu.
+                "inceleme": [{"uye": i.get("uye"), "karar": i.get("karar"),
+                              "departman": i.get("departman"),
+                              "gerekce": str(i.get("gerekce") or "")[:300]}
+                             for i in (g.get("inceleme") or [])],
+                "url": f"/kreatif/{parti}-gorseller/{g.get('dosya')}",
+                "etiket_url": f"/kreatif/{parti}-gorseller/etiket-kontrol/"
+                              f"{str(g.get('dosya') or '')[:2]}.jpg",
+            })
+        urun = (b.get("urun") or {})
+        fk = b.get("fiyat_konumu_olcumu") or {}
+        partiler.append({
+            "parti": parti,
+            # 🔴 Klasor adi AYRI gonderilir. Gorsel baglantilari bir kez
+            # "-gorseller" ekini kaybettigi icin 404 dondurmustu; arayuzun
+            # bu eki kendisi uretmesi ayni hatayi tekrar davet eder.
+            "parti_klasor": f"{parti}-gorseller",
+            "urun_adi": urun.get("urun_adi"),
+            "uretildi": b.get("uretildi"),
+            "fiyat_cumlesi": fk.get("cumle"),
+            "rakip_acilari": [r.get("aci") for r in (b.get("rakip") or [])],
+            "kurul_sayisi": len(b.get("kurul") or []),
+            "silinen_cumle": len(b.get("mevzuat_silinen") or []),
+            "tutarsiz_reklam": len(b.get("tutarlilik") or []),
+            "promptlar": [{"ad": g.get("ad"), "oran": g.get("oran"),
+                           "hangi_aci": g.get("hangi_aci"),
+                           "ust_yazi": g.get("ust_yazi"),
+                           "alt_yazi": g.get("alt_yazi"),
+                           "sahne_istemi": g.get("sahne_istemi")}
+                          for g in (b.get("gorseller") or [])],
+            "red_team": [{"agirlik": i.get("agirlik"),
+                          "alinti": str(i.get("alinti") or "")[:200],
+                          "itiraz": str(i.get("itiraz") or "")[:400],
+                          "duzeltme": str(i.get("duzeltme") or "")[:300]}
+                         for i in ((b.get("red_team") or {}).get("itirazlar") or [])],
+            "kurul": [{"uye": k.get("uye"), "gorev": k.get("gorev"),
+                       "soyledigi": str(k.get("soyledigi") or "")[:300]}
+                      for k in (b.get("kurul") or [])],
+            "kareler": kareler,
+            "durum": ("GORSEL_INCELENDI" if kareler
+                      else ("GORSEL_VAR" if gorsel_kok.is_dir()
+                            else "ONAY_BEKLIYOR")),
+            "brief_url": f"/kreatif/{parti}.md",
+        })
+        if len(partiler) >= limit:
+            break
+    return {"partiler": partiler, "toplam": len(partiler)}
+
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "JarvisWebConsole/1.0"
     protocol_version = "HTTP/1.1"
@@ -335,6 +687,66 @@ class Handler(BaseHTTPRequestHandler):
         provided = self.headers.get("X-CSRF-Token", "")
         return bool(provided) and provided == session.csrf_token
 
+    def _route_kargo_post(self, path: str, session) -> None:
+        """Kargo işlemleri. Biri PARA HARCAR, üçü harcamaz.
+
+        🔴 BU YOLA OTOMATİK GİRİLEMEZ. `_route_api_post` bu çağrıdan önce
+        oturumu ve CSRF başlığını doğrular; döngünün, ajanların ve
+        zamanlayıcının oturumu yoktur. Para harcayan tek uç
+        (`/api/kargo/barkod`) böylece yalnız ekrandaki düğmeden geçer.
+        """
+        from jarvis import kargo_islem as ki
+
+        body = _read_json_body(self)
+        try:
+            if path == "/api/kargo/taslak":
+                # ÜCRETSİZ. Taslak açmak kargoyu çağırmaz, barkod üretmez.
+                self._send_json(200, ki.taslak_olustur(
+                    alici=str(body.get("alici", "")),
+                    telefon=str(body.get("telefon", "")),
+                    il=str(body.get("il", "")),
+                    ilce=str(body.get("ilce", "")),
+                    adres=str(body.get("adres", "")),
+                    icerik=str(body.get("icerik", "")),
+                    desi=body.get("desi"),
+                    karsi_odemeli=bool(body.get("karsi_odemeli")),
+                    kapida_tutar=body.get("kapida_tutar"),
+                    kapida_tur=str(body.get("kapida_tur", "CASH")),
+                    referans=str(body.get("referans", ""))))
+                return
+
+            if path == "/api/kargo/fiyat":
+                # ÜCRETSİZ. Hangi taşıyıcı ne kadar.
+                self._send_json(200, ki.ucret_sor(str(body.get("siparis_id", ""))))
+                return
+
+            if path == "/api/kargo/barkod":
+                # 🔴 PARA HARCAR. `kargo_islem` çağrıdan ÖNCE fiyatı uçtan
+                # doğrular ve `core.kargo_karar` tablosuna satır yazar.
+                self._send_json(200, ki.barkod_uret(
+                    siparis_id=str(body.get("siparis_id", "")),
+                    tasiyici=str(body.get("tasiyici", "")),
+                    gosterilen_ucret=body.get("gosterilen_ucret"),
+                    karsi_odemeli=bool(body.get("karsi_odemeli")),
+                    kapida_tutar=body.get("kapida_tutar"),
+                    veren=session.username))
+                return
+
+            if path == "/api/kargo/etiket":
+                # ÜCRETSİZ. Etiketleri HB-1006 sayfasına dizer.
+                self._send_json(200, _etiket_belgesi(body.get("siparisler") or []))
+                return
+        except ki.IslemHatasi as hata:
+            # Sahibin okuyacağı hata: Türkçe ve sebepli.
+            self._send_json(400, {"error": str(hata)})
+            return
+        except Exception as exc:  # noqa: BLE001
+            traceback.print_exc()
+            self._send_json(502, {"error": f"kargo işlemi yapılamadı: {str(exc)[:200]}"})
+            return
+
+        self._send_json(404, {"error": "not found"})
+
     # -- routing --------------------------------------------------------
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
@@ -347,6 +759,12 @@ class Handler(BaseHTTPRequestHandler):
                 self._meta_dogrulama(parse_qs(parsed.query))
             elif path.startswith("/api/"):
                 self._route_api_get(path, parse_qs(parsed.query))
+            elif path.startswith("/kreatif/"):
+                self._route_kreatif(path)
+            elif path.startswith("/etiket/"):
+                self._route_etiket(path)
+            elif path.startswith("/canva/"):
+                self._route_canva(path, parse_qs(parsed.query))
             else:
                 self._route_static(path)
         except Exception:  # noqa: BLE001
@@ -410,6 +828,169 @@ class Handler(BaseHTTPRequestHandler):
         # yapılmaz, yalnız kuyruğa alınır.
         self._send_json(200, {"alindi": yazilan})
 
+    # -- uretilen kreatif gorselleri ---------------------------------------
+    @staticmethod
+    def _kreatif_konusu(action_id: int) -> str:
+        """Onerinin konusunu KARARDAN ONCE okur.
+
+        🔴 ILK SURUM BOZUKTU VE SESSIZCE HIC CALISMAZDI. Kanca
+        `_operator.decide(...)` sonucundan `payload.subject_ref` okumaya
+        calisiyordu; oysa decide yalnizca
+        {action_id, decision, reason, still_pending, confirmed} donuyor --
+        yuk YOK. Sebebi de kodda yazili: core.ai_action_proposal owner-only,
+        geri okunamiyor, karar "pending listesinden dustu mu" diye
+        dogrulaniyor.
+
+        Bu yuzden konu KARARDAN ONCE, oneri hala PENDING iken okunur;
+        inspect() zaten yalnizca PENDING oneriyi gosteriyor.
+        """
+        try:
+            oneri = _operator.inspect(int(action_id))
+        except Exception:  # noqa: BLE001 - okunamazsa uretim baslamaz, o kadar
+            return ""
+        return str(((oneri or {}).get("payload") or {}).get("subject_ref") or "")
+
+    @staticmethod
+    def _kreatif_uretimi_baslat(konu: str, sonuc: dict) -> str | None:
+        """Sahip bir kreatif BRIEF'ini onayladiysa gorsel uretimini baslatir.
+
+        🔴 SAHIP KARARI (21.09.2026): "brief verilsin, uretim benim onayim
+        olmadan yapilmasin ama promptlar hazirlansin."
+
+        Haftalik kosu hic gorsel uretmez; sadece arastirma ve prompt uretir.
+        Gorsel URETIMINI BASLATAN TEK SEY, sahibin bu ekranda verdigi onaydir.
+        Bu yuzden tetik burada duruyor: bir zamanlayiciya baglansaydi onay
+        kapisi dekor olurdu.
+
+        🔴 Sadece APPROVED ve sadece `kreatif-brief:` konusu tetikler.
+        Onaylanan baska bir seyin yanlislikla uretim baslatmasi, sahibin
+        onayladigi seyden baskasini yapmak olurdu.
+        """
+        if str(sonuc.get("decision") or "") != "APPROVED":
+            return None
+        # 🔴 `confirmed` sarttir: karar pending listesinden dusmediyse
+        # APPROVE gecmemis demektir ve uretim baslatilmaz.
+        if not sonuc.get("confirmed"):
+            return None
+        if not konu.startswith("kreatif-brief:"):
+            return None
+        parti = konu.split(":", 1)[1].strip()
+        # Parti adi dosya yoluna girecek: harf, rakam ve tire disinda bir sey
+        # varsa calistirilmaz. Kabuk enjeksiyonuna acik tek nokta burasi.
+        if not parti or not re.fullmatch(r"[A-Za-z0-9._-]{1,120}", parti):
+            return None
+        betik = Path(__file__).resolve().parent.parent / "scripts" / "kreatif-uret.sh"
+        if not betik.is_file():
+            return None
+        gunluk = KREATIF_DIR.parent / "kreatif-uretim.log"
+        try:
+            with open(gunluk, "ab") as f:
+                subprocess.Popen(
+                    ["/bin/bash", str(betik), parti],
+                    cwd=str(betik.parent.parent),
+                    env={**os.environ, "JARVIS_MEMORY_TRANSPORT": "local-docker"},
+                    stdout=f, stderr=f, stdin=subprocess.DEVNULL,
+                    start_new_session=True)
+        except OSError as hata:
+            return f"uretim baslatilamadi: {hata}"
+        return parti
+
+    def _route_kreatif(self, path: str) -> None:
+        """Uretilen reklam gorsellerini servis eder.
+
+        🔴 OTURUM ZORUNLU. Statik klasorun icine konup `_route_static` ile
+        servis edilseydi kimlik kapisinin DISINDA kalirdi: yayina girmemis,
+        heniz onaylanmamis kreatifler acik internete dusetdi. Onay kuyrugundaki
+        bir seyin herkese acik olmasi, onay kavramini anlamsiz kilar.
+
+        🔴 Yol kacisi ayrica engellenir: `..` iceren bir istek resolve()
+        sonrasi KREATIF_DIR disina cikarsa reddedilir -- `_route_static`
+        icindeki ayni desen.
+        """
+        if self._current_session() is None:
+            self._send_json(401, {"error": "oturum gerekli"})
+            return
+        hedef = (KREATIF_DIR / path[len("/kreatif/"):]).resolve()
+        if KREATIF_DIR not in hedef.parents:
+            self._send_json(404, {"error": "not found"})
+            return
+        if not hedef.is_file():
+            self._send_json(404, {"error": "not found"})
+            return
+        tur = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+               ".json": "application/json; charset=utf-8",
+               ".md": "text/markdown; charset=utf-8",
+               }.get(hedef.suffix.lower(), "application/octet-stream")
+        self._send_file(hedef, tur)
+
+    def _route_etiket(self, path: str) -> None:
+        """Üretilen HB-1006 etiket belgesini servis eder.
+
+        `_route_kreatif` ile AYNI kapı ve aynı yol-kaçışı kontrolü: oturum
+        zorunlu, `..` ile dizin dışına çıkan istek reddedilir. Buradaki
+        dosyalar alıcı adı ve açık adres taşır.
+        """
+        if self._current_session() is None:
+            self._send_json(401, {"error": "oturum gerekli"})
+            return
+        hedef = (ETIKET_DIR / path[len("/etiket/"):]).resolve()
+        if ETIKET_DIR not in hedef.parents or not hedef.is_file():
+            self._send_json(404, {"error": "not found"})
+            return
+        tur = {".docx": "application/vnd.openxmlformats-officedocument"
+                        ".wordprocessingml.document",
+               ".png": "image/png"}.get(hedef.suffix.lower(),
+                                        "application/octet-stream")
+        self._send_file(hedef, tur)
+
+    def _route_canva(self, path: str, query: dict) -> None:
+        """Canva OAuth: baslatma (oturumlu) ve geri donus (state korumali)."""
+        from jarvis import canva
+
+        if path == "/canva/baslat":
+            # 🔴 Oturum ZORUNLU: yetkilendirmeyi yalniz sahip baslatir.
+            if self._current_session() is None:
+                self._send_json(401, {"error": "oturum gerekli"})
+                return
+            try:
+                url = canva.yetki_baglantisi(
+                    "https://jarvis.lcarlie.shop/canva/geri")
+            except canva.CanvaHatasi as hata:
+                self._send_json(400, {"error": str(hata)})
+                return
+            # Tarayiciyi dogrudan Canva'ya yolla.
+            self.send_response(302)
+            self.send_header("Location", url)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+
+        if path == "/canva/geri":
+            # 🔴 Oturum ARANMAZ (Canva'dan gelen istek cerez tasimayabilir)
+            # ama `state` PKCE kaydiyla karsilastirilir; uymazsa reddedilir.
+            kod = (query.get("code") or [""])[0]
+            durum = (query.get("state") or [""])[0]
+            hata_k = (query.get("error") or [""])[0]
+            if hata_k:
+                govde = f"Canva yetkilendirmeyi reddetti: {hata_k}"
+            else:
+                try:
+                    sonuc = canva.geri_donus(kod, durum)
+                    govde = ("Canva bağlandı. Verilen yetkiler: "
+                             + str(sonuc.get("kapsam", "")))
+                except canva.CanvaHatasi as hata:
+                    govde = f"Bağlanamadı: {hata}"
+            # Duz metin: bu sayfa bir kez gorulur, tasarima gerek yok.
+            ham = govde.encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(len(ham)))
+            self.end_headers()
+            self.wfile.write(ham)
+            return
+
+        self._send_json(404, {"error": "not found"})
+
     # -- static frontend --------------------------------------------------
     def _route_static(self, path: str) -> None:
         if path == "/":
@@ -426,6 +1007,7 @@ class Handler(BaseHTTPRequestHandler):
             ".js": "application/javascript; charset=utf-8", ".json": "application/json; charset=utf-8",
             ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon",
             ".webmanifest": "application/manifest+json",
+            ".jpg": "image/jpeg", ".webp": "image/webp", ".otf": "font/otf", ".woff2": "font/woff2",
         }.get(target.suffix, "application/octet-stream")
         self._send_file(target, content_type)
 
@@ -509,6 +1091,120 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/hafiza":
             self._send_json(200, _hafiza_gorunumu())
             return
+        if path == "/api/satislar":
+            self._send_json(200, _satis_merkezi())
+            return
+
+        if path == "/api/asistan":
+            from jarvis import asistan
+            # 🔴 HER KAYNAK AYRI TRY. Hepsi tek blokta olsaydı bir arıza
+            # bütün sekmeyi boş gösterirdi -- ve boş onay sekmesi
+            # "imzalanacak iş yok" diye okunur. En tehlikeli yanlış bu.
+            cevap: dict = {}
+            hatalar: dict = {}
+            for ad, fn in (
+                ("hatirlaticilar", asistan.hatirlaticilar),
+                ("haberler", asistan.haberler),
+                ("gundem", asistan.gundem),
+                ("tasarim_onay", asistan.tasarim_onay_bekleyen),
+            ):
+                try:
+                    cevap[ad] = fn()
+                except Exception as exc:  # noqa: BLE001
+                    cevap[ad] = []
+                    hatalar[ad] = str(exc)[:160]
+            try:
+                cevap["oneriler"] = _operator.list_pending()
+            except Exception as exc:  # noqa: BLE001
+                cevap["oneriler"] = []
+                hatalar["oneriler"] = str(exc)[:160]
+            if hatalar:
+                cevap["hatalar"] = hatalar
+            self._send_json(200, cevap)
+            return
+
+        if path == "/api/tasarim":
+            from jarvis import tasarim
+            try:
+                self._send_json(200, {
+                    "sablonlar": tasarim.sablonlar(),
+                    "isler": tasarim.isler(adet=40),
+                })
+            except Exception as exc:  # noqa: BLE001
+                self._send_json(503, {"error": str(exc)[:200]})
+            return
+
+        if path == "/api/canva":
+            from jarvis import canva
+            try:
+                self._send_json(200, canva.durum())
+            except Exception as exc:  # noqa: BLE001
+                self._send_json(503, {"error": str(exc)[:200]})
+            return
+
+        if path == "/api/kreatif-itiraz":
+            # Sahibin acik itirazlari ve muhatabin cevaplari.
+            from jarvis import kreatif_itiraz
+            parti = (query.get("parti") or [""])[0] or None
+            try:
+                self._send_json(200, {"itirazlar": kreatif_itiraz.liste(parti),
+                                      "konular": list(kreatif_itiraz.KONULAR)})
+            except Exception as exc:  # noqa: BLE001
+                self._send_json(503, {"error": f"itirazlar okunamadı: {str(exc)[:200]}"})
+            return
+
+        if path == "/api/kargo":
+            # Gönderiler + verilmiş barkod kararları. Hiçbiri para harcamaz.
+            from jarvis import kargo_islem
+            try:
+                self._send_json(200, kargo_islem.gonderiler(15))
+            except Exception as exc:  # noqa: BLE001
+                self._send_json(503, {"error": f"kargo okunamadı: {str(exc)[:200]}"})
+            return
+
+        if path == "/api/musteri":
+            # 🔴 Ad/telefon/e-posta İSTEK ANINDA okunur, hiçbir yere
+            # yazılmaz. Oturum kapısının arkasında; `_route_api_get` bu
+            # noktadan önce kimliği doğrulamış oluyor.
+            from jarvis import musteri
+            try:
+                self._send_json(200, musteri.musteri_listesi())
+            except Exception as exc:  # noqa: BLE001
+                self._send_json(503, {"error": f"müşteriler okunamadı: {str(exc)[:200]}"})
+            return
+
+        if path == "/api/musteri/kart":
+            from jarvis import musteri
+            kimlik = (query.get("id") or [""])[0]
+            try:
+                self._send_json(200, musteri.musteri_karti(kimlik))
+            except Exception as exc:  # noqa: BLE001
+                self._send_json(503, {"error": f"kart okunamadı: {str(exc)[:200]}"})
+            return
+
+        if path == "/api/iade":
+            from jarvis import musteri
+            try:
+                self._send_json(200, musteri.iade_ozeti())
+            except Exception as exc:  # noqa: BLE001
+                self._send_json(503, {"error": f"iade okunamadı: {str(exc)[:200]}"})
+            return
+
+        if path == "/api/kargo/kapida":
+            # Kapıda ödemeli gönderiler: Wix ciro hattında GÖRÜNMEYEN para.
+            from jarvis import kargo_islem
+            try:
+                self._send_json(200, kargo_islem.kapida_ozet())
+            except Exception as exc:  # noqa: BLE001
+                self._send_json(503, {"error": f"okunamadı: {str(exc)[:200]}"})
+            return
+
+        if path == "/api/kreatif-parti":
+            # Uretilen kreatif partileri: brief, promptlar, gorseller,
+            # ekip incelemesi ve direktor karari.
+            self._send_json(200, _kreatif_partiler())
+            return
+
         if path == "/api/panel":
             # Bolum listesi: uc nokta kesfedilebilir olsun, arayuz sabit
             # isim listesi tasimak zorunda kalmasin.
@@ -648,6 +1344,34 @@ class Handler(BaseHTTPRequestHandler):
             payload["silinen"] = silinen
             self._send_json(200, payload)
             return
+        if path == "/api/asistan":
+            # 🔴 Hatırlatıcı SAHİBİN notudur; oturum zorunlu.
+            if self._current_session() is None:
+                self._send_json(401, {"error": "oturum gerekli"})
+                return
+            from jarvis import asistan
+            govde = _read_json_body(self)
+            islem = str(govde.get("islem", ""))
+            try:
+                if islem == "ekle":
+                    sonuc = asistan.ekle(
+                        baslik=str(govde.get("baslik", ""))[:200],
+                        zaman=str(govde.get("zaman", "")),
+                        not_=(str(govde.get("not_", ""))[:500] or None),
+                        tekrar=(str(govde.get("tekrar", "")) or None),
+                        onem=str(govde.get("onem", "NORMAL")))
+                elif islem == "tamamla":
+                    sonuc = asistan.tamamla(int(govde.get("id", 0)))
+                else:
+                    self._send_json(400, {"error": "islem: ekle | tamamla"})
+                    return
+                self._send_json(200, sonuc)
+            except asistan.AsistanHatasi as hata:
+                self._send_json(400, {"error": str(hata)})
+            except Exception as exc:  # noqa: BLE001
+                self._send_json(503, {"error": str(exc)[:200]})
+            return
+
         if path == "/api/chat":
             body = _read_json_body(self)
             message = str(body.get("message", ""))[:2000]
@@ -728,13 +1452,119 @@ class Handler(BaseHTTPRequestHandler):
             payload["run"] = record.to_dict()
             self._send_json(200, payload)
             return
+        if path == "/api/satis/not":
+            # Gönderi notu: bu gönderi neydi (satış, UGC, numune…) ve
+            # fiyatsızsa değeri ne. İNSAN BEYANI -> human_approver.
+            body = _read_json_body(self)
+            self._send_json(200, _gonderi_notu_ekle(
+                siparis_ref=str(body.get("siparis_ref", "")),
+                tur=str(body.get("tur", "")),
+                alici=str(body.get("alici", "")),
+                urun_adi=str(body.get("urun_adi", "")),
+                adet=body.get("adet"), elle_fiyat=body.get("elle_fiyat"),
+                not_metni=str(body.get("not_metni", "")),
+                giren=session.username))
+            return
+
+        if path == "/api/stok":
+            # Elle stok sayımı. Platformun stok alanından AYRI bir şeydir:
+            # bu, fiziksel sayımın beyanıdır.
+            body = _read_json_body(self)
+            self._send_json(200, _stok_sayim_ekle(
+                urun_adi=str(body.get("urun_adi", "")),
+                adet=body.get("adet"),
+                nerede=str(body.get("nerede", "DEPO")),
+                not_metni=str(body.get("not_metni", "")),
+                giren=session.username))
+            return
+
+        if path in ("/api/kreatif-itiraz", "/api/kreatif-itiraz/muhatap"):
+            from jarvis import kreatif_itiraz as kit
+            body = _read_json_body(self)
+            try:
+                if path.endswith("/muhatap"):
+                    # 🔴 ONIZLEME: sahip GONDERMEDEN once kime yazacagini
+                    # ve o departmanin bu gorsele daha once ne dedigini
+                    # gorur. Kime gittigi bilinmeyen bir itiraz, cevapsiz
+                    # kalan itirazdir.
+                    self._send_json(200, kit.muhatap_bul(
+                        str(body.get("parti", "")),
+                        str(body.get("dosya", "")) or None,
+                        str(body.get("konu", ""))))
+                    return
+                self._send_json(200, kit.itiraz_ac(
+                    parti=str(body.get("parti", "")),
+                    dosya=str(body.get("dosya", "")) or None,
+                    konu=str(body.get("konu", "")),
+                    aciklama=str(body.get("aciklama", "")),
+                    acan=session.username))
+                return
+            except kit.ItirazHatasi as hata:
+                self._send_json(400, {"error": str(hata)})
+                return
+            except Exception as exc:  # noqa: BLE001
+                traceback.print_exc()
+                self._send_json(502, {"error": f"itiraz işlenemedi: {str(exc)[:200]}"})
+                return
+
+        if path.startswith("/api/kargo/"):
+            self._route_kargo_post(path, session)
+            return
+
+        if path == "/api/degisiklik":
+            # Panelden gelen degisiklik onerisi -> diske sartname -> gorev ->
+            # dongu oneriyi yazar -> sahip onaylar.
+            #
+            # 🔴 BU UC VERITABANINA DOGRUDAN YAZMAZ ve WIX'E DOKUNMAZ.
+            # Yaptigi tek sey onay kuyruguna DUSECEK bir sartname hazirlamak.
+            # Panelde "kaydedildi" yazan bir dugme olsaydi yalan olurdu:
+            # sozlesmede bu eylem tiplerinin execution_enabled degeri false.
+            body = _read_json_body(self)
+            tur = str(body.get("tur") or "")
+            gerekce = str(body.get("gerekce") or "")[:1000]
+            isteyen = session.username
+            try:
+                if tur == "tek_alan":
+                    hazir = degisiklik.tek_alan_onerisi(
+                        str(body.get("urun_id") or "")[:120],
+                        str(body.get("urun_adi") or "")[:200],
+                        str(body.get("alan") or "")[:60],
+                        body.get("eski"), body.get("yeni"), gerekce, isteyen, _memory)
+                elif tur == "toplu_fiyat":
+                    hazir = degisiklik.toplu_fiyat_onerisi(
+                        body.get("satirlar") or [], gerekce, isteyen, _memory)
+                else:
+                    self._send_json(400, {"error": "bilinmeyen öneri türü"})
+                    return
+            except degisiklik.DegisiklikHatasi as exc:
+                self._send_json(400, {"error": str(exc)})
+                return
+            try:
+                gorev = _operator.create_task(hazir["intent"], hazir["slug"])
+            except (ValueError, JarvisMemoryError) as exc:
+                self._send_json(502, {"error": f"görev açılamadı: {exc}"})
+                return
+            self._send_json(200, {
+                "ok": True, "slug": hazir["slug"], "intent": hazir["intent"],
+                "task_id": gorev.get("task_id"),
+                "ozet": hazir["reason"],
+                "not": ("Öneri onay kuyruğuna hazırlandı. Jarvis döngüsü "
+                        "görevi alınca ÖNERİLER'de görünecek. Onay, "
+                        "değişikliğin yapılmasına karar verildiğini kaydeder; "
+                        "Wix/Trendyol tarafında değişikliği insan uygular.")})
+            return
+
         if path.startswith("/api/proposals/") and path.endswith("/decide"):
             action_id = path.split("/")[-2]
             body = _read_json_body(self)
             decision = str(body.get("decision", ""))
             reason = str(body.get("reason", ""))[:2000]
             try:
+                konu = self._kreatif_konusu(int(action_id))
                 result = _operator.decide(int(action_id), decision, reason)
+                baslatilan = self._kreatif_uretimi_baslat(konu, result)
+                if baslatilan:
+                    result = {**result, "kreatif_uretimi": baslatilan}
                 self._send_json(200, result)
             except ValueError as exc:
                 self._send_json(400, {"error": str(exc)})
@@ -1103,6 +1933,71 @@ def _team_opinions() -> list:
         return [_panel_error(exc)]
 
 
+def _team_by_department() -> list:
+    """Ekip, DEPARTMAN altinda ve SORUMLUSUYLA birlikte.
+
+    🔴 Sahip 22.09.2026: "hepsinin kendi mudurleri var, ben onlarla
+    konusurum. Hesap sorarim veya bilgi isterim."
+    Duz bir 73 kisilik liste bunu karsilamiyordu: kimin kime bagli oldugu
+    ve kime soru sorulacagi gorunmuyordu.
+
+    🔴 Ayrica "VERI YOK" ile "ISLEV YAZILMADI" ayrildi (roster.py). Panel
+    bu ikisini ayni gosterirse kullanici veri arar, oysa yazilmasi gereken
+    sey kod olabilir. Sayaclar bu yuzden durum bazinda doner.
+    """
+    try:
+        from jarvis import roster
+    except Exception as exc:  # noqa: BLE001 - panel hicbir zaman cokmez
+        return [_panel_error(exc)]
+
+    gorusler = {g.get("key"): g for g in _team_opinions() if isinstance(g, dict)}
+    birim_adlari, misyonlar = {}, {}
+    try:
+        for d in _memory._fetch("departments").records:
+            kod = str(d.get("kod") or "")
+            if kod:
+                birim_adlari[kod] = str(d.get("ad") or kod)
+                misyonlar[kod] = str(d.get("misyon") or "")
+    except Exception:  # noqa: BLE001 - departman adi sustur, kadro yine dursun
+        pass
+
+    cikti = []
+    for kod, uyeler in sorted(roster.departman_uyeleri().items()):
+        sorumlu = None
+        try:
+            sorumlu = roster.departman_sorumlusu(kod)
+        except Exception:  # noqa: BLE001
+            sorumlu = None
+        kadro, sayac = [], {}
+        for m in uyeler:
+            g = gorusler.get(m.key, {})
+            durum = str(g.get("status") or "?")
+            sayac[durum] = sayac.get(durum, 0) + 1
+            kadro.append({
+                "key": m.key, "name": m.name, "job": m.job,
+                "status": durum,
+                "statement": g.get("statement") or "",
+                "reads": list(getattr(m, "reads", ()) or ()),
+                "sorumlu_mu": bool(sorumlu and sorumlu.key == m.key),
+            })
+        kadro.sort(key=lambda k: (not k["sorumlu_mu"], k["name"]))
+        cikti.append({
+            "kod": kod,
+            "ad": birim_adlari.get(kod, kod),
+            "misyon": misyonlar.get(kod, ""),
+            "sorumlu": ({"key": sorumlu.key, "name": sorumlu.name}
+                        if sorumlu else None),
+            "kisi": len(kadro),
+            "konusan": sayac.get("KONUŞTU", 0),
+            "durum_sayaci": sayac,
+            "kadro": kadro,
+            # Soru sorulabilir mi: _ekip_sor departman koduyla calisir.
+            "soru_sorulabilir": True,
+        })
+    cikti.sort(key=lambda d: (-d["kisi"], d["kod"]))
+    return cikti
+
+
 def _panel_ajanlar() -> dict:
     """Roller, saglayicilar ve motor adaylari -- hangisi gercekten kullanilabilir."""
     roles, providers, engines = [], [], []
@@ -1136,7 +2031,9 @@ def _panel_ajanlar() -> dict:
                             "evidence": candidate.evidence})
     except Exception as exc:  # noqa: BLE001
         engines = [_panel_error(exc)]
-    return {"team": _team_opinions(), "role_reality": reality, "roles": roles, "providers": providers, "engines": engines}
+    return {"team": _team_opinions(), "departmanlar": _team_by_department(),
+            "role_reality": reality, "roles": roles,
+            "providers": providers, "engines": engines}
 
 
 def _panel_raporlar() -> dict:

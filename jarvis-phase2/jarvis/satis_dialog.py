@@ -440,6 +440,8 @@ def cevap_uret(mesaj: str, urun: UrunKarti | None, layer: Any,
             [{"role": "user", "content": istem}],
             max_tokens=max_tokens,
             escalate=True,
+            # Kademe kaydi: musteriye giden metin -> muhakeme.
+            is_anahtari="satis_dialog",
         )
     except Exception as exc:  # noqa: BLE001
         return Cevap(metin="", soru_tipi=tip, urun=urun.ad, yaklasim=yaklasim,
