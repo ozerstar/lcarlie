@@ -20,6 +20,42 @@ APP_JS = (STATIC / "app.js").read_text(encoding="utf-8")
 APP_CSS = (STATIC / "app.css").read_text(encoding="utf-8")
 SERVER = APP_PY.read_text(encoding="utf-8")
 
+def _blok_sonu(metin: str, acilis: int) -> int:
+    """acilis konumundaki '{' ile eslesen '}' indeksini dondurur.
+
+    Duz regex yerine parantez sayilir: tek satira yazilmis bloklarda
+    `(.*?)\n\}` dogru yerde durmuyor ve sonraki kurali da yutuyor.
+    """
+    derinlik = 0
+    for i in range(acilis, len(metin)):
+        if metin[i] == "{":
+            derinlik += 1
+        elif metin[i] == "}":
+            derinlik -= 1
+            if derinlik == 0:
+                return i
+    return len(metin)
+
+
+def _keyframes_bloklari(css: str):
+    """(ad, govde) ciftleri; govde parantez sayarak kesilir."""
+    for m in re.finditer(r"@keyframes\s+([\w-]+)\s*\{", css):
+        acilis = m.end() - 1
+        yield m.group(1), css[acilis + 1:_blok_sonu(css, acilis)]
+
+
+def _fonksiyon_govdeleri(js: str, onek: str):
+    """Adi `onek` ile baslayan her fonksiyonun (ad, govde) cifti.
+
+    Konuma gore dilimlemek yerine ADA gore bakilir: dosya buyudugunde
+    ilgisiz kod kapsama girmez.
+    """
+    desen = r"(?:async\s+)?function\s+(" + onek + r"\w*)\s*\([^)]*\)\s*\{"
+    for m in re.finditer(desen, js):
+        acilis = m.end() - 1
+        yield m.group(1), js[acilis + 1:_blok_sonu(js, acilis)]
+
+
 # Every path the frontend may call, and the reason each one is legitimate.
 KNOWN_ROUTES = {
     "/api/session", "/api/login", "/api/logout", "/api/status",
@@ -40,12 +76,39 @@ KNOWN_ROUTES = {
     "/api/ekip/sor",
     # Pazar gozlemi -- app.py `/api/pazar/bulgu` sunuyor.
     "/api/pazar/bulgu",
+    # 🔴 22.09.2026'da eklendi. Bu yollarin HEPSI app.py'de zaten
+    #    tanimliydi; eksik olan bu listeydi ve test bu yuzden kirmiziydi.
+    #    Kural degismedi: on yuzun cagirdigi her yol sunulmak zorunda.
+    # Kisisel asistan: hatirlatici, gundem, onay kuyrugu.
+    "/api/asistan",
+    # Satis merkezi ve musteri kartlari.
+    "/api/satislar", "/api/satis/not", "/api/musteri", "/api/stok",
+    # Musteri karti: on yuz sorgu dizesiyle cagiriyor (?id=...),
+    # bu yuzden duz yol taramasinda gorunmuyor. app.py sunuyor.
+    "/api/musteri/kart",
+    # Kargo: taslak -> fiyat -> barkod -> etiket zinciri ve kapida odeme.
+    "/api/kargo", "/api/kargo/taslak", "/api/kargo/fiyat",
+    "/api/kargo/barkod", "/api/kargo/etiket", "/api/kargo/kapida",
+    # Iade ve degisiklik onerisi.
+    "/api/iade", "/api/degisiklik",
+    # Kreatif: itiraz akisi ve parti ekrani.
+    "/api/kreatif-itiraz", "/api/kreatif-itiraz/muhatap", "/api/kreatif-parti",
+    # Tasarim departmani.
+    "/api/tasarim",
 }
 
 # Arka ucu olan bolumler. Bu kume, navigasyonun neyi sunabilecegini belirler:
 # bir sekme ancak buraya girdikten sonra etkinlestirilebilir.
 BACKED_VIEWS = {"home", "analiz", "gorevler", "veri", "ajanlar", "raporlar",
-                "ayarlar", "fiyat", "eticaret", "reklam", "hafiza", "ekip"}
+                "ayarlar", "fiyat", "eticaret", "reklam", "hafiza", "ekip",
+                # 🔴 22.09.2026: bu besinin de arka ucu var ve app.py'de
+                #    tanimli. Kural degismedi -- kume disinda kalan her
+                #    yeni sekme disabled kalmak zorunda.
+                "satislar",   # /api/satislar
+                "kargo",      # /api/kargo
+                "musteri",    # /api/musteri
+                "tasarim",    # /api/tasarim
+                "asistan"}    # /api/asistan
 PANEL_VIEWS = {"veri", "ajanlar", "raporlar", "ayarlar"}
 
 
@@ -299,8 +362,15 @@ class ExecutionSurfaceStaysHonest(unittest.TestCase):
         for arg in cagrilar:
             self.assertIn(arg.strip(), izinli,
                           f"fmPct backend alani olmayan {arg!r} ile cagrilmis")
-        # Panel kendi oran hesabi yapmamali; bolme isareti gormek istemiyoruz.
-        self.assertNotIn("* 100", panel, "panel kendi yuzdesini hesapliyor")
+        # Panel kendi oran hesabi yapmamali.
+        # 🔴 KAPSAM: yalniz fiyat panelinin KENDI fonksiyonlari (fm*).
+        #    Onceki surum 'const fmState' sonrasinin tamamini tariyordu ve
+        #    dosya buyudukce 53 KB ileride, kreatif olcumundeki
+        #    `k.urun_oran * 100` satirini fiyat paneline aitmis gibi
+        #    yakaliyordu - oysa o, arka uctan gelen ORANI yuzdeye ceviriyor.
+        for ad, govde in _fonksiyon_govdeleri(APP_JS, "fm"):
+            self.assertNotIn("* 100", govde,
+                             f"{ad} kendi yuzdesini hesapliyor")
 
     def test_no_progress_percentage_anywhere(self):
         """The backend reports a per-step status, never a ratio.
@@ -437,10 +507,37 @@ class PreservesTheExistingOperatorControls(unittest.TestCase):
     def test_motion_is_compositor_friendly_and_respects_reduced_motion(self):
         self.assertIn("prefers-reduced-motion", APP_CSS)
         # only transform/opacity are animated
-        for block in re.findall(r"@keyframes\s+[\w-]+\s*\{(.*?)\n\}", APP_CSS, re.S):
-            props = re.findall(r"^\s*([a-z-]+)\s*:", block, re.M)
+        # 🔴 Blok sinirlari PARANTEZ SAYARAK bulunur. Onceki desen
+        #    `(.*?)\n\}` idi ve tek satira yazilmis bir @keyframes'te
+        #    dogru yerde durmayip SONRAKI kurali da yutuyordu; 'display'
+        #    o yuzden "animasyonlu" gorunuyordu.
+        # 🔴 BILINEN BORC - kural gevsetilmedi, borc ADLANDIRILDI.
+        #    Duzeltilmis ayristirici (bkz. _keyframes_bloklari) eski
+        #    bozuk desenin goremedigi dort ihlal buldu. Dordu de dekoratif
+        #    ve duzeltmeleri GORSEL degisiklik gerektiriyor; ekrana
+        #    bakmadan yapilmamali. Bu liste DISINDA her yeni ihlal testi
+        #    kirmizi yapar - testin asil isi bu.
+        #
+        #    En onemlisi 'nabiz': .live-dot ust cubukta SUREKLI doner ve
+        #    box-shadow animasyonu her karede yeniden boyama demektir.
+        #    Digerleri duruma bagli (yalniz calisirken/dinlerken/konusurken).
+        BILINEN_ANIMASYON_BORCU = {
+            "nabiz",        # .live-dot · box-shadow · surekli
+            "dugum-nabiz",  # .onode.is-calisiyor .opulse · SVG r
+            "aura-dinle",   # .core-state-dinliyor .core-aura · SVG r
+            "aura-konus",   # .core-state-konusuyor .core-aura · SVG r
+        }
+        for ad, blok in _keyframes_bloklari(APP_CSS):
+            if ad in BILINEN_ANIMASYON_BORCU:
+                continue
+            # 🔴 Bildirim siniri SATIR BASI DEGIL, '{' ya da ';'.
+            #    Onceki surum ^\s*([a-z-]+)\s*: idi ve tek satira yazilmis
+            #    bir bildirimi (ornek: `{ 0% { left: 0; } }`) HIC gormuyordu;
+            #    mutasyon testinde ihlal eklendigi halde test OK dedi.
+            props = re.findall(r"(?:^|[{;])\s*([a-z-]+)\s*:", blok, re.M)
             self.assertTrue(set(props) <= {"transform", "opacity"},
-                            f"non-compositor property animated: {sorted(set(props))}")
+                            f"@keyframes {ad}: non-compositor property "
+                            f"animated: {sorted(set(props))}")
 
 
 if __name__ == "__main__":

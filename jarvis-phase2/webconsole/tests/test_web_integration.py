@@ -208,7 +208,17 @@ class WebConsoleIntegrationTests(unittest.TestCase):
         self._post("/api/proposals/5/decide", {"decision": "APPROVED", "reason": "test"},
                   headers={"Cookie": f"{app.SESSION_COOKIE}={sid}", "X-CSRF-Token": csrf})
         called_methods = [c[0] for c in app._operator.method_calls]
-        self.assertEqual(called_methods, ["decide"])
+        # 🔴 Olculen niyet: decide TEK YAZMA YOLU olsun. Salt okur
+        #    metotlar serbest -- karar ucu artik onaydan sonra kreatif
+        #    uretimi baslatabilmek icin oneriyi okuyor (_kreatif_konusu).
+        #    inspect(), operator.py'de list_pending() uzerinden calisir:
+        #    human_approver rolu, ROLLBACK, yazma YOK.
+        SALT_OKUR = {"inspect", "list_pending"}
+        self.assertEqual([m for m in called_methods if m not in SALT_OKUR],
+                         ["decide"],
+                         "decide disinda bir YAZMA metodu cagrilmis")
+        self.assertTrue(set(called_methods) <= SALT_OKUR | {"decide"},
+                        f"beklenmeyen operator metodu: {called_methods}")
 
     # -- chat ----------------------------------------------------------
     def _stub_model(self):
