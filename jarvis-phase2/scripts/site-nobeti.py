@@ -54,6 +54,21 @@ DURUM_DIZIN = KOK / "state" / "site-nobeti"
 TABAN_DOSYA = DURUM_DIZIN / "taban.json"
 BULGU_DOSYA = KOK / "state" / "findings.jsonl"
 
+# 🔴 PANEL DE IZLENIR. Sitemap'i yok, hedefler acikca yazilir.
+#    Her hedefin bir ISARETI var: dosya sunuluyor ama ICI BOS/BOZUK
+#    olabilir ve HTTP 200 bunu gizler. 20.09.2026'da EKIP sekmesi tam
+#    boyle kayboldu: ekran yazilmisti, iki haritaya kaydedilmemisti;
+#    sayfa 200 donuyordu ve tiklama hicbir sey yapmiyordu.
+#
+#    Giris YAPILMAZ, parola kullanilmaz: yalnizca acikta sunulan uclar.
+PANEL_TABAN = os.environ.get("LCARLIE_PANEL", "https://jarvis.lcarlie.shop")
+PANEL_HEDEFLER = (
+    ("/",            "statApprovals", 8000),
+    ("/app.js",      "function setView", 100000),
+    ("/app.css",     ".proposal-card", 40000),
+    ("/api/session", "authenticated", 0),
+)
+
 ZAMAN_ASIMI = int(os.environ.get("SITE_NOBETI_ZAMAN_ASIMI", "25"))
 AZAMI_URL = int(os.environ.get("SITE_NOBETI_AZAMI_URL", "40"))
 AJAN = "LCARLIE-site-nobeti/1.0 (+izleme; yalniz okur)"
@@ -108,6 +123,7 @@ def _iste(url: str) -> dict:
 
     sonuc["sure"] = round(time.monotonic() - bas, 3)
     metin = govde.decode("utf-8", errors="replace")
+    sonuc["govde"] = metin
     sonuc["baslik"] = _ilk(r"<title[^>]*>(.*?)</title>", metin)
     sonuc["aciklama"] = _ilk(r'<meta[^>]+name=["\']description["\'][^>]+content=["\'](.*?)["\']', metin)
     sonuc["canonical"] = _ilk(r'<link[^>]+rel=["\']canonical["\'][^>]+href=["\'](.*?)["\']', metin)
@@ -272,6 +288,44 @@ def _bulgular(olcum: dict, taban: dict | None) -> list[tuple[str, str, str, dict
     return b
 
 
+def _panel_bulgulari() -> list[tuple]:
+    """Panelin ayakta VE butun oldugunu olcer.
+
+    Durum kodu yetmez: bir dosya sunulup ici bos ya da kirpilmis olabilir.
+    Her hedef icin hem bir ISARET metni hem de asgari boyut aranir.
+    """
+    b: list[tuple] = []
+    for yol, isaret, asgari in PANEL_HEDEFLER:
+        url = PANEL_TABAN + yol
+        o = _iste(url)
+        if o.get("hata"):
+            b.append((url, "CRITICAL", "panel_erisim",
+                      f"Panel {yol} adresine ULASILAMADI: {o['hata']}",
+                      {"url": url, "hata": o["hata"]}))
+            continue
+        durum = o.get("durum")
+        if durum is None or durum >= 400:
+            b.append((url, "CRITICAL", "panel_erisim",
+                      f"Panel {yol} HTTP {durum} donuyor.",
+                      {"url": url, "durum": durum}))
+            continue
+        govde = o.get("govde") or ""
+        boyut = o.get("boyut") or 0
+        if isaret and isaret not in govde:
+            # 🔴 Sunuluyor ama ICI BEKLENEN SEY DEGIL. 200 bunu gizler.
+            b.append((url, "CRITICAL", "panel_butunluk",
+                      f"Panel {yol} sunuluyor ama beklenen icerik yok "
+                      f"(aranan: {isaret!r}). Dosya bos, kirpilmis ya da "
+                      f"yanlis surum olabilir.",
+                      {"url": url, "aranan": isaret, "boyut": boyut}))
+        elif asgari and boyut < asgari:
+            b.append((url, "WARNING", "panel_butunluk",
+                      f"Panel {yol} beklenenden kucuk: {boyut} bayt "
+                      f"(asgari {asgari}). Kirpilmis olabilir.",
+                      {"url": url, "boyut": boyut, "asgari": asgari}))
+    return b
+
+
 def _bulgu_yaz(kayitlar: list[dict]) -> None:
     BULGU_DOSYA.parent.mkdir(parents=True, exist_ok=True)
     with BULGU_DOSYA.open("a", encoding="utf-8") as f:
@@ -315,6 +369,10 @@ def main() -> int:
                          ("durum", "boyut", "sure", "baslik", "noindex", "meta_refresh")}
         tum_bulgular.extend((url, *x) for x in _bulgular(o, taban.get(url)))
 
+    # Panel de izlenir: siteyi olcup paneli olcmemek, olcumu yapan seyin
+    # kendisini kor birakmak olurdu.
+    tum_bulgular.extend(_panel_bulgulari())
+
     host = TABAN_URL.split("//", 1)[-1].split("/", 1)[0]
     gun = _sertifika_gun(host)
     if gun is not None and gun < SERTIFIKA_UYARI_GUN:
@@ -322,7 +380,8 @@ def main() -> int:
                              f"TLS sertifikasi {gun} gun sonra bitiyor.", {"host": host, "gun": gun}))
 
     # --- rapor ---------------------------------------------------------
-    print(f"=== SITE NOBETI · {TABAN_URL} · {len(adresler)} adres ===")
+    print(f"=== SITE NOBETI · {TABAN_URL} · {len(adresler)} adres "
+          f"+ panel ({len(PANEL_HEDEFLER)} uc) ===")
     if ilk_kosu:
         print("(ilk kosu: temel cizgi kuruluyor, gerileme karsilastirmasi yok)")
     kritik = sum(1 for x in tum_bulgular if x[1] == "CRITICAL")

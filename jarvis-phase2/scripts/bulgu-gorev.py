@@ -45,7 +45,14 @@ ISLENEN_DOSYA = KOK / "state" / "site-nobeti" / "islenen-bulgular.json"
 # 🔴 IZINLI BULGU TIPLERI. Liste disindaki hicbir sinyal is acmaz.
 #    Acik liste (allowlist) kullaniliyor: yeni bir sinyal kodu eklendiginde
 #    kendiliginden is acmaya baslamasin, once bilincli olarak eklensin.
-IZINLI_KODLAR = {"site_erisim", "site_seo", "site_gerileme"}
+IZINLI_KODLAR = {
+    # --- Wix sitesi: tespit + oneri. Onarim bizim depodan YAPILAMAZ;
+    #     acilan is "su sayfa Wix editorunde yayinlansin" der, kod yazmaz.
+    "site_erisim", "site_seo", "site_gerileme",
+    # --- Panel: BIZIM depomuzda, yani CodingExecutor'un onarabilecegi yer.
+    #     22.09.2026 sahip karari: "tamirci bosta durmasin, paneli onarsin".
+    "panel_erisim", "panel_butunluk",
+}
 # INFO seviyesi is acmaz: bilgi notu icin insan mesaisi harcanmaz.
 IZINLI_ONEM = {"CRITICAL", "WARNING"}
 
