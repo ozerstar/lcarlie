@@ -59,6 +59,111 @@ class Member:
 # 20 uzman + 8 ajans rolu. Ad ve gorev Turkce; "reads" gercekten okudugu
 # Company Memory sorgulari.
 ROSTER: tuple[Member, ...] = (
+    # --- 22.09.2026: WEB departmani ---------------------------------------
+    # Sahip: "web site developer ve web site yapicisi ekle; bunlar siteyi 7/24
+    # kontrol edip urun sayfalari yapacak, satis ve reklam odakli."
+    # 🔴 Her uye KENDI okudugu kaynaktan konusur; sayfa uretimi ayri bir
+    # zincirdir (Velo + HtmlComponent), bu uyeler onu OLCER, uretmez.
+    Member("web_gelistirici", "Web Geliştirici",
+           "Hangi ürünün satış sayfası var, hangisi eksik — sayfa kapsamasını "
+           "okur.",
+           ("urun_seo", "urun_karti", "sayfa_olcum"), kind="specialist"),
+    Member("sayfa_donusum", "Sayfa Dönüşüm Uzmanı",
+           "Sayfaya gelen ile satın alan arasındaki farkı okur.",
+           ("ecommerce_funnel", "urun_karti"), kind="specialist"),
+    Member("site_izleme", "Site İzleme Sorumlusu",
+           "Sitenin ve bağlı kaynakların sağlığını okur; bozulan uç var mı.",
+           ("system", "provenance"), kind="specialist"),
+    # --- 22.09.2026: SEO departmani kuruldu ------------------------------
+    # Kadrosuzdu cunku okuyacagi kaynak yoktu: veritabaninda "seo" gecen tek
+    # bir sutun bile yoktu. Veri Wix'te duruyordu ve hic okunmuyordu.
+    Member("seo_icerik", "SEO İçerik Uzmanı",
+           "Ürün başlık ve açıklamalarının arama görünürlüğü açısından "
+           "tanımlı olup olmadığını okur.",
+           ("urun_seo",), kind="specialist"),
+    Member("seo_anahtar", "Anahtar Kelime Uzmanı",
+           "Hangi ürüne hangi anahtar kelime atanmış, tekrar eden ya da "
+           "boş kalan var mı.",
+           ("urun_seo",), kind="specialist"),
+    Member("seo_teknik", "Teknik SEO Uzmanı",
+           "Adres (slug) ve paylaşım etiketlerinin ürün adıyla tutarlılığını "
+           "okur.",
+           ("urun_seo", "urun_alan_karsilastirma"), kind="specialist"),
+    # --- 22.09.2026: TEKNOLOJI / SECURITY / QUALITY / RETENTION ---------
+    # Sahip: "security gibi diger basit islere bakan ekipleri de aktif hale
+    # getir ve repolari gelistiren de bir ekip kur."
+    Member("arac_envanteri_uzmani", "Araç Envanteri Uzmanı",
+           "Şirkette hangi dış yazılım koşuyor, hangisi çalışmıyor — "
+           "kurulu olmakla çalışmak ayrı şeydir.",
+           reads=("arac_envanteri",), kind="specialist"),
+    Member("arac_arastirmacisi", "Araç Araştırmacısı",
+           "Kurulu araçların alternatifi araştırıldı mı, hangisi uzun "
+           "süredir bakılmadı.",
+           reads=("arac_envanteri", "capabilities"), kind="specialist"),
+    Member("surum_takipcisi", "Sürüm ve Bağımlılık Takipçisi",
+           "Araçların sürümünü ve lisansını okur; lisansı olmayan araç "
+           "şirkette kullanılamaz.",
+           reads=("arac_envanteri",), kind="specialist"),
+
+    Member("erisim_denetcisi", "Erişim ve Yetki Denetçisi",
+           "Sistemin dışarıya ne yazabildiğini okur: hangi işlem açık, "
+           "hangisi kapalı.",
+           reads=("action_contract", "capabilities"), kind="specialist"),
+    Member("baglanti_denetcisi", "Bağlantı ve Kimlik Denetçisi",
+           "Hangi dış kaynağın bağlantısı açık, hangisi kopuk — kopuk "
+           "bağlantı eski veri demektir.",
+           reads=("provenance", "system"), kind="specialist"),
+
+    Member("sikayet_kok_neden", "Şikâyet Kök Neden Uzmanı",
+           "Müşteri şikâyetlerini tekrar eden konuya göre okur.",
+           reads=("customer_voice", "crm_unanswered"), kind="specialist"),
+    Member("tekrar_satin_alma", "Tekrar Satın Alma Uzmanı",
+           "Kaç müşteri ikinci kez aldı — tek seferlik alıcı ile geri "
+           "gelen alıcıyı ayırır.",
+           reads=("crm_customers", "sales_orders"), kind="specialist"),
+    # --- 22.09.2026: Kirmizi Takim / Mevzuat / Is Gelistirme buyutuldu ---
+    # Hepsi o gune kadar HIC OKUNMAYAN kaynaklara baglandi.
+    Member("karar_denetcisi", "Karar Sonuç Denetçisi",
+           "Geçmiş kararların sonucunu okur: öneri onaylandı mı, kanıt "
+           "yeterli miydi, red team ne dedi.",
+           reads=("decision_outcomes", "learning_loop"), kind="specialist"),
+    Member("veri_guven_denetcisi", "Veri Güvenilirlik Denetçisi",
+           "Rakamın arkasındaki kaynağı okur: bağlantı açık mı, veri ne "
+           "kadar taze, hangi kapı geçti.",
+           reads=("data_quality", "provenance"), kind="specialist"),
+    Member("oneri_denetcisi", "Öneri Takip Denetçisi",
+           "Sistemin kendi önerilerini okur: kaç öneri açıldı, kaçı "
+           "karara bağlandı, kaçı bekliyor.",
+           reads=("own_proposals", "agenda"), kind="specialist"),
+    Member("model_denetcisi", "Model Başarı Denetçisi",
+           "Hangi modelin kararı tuttu, hangisi tutmadı — başarı oranıyla.",
+           reads=("learning_loop", "capabilities"), kind="specialist"),
+
+    Member("alan_tutarlilik", "Platform Tutarlılık Denetçisi",
+           "Aynı ürünün Wix ve Trendyol'daki alanlarını karşılaştırır: ad, "
+           "açıklama, fiyat tutuyor mu.",
+           reads=("urun_alan_karsilastirma",), kind="specialist"),
+    Member("iddia_envanteri", "İddia Envanteri Uzmanı",
+           "Ürün metinlerindeki iddiaları sayar ve hangi üründe hangi "
+           "ifadenin geçtiğini söyler.",
+           reads=("urun_bilgi", "urun_alan_karsilastirma"), kind="specialist"),
+    Member("yetki_denetcisi", "Yetki ve Sınır Denetçisi",
+           "Sistemin hangi işlemi yapmaya yetkili olduğunu okur: öneri mi "
+           "verebiliyor, uygulayabiliyor mu.",
+           reads=("action_contract",), kind="specialist"),
+
+    Member("kanal_kapsama", "Kanal Kapsama Uzmanı",
+           "Hangi ürün hangi kanalda var, hangisinde hiç yok.",
+           reads=("urun_alan_karsilastirma", "platform_fiyat_matrisi"),
+           kind="specialist"),
+    Member("firsat_takibi", "Fırsat Takip Uzmanı",
+           "Gündemdeki açık işleri iş fırsatı açısından okur: hangisi "
+           "beklerse para kaybettirir.",
+           reads=("agenda", "decision_outcomes"), kind="specialist"),
+    Member("pazaryeri_uzmani", "Pazaryeri Uzmanı",
+           "Pazaryeri fiyat ve komisyon matrisini okur: hangi kanalda marj "
+           "kalıyor, hangisinde kalmıyor.",
+           reads=("platform_fiyat_matrisi", "urun_karti"), kind="specialist"),
     # --- veriden konusanlar
     Member("ecommerce_sales", "Satış Analisti",
            "Siparişleri ve kalemleri okur: kaç adet satıldı, ne kadar ciro oldu.",
@@ -127,7 +232,7 @@ ROSTER: tuple[Member, ...] = (
     Member("marka_kimlik", "Marka Kimlik Sorumlusu",
            "Şablon kütüğündeki marka kurallarını okur: hangi şablon logo, "
            "renk ve tipografi kuralını taşıyor, hangisinde kural yazılmamış.",
-           ("tasarim_sablonlari",)),
+           ("tasarim_sablonlari", "tasarim_isleri")),
     Member("marka_mimarisi", "Marka Mimarisi Uzmanı",
            "Ürün kartını okur: seriler ve alt markalar (Babyline) nasıl "
            "ayrışıyor, hangi ürün hangi çatı altında duruyor.",
@@ -135,7 +240,7 @@ ROSTER: tuple[Member, ...] = (
     Member("marka_deneyimi", "Marka Deneyimi Uzmanı",
            "Üretilen işleri ve gönderileri okur: müşteri markayla nerede "
            "temas ediyor — raf, kutu, kargo, sosyal.",
-           ("tasarim_isleri", "operations_shipments")),
+           ("tasarim_isleri", "operations_shipments", "tasarim_sablonlari")),
     Member("marka_sagligi", "Marka Sağlığı Analisti",
            "İçerik performansını ve kreatif kapsamını okur: marka hangi "
            "mesajla görülüyor, hangi mesaj hiç denenmemiş.",
@@ -147,11 +252,11 @@ ROSTER: tuple[Member, ...] = (
     Member("halkla_iliskiler_muduru", "Halkla İlişkiler Müdürü",
            "Günlük dış bülteni ve içerik performansını okur: sektörde ne "
            "konuşuluyor, bizim hangi mesajımız karşılık buluyor.",
-           ("gunluk_brief", "content_performance")),
+           ("gunluk_brief", "content_performance", "basin_bahsi")),
     Member("basin_iliskileri", "Basın İlişkileri Uzmanı",
            "Dış haberleri ve pazar araştırmasını okur: hangi gelişme bizim "
            "için haber değeri taşıyor, kime hangi açıyla anlatılır.",
-           ("gunluk_brief", "market_research")),
+           ("gunluk_brief", "market_research", "basin_bahsi")),
     Member("kriz_iletisimi", "Kriz İletişimi Sorumlusu",
            "Cevapsız mesajları ve karar özetini okur: hangi konu büyümeden "
            "önce cevaplanmalı, hangi mevzuat riski kamuya yansıyabilir.",
@@ -159,7 +264,7 @@ ROSTER: tuple[Member, ...] = (
     Member("itibar_izleme", "İtibar ve Şikâyet İzleme",
            "Müşteri dilini ve cevapsızları okur: tekrar eden şikâyet hangisi, "
            "hangi cümle sık kuruluyor.",
-           ("customer_voice", "crm_unanswered")),
+           ("customer_voice", "crm_unanswered", "basin_bahsi")),
     Member("isbirligi_sorumlusu", "İş Birliği ve Influencer Sorumlusu",
            "Kreatif kapsamı ve içerik performansını okur: hangi iş birliği "
            "biçimi denendi, hangisi ölçülmedi.",
@@ -167,7 +272,7 @@ ROSTER: tuple[Member, ...] = (
     Member("kurumsal_editor", "Kurumsal İçerik Editörü",
            "Üretilen işleri ve ürün bilgisini okur: kurumsal metinlerde "
            "hangi ürün bilgisi kullanılmış, kaynağı var mı.",
-           ("tasarim_isleri", "urun_bilgi")),
+           ("tasarim_isleri", "urun_bilgi", "tasarim_sablonlari")),
 
     # ══════════════════════════════════════════════════════════════
     # YAYIN DEPARTMANI — katalog ve KİTAP (22.09.2026, sahip talebi)
@@ -180,7 +285,7 @@ ROSTER: tuple[Member, ...] = (
     Member("katalog_editoru", "Katalog Editörü",
            "Katalog şablonlarını ve ürün bilgisini okur: hangi sayfa hangi "
            "alanı istiyor, o alanın onaylı karşılığı var mı.",
-           ("tasarim_sablonlari", "urun_bilgi")),
+           ("tasarim_sablonlari", "urun_bilgi", "tasarim_isleri")),
     Member("kitap_editoru", "Kitap Editörü",
            "Kitap şablonlarını okur: bölüm yapısı, künye ve kaynakça "
            "sayfası eksik mi, hangi bölüm yazılmamış.",
@@ -196,7 +301,7 @@ ROSTER: tuple[Member, ...] = (
     Member("dizgi_baski", "Dizgi ve Baskı Sorumlusu",
            "Şablon kütüğünü okur: hangi iş hangi ölçü ve dpi ile basılacak, "
            "hangisi Canva'ya sığmıyor ve harici motor istiyor.",
-           ("tasarim_sablonlari",)),
+           ("tasarim_sablonlari", "tasarim_isleri")),
 
     # ══════════════════════════════════════════════════════════════
     # TASARIM DEPARTMANI (22.09.2026)
@@ -211,7 +316,7 @@ ROSTER: tuple[Member, ...] = (
     Member("tasarim_direktoru", "Tasarım Direktörü",
            "Tasarım defterini okur: ne üretildi, kaçı onay bekliyor, "
            "kaçı reddedildi ve hangi gerekçeyle.",
-           ("tasarim_isleri",)),
+           ("tasarim_isleri", "tasarim_sablonlari")),
     Member("produksiyon_muduru", "Kreatif Prodüksiyon Müdürü",
            "İş akışının darboğazını okur: onay kuyruğunda kaç iş bekliyor, "
            "hangi iş türü hiç üretilemiyor.",
@@ -221,7 +326,7 @@ ROSTER: tuple[Member, ...] = (
     Member("sablon_sorumlusu", "Şablon Sorumlusu",
            "Kütüğü okur: hangi iş türünün şablonu var, hangisi yok. "
            "Şablonsuz istek üretilemez, eksik olanı söyler.",
-           ("tasarim_sablonlari",)),
+           ("tasarim_sablonlari", "tasarim_isleri")),
     Member("grafik_tasarimci", "Grafik Tasarımcı",
            "Üretilen işlerin hangi şablon ve yerleşimle çıktığını okur; "
            "oran uyarısı almış olanları ayırır.",
@@ -229,7 +334,7 @@ ROSTER: tuple[Member, ...] = (
     Member("dizgi_uzmani", "Dizgi ve Tipografi Uzmanı",
            "Şablona giden metinlerin uzunluğunu okur: hangi başlık "
            "çerçeveye sığmayacak kadar uzun.",
-           ("tasarim_isleri",)),
+           ("tasarim_isleri", "tasarim_sablonlari")),
     Member("varlik_sorumlusu", "Görsel Varlık Sorumlusu",
            "Hangi ürün görseli hangi işte kullanıldı, çerçeve oranına "
            "uyuyor mu okur.",
@@ -237,25 +342,25 @@ ROSTER: tuple[Member, ...] = (
     Member("kesim_uzmani", "Ürün Kesim ve Rötuş Uzmanı",
            "Ürün kesimlerinin ölçüsünü okur: hangi kesim hangi çerçeveye "
            "uygun, hangisi yeniden çekilmeli.",
-           ("tasarim_sablonlari",)),
+           ("tasarim_sablonlari", "tasarim_isleri")),
     Member("video_editoru", "Video Editörü",
            "Videoya dönecek kreatifleri okur: hangi tasarım Reels/Story "
            "ölçüsünde üretilmiş.",
-           ("tasarim_isleri",)),
+           ("tasarim_isleri", "tasarim_sablonlari")),
 
     # ── Marka ve uyum
     Member("marka_muhafizi", "Marka Muhafızı",
            "Mevzuat kapısının bulgularını okur: hangi ifade kesildi, "
            "hangi iş bu yüzden hiç üretilmedi.",
-           ("tasarim_isleri",)),
+           ("tasarim_isleri", "tasarim_sablonlari")),
     Member("tasarim_metin_yazari", "Kreatif Metin Yazarı",
            "Şablona giden başlık, alt başlık ve sloganları okur: hangi "
            "mesaj kaç kez kullanıldı, tekrar var mı.",
-           ("tasarim_isleri",)),
+           ("tasarim_isleri", "tasarim_sablonlari")),
     Member("tasarim_mevzuat", "Tasarım Mevzuat Denetçisi",
            "BLOCKED ile VERIFY bulgularını ayırır: hangisi kesin yasak, "
            "hangisi belge ile kullanılabilir.",
-           ("tasarim_isleri",)),
+           ("tasarim_isleri", "tasarim_sablonlari")),
 
     # ── Kanal ve ölçüm
     Member("meta_kreatif", "Meta Reklam Kreatifçisi",
@@ -273,7 +378,7 @@ ROSTER: tuple[Member, ...] = (
     Member("tasarim_performans", "Kreatif Performans Analisti",
            "Üretilen tasarımla reklam performansını eşler: hangi tasarım "
            "yayına girdi, ne getirdi.",
-           ("tasarim_isleri", "kreatif_performans")),
+           ("tasarim_isleri", "kreatif_performans", "tasarim_sablonlari")),
 
     Member("creative_copy", "Başlık ve CTA Analisti",
            "Kreatif metnini performansla birlikte okur: hangi CTA ve hangi biçim "
@@ -384,6 +489,33 @@ BY_KEY = {m.key: m for m in ROSTER}
 #    gorunur kilar (bkz. eslenmeyen_uyeler). Kodlar core.departman.kod ile
 #    ayni olmak zorunda -- panoda departman basligi oradan geliyor.
 UYE_DEPARTMAN: dict[str, str] = {
+    "web_gelistirici": "WEB",
+    "sayfa_donusum": "WEB",
+    "site_izleme": "WEB",
+    "seo_icerik": "SEO",
+    "seo_anahtar": "SEO",
+    "seo_teknik": "SEO",
+    "arac_envanteri_uzmani": "TEKNOLOJI",
+    "arac_arastirmacisi": "TEKNOLOJI",
+    "surum_takipcisi": "TEKNOLOJI",
+    "erisim_denetcisi": "SECURITY",
+    "baglanti_denetcisi": "SECURITY",
+    "sikayet_kok_neden": "QUALITY",
+    "tekrar_satin_alma": "RETENTION",
+    "karar_denetcisi": "RED_TEAM",
+    "veri_guven_denetcisi": "RED_TEAM",
+    "oneri_denetcisi": "RED_TEAM",
+    "model_denetcisi": "RED_TEAM",
+    "alan_tutarlilik": "REGULATORY",
+    "iddia_envanteri": "REGULATORY",
+    "yetki_denetcisi": "REGULATORY",
+    # 🔴 22.09.2026: BIZDEV -> MARKETPLACE. Ikisi de pazaryeri rolu;
+    # MARKETPLACE departmani bos dururken is BIZDEV altinda yapiliyordu.
+    # Kadro uydurulmadi, var olan uyeler kendi adlarinin oldugu yere
+    # tasindi. BIZDEV bosalmiyor: firsat_takibi ve bizdev kaliyor.
+    "kanal_kapsama": "MARKETPLACE",
+    "firsat_takibi": "BIZDEV",
+    "pazaryeri_uzmani": "MARKETPLACE",
     # --- 22.09.2026: departmansiz 30 uye baglandi -------------------------
     # 🔴 `eslenmeyen_uyeler()` kendi aciklamasinda "Bos donmeli; test bunu
     # bekcilik eder" diyor -- ama 30 donuyordu. TASARIM/MARKA/PR/YAYIN
@@ -501,6 +633,32 @@ def eslenmeyen_uyeler() -> tuple[str, ...]:
 # o cevabin KIMIN agzindan verildigini soyler. Sorumlusu tanimlanmamis
 # departman, muhatabi olmayan departmandir.
 DEPARTMAN_SORUMLUSU: dict[str, str] = {
+    # --- 22.09.2026: sahip onayiyla atandi ------------------------------
+    "WEB": "web_gelistirici",
+    "SEO": "seo_icerik",
+    "TEKNOLOJI": "arac_envanteri_uzmani",
+    "SECURITY": "erisim_denetcisi",
+    "QUALITY": "sikayet_kok_neden",
+    "RETENTION": "tekrar_satin_alma",
+    "COMPETITOR_INT": "price_position",
+    "META_MEDIA": "meta_performance",
+    "SOCIAL": "social_media",
+    "COPY": "creative_copy",
+    "DATA_BI": "data_measurement",
+    "FINANCE": "finance",
+    "MARKET_INT": "market_findings",
+    "AI_OPS": "ai_prompt_engineering",
+    "ART": "art_format",
+    "B2B": "field_b2b_sales",
+    "CONTENT": "content_cadence",
+    "CRM": "crm_customer",
+    "ECOM": "ecommerce_sales",
+    "FULFILLMENT": "operations",
+    "PRODUCT": "product_portfolio",
+    "CRO": "CRO_SPECIALIST",
+    "RED_TEAM": "karar_denetcisi",
+    "REGULATORY": "alan_tutarlilik",
+    "BIZDEV": "pazaryeri_uzmani",
     "TASARIM": "tasarim_direktoru",
     "BRAND": "marka_kimlik",
     "PR": "halkla_iliskiler_muduru",
@@ -1485,13 +1643,463 @@ def _say_is_planlama(rows: dict[str, list]) -> str:
             f"{len(e)} satır. Planlama önceliği kurulmamış departmanlarda.")
 
 
+# --- Kirmizi Takim / Mevzuat / Is Gelistirme konusmacilari (22.09.2026) ----
+def _say_karar_denetcisi(rows: dict[str, list]) -> str:
+    k = rows.get("decision_outcomes", []) or []
+    if not k:
+        return "Karar kaydı okunamadı."
+    bekleyen = [r for r in k if str(r.get("durum")) == "PROPOSED"]
+    zayif = [r for r in k if str(r.get("kanit_kalitesi")).upper() == "LOW"]
+    itiraz = [r for r in k if str(r.get("red_team_sonucu")).upper() == "CHALLENGE"]
+    return (f"{len(k)} karar kaydı; {len(bekleyen)} tanesi hâlâ öneri "
+            f"aşamasında. {len(zayif)} kararın kanıt kalitesi DÜŞÜK, "
+            f"{len(itiraz)} tanesine kırmızı takım itiraz etmiş. "
+            "Kanıtı zayıf karar, onaylanmış olsa bile güvenilir değildir.")
+
+
+def _say_veri_guven_denetcisi(rows: dict[str, list]) -> str:
+    q = rows.get("data_quality", []) or []
+    p = rows.get("provenance", []) or []
+    if not q and not p:
+        return "Veri kalitesi ve kaynak kaydı okunamadı."
+    gecen = [r for r in q if r.get("passed")]
+    kopuk = [r for r in p
+             if str(r.get("current_connection", "")).upper() != "CONNECTED"]
+    metin = (f"{len(q)} veri kapısının {len(gecen)} tanesi geçti. "
+             f"{len(p)} kaynak izleniyor")
+    if kopuk:
+        metin += f"; {len(kopuk)} tanesinin bağlantısı KOPUK"
+    return metin + ". Bağlantısı kopuk kaynaktan gelen rakam eskidir."
+
+
+def _say_oneri_denetcisi(rows: dict[str, list]) -> str:
+    o = rows.get("own_proposals", []) or []
+    g = rows.get("agenda", []) or []
+    if not o:
+        return f"Öneri kaydı yok; gündemde {len(g)} açık iş var."
+    bekleyen = [r for r in o if not r.get("decided_at")]
+    return (f"{len(o)} öneri üretilmiş, {len(bekleyen)} tanesi karara "
+            f"bağlanmamış. Gündemde {len(g)} açık iş var. "
+            "Karara bağlanmayan öneri, yapılmamış iş demektir.")
+
+
+def _say_model_denetcisi(rows: dict[str, list]) -> str:
+    l = rows.get("learning_loop", []) or []
+    if not l:
+        return "Model başarı kaydı okunamadı."
+    sirali = sorted(l, key=lambda r: -(_num(r, "basari_orani") or 0))
+    ilk = sirali[0]
+    return (f"{len(l)} model/sağlayıcı izleniyor. En yüksek başarı: "
+            f"{ilk.get('model') or ilk.get('provider')} "
+            f"%{_num(ilk, 'basari_orani'):.0f} "
+            f"({int(_num(ilk, 'karar_sayisi') or 0)} karar). "
+            "Az sayıda kararla ölçülen oran güvenilir değildir.")
+
+
+def _say_alan_tutarlilik(rows: dict[str, list]) -> str:
+    a = rows.get("urun_alan_karsilastirma", []) or []
+    if not a:
+        return "Platform karşılaştırma verisi okunamadı."
+    sayac: dict[str, int] = {}
+    for r in a:
+        d = str(r.get("durum") or "?")
+        sayac[d] = sayac.get(d, 0) + 1
+    farkli = sayac.get("FARKLI", 0)
+    yalniz_wix = sayac.get("YALNIZ_WIX", 0)
+    return (f"{len(a)} alan karşılaştırıldı: {farkli} tanesi İKİ PLATFORMDA "
+            f"FARKLI, {yalniz_wix} tanesi yalnız Wix'te var. "
+            "Aynı ürünün adı, açıklaması ya da fiyatı kanaldan kanala "
+            "değişiyorsa müşteri hangisine bakacağını bilmez; iddia "
+            "tutarlılığı da bozulur.")
+
+
+def _say_iddia_envanteri(rows: dict[str, list]) -> str:
+    u = rows.get("urun_bilgi", []) or []
+    a = rows.get("urun_alan_karsilastirma", []) or []
+    if not u:
+        return "Ürün metni okunamadı; iddia envanteri çıkarılamaz."
+    aciklamali = [r for r in u if str(r.get("aciklama_duz") or "").strip()]
+    aciklama_farki = [r for r in a
+                      if str(r.get("alan")) == "Açıklama"
+                      and str(r.get("durum")) == "FARKLI"]
+    return (f"{len(u)} üründen {len(aciklamali)} tanesinde metin var. "
+            f"{len(aciklama_farki)} üründe açıklama iki platformda FARKLI — "
+            "yani aynı ürün için iki ayrı iddia metni yayında.")
+
+
+def _say_yetki_denetcisi(rows: dict[str, list]) -> str:
+    c = rows.get("action_contract", []) or []
+    if not c:
+        return "Yetki sözleşmesi okunamadı."
+    onerebilir = [r for r in c if r.get("proposal_enabled")]
+    uygulayabilir = [r for r in c if r.get("execution_enabled")]
+    return (f"{len(c)} işlem türü tanımlı: {len(onerebilir)} tanesinde öneri "
+            f"verilebiliyor, {len(uygulayabilir)} tanesinde uygulama açık. "
+            "Uygulama kapalıyken sistem dışarıya hiçbir şey yazamaz; "
+            "bu bir kısıt değil, kasıtlı bir kapıdır.")
+
+
+def _say_kanal_kapsama(rows: dict[str, list]) -> str:
+    a = rows.get("urun_alan_karsilastirma", []) or []
+    if not a:
+        return "Kanal kapsama verisi okunamadı."
+    # 🔴 ALAN sayılır, ÜRÜN değil. İlk hâlinde benzersiz ürün adı sayılıyordu
+    # ve çıktı "36 ürünün alanı yalnız Wix'te dolu" oluyordu — 36 ürünün
+    # TAMAMI öyleymiş gibi okunuyordu. Ölçülen şey ürün × alan kesişimi:
+    # aynı ürünün bir alanı yalnız Wix'te dolu, başka alanı iki kanalda da
+    # boş olabilir. İki farklı şeyi aynı sayıyla söylemek yanıltır.
+    yalniz_wix = [r for r in a if str(r.get("durum")) == "YALNIZ_WIX"]
+    yok = [r for r in a if str(r.get("durum")) == "IKISINDE_DE_YOK"]
+    etkilenen = {str(r.get("urun_adi")) for r in yalniz_wix}
+    return (f"{len(a)} ürün-alan kesişiminden {len(yalniz_wix)} tanesi yalnız "
+            f"Wix'te dolu ({len(etkilenen)} farklı ürünü ilgilendiriyor), "
+            f"{len(yok)} tanesi iki kanalda da boş. "
+            "Kanalda alanı boş olan ürün orada bulunmaz.")
+
+
+def _say_firsat_takibi(rows: dict[str, list]) -> str:
+    g = rows.get("agenda", []) or []
+    if not g:
+        return "Gündem okunamadı."
+    p0 = [r for r in g if str(r.get("oncelik")) == "P0"]
+    p1 = [r for r in g if str(r.get("oncelik")) == "P1"]
+    return (f"Gündemde {len(g)} açık iş var: {len(p0)} tanesi en yüksek, "
+            f"{len(p1)} tanesi yüksek öncelikte. En yüksek öncelikli iş "
+            "beklerken açılan her yeni iş, sıradaki işi de geciktirir.")
+
+
+def _say_pazaryeri_uzmani(rows: dict[str, list]) -> str:
+    m = rows.get("platform_fiyat_matrisi", []) or []
+    if not m:
+        return "Pazaryeri matrisi okunamadı."
+    uyarili = [r for r in m if r.get("marj_uyari")]
+    return (f"{len(m)} kanal-ürün satırı izleniyor; {len(uyarili)} tanesinde "
+            "marj uyarısı var. Komisyon ve KDV düşülmeden hesaplanan marj "
+            "gerçek marj değildir.")
+
+
+def _basin_ozet(rows: dict[str, list]) -> dict:
+    b = rows.get("basin_bahsi", []) or []
+    riskli = [r for r in b if str(r.get("mevzuat_durumu")) == "RISKLI"]
+    siteler = {str(r.get("kaynak_site") or "") for r in b if r.get("kaynak_site")}
+    bayraklar: list[str] = []
+    for r in riskli:
+        for x in (r.get("mevzuat_bayragi") or []):
+            if x and x not in bayraklar:
+                bayraklar.append(str(x))
+    return {"kayit": len(b), "riskli": len(riskli),
+            "site": len(siteler), "bayrak": bayraklar}
+
+
+def _say_itibar_izleme_v2(rows: dict[str, list]) -> str:
+    """🔴 Onceki hali 'disaridaki itibar kaynaklarda YOK' diyordu; dogruydu
+    ama sebebi arac eksikligi degil YANLIS KAYNAKTI. Google News marka
+    adinin 8 varyantinda da 0 donduruyor, oysa haberler var."""
+    d = _basin_ozet(rows)
+    v = rows.get("customer_voice", []) or []
+    if not d["kayit"]:
+        return ("Basın taraması henüz çalışmadı; dış itibar için "
+                f"{len(v)} müşteri sesi kaydından başka veri yok.")
+    metin = (f"{d['site']} farklı sitede {d['kayit']} bahis kayıtlı. "
+             f"{len(v)} müşteri sesi kaydıyla birlikte okunuyor.")
+    if d["riskli"]:
+        metin += (f" 🔴 {d['riskli']} bahis mevzuat kapısına takıldı "
+                  f"({', '.join(d['bayrak'][:4])}). Basında çıkan ifade de "
+                  "bize ait sayılabilir; ispat külfeti reklamverendedir.")
+    return metin
+
+
+def _say_halkla_iliskiler_v2(rows: dict[str, list]) -> str:
+    d = _basin_ozet(rows)
+    g = rows.get("gunluk_brief", []) or []
+    if not d["kayit"]:
+        return (f"{len(g)} gündem kaydı okunuyor; basın çıktısı kaydı yok. "
+                "Tarama çalıştırılmadıkça PR faaliyeti ölçülemez.")
+    return (f"{d['kayit']} basın bahsi, {d['site']} farklı sitede. "
+            f"Bunların {d['riskli']} tanesi mevzuat açısından riskli. "
+            "PR'ın ölçüsü bahis sayısı değil, bahsin ne söylediğidir.")
+
+
+def _say_basin_iliskileri_v2(rows: dict[str, list]) -> str:
+    d = _basin_ozet(rows)
+    m = rows.get("market_research", []) or []
+    if not d["kayit"]:
+        return (f"{len(m)} pazar bulgusu var, basın bahsi kaydı yok.")
+    return (f"{d['kayit']} bahis {d['site']} sitede yayımlanmış. "
+            f"{len(m)} pazar bulgusuyla birlikte değerlendirilir. "
+            "Yeni bahis için haber değeri taşıyan bir olay gerekir.")
+
+
+# --- TEKNOLOJI / SECURITY / QUALITY / RETENTION konusmacilari (22.09.2026) --
+def _say_arac_envanteri(rows: dict[str, list]) -> str:
+    a = rows.get("arac_envanteri", []) or []
+    if not a:
+        return "Araç envanteri boş; hangi yazılımı koşturduğumuz yazılı değil."
+    calisan = [r for r in a if r.get("calisiyor")]
+    durmus = [r for r in a if r.get("kurulu") and not r.get("calisiyor")]
+    metin = f"{len(a)} dış araç kayıtlı, {len(calisan)} tanesi çalışıyor."
+    if durmus:
+        adlar = ", ".join(str(r.get("ad")) for r in durmus[:3])
+        metin += (f" 🔴 {len(durmus)} araç KURULU ama ÇALIŞMIYOR ({adlar}). "
+                  "Kurulu olmak çalışmak değildir.")
+    return metin
+
+
+def _say_arac_arastirmacisi(rows: dict[str, list]) -> str:
+    a = rows.get("arac_envanteri", []) or []
+    if not a:
+        return "Araç envanteri okunamadı; alternatif araştırması yapılamaz."
+    bakilmamis = [r for r in a if not r.get("alternatif_bakildi")]
+    return (f"{len(a)} araçtan {len(bakilmamis)} tanesinin alternatifi hiç "
+            "araştırılmadı. Bir araç çalışıyor diye en iyisi olduğu "
+            "anlamına gelmez; piyasada daha iyisi çıkmış olabilir.")
+
+
+def _say_surum_takipcisi(rows: dict[str, list]) -> str:
+    a = rows.get("arac_envanteri", []) or []
+    if not a:
+        return "Araç envanteri okunamadı."
+    # 🔴 SAHIP KARARI 22.09.2026: "lisanssız şirkette kullanılmaz kuralını
+    # kaldırıyorum. Eğer bir repo yararlı, kullanışlı ve faydalıysa
+    # kullanılmalıdır." Bu yüzden lisans artık ENGEL değil, BİLGİ.
+    # Kayıt amaçlı: lisansı olmayan kod hukuken varsayılan olarak "tüm
+    # hakları saklı" sayılır; risk kabul edilmiş durumdadır.
+    lisanssiz = [r for r in a if not str(r.get("lisans") or "").strip()]
+    surumsuz = [r for r in a if not str(r.get("surum") or "").strip()]
+    calismayan = [r for r in a if r.get("kurulu") and not r.get("calisiyor")]
+    metin = (f"{len(a)} araç izleniyor; {len(surumsuz)} tanesinde sürüm "
+             f"bilgisi, {len(lisanssiz)} tanesinde lisans bilgisi kayıtlı "
+             "değil (lisans kuralı kaldırıldı — bilgi amaçlı tutuluyor).")
+    if calismayan:
+        metin += (f" {len(calismayan)} araç kurulu ama çalışmıyor; "
+                  "sürüm takibi önce onlarda yapılmalı.")
+    return metin
+
+
+def _say_erisim_denetcisi(rows: dict[str, list]) -> str:
+    c = rows.get("action_contract", []) or []
+    if not c:
+        return "Yetki sözleşmesi okunamadı; sistemin sınırı bilinmiyor."
+    acik = [r for r in c if r.get("execution_enabled")]
+    return (f"{len(c)} işlem türünden {len(acik)} tanesinde dışarıya yazma "
+            "AÇIK. En az yetki ilkesi: kapalı olan her uç, kazara yapılacak "
+            "bir değişikliğin önündeki engeldir.")
+
+
+# 🔴 "CONNECTED DEĞİL" HEPSİ KOPUK DEMEK DEĞİLDİR. İlk hâlinde bu işlev
+# CONNECTED olmayan her kaynağı KOPUK sayıyordu ve 12 kaynak öyle
+# raporlanıyordu. Oysa aralarında:
+#   PARTIAL                   -> çalışıyor ama eksik (cogs, shipment)
+#   MANUAL_CONTROLLED_INPUT   -> sahip kararıyla elle giriliyor, arıza değil
+#   OPTIONAL_RECONCILIATION_GAP -> kabul edilmiş boşluk
+#   BLOCKED_BY_EXTERNAL_CREDENTIAL / SOURCE_NOT_CONNECTED -> GERÇEKTEN engelli
+# hepsini "kopuk" demek, kabul edilmiş bir durumu arıza gibi göstermek olur;
+# gerçek engelli kaynak da kalabalıkta kaybolur.
+ENGELLI_DURUMLAR = ("SOURCE_NOT_CONNECTED", "BLOCKED_BY_EXTERNAL_CREDENTIAL",
+                    "NONE", "UNKNOWN")
+
+
+def _say_baglanti_denetcisi(rows: dict[str, list]) -> str:
+    p = rows.get("provenance", []) or []
+    if not p:
+        return "Kaynak bağlantı kaydı okunamadı."
+    def durum(r: dict) -> str:
+        return str(r.get("current_connection", "")).upper()
+    acik = [r for r in p if durum(r) == "CONNECTED"]
+    engelli = [r for r in p if durum(r) in ENGELLI_DURUMLAR]
+    kismi = [r for r in p if durum(r) == "PARTIAL"]
+    kabul = [r for r in p
+             if durum(r) in ("MANUAL_CONTROLLED_INPUT",
+                             "OPTIONAL_RECONCILIATION_GAP")]
+    metin = (f"{len(p)} kaynak: {len(acik)} tanesi tam açık, "
+             f"{len(kismi)} tanesi kısmi, {len(kabul)} tanesi kabul edilmiş "
+             f"boşluk, {len(engelli)} tanesi GERÇEKTEN ENGELLİ")
+    if engelli:
+        adlar = ", ".join(str(r.get("entity_id")) for r in engelli[:4])
+        metin += f" ({adlar})"
+    metin += (". Kısmi kaynak çalışıyor ama eksik veri verir; engelli kaynak "
+              "hiç veri vermez ve panelde eski rakam taze görünür.")
+    return metin
+
+
+def _say_sikayet_kok_neden(rows: dict[str, list]) -> str:
+    v = rows.get("customer_voice", []) or []
+    c = rows.get("crm_unanswered", []) or []
+    if not v:
+        return f"Müşteri sesi kaydı yok; {len(c)} cevapsız mesaj var."
+    kova: dict[str, int] = {}
+    for r in v:
+        k = str(r.get("konu") or r.get("kategori") or "?")
+        kova[k] = kova.get(k, 0) + 1
+    ilk = sorted(kova.items(), key=lambda x: -x[1])[:3]
+    return (f"{len(v)} müşteri kaydı; en çok tekrar eden konular: "
+            + ", ".join(f"{k} ({n})" for k, n in ilk)
+            + f". {len(c)} mesaj hâlâ cevapsız.")
+
+
+def _say_tekrar_satin_alma(rows: dict[str, list]) -> str:
+    m = rows.get("crm_customers", []) or []
+    s = rows.get("sales_orders", []) or []
+    if not m:
+        return "Müşteri kaydı okunamadı."
+    tekrar = [r for r in m if (_num(r, "siparis_sayisi") or 0) > 1]
+    oran = (len(tekrar) / len(m) * 100) if m else 0
+    return (f"{len(m)} müşteriden {len(tekrar)} tanesi birden fazla sipariş "
+            f"vermiş (%{oran:.0f}). {len(s)} sipariş kaydı var. "
+            "Tekrar satın alma oranı düşükse büyüme her ay sıfırdan başlar.")
+
+
+# --- SEO konusmacilari (22.09.2026) ---------------------------------------
+def _say_seo_icerik(rows: dict[str, list]) -> str:
+    s = rows.get("urun_seo", []) or []
+    if not s:
+        return "SEO kaydı okunamadı; arama görünürlüğü ölçülemez."
+    baslikli = [r for r in s if r.get("baslik_var")]
+    aciklamali = [r for r in s if r.get("aciklama_var")]
+    uzun = [r for r in s if (_num(r, "baslik_uzunluk") or 0) > 60]
+    kisa_acik = [r for r in s if 0 < (_num(r, "aciklama_uzunluk") or 0) < 70]
+    metin = (f"{len(s)} üründen {len(baslikli)} tanesinde SEO başlığı, "
+             f"{len(aciklamali)} tanesinde açıklama tanımlı.")
+    if uzun:
+        metin += f" {len(uzun)} başlık 60 karakteri aşıyor (arama sonucunda kesilir)."
+    if kisa_acik:
+        metin += f" {len(kisa_acik)} açıklama 70 karakterin altında."
+    metin += (" Tanımlı olmak işe yaradığı anlamına gelmez: sıralama verisi "
+              "elimizde YOK, bu yüzden etkisi ölçülemiyor.")
+    return metin
+
+
+def _say_seo_anahtar(rows: dict[str, list]) -> str:
+    s = rows.get("urun_seo", []) or []
+    if not s:
+        return "SEO kaydı okunamadı."
+    anahtarli = [r for r in s if r.get("anahtar_var")]
+    anasiz = [r for r in s if not str(r.get("ana_anahtar") or "").strip()]
+    kova: dict[str, int] = {}
+    for r in s:
+        a = str(r.get("ana_anahtar") or "").strip().casefold()
+        if a:
+            kova[a] = kova.get(a, 0) + 1
+    cakisan = {a: n for a, n in kova.items() if n > 1}
+    metin = (f"{len(s)} üründen {len(anahtarli)} tanesinde anahtar kelime "
+             f"tanımlı, {len(anasiz)} tanesinde ana anahtar yok.")
+    if cakisan:
+        ornek = ", ".join(list(cakisan)[:3])
+        metin += (f" 🔴 {len(cakisan)} anahtar kelime birden fazla ürüne "
+                  f"atanmış ({ornek}) — aynı kelimede kendi ürünlerimiz "
+                  "birbiriyle yarışır.")
+    else:
+        metin += " Ana anahtar kelimeler ürünler arasında çakışmıyor."
+    return metin
+
+
+def _say_seo_teknik(rows: dict[str, list]) -> str:
+    s = rows.get("urun_seo", []) or []
+    a = rows.get("urun_alan_karsilastirma", []) or []
+    if not s:
+        return "SEO kaydı okunamadı."
+    slugsuz = [r for r in s if not str(r.get("slug") or "").strip()]
+    yayinda = [r for r in s if r.get("yayinda")]
+    ad_farki = [r for r in a
+                if str(r.get("alan")) == "Ürün adı"
+                and str(r.get("durum")) == "FARKLI"]
+    metin = (f"{len(s)} üründen {len(yayinda)} tanesi yayında; "
+             f"{len(slugsuz)} tanesinde adres (slug) boş.")
+    if ad_farki:
+        metin += (f" {len(ad_farki)} üründe ürün adı iki platformda FARKLI — "
+                  "aynı ürün iki ayrı adla indekslenir, arama gücü bölünür.")
+    return metin
+
+
+# --- WEB konusmacilari (22.09.2026) ---------------------------------------
+def _say_web_gelistirici(rows: dict[str, list]) -> str:
+    k = rows.get("urun_karti", []) or []
+    o = rows.get("sayfa_olcum", []) or []
+    if not k:
+        return "Ürün kartı okunamadı; sayfa kapsaması çıkarılamaz."
+    yayinda = [r for r in k if r.get("wix_yayinda")]
+    if not o:
+        return (f"{len(yayinda)} ürün yayında. Sayfaların kendisi henüz "
+                "ölçülmedi, bu yüzden hangi sayfanın ne taşıdığı "
+                "söylenemez.")
+    urun_s = [r for r in o if r.get("tur") == "urun"]
+    elde = [r for r in o if r.get("tur") == "sabit"]
+    # 🔴 "ince" ile "bos" AYRI. Burada olculen sey, JS calistirmayan bir
+    # istemcinin gordugudur. Sayfa kullaniciya dolu gorunuyor olabilir.
+    ince_elde = [r for r in elde if r.get("jssiz_bakana_ince")]
+    ince_urun = [r for r in urun_s if r.get("jssiz_bakana_ince")]
+    h1siz = [r for r in elde if r.get("h1_yok")]
+    ort = (sum(int(r.get("kelime_sayisi") or 0) for r in urun_s)
+           // max(len(urun_s), 1))
+    metin = (f"{len(yayinda)} ürün yayında. Wix'in kendi ürün sayfaları "
+             f"({len(urun_s)} adet) sunucudan ortalama {ort} kelimeyle "
+             f"geliyor ve {len(ince_urun)} tanesi ince.")
+    if elde:
+        metin += (f" Elde yapılmış {len(elde)} sayfanın {len(ince_elde)} "
+                  f"tanesi JS çalıştırmayan bir bota neredeyse boş görünüyor, "
+                  f"{len(h1siz)} tanesinde başlık etiketi (H1) yok.")
+        metin += (" Bu sayfaların BOŞ olduğu anlamına gelmez — içerik "
+                  "tarayıcıda kuruluyor; ama JS çalıştırmayan her okuyucu "
+                  "için aradaki fark gerçektir.")
+    return metin
+
+
+def _say_sayfa_donusum(rows: dict[str, list]) -> str:
+    f = rows.get("ecommerce_funnel", []) or []
+    k = rows.get("urun_karti", []) or []
+    if not f:
+        return ("Huni verisi okunamadı; sayfaya gelenin ne kadarının satın "
+                "aldığı ölçülemiyor. Dönüşüm iyileştirmesi ölçüm olmadan "
+                "tahmin olur.")
+    return (f"{len(f)} huni kaydı ve {len(k)} ürün okunuyor. "
+            "Dönüşüm kararı sayfa değişikliğinden ÖNCE ve SONRA ölçülmeli; "
+            "tek ölçümle 'iyileşti' denemez.")
+
+
+def _say_site_izleme(rows: dict[str, list]) -> str:
+    sis = rows.get("system", []) or []
+    pr = rows.get("provenance", []) or []
+    engelli = [r for r in pr
+               if str(r.get("current_connection", "")).upper()
+               in ("SOURCE_NOT_CONNECTED", "BLOCKED_BY_EXTERNAL_CREDENTIAL")]
+    metin = f"{len(sis)} sistem kaydı, {len(pr)} kaynak izleniyor"
+    if engelli:
+        metin += f"; {len(engelli)} kaynak engelli"
+    return (metin + ". 7/24 izleme için sayfa yanıt süresi ve hata oranı "
+            "henüz toplanmıyor — bugün izlenen şey site değil, veri "
+            "kaynaklarının durumu.")
+
+
 SPEAKERS: dict[str, Callable[[dict[str, list]], str]] = {
+    "web_gelistirici": _say_web_gelistirici,
+    "sayfa_donusum": _say_sayfa_donusum,
+    "site_izleme": _say_site_izleme,
+    "seo_icerik": _say_seo_icerik,
+    "seo_anahtar": _say_seo_anahtar,
+    "seo_teknik": _say_seo_teknik,
+    "arac_envanteri_uzmani": _say_arac_envanteri,
+    "arac_arastirmacisi": _say_arac_arastirmacisi,
+    "surum_takipcisi": _say_surum_takipcisi,
+    "erisim_denetcisi": _say_erisim_denetcisi,
+    "baglanti_denetcisi": _say_baglanti_denetcisi,
+    "sikayet_kok_neden": _say_sikayet_kok_neden,
+    "tekrar_satin_alma": _say_tekrar_satin_alma,
+    "karar_denetcisi": _say_karar_denetcisi,
+    "veri_guven_denetcisi": _say_veri_guven_denetcisi,
+    "oneri_denetcisi": _say_oneri_denetcisi,
+    "model_denetcisi": _say_model_denetcisi,
+    "alan_tutarlilik": _say_alan_tutarlilik,
+    "iddia_envanteri": _say_iddia_envanteri,
+    "yetki_denetcisi": _say_yetki_denetcisi,
+    "kanal_kapsama": _say_kanal_kapsama,
+    "firsat_takibi": _say_firsat_takibi,
+    "pazaryeri_uzmani": _say_pazaryeri_uzmani,
     "marka_mimarisi": _say_marka_mimarisi,
     "marka_sagligi": _say_marka_sagligi,
-    "halkla_iliskiler_muduru": _say_halkla_iliskiler,
-    "basin_iliskileri": _say_basin_iliskileri,
+    "halkla_iliskiler_muduru": _say_halkla_iliskiler_v2,
+    "basin_iliskileri": _say_basin_iliskileri_v2,
     "kriz_iletisimi": _say_kriz_iletisimi,
-    "itibar_izleme": _say_itibar_izleme,
+    "itibar_izleme": _say_itibar_izleme_v2,
     "isbirligi_sorumlusu": _say_isbirligi_sorumlusu,
     "yayin_hukuk": _say_yayin_hukuk,
     "kaynakca_sorumlusu": _say_kaynakca_sorumlusu,
