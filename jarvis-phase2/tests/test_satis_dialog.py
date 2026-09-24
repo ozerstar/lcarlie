@@ -183,7 +183,12 @@ class MusteriMetniGUCLU_MODELE_Gider(unittest.TestCase):
         yakalanan = {}
 
         class KaydedenModel:
-            def generate(self, messages, max_tokens, escalate=False):
+            # is_anahtari UNUTULMUSTU: gercek imza onu aliyor, sahte almiyordu.
+            # Cagri TypeError atiyor, satis_dialog'un genis except'i onu
+            # "model cagrilamadi" diye yutuyordu -- yani test uretim kodunu
+            # DEGIL, kendi eskimis sahtesini olcuyordu. Kod dogruydu.
+            def generate(self, messages, max_tokens, escalate=False,
+                         is_anahtari=None):
                 yakalanan["escalate"] = escalate
                 return ({"text": "Fiyat 1.200 TL.", "model": "s"}, "EXTERNAL", 1)
 

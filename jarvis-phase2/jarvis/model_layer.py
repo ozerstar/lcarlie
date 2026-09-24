@@ -36,6 +36,8 @@ from typing import Any, Iterable
 
 from .adapter_factory import AdapterState
 
+from . import is_sinifi
+
 # The GPU box reaches the server through a reverse SSH tunnel, so from
 # here it is just another loopback port. When the desktop is off the
 # tunnel is gone, the health check fails, and the chain moves on.
@@ -163,35 +165,32 @@ _REASONING_TERMS = (
 )
 
 
-def _fold(text: str) -> str:
-    return " ".join((text or "").casefold().replace("ı", "i").split())
+# Katlama TEK yerde tanımlı: jarvis.is_sinifi.fold. Burada ikinci bir kopya
+# tutmak, ölçülen "RAKİP" -> "raki̇p" hatasını iki yerde düzeltmek demekti.
+# `should_use_model` de bundan faydalanır: "LİSTELE" artık eşleşiyor.
+_fold = is_sinifi.fold
 
 
-# Work the 4B local model is not the right tool for. Deterministic, like the
-# model gate itself -- no model is consulted to decide which model to use.
-_ESCALATION_TERMS = (
-    # the user asking for it outright
-    "detaylı", "detayli", "derin", "kapsamlı", "kapsamli", "daha iyi düşün",
-    "daha iyi dusun", "uzun uzun", "büyük model", "buyuk model",
-    # judgement that has to weigh things against each other
-    "strateji", "karar ver", "kıyasla", "kiyasla", "karşılaştır", "karsilastir",
-    "karşı çık", "karsi cik", "itiraz", "risk analizi", "senaryo",
-    "avantaj ve dezavantaj", "artı ve eksi", "arti ve eksi",
-)
-# A long, multi-clause request is doing more than one thing at once.
-_ESCALATION_CHARS = 280
+# Eski hâli burada bir KELİME LİSTESİ tutuyordu. Liste iyi seçilmişti ama tek
+# savunmaydı ve ölçülen boşluk şuydu: "Bu krem hangi ürünle kullanılır?" hiçbir
+# terime takılmıyor, 280 karakterin altında -> küçük modele düşüyordu. Sahibin
+# kararına girecek bilgi, kalitesi ölçülmemiş modelden geliyordu.
+#
+# Karar artık `jarvis.is_sinifi` kapısında: "bu soru zor mu" (tahmin) yerine
+# "bu cevap neye dönüşüyor" (olgu) sorulur. Terimler oraya taşındı ve
+# araştırma/değerlendirme terimleriyle genişletildi.
 
 
-def needs_escalation(message: str) -> bool:
-    """Should this go to the stronger model first?
+def needs_escalation(message: str, *, amac: str | None = None) -> bool:
+    """Bu iş güçlü modele mi gitmeli?
 
-    Small talk, counting and single-domain lookups stay local; weighing
-    options, arguing against a finding, or an explicitly deep request does
-    not. Being wrong here is cheap: the chain tries the other provider next.
+    Karar girdisi, yayın adayı ve müşteriye giden metin güçlü modele gider.
+    Mekanik iş (sınıflandırma, özet, biçim) ve olgu sorusu gitmez.
+
+    `amac` çağıran tarafın beyanıdır ve tahminden üstündür: kreatif hattı
+    reklam metni ürettiğini bilir, metnin taranmasına gerek yoktur.
     """
-    text = _fold(message)
-    return bool(text) and (len(text) >= _ESCALATION_CHARS
-                           or any(_fold(term) in text for term in _ESCALATION_TERMS))
+    return is_sinifi.guclu_model_gerekir(is_sinifi.siniflandir(message, amac=amac))
 
 
 def should_use_model(message: str) -> bool:
