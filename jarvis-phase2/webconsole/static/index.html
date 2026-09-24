@@ -91,6 +91,7 @@
           <button type="button" class="nav-item" data-view="ajanlar">AJANLAR</button>
           <button type="button" class="nav-item" data-view="hafiza">HAFIZA</button>
           <button type="button" class="nav-item" data-view="veri">VERİ</button>
+          <button type="button" class="nav-item" data-view="saha">SAHA</button>
           <button type="button" class="nav-item" data-view="isler">İŞLER</button>
           <button type="button" class="nav-item" data-view="sistem">SİSTEM</button>
           <button type="button" class="nav-item" data-view="ayarlar">AYARLAR</button>
@@ -572,6 +573,86 @@
     </div>
     <div class="panel-body sect-body" id="ayarlarBody">
       <p class="sect-empty">Yükleniyor…</p>
+    </div>
+  </section>
+</main>
+
+<main class="stage stage-single view-panel" id="viewSaha" hidden>
+  <section class="panel" aria-label="SAHA ZİYARET">
+    <div class="panel-head">
+      <h2 class="panel-title">SAHA</h2>
+      <span class="panel-count" id="sahaCount">—</span>
+    </div>
+    <div class="panel-body sect-body">
+      <p class="fm-sub">
+        Ankara&#39;daki ziyaret hedefleri. Kaynaklar OpenStreetMap ve Overture
+        Maps; ayda bir kendiliğinden taranır. <strong>Senin girdiğin bilgi
+        tazelemede silinmez.</strong>
+      </p>
+
+      <div class="sh-arac">
+        <div class="sh-grup">
+          <label class="is-label" for="shArama">ARA</label>
+          <input id="shArama" class="is-input" type="search" maxlength="60"
+                 placeholder="işletme adı">
+        </div>
+        <div class="sh-grup">
+          <label class="is-label" for="shTur">TÜR</label>
+          <select id="shTur" class="is-input" multiple size="4"></select>
+        </div>
+        <div class="sh-grup">
+          <label class="is-label" for="shBrans">BRANŞ</label>
+          <select id="shBrans" class="is-input" multiple size="4"></select>
+        </div>
+        <div class="sh-grup">
+          <label class="is-label" for="shIlce">İLÇE</label>
+          <select id="shIlce" class="is-input" multiple size="4"></select>
+        </div>
+        <div class="sh-grup">
+          <label class="is-label" for="shZiyaret">ZİYARET</label>
+          <select id="shZiyaret" class="is-input">
+            <option value="">hepsi</option>
+            <option value="GIDILMEDI">gidilmedi</option>
+            <option value="GIDILDI">gidildi</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="sh-satir">
+        <button type="button" class="btn" id="shListele">LİSTELE</button>
+        <button type="button" class="btn" id="shBuradan">📍 BURADAN ROTA</button>
+        <label class="is-label" for="shYaricap">YARIÇAP (m)</label>
+        <input id="shYaricap" class="is-input is-dar" type="number"
+               min="100" max="20000" step="100" value="1500">
+        <label class="is-label" for="shDurak">DURAK</label>
+        <input id="shDurak" class="is-input is-dar" type="number"
+               min="1" max="60" value="20">
+        <button type="button" class="btn btn-ince" id="shNoktaAc">+ YENİ NOKTA</button>
+        <span id="shDurum" class="is-sonuc"></span>
+      </div>
+
+      <form id="shNoktaForm" class="sh-form" hidden>
+        <p class="fm-sub">Haritada olmayan bir yeri ekle. Konum, telefonundan
+          alınır; alınamazsa elle girebilirsin.</p>
+        <div class="sh-arac">
+          <div class="sh-grup"><label class="is-label" for="shnAd">AD</label>
+            <input id="shnAd" class="is-input" maxlength="200" required></div>
+          <div class="sh-grup"><label class="is-label" for="shnTur">TÜR</label>
+            <select id="shnTur" class="is-input"></select></div>
+          <div class="sh-grup"><label class="is-label" for="shnTel">TELEFON</label>
+            <input id="shnTel" class="is-input" maxlength="60"></div>
+          <div class="sh-grup"><label class="is-label" for="shnEposta">E-POSTA</label>
+            <input id="shnEposta" class="is-input" type="email" maxlength="120"></div>
+        </div>
+        <div class="sh-satir">
+          <button type="submit" class="btn">KAYDET</button>
+          <button type="button" class="btn btn-ince" id="shnVazgec">VAZGEÇ</button>
+          <span id="shnKonum" class="is-sonuc">konum alınmadı</span>
+        </div>
+      </form>
+
+      <div id="shRotaOzet"></div>
+      <div id="shListe"></div>
     </div>
   </section>
 </main>

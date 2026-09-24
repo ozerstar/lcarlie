@@ -133,6 +133,7 @@ BACKED_VIEWS = {"home", "analiz", "gorevler", "veri", "ajanlar", "raporlar",
                 "musteri",    # /api/musteri
                 "tasarim",    # /api/tasarim
                 "isler",      # /api/isler
+                "saha",       # /api/saha
                 "asistan",   # /api/asistan
                 "sistem"}    # /api/sistem
 PANEL_VIEWS = {"veri", "ajanlar", "raporlar", "ayarlar"}

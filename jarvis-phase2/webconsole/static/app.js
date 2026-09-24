@@ -157,7 +157,8 @@ const VIEWS = {
                 raporlar: 'viewRaporlar', ayarlar: 'viewAyarlar',
                 eticaret: 'viewEticaret', reklam: 'viewReklam',
                 hafiza: 'viewHafiza', ekip: 'viewEkip',
-                sistem: 'viewSistem', isler: 'viewIsler' };
+                sistem: 'viewSistem', isler: 'viewIsler',
+                saha: 'viewSaha' };
 
 function setView(name) {
   if (!VIEWS[name]) return;
@@ -176,6 +177,7 @@ function setView(name) {
   if (name === 'reklam') loadKreatif();
   if (name === 'sistem') loadSistem();
   if (name === 'isler') loadIsler();
+  if (name === 'saha') loadSaha();
   if (name === 'kreatifParti') loadKreatifParti();
   if (name === 'tasarim') tasarimYukle();
   if (name === 'asistan') asistanYukle();
@@ -5770,3 +5772,382 @@ async function loadKademe() {
     + '<div class="kd-kutu"><h4 class="kd-alt">SON ÇAĞRILAR</h4>'
     + ozetHtml + '</div></div>';
 }
+
+
+/* ==================== SAHA — ziyaret hedefleri ve rota ==================
+ *
+ * İki akış tek ekranda:
+ *   MASAÜSTÜ  filtrele -> LİSTELE -> seç -> ROTA OLUŞTUR
+ *   TELEFON   📍 BURADAN ROTA -> duraklar -> her durakta ziyaret kaydet
+ *
+ * 🔴 18.845 kayıt tarayıcıya tek seferde YÜKLENMEZ. Her sorgu ya konum
+ * yarıçapıyla ya da limitle sınırlıdır; "hepsini getir" diye bir düğme
+ * bilerek yok -- olsaydı ilk tıklamada panel donardı.
+ *
+ * Konum: tarayıcının kendi izni istenir. Telefon kilitlenince tarayıcı
+ * konum göndermeyi durdurur; bu "duruyor" demek DEĞİLDİR ve panel de öyle
+ * yazmaz.
+ */
+const SH = {
+  hedefler: [], rota: null, secili: new Set(),
+  konum: null, izleme: null, filtreler: null,
+};
+
+const SH_SONUC = [
+  ['GORUSULDU', 'görüşüldü'], ['NUMUNE_BIRAKILDI', 'numune bırakıldı'],
+  ['SIPARIS_SOZU', 'sipariş sözü'], ['TEKRAR_GEL', 'tekrar gel'],
+  ['YETKILI_YOK', 'yetkili yok'], ['KAPALI', 'kapalı'],
+  ['ILGILENMEDI', 'ilgilenmedi'],
+];
+
+function shDurum(metin, kotu) {
+  const d = qs('shDurum');
+  if (!d) return;
+  d.className = 'is-sonuc' + (kotu ? ' is-bad' : '');
+  d.textContent = metin || '';
+}
+
+function shSecilenler(id) {
+  const el = qs(id);
+  if (!el) return [];
+  return Array.from(el.selectedOptions || []).map(function (o) { return o.value; });
+}
+
+/* Konum: söz (Promise) döner, reddetmez -- izin verilmezse null.
+ * Hata fırlatsaydı her çağıran ayrı ayrı yakalamak zorunda kalır ve
+ * biri unutulduğunda ekran sessizce boş kalırdı. */
+function shKonumAl(zamanAsimiMs) {
+  return new Promise(function (coz) {
+    if (!navigator.geolocation) { coz(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      function (p) {
+        coz({ enlem: p.coords.latitude, boylam: p.coords.longitude,
+              dogruluk_m: p.coords.accuracy });
+      },
+      function () { coz(null); },
+      { enableHighAccuracy: true, timeout: zamanAsimiMs || 12000, maximumAge: 30000 });
+  });
+}
+
+async function loadSaha() {
+  if (!SH.filtreler) {
+    const f = await api('/api/saha/filtreler');
+    if (f.ok) {
+      SH.filtreler = f.body;
+      shDoldur('shTur', f.body.turler);
+      shDoldur('shBrans', f.body.branslar);
+      shDoldur('shIlce', f.body.ilceler);
+      shDoldur('shnTur', f.body.turler, true);
+      const c = qs('sahaCount');
+      if (c) c.textContent = (f.body.toplam || 0) + ' hedef';
+    }
+  }
+  if (!SH.hedefler.length) shListele();
+}
+
+function shDoldur(id, degerler, tekli) {
+  const el = qs(id);
+  if (!el || !degerler) return;
+  el.innerHTML = (tekli ? '' : '')
+    + degerler.map(function (d) {
+        return '<option value="' + escapeHtml(d) + '">' + escapeHtml(d) + '</option>';
+      }).join('');
+}
+
+function shSorguDizesi(konum) {
+  const p = new URLSearchParams();
+  shSecilenler('shTur').forEach(function (v) { p.append('tur', v); });
+  shSecilenler('shBrans').forEach(function (v) { p.append('brans', v); });
+  shSecilenler('shIlce').forEach(function (v) { p.append('ilce', v); });
+  const z = qs('shZiyaret');
+  if (z && z.value) p.set('ziyaret', z.value);
+  const a = qs('shArama');
+  if (a && a.value.trim()) p.set('arama', a.value.trim());
+  if (konum) {
+    p.set('enlem', konum.enlem); p.set('boylam', konum.boylam);
+    p.set('yaricap_m', (qs('shYaricap') || {}).value || 1500);
+  }
+  p.set('limit', 200);
+  return p.toString();
+}
+
+async function shListele(konum) {
+  shDurum('yükleniyor…');
+  const { ok, status, body } = await api('/api/saha?' + shSorguDizesi(konum));
+  if (!ok) {
+    shDurum('liste okunamadı (HTTP ' + status + ')', true);
+    return;
+  }
+  SH.hedefler = body.hedefler || [];
+  SH.rota = null;
+  qs('shRotaOzet').innerHTML = '';
+  shDurum(body.sayi + ' hedef' + (body.sayi >= body.limit
+    ? ' (ilk ' + body.limit + ' — daralt)' : ''));
+  shCiz();
+}
+
+function shCiz() {
+  const liste = qs('shListe');
+  if (!liste) return;
+  const kayitlar = SH.rota ? SH.rota.duraklar : SH.hedefler;
+  if (!kayitlar.length) {
+    liste.innerHTML = '<p class="sect-empty">Bu filtrede hedef yok.</p>';
+    return;
+  }
+  liste.innerHTML = '<ul class="sh-liste">' + kayitlar.map(function (h, i) {
+    const anahtar = escapeHtml(h.hedef_anahtari);
+    const secili = SH.secili.has(h.hedef_anahtari) ? ' checked' : '';
+    const mesafe = (h.onceki_mesafe_m !== undefined)
+      ? ('<span class="sh-m">' + h.onceki_mesafe_m + ' m</span>')
+      : (h.mesafe_m != null ? '<span class="sh-m">' + h.mesafe_m + ' m</span>' : '');
+    const sira = SH.rota ? '<span class="sh-sira">' + (i + 1) + '</span>' : '';
+    const ziyaret = h.ziyaret_sayisi
+      ? '<span class="sh-rozet sh-gidildi">' + escapeHtml(h.son_sonuc || 'gidildi') + '</span>'
+      : '';
+    return '<li class="sh-kayit" data-anahtar="' + anahtar + '">'
+      + sira
+      + '<input type="checkbox" class="sh-sec" data-anahtar="' + anahtar + '"' + secili + '>'
+      + '<span class="sh-orta">'
+      +   '<span class="sh-ad">' + escapeHtml(h.ad || '(adsız)') + '</span>'
+      +   '<span class="sh-alt">' + escapeHtml(h.tur)
+      +     (h.brans ? ' · ' + escapeHtml(h.brans) : '')
+      +     (h.ilce ? ' · ' + escapeHtml(h.ilce) : '')
+      +     (h.adres ? ' · ' + escapeHtml(String(h.adres).slice(0, 40)) : '')
+      +   '</span>'
+      + '</span>'
+      + '<span class="sh-iletisim">'
+      +   (h.telefon ? '<a class="sh-tel" href="tel:' + escapeHtml(h.telefon) + '">'
+                     + escapeHtml(h.telefon) + '</a>' : '<span class="sh-yok">telefon yok</span>')
+      +   (h.eposta ? '<a class="sh-eposta" href="mailto:' + escapeHtml(h.eposta) + '">'
+                    + escapeHtml(h.eposta) + '</a>' : '')
+      + '</span>'
+      + mesafe + ziyaret
+      + '<button type="button" class="btn btn-ince sh-ziyaret" data-anahtar="'
+      + anahtar + '">ZİYARET</button>'
+      + (SH.rota ? '<button type="button" class="btn btn-ince sh-cikar" data-anahtar="'
+                 + anahtar + '">ÇIKAR</button>' : '')
+      + '</li>';
+  }).join('') + '</ul>';
+}
+
+async function shRotaKur(konum) {
+  shDurum('rota hesaplanıyor…');
+  const govde = {
+    enlem: konum.enlem, boylam: konum.boylam,
+    yaricap_m: Number((qs('shYaricap') || {}).value || 1500),
+    en_fazla_durak: Number((qs('shDurak') || {}).value || 20),
+    tur: shSecilenler('shTur'), brans: shSecilenler('shBrans'),
+    ziyaret: (qs('shZiyaret') || {}).value || null,
+  };
+  const { ok, status, body } = await api('/api/saha/rota', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(govde),
+  });
+  if (!ok) { shDurum('rota kurulamadı (HTTP ' + status + ')', true); return; }
+  if (body.durum === 'HEDEF_YOK') {
+    shDurum('bu yarıçapta hedef yok — yarıçapı büyüt', true);
+    return;
+  }
+  SH.rota = body;
+  /* Kopya ayıklama ve 2-opt kazancı AYNEN yazılır: "en iyi rota" demek
+   * ispatlanmamış bir iddia olurdu, "şu kadar kısalttı" ölçülebilir. */
+  qs('shRotaOzet').innerHTML =
+    '<div class="sh-ozet"><strong>' + body.duraklar.length + ' durak · '
+    + (body.toplam_m / 1000).toFixed(2) + ' km</strong>'
+    + ' · aday ' + body.aday_sayisi
+    + (body.kopya_ayiklanan ? ' · ' + body.kopya_ayiklanan + ' kopya ayıklandı' : '')
+    + (body.iyilesme_m > 0 ? ' · sıralama ' + Math.round(body.iyilesme_m) + ' m kısalttı' : '')
+    + ' <span class="sh-not">kuş uçuşu mesafe — gerçek yürüyüş değil</span></div>';
+  shDurum('');
+  shCiz();
+}
+
+/* ---------- olaylar (temsilci: içerik yeniden çizilince kaybolmasın) ---------- */
+document.addEventListener('click', async function (e) {
+  if (e.target.closest('#shListele')) { shListele(SH.konum); return; }
+
+  if (e.target.closest('#shBuradan')) {
+    shDurum('konum alınıyor…');
+    const k = await shKonumAl();
+    if (!k) { shDurum('konum alınamadı — tarayıcı izni gerekli', true); return; }
+    SH.konum = k;
+    shKonumBildir(k);
+    shRotaKur(k);
+    return;
+  }
+
+  if (e.target.closest('#shNoktaAc')) {
+    const f = qs('shNoktaForm');
+    f.hidden = !f.hidden;
+    if (!f.hidden) {
+      const k = await shKonumAl();
+      qs('shnKonum').textContent = k
+        ? ('konum alındı (±' + Math.round(k.dogruluk_m) + ' m)')
+        : 'konum alınamadı — kayıt konumsuz eklenemez';
+      f.dataset.konum = k ? JSON.stringify(k) : '';
+    }
+    return;
+  }
+  if (e.target.closest('#shnVazgec')) { qs('shNoktaForm').hidden = true; return; }
+
+  const cikar = e.target.closest('.sh-cikar');
+  if (cikar && SH.rota) {
+    /* Duraktan elleme: rota yeniden hesaplanmaz, yalnız o durak düşer.
+     * Yeniden hesaplasaydık sıra değişir ve kullanıcının zihnindeki plan
+     * bozulurdu. */
+    const a = cikar.dataset.anahtar;
+    SH.rota.duraklar = SH.rota.duraklar.filter(function (d) {
+      return d.hedef_anahtari !== a;
+    });
+    shCiz();
+    return;
+  }
+
+  const sec = e.target.closest('.sh-sec');
+  if (sec) {
+    if (sec.checked) SH.secili.add(sec.dataset.anahtar);
+    else SH.secili.delete(sec.dataset.anahtar);
+    return;
+  }
+
+  const ziy = e.target.closest('.sh-ziyaret');
+  if (ziy) { shZiyaretAc(ziy.dataset.anahtar); return; }
+});
+
+/* ---------- ziyaret formu ---------- */
+function shZiyaretAc(anahtar) {
+  const kayit = (SH.rota ? SH.rota.duraklar : SH.hedefler)
+    .find(function (h) { return h.hedef_anahtari === anahtar; });
+  const satir = document.querySelector('.sh-kayit[data-anahtar="' + anahtar + '"]');
+  if (!satir) return;
+  const varOlan = satir.querySelector('.sh-zform');
+  if (varOlan) { varOlan.remove(); return; }
+
+  const form = document.createElement('form');
+  form.className = 'sh-zform';
+  form.dataset.anahtar = anahtar;
+  form.innerHTML =
+    '<div class="sh-zbaslik">' + escapeHtml((kayit && kayit.ad) || '') + '</div>'
+    + '<label class="is-label">SONUÇ</label>'
+    + '<select class="is-input sh-zsonuc">'
+    + SH_SONUC.map(function (s) {
+        return '<option value="' + s[0] + '">' + s[1] + '</option>';
+      }).join('') + '</select>'
+    + '<label class="is-label">NOT</label>'
+    + '<textarea class="is-input sh-znot" rows="2" maxlength="4000" '
+    + 'placeholder="görüşmede ne konuşuldu"></textarea>'
+    + '<label class="is-label">FOTOĞRAF (isteğe bağlı)</label>'
+    + '<input type="file" class="is-input sh-zfoto" accept="image/jpeg,image/png" capture="environment">'
+    + '<div class="is-satir"><button type="submit" class="btn">KAYDET</button>'
+    + '<span class="is-sonuc sh-zsonucmetin"></span></div>';
+  satir.appendChild(form);
+}
+
+/* Fotoğraf telefondan 4-8 MB gelebilir; sunucu tavanı 4 MB. Tarayıcıda
+ * küçültmek, yüklemeyi hem hızlandırır hem tavana takılmayı önler. */
+function shFotoKucult(dosya, enBuyukKenar) {
+  return new Promise(function (coz, red) {
+    const okuyucu = new FileReader();
+    okuyucu.onerror = function () { red(new Error('dosya okunamadı')); };
+    okuyucu.onload = function () {
+      const img = new Image();
+      img.onerror = function () { red(new Error('görsel çözülemedi')); };
+      img.onload = function () {
+        const oran = Math.min(1, enBuyukKenar / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * oran);
+        c.height = Math.round(img.height * oran);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        coz(c.toDataURL('image/jpeg', 0.82));
+      };
+      img.src = okuyucu.result;
+    };
+    okuyucu.readAsDataURL(dosya);
+  });
+}
+
+document.addEventListener('submit', async function (e) {
+  const zform = e.target.closest('.sh-zform');
+  if (zform) {
+    e.preventDefault();
+    const sonucAlani = zform.querySelector('.sh-zsonucmetin');
+    sonucAlani.className = 'is-sonuc sh-zsonucmetin';
+    sonucAlani.textContent = 'kaydediliyor…';
+    let foto = '';
+    const dosya = zform.querySelector('.sh-zfoto').files[0];
+    if (dosya) {
+      try { foto = await shFotoKucult(dosya, 1600); }
+      catch (hata) {
+        sonucAlani.className = 'is-sonuc is-bad';
+        sonucAlani.textContent = 'fotoğraf işlenemedi: ' + hata.message;
+        return;
+      }
+    }
+    const k = await shKonumAl(8000);
+    const cevap = await api('/api/saha/ziyaret', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        hedef_anahtari: zform.dataset.anahtar,
+        sonuc: zform.querySelector('.sh-zsonuc').value,
+        not: zform.querySelector('.sh-znot').value,
+        foto: foto,
+        enlem: k ? k.enlem : null, boylam: k ? k.boylam : null,
+        konum_dogruluk_m: k ? k.dogruluk_m : null,
+      }),
+    });
+    if (!cevap.ok) {
+      sonucAlani.className = 'is-sonuc is-bad';
+      sonucAlani.textContent = (cevap.body && cevap.body.error)
+        ? cevap.body.error : ('kaydedilemedi (HTTP ' + cevap.status + ')');
+      return;
+    }
+    sonucAlani.className = 'is-sonuc is-ok';
+    sonucAlani.textContent = 'kaydedildi' + (k ? '' : ' (konumsuz)');
+    setTimeout(function () { zform.remove(); }, 1200);
+    return;
+  }
+
+  const nform = e.target.closest('#shNoktaForm');
+  if (nform) {
+    e.preventDefault();
+    const konum = nform.dataset.konum ? JSON.parse(nform.dataset.konum) : null;
+    if (!konum) { shDurum('konum olmadan nokta eklenemez', true); return; }
+    const cevap = await api('/api/saha/nokta', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ad: qs('shnAd').value, tur: qs('shnTur').value,
+        telefon: qs('shnTel').value, eposta: qs('shnEposta').value,
+        enlem: konum.enlem, boylam: konum.boylam,
+        konum_kaynagi: 'GPS', konum_dogruluk_m: konum.dogruluk_m,
+      }),
+    });
+    if (!cevap.ok) {
+      shDurum((cevap.body && cevap.body.error) || 'nokta eklenemedi', true);
+      return;
+    }
+    shDurum('nokta eklendi: ' + (cevap.body.ad || ''));
+    nform.hidden = true;
+    qs('shnAd').value = ''; qs('shnTel').value = ''; qs('shnEposta').value = '';
+    shListele(SH.konum);
+  }
+});
+
+/* ---------- konum bildirimi ----------
+ * Panel açıkken periyodik gönderilir. Telefon kilitlenince tarayıcı bunu
+ * durdurur; "bayat" kayıt kişinin durduğunu KANITLAMAZ ve panel de öyle
+ * yazmaz (bkz. /api/saha/konum cevabındaki uyarı). */
+function shKonumBildir(k) {
+  if (!k) return;
+  api('/api/saha/konum', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enlem: k.enlem, boylam: k.boylam,
+                           dogruluk_m: k.dogruluk_m, kaynak: 'TARAYICI' }),
+  });
+}
+
+setInterval(function () {
+  if (state.view !== 'saha' || document.hidden) return;
+  shKonumAl(9000).then(function (k) {
+    if (k) { SH.konum = k; shKonumBildir(k); }
+  });
+}, 120000);
