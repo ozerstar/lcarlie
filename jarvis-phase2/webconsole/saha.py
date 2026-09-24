@@ -335,7 +335,12 @@ def nokta_ekle(ad: str, tur: str, enlem, boylam, ekleyen: str,
 # olguyu rapor etmek olur.
 # ---------------------------------------------------------------------------
 
-SAKLAMA_GUN = 90
+# 🔴 SAKLAMA SILME KAPALI -- sahip karari 25.09.2026: "silmelik bir konuya
+# gerek yok, data saklayalim". Islev DURUYOR ve zamanlayici olmadan elle
+# cagrilabilir; silinmesi gerektigine karar verilirse tek satirla acilir.
+# Kaldirilmadi cunku sonradan yazilacak bir silme, yazilmayan silmedir.
+SAKLAMA_ETKIN = False
+SAKLAMA_GUN = 3650
 BAYAT_ESIGI_DK = 10
 ROTADA_SAYILAN_MESAFE_M = 150.0
 
