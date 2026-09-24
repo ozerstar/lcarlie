@@ -127,6 +127,26 @@ class IslerTest(unittest.TestCase):
         self.assertEqual(len(bozuklar), 1)
         self.assertEqual(bozuklar[0]["id"], "is-bozuk")
 
+    def test_hakemin_zorunlu_alanlari_yazilir(self):
+        """🔴 Panelden eklenen ilk iş tam bu yüzden hata/ klasörüne düştü.
+
+        Hakem iş dosyasını doğrudan ComfyUI iş akışına yerleştiriyor;
+        eksik alan $null olarak gidiyor ve ComfyUI HTTP 400 dönüyor. Bu
+        test, kuyruğa eksik iş konulamamasını kilitler.
+        """
+        kayit = isler.is_ekle(self.kuyruk, "yeterince uzun bir istem metni")
+        for alan in isler.ZORUNLU_ALANLAR:
+            self.assertIn(alan, kayit, "hakem bu alani okuyor: " + alan)
+        diskten = json.loads(
+            (self.kuyruk / "bekleyen" / (kayit["id"] + ".json")).read_text(encoding="utf-8"))
+        for alan in isler.ZORUNLU_ALANLAR:
+            self.assertIn(alan, diskten, "diske de yazilmali: " + alan)
+        # Degerler calistigi KANITLANMIS isten alindi.
+        self.assertEqual(diskten["genislik"], 1024)
+        self.assertEqual(diskten["yukseklik"], 1024)
+        self.assertEqual(diskten["adim"], 28)
+        self.assertEqual(diskten["cfg"], 8.5)
+
     def test_asama_bilgisi_tasinir(self):
         isler.is_ekle(self.kuyruk, "yeterince uzun bir istem metni")
         (self.kuyruk / "biten" / "is-eski.json").write_text(

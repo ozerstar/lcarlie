@@ -50,6 +50,21 @@ EN_AZ_ISTEM = 8
 EN_COK_ISTEM = 2000
 EN_COK_ADET = 8
 
+# 🔴 HAKEMIN ZORUNLU ALANLARI. PC-2'deki jarvis-hakem.ps1 is dosyasini
+# okuyup dogrudan ComfyUI is akisina yerlestiriyor:
+#   EmptyLatentImage <- genislik, yukseklik, adet
+#   CLIPTextEncode   <- istem, negatif
+#   KSampler         <- adim, cfg
+# Eksik bir alan $null olarak gidiyor ve ComfyUI HTTP 400 donuyor.
+# 24.09.2026'da olculdu: panelden eklenen ilk is tam bu yuzden hata/
+# klasorune dustu. Varsayilanlar, calistigi KANITLANMIS isten alindi.
+ZORUNLU_ALANLAR = ("id", "istem", "negatif", "adet",
+                   "genislik", "yukseklik", "adim", "cfg")
+VARSAYILAN_GENISLIK = 1024
+VARSAYILAN_YUKSEKLIK = 1024
+VARSAYILAN_ADIM = 28
+VARSAYILAN_CFG = 8.5
+
 
 class IsHatasi(ValueError):
     """Panelden gelen istek kabul edilmedi. Sessizce yutulmaz."""
@@ -175,7 +190,17 @@ def is_ekle(kuyruk_dir: str | Path | None, istem: str,
         "istem": istem,
         "negatif": (negatif or "").strip()[:EN_COK_ISTEM],
         "adet": adet,
+        "genislik": VARSAYILAN_GENISLIK,
+        "yukseklik": VARSAYILAN_YUKSEKLIK,
+        "adim": VARSAYILAN_ADIM,
+        "cfg": VARSAYILAN_CFG,
     }
+    eksik = [a for a in ZORUNLU_ALANLAR if a not in kayit]
+    if eksik:
+        # Kuyruga eksik is KOYULMAZ. Hakem onu alir, ComfyUI 400 doner ve
+        # is hata/ klasorune duser -- sahip de "neden uretilmedi" diye
+        # bakmak zorunda kalir. Burada durmak daha ucuz.
+        raise IsHatasi("is kaydinda zorunlu alan eksik: " + ", ".join(eksik))
     govde = json.dumps(kayit, ensure_ascii=False, indent=2)
 
     # ATOMİK YAZMA: hakem bekleyen/ dizinini tarayip gordugu dosyayi hemen
