@@ -1575,9 +1575,14 @@ def _chat(message: str, intent: str, started: float,
     introduction still stands so the user is never left without a reply.
     """
     try:
+        # known_products: kademe dogrulayicisinin uydurma urun adini gorebilmesi
+        # icin katalog GEREKIR. Verilmezse o kontrol sessizce atlanir --
+        # "denetlendi, temiz" ile "denetlenemedi" ayni sey degildir.
+        # Katalog okunamazsa bos doner ve yalniz o kontrol devre disi kalir.
         result = _router().synthesize(_dil_notlu(message), (), system=_system_for(message), max_tokens=CHAT_MAX_TOKENS,
                                       escalate=needs_escalation(message),
-                                      history=conversation_memory.history())
+                                      history=conversation_memory.history(),
+                                      known_products=_known_products(runtime))
     except ModelUnavailable:
         return _response(message, intent, "ANSWERED", FALLBACK_INTRO,
                          started=started, model="deterministic-local")

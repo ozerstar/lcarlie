@@ -131,3 +131,71 @@ def guard(text: str, known_products: tuple[str, ...] = ()) -> dict[str, object]:
         "changed": final != (text or "").strip(),
         "model_calls": 0,
     }
+
+# ---------------------------------------------------------------------------
+# KADEME: bu cevap güçlü modele yükseltilmeli mi
+#
+# Araştırma (Dynamic Model Routing and Cascading, 2026) şunu söylüyor: önce
+# ucuz modele sor, bir DOĞRULAYICI tutmazsa güçlü modele yükselt. Ve şunu
+# uyarıyor: "modelin kendi bildirdiği güven kalibre değildir" -- akıcı ve
+# kendinden emin bir cevap pekâlâ yanlış olabilir.
+#
+# Bu yüzden burada model hiç konuşmaz. Yalnız ÖLÇÜLMÜŞ kusurlara bakılır:
+# bu projede küçük modelin gerçekten yaptığı hatalar.
+#
+# ESASLI ve KOZMETİK ayrımı bilinçli. Emoji ve samimi hitap için ikinci bir
+# ücretli çağrı yapmak para ve saniye harcar -- oysa formalize() onları
+# zaten bedavaya düzeltiyor. Yükseltme yalnız cevabın İÇERİĞİ bozuksa olur.
+# Eşiği sezgiyle geniş tutmak, araştırmanın açıkça uyardığı kalibrasyonsuzluk
+# olurdu; dar başlayıp ölçümle genişletmek doğru sıradır.
+
+# Düzeltilemez, cevabın kendisi bozuk -> güçlü modele çık.
+ESASLI = ("bos", "cok_kisa", "uydurma_urun", "soruyu_tekrarliyor")
+# formalize() bedavaya düzeltir -> yükseltme sebebi DEĞİL, yalnız kayda geçer.
+KOZMETIK = ("emoji", "samimi_hitap", "bos_acilis")
+
+# Ölçüldü: küçük model "Fiyat nedir?" sorusuna soruyu tekrar ederek başladı.
+#
+# İlk denemede "soru cevabın İÇİNDE geçiyor mu" diye bakıp 15 karakter eşiği
+# koymuştum. İkisi de yanlıştı: Türkçe sorular kısa ("fiyat nedir" 11 karakter)
+# ve eşik onları eliyordu; eşiği düşürmek ise yanlış pozitif üretirdi -- bir
+# cevabın soruda geçen kelimeleri kullanması normaldir, hatta beklenir.
+#
+# Ölçülen kusur "soruyu içeriyor" değil, cevabın soruyla BAŞLAMASIYDI. Doğru
+# sinyal bu. İkinci bir yol da bırakıldı: cevap sorudan anlamlı ölçüde uzun
+# değilse, söylenmiş yeni bir şey yok demektir.
+_TEKRAR_MIN = 8          # bundan kısa soru tesadüfen de eşleşebilir
+_TEKRAR_UZUNLUK_ORANI = 1.5
+
+
+def kusurlar(metin: str, *, soru: str = "",
+             known_products: tuple[str, ...] = (),
+             min_karakter: int = 24) -> list[str]:
+    """Cevabın ölçülmüş kusurları. Sıfır model çağrısı, deterministik."""
+    bulgular: list[str] = []
+    ham = (metin or "").strip()
+    if not ham:
+        return ["bos"]
+    if len(ham) < min_karakter:
+        bulgular.append("cok_kisa")
+    if unknown_products(ham, known_products):
+        bulgular.append("uydurma_urun")
+    if soru:
+        s = _fold(soru).strip(" ?.!")
+        h = _fold(ham)
+        if len(s) >= _TEKRAR_MIN and (
+                h.startswith(s)
+                or (s in h and len(h) < len(s) * _TEKRAR_UZUNLUK_ORANI)):
+            bulgular.append("soruyu_tekrarliyor")
+    if _EMOJI.search(ham):
+        bulgular.append("emoji")
+    if any(pattern.search(ham) for pattern, _ in _INFORMAL):
+        bulgular.append("samimi_hitap")
+    if _OPENERS.match(ham):
+        bulgular.append("bos_acilis")
+    return bulgular
+
+
+def yukseltilmeli(bulgular: list[str]) -> bool:
+    """Bu kusurlar güçlü modele çıkmayı hak ediyor mu."""
+    return any(k in ESASLI for k in bulgular)

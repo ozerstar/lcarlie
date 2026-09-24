@@ -36,7 +36,7 @@ from typing import Any, Iterable
 
 from .adapter_factory import AdapterState
 
-from . import is_sinifi
+from . import answer_guard, is_sinifi
 
 # The GPU box reaches the server through a reverse SSH tunnel, so from
 # here it is just another loopback port. When the desktop is off the
@@ -139,11 +139,17 @@ class ModelResult:
     completion_tokens: int | None = None
     context_chars: int = 0
     provider_states: dict[str, str] = field(default_factory=dict)
+    # Kademe kaniti: kucuk modelin cevabinda bulunan kusurlar. Bos tuple
+    # "kusur yok" demek; None "hic bakilmadi" demek. Ikisi ayri durumdur
+    # ve karistirilmasi gecmiste hata uretti.
+    yukseltme_kusurlari: tuple[str, ...] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
         data["evidence_refs"] = list(self.evidence_refs)
         data["missing_data"] = list(self.missing_data)
+        if self.yukseltme_kusurlari is not None:
+            data["yukseltme_kusurlari"] = list(self.yukseltme_kusurlari)
         return data
 
 
@@ -481,7 +487,8 @@ class ModelRouter:
                    missing_data: Iterable[str] = (), escalate: bool = False,
                    max_tokens: int = MAX_ANSWER_TOKENS,
                    system: str | None = None,
-                   history: list[dict[str, str]] | None = None) -> ModelResult:
+                   history: list[dict[str, str]] | None = None,
+                   known_products: tuple[str, ...] = ()) -> ModelResult:
         started = time.perf_counter()
         block, refs, size = compile_context(evidence)
         missing = tuple(missing_data)
@@ -503,17 +510,37 @@ class ModelRouter:
         except ModelUnavailable as exc:
             raise ModelUnavailable(str(exc)) from None
 
-        # An empty or stub-length answer from the small model is a failure, not
-        # an answer. Try the stronger one before returning it.
+        # KADEME: küçük model cevapladı, doğrulayıcı bakar, tutmazsa yükselt.
+        #
+        # Eski hâli yalnız UZUNLUĞA bakıyordu: 24 karakterden uzun her cevap
+        # "başarılı" sayılıyordu. Oysa ölçülen kusurlar uzun cevaplarda
+        # yaşandı -- uydurma ürün adı, soruyu tekrar etme, samimi hitap.
+        # Doğrulayıcı answer_guard.kusurlar(): sıfır model çağrısı.
+        #
+        # Yalnız ESASLI kusur yükseltir. Emoji/samimi hitap için ikinci bir
+        # ücretli çağrı yapmak israf olurdu; onları formalize() bedavaya
+        # düzeltiyor. yukseltme_kusurlari sonuca yazılır ki neyin neden
+        # yükseldiği ölçülebilsin -- eşik ancak veriyle kalibre edilir.
+        # 🔴 None = BAKILMADI, () = bakildi ve kusur bulunmadi. Ilk yazimda
+        # ikisini de () yapmistim; kendi testim yakaladi. Bu ayrimi kaybetmek
+        # bu projenin tekrar eden kok hatasi: yoklugun SEBEBINI bilmeden
+        # yoklugu bir cumleye cevirmek. "Kusursuz cevap" ile "dis saglayici
+        # kapali oldugu icin hic bakilmadi" ayni sey degildir.
+        yukseltme_kusurlari: tuple[str, ...] | None = None
         if (not escalate and tier in (TIER_GPU, TIER_LOCAL)
-                and len((result.get("text") or "").strip()) < MIN_USEFUL_ANSWER_CHARS
                 and self.external.state() == AdapterState.AVAILABLE):
-            try:
-                retry = self.external.complete(messages, max_tokens)
-                result, tier, calls = retry, TIER_EXTERNAL, calls + 1
-            except (ModelUnavailable, urllib.error.URLError, TimeoutError, OSError,
-                    KeyError, ValueError):
-                pass
+            bulgular = answer_guard.kusurlar(
+                result.get("text") or "", soru=question,
+                known_products=tuple(known_products or ()),
+                min_karakter=MIN_USEFUL_ANSWER_CHARS)
+            yukseltme_kusurlari = tuple(bulgular)
+            if answer_guard.yukseltilmeli(bulgular):
+                try:
+                    retry = self.external.complete(messages, max_tokens)
+                    result, tier, calls = retry, TIER_EXTERNAL, calls + 1
+                except (ModelUnavailable, urllib.error.URLError, TimeoutError,
+                        OSError, KeyError, ValueError):
+                    pass
 
         # Confidence follows the EVIDENCE, not the model's self-assessment: a
         # fluent answer over one source is not more trustworthy than a terse
@@ -534,6 +561,7 @@ class ModelRouter:
             prompt_tokens=result.get("prompt_tokens"),
             completion_tokens=result.get("completion_tokens"),
             context_chars=size, provider_states=states,
+            yukseltme_kusurlari=yukseltme_kusurlari,
         )
 
     def stream_text(self, question: str, system: str, max_tokens: int = 160,
