@@ -62,34 +62,91 @@ SINIR = {"xmin": 32.3, "xmax": 33.3, "ymin": 39.4, "ymax": 40.3}
 # kullanilamaz hale getirir.
 DISLANAN = (
     "medical_research", "medical_school", "health_department",
-    "public_health", "health_food", "blood_bank", "veterinar",
+    "public_health", "blood_bank", "career_counseling",
 )
 
-# Birincil kategori esleme tablosu. Anahtar PARCA olarak aranir.
+# ---------------------------------------------------------------------------
+# HEDEF SEGMENTLER -- URUN KATALOGUNDAN TURETILDI
+#
+# Kategoriler tahminle degil, urunlerin GERCEK kullanim alanlarindan secildi
+# (knowledge/40-eski-katalog-ic-bilgi.md):
+#
+#   DERMABED     yatak yarasi, basiya bagli cilt  -> HUZUREVI, hastane
+#   DERMAMOVERA  eklem, diz, kireclenme           -> HUZUREVI, fizik tedavi
+#   SERALIMBO    huzursuz bacak, gece krampi      -> HUZUREVI, noroloji
+#   DERMAVASC    damar ve dolasim                 -> HUZUREVI, kardiyoloji
+#   Bebek serisi (babydent/baby/babyshower/...)   -> KRES, pediatri, eczane
+#   OPTYWAVE     goz cevresi, makula              -> OPTIK, goz klinigi
+#   DERMACORN/DERMAGUARD  nasir, ayak             -> AYAK (podoloji)
+#   HAIR NOURISHER  sac ve sac derisi             -> KUAFOR
+#   CALMORIS/MENTHALIS  anksiyete, odaklanma      -> PSIKOLOG
+#   SOFTGUARD/BUGUARD  tekstil, akar, bocek       -> OTEL, HUZUREVI
+#   VIREON/FEMISIA/INTIMBLANC  intim bakim        -> UROLOJI, kadin dogum
+#   LIFTELLE/LIPVORA/DERMASTRA/CALMAROS/SUNACNEA  -> GUZELLIK, dermatoloji
+#
+# Veteriner ve evcil hayvan kategorileri ALINMADI: katalogda hayvan urunu yok.
+# "Belki isimize yarar" diye eklemek, listeyi kullanilamaz hale getirir.
+# ---------------------------------------------------------------------------
+
 KATEGORI = [
-    # en ozgul olanlar once
+    # --- dis ---
     ("cosmetic_dentist", "DIS"), ("pediatric_dentist", "DIS"),
-    ("general_dentistry", "DIS"), ("dentist", "DIS"), ("dental", "DIS"),
-    ("orthodont", "DIS"), ("endodont", "DIS"),
+    ("general_dentistry", "DIS"), ("orthodont", "DIS"), ("endodont", "DIS"),
+    ("dentist", "DIS"), ("dental", "DIS"),
+    # --- eczane / takviye ---
     ("pharmacy", "ECZANE"), ("drugstore", "ECZANE"),
     ("medical_supply", "ECZANE"), ("surgical_appliances", "ECZANE"),
+    ("vitamins_and_supplements", "ECZANE"), ("herbal", "ECZANE"),
+    # --- yasli bakim (DERMABED, DERMAMOVERA, SERALIMBO, DERMAVASC) ---
+    ("retirement_home", "HUZUREVI"), ("nursing_home", "HUZUREVI"),
+    ("assisted_living", "HUZUREVI"), ("senior_citizen", "HUZUREVI"),
+    ("skilled_nursing", "HUZUREVI"), ("home_health_care", "HUZUREVI"),
+    ("hospice", "HUZUREVI"), ("elder", "HUZUREVI"),
+    ("disability_services", "HUZUREVI"),
+    # --- kres / anaokulu (bebek serisi) ---
+    ("day_care_preschool", "KRES"), ("child_care_and_day_care", "KRES"),
+    ("preschool", "KRES"), ("kindergarten", "KRES"), ("nursery_school", "KRES"),
+    # --- hastane ---
     ("hospital", "HASTANE"),
+    # --- spor ---
     ("gymnastics_center", "SPOR"), ("fitness_trainer", "SPOR"),
     ("gym", "SPOR"), ("fitness", "SPOR"), ("pilates", "SPOR"),
     ("yoga", "SPOR"), ("crossfit", "SPOR"), ("martial_arts", "SPOR"),
+    ("swimming_pool", "SPOR"), ("sports_club", "SPOR"),
+    # --- kuafor / berber (HAIR NOURISHER) ---
+    ("hair_salon", "KUAFOR"), ("barber", "KUAFOR"), ("nail_salon", "KUAFOR"),
+    ("hair_removal", "KUAFOR"), ("laser_hair_removal", "KUAFOR"),
+    ("hair_replacement", "KUAFOR"), ("hair_supply", "KUAFOR"),
+    # --- guzellik / estetik ---
     ("beauty_salon", "GUZELLIK"), ("medical_spa", "GUZELLIK"),
     ("health_spa", "GUZELLIK"), ("spas", "GUZELLIK"),
     ("cosmetic", "GUZELLIK"), ("skin_care", "GUZELLIK"),
-    ("hair_salon", "GUZELLIK"), ("nail_salon", "GUZELLIK"),
-    # tanı/görüntüleme merkezleri KLINIK sayilir -- hastane degil
+    ("massage", "GUZELLIK"), ("aromatherapy", "GUZELLIK"),
+    ("tattoo", "GUZELLIK"), ("piercing", "GUZELLIK"),
+    ("personal_care_service", "GUZELLIK"),
+    # --- optik (OPTYWAVE) ---
+    ("eyewear_and_optician", "OPTIK"), ("optometrist", "OPTIK"),
+    ("optician", "OPTIK"),
+    # --- ayak (DERMACORN, DERMAGUARD) ---
+    ("podiatry", "AYAK"), ("podiatrist", "AYAK"), ("foot_care", "AYAK"),
+    # --- psikoloji (CALMORIS, MENTHALIS) ---
+    ("psychologist", "PSIKOLOG"), ("psychotherapist", "PSIKOLOG"),
+    ("counseling_and_mental_health", "PSIKOLOG"),
+    ("mental_health", "PSIKOLOG"), ("speech_therapist", "PSIKOLOG"),
+    # --- diyetisyen ---
+    ("nutritionist", "DIYETISYEN"), ("dietitian", "DIYETISYEN"),
+    # --- otel (SOFTGUARD, BUGUARD) ---
+    ("hotel", "OTEL"), ("accommodation", "OTEL"), ("resort", "OTEL"),
+    # --- klinik / tani ---
     ("diagnostic_services", "KLINIK"), ("imaging", "KLINIK"),
     ("laborator", "KLINIK"), ("dialysis", "KLINIK"),
     ("eye_care", "KLINIK"), ("womens_health", "KLINIK"),
-    ("mental_health", "KLINIK"), ("counseling", "KLINIK"),
     ("physical_therapy", "KLINIK"), ("rehabilitation", "KLINIK"),
     ("clinic", "KLINIK"), ("medical_center", "KLINIK"),
     ("health_and_medical", "KLINIK"), ("medical_service", "KLINIK"),
+    # --- doktor / mauyenehane ---
     ("obstetrician", "DOKTOR"), ("gynecolog", "DOKTOR"),
+    ("urolog", "DOKTOR"), ("neurolog", "DOKTOR"),
     ("pediatric", "DOKTOR"), ("dermatolog", "DOKTOR"),
     ("cardiolog", "DOKTOR"), ("orthoped", "DOKTOR"),
     ("doctor", "DOKTOR"), ("physician", "DOKTOR"), ("surgeon", "DOKTOR"),
