@@ -42,6 +42,7 @@ transkripti okunamadı diye başarısız olmamalı.
 from __future__ import annotations
 
 import logging
+import json
 import os
 import subprocess
 import threading
@@ -57,6 +58,23 @@ KONTEYNER = "lcarlie-postgres"
 KOLEKSIYON = "hatira"
 BOYUT = 1024          # ai_semantic.memory_embedding ile aynı; bkz. migration 019
 GEMINI_GOMME = "models/gemini-embedding-001"
+
+# --- gömme sağlayıcısı: 24.09.2026'da YEREL'e alındı ------------------------
+# Önceden her hafıza yazımı ve araması şirket metnini Google'a gönderiyordu.
+# Artık PC-1'de (RX 6600) llama.cpp üzerinde BGE-M3 çalışıyor; sunucuya ters
+# tünelle 8096'dan bağlı. BGE-M3'ün doğal boyutu 1024 -- BOYUT ile birebir,
+# şema DEĞİŞMİYOR. Geçişin maliyeti de yoktu: tablo 0 satırdı.
+#
+# 🔴 YEDEK YOK, BİLEREK. Gemini'ye sessizce düşmek indeksi ZEHİRLER: iki
+# farklı gömme uzayından gelen vektörlerin kosinüs benzerliği anlamsızdır ve
+# bu SESSİZCE olur -- sorgu çalışır, sonuç saçmalar. Yerel uç kapalıysa
+# anlamsal hafıza KULLANILAMAZ durumuna geçer. "Kullanılamıyor" ile "boş"
+# ayrı durumlardır ve öyle bildirilir.
+#
+# Sağlayıcı değiştirilecekse indeks önce BOŞALTILMALI.
+YEREL_GOMME_URL = os.environ.get("JARVIS_GOMME_URL", "http://127.0.0.1:8096/v1")
+YEREL_GOMME_ADI = os.environ.get("JARVIS_GOMME_MODELI", "bge-m3")
+GOMME_SAGLAYICI = os.environ.get("JARVIS_GOMME", "yerel")   # yerel | gemini
 GEMINI_LLM = "gemini-3.5-flash-lite"   # bu sunucuda ölçülmüş çalışan ad
 ARAMA_SINIRI = 5
 MAX_NOT_KARAKTER = 600
@@ -71,7 +89,26 @@ MAX_NOT_KARAKTER = 600
 # BU SAYI GEÇİCİDİR. Beş notla ölçüldü; not sayısı arttıkça dağılım
 # değişir ve YENİDEN ÖLÇÜLMELİDİR. Ölçmeden değiştirmeyin, ölçmeden
 # güvenmeyin -- bu dosyadaki tek keyfi sayı olmasın diye buraya yazıldı.
-BENZERLIK_ESIGI = 0.60
+# 🔴 EŞİK GÖMME SAĞLAYICISINA BAĞLIDIR. Yukarıdaki 0.60 ölçümü GEMINI
+# vektörleriyle yapılmıştı. BGE-M3'ün skor dağılımı tamamen başka:
+#
+#   ÖLÇÜLDÜ 24.09.2026, BGE-M3 FP16, sorgu->pasaj, 5 sorgu x 5 pasaj:
+#     doğru eşleşme    0.3357 - 0.7138   (ortalama 0.5749)
+#     yanlış eşleşme   0.3121 - 0.4656   (ortalama 0.3651)
+#     top-1 isabet     4/5
+#
+# İki sonuç çıktı:
+#   1) 0.60 eşiği BGE-M3'te doğru eşleşmelerin 3/5'ini KAYBEDERDİ. Sağlayıcıyı
+#      eşiği değiştirmeden çevirmek, hafızayı SESSİZCE bozmak olurdu.
+#   2) Dağılımlar ÖRTÜŞÜYOR (0.3357 <= 0.4656): tek bir eşik doğruyla yanlışı
+#      ayıramıyor. O yüzden asıl mekanizma SIRALAMA (top_k); eşik yalnız
+#      gürültü tabanıdır, ayırıcı değildir.
+#
+# Bu yüzden eşik sağlayıcıyla birlikte seçilir -- birini değiştirip diğerini
+# unutmak mümkün olmasın.
+GOMME_ESIKLERI = {"gemini": 0.60, "yerel": 0.30}
+BENZERLIK_ESIGI = GOMME_ESIKLERI.get(
+    os.environ.get("JARVIS_GOMME", "yerel"), 0.30)
 
 _kilit = threading.Lock()
 _bellek: Any = None
@@ -110,11 +147,31 @@ def _telemetri_kapali() -> bool:
         return False
 
 
+def yerel_gomme_saglikli() -> bool:
+    """Yerel gömme ucu ayakta mı. Tünel kapalıysa hızlı düşmeli: PC'nin kapalı
+    olması gecenin normalidir, beklenecek bir istisna değil."""
+    import urllib.error
+    import urllib.request
+
+    kok = YEREL_GOMME_URL.rsplit("/v1", 1)[0]
+    try:
+        with urllib.request.urlopen(kok + "/health", timeout=3) as y:
+            return json.loads(y.read()).get("status") == "ok"
+    except (urllib.error.URLError, TimeoutError, OSError, ValueError):
+        return False
+
+
 def _yapilandirma() -> dict[str, Any] | None:
     ip = _postgres_ip()
     pw = os.environ.get("MEM0_PG_PASSWORD")
     key = os.environ.get("GEMINI_API_KEY")
+    yerel = GOMME_SAGLAYICI == "yerel"
+    # Gemini anahtarı yerel modda da gerekir: infer=False olduğu için mem0'ın
+    # LLM'i HİÇ çağrılmaz, ama mem0 yine de bir LLM yapılandırması bekliyor.
     if not (ip and pw and key):
+        return None
+    if yerel and not yerel_gomme_saglikli():
+        # Sessizce Gemini'ye düşmek indeksi zehirlerdi. Bkz. YEREL_GOMME_URL.
         return None
     return {
         "vector_store": {
@@ -129,11 +186,21 @@ def _yapilandirma() -> dict[str, Any] | None:
                 "hnsw": True,
             },
         },
-        "embedder": {
-            "provider": "gemini",
-            "config": {"model": GEMINI_GOMME, "embedding_dims": BOYUT,
-                       "api_key": key},
-        },
+        "embedder": (
+            {
+                # llama.cpp sunucusu OpenAI uyumlu /v1/embeddings veriyor.
+                # api_key llama.cpp tarafında istenmez ama kütüphane bir
+                # değer bekler; anlamsız bir sabit veriliyor.
+                "provider": "openai",
+                "config": {"model": YEREL_GOMME_ADI, "embedding_dims": BOYUT,
+                           "openai_base_url": YEREL_GOMME_URL,
+                           "api_key": "yerel-gomme"},
+            } if yerel else {
+                "provider": "gemini",
+                "config": {"model": GEMINI_GOMME, "embedding_dims": BOYUT,
+                           "api_key": key},
+            }
+        ),
         # infer=False olduğu için bu LLM hiç çağrılmaz; mem0 yine de bir
         # yapılandırma bekliyor. Varsayılanı bırakırsak OpenAI'ı kurmaya
         # çalışır ve anahtar yokluğundan patlar -- bu yüzden ölçülmüş
