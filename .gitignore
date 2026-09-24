@@ -59,3 +59,9 @@ __pycache__/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Ornek env dosyalari IZLENIR: icinde deger yok, <DEGER> yer tutuculari var.
+# Yukaridaki *.env.* deseni bunlari da yakaliyordu; istisna acikca yazilir
+# ki yarin baska bir ornek dosya da sessizce disarida kalmasin.
+!*.env.example
+!.env.example
