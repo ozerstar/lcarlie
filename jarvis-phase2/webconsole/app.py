@@ -58,6 +58,8 @@ from jarvis.transport import memory_host  # noqa: E402
 
 import auth  # noqa: E402
 import meta_webhook  # noqa: E402
+import sistem  # noqa: E402
+
 import chat  # noqa: E402
 
 STATE_DIR = Path(os.environ.get("JARVIS_STATE_DIR", "/opt/lcarlie/jarvis-phase2/state"))
@@ -1088,6 +1090,12 @@ class Handler(BaseHTTPRequestHandler):
                           "yaklasiktir."),
             })
             return
+        if path == "/api/sistem":
+            # Uc makinenin kaynak kullanimi + kaynak politikasi.
+            # Sunucu OLCULUR (anlik), PC'ler state/hosts/*.json'dan
+            # OKUNUR -- onlar NAT arkasinda, kendileri iter.
+            self._send_json(200, sistem.gorunum(STATE_DIR, _host_metrics()))
+            return
         if path == "/api/hafiza":
             self._send_json(200, _hafiza_gorunumu())
             return
@@ -1328,6 +1336,25 @@ class Handler(BaseHTTPRequestHandler):
             payload = _hafiza_gorunumu()
             payload["eklendi"] = True
             self._send_json(200, payload)
+            return
+        if path == "/api/sistem/anahtar":
+            # Kaynak politikasi anahtarini cevirir. Bu bir KARAR
+            # kaydidir: kimin cevirdigi ve ne zaman cevirdigi
+            # dosyaya yazilir, cunku "PC-2'nin CPU'su nicin acik"
+            # sorusunun cevabi sonradan aranacak.
+            body = _read_json_body(self)
+            anahtar = str(body.get("anahtar", ""))[:64]
+            acik = body.get("acik")
+            if not isinstance(acik, bool):
+                self._send_json(400, {"error": "acik alani true/false olmali"})
+                return
+            try:
+                yeni = sistem.politika_yaz(STATE_DIR, anahtar, acik,
+                                           session.username)
+            except ValueError as hata:
+                self._send_json(400, {"error": str(hata)})
+                return
+            self._send_json(200, {"politika": yeni})
             return
         if path == "/api/hafiza/sil":
             # SILME parcaya gore calisir (conversation_memory.forget).

@@ -3843,3 +3843,61 @@ html, body { max-width: 100%; overflow-x: hidden; }
   textarea,
   select { min-height: 44px; }
 }
+
+/* SISTEM sekmesi */
+
+.sys-kart { display: flex; flex-direction: column; gap: 10px; padding: 4px 0 2px; }
+.sys-row { display: grid; grid-template-columns: minmax(0, 190px) minmax(0, 1fr) 120px;
+           gap: 12px; align-items: center; }
+.sys-k { font-size: 13px; letter-spacing: .04em; opacity: .72; }
+.sys-v { font-size: 14px; }
+.sys-bar { height: 8px; border-radius: 4px; background: rgba(255, 255, 255, .09); overflow: hidden; }
+.sys-bar-ic { display: block; height: 100%; border-radius: 4px; }
+.sys-bar-ic.t-good { background: #4ea87a; }
+.sys-bar-ic.t-warn { background: #c9a227; }
+.sys-bar-ic.t-bad  { background: #c0564b; }
+.sys-bar-yok { font-size: 11px; opacity: .55; }
+.sys-not { font-size: 12.5px; line-height: 1.5; opacity: .75; margin: 2px 0 0; }
+.sys-not.is-warn { opacity: 1; color: #d8b551; }
+.sys-not.is-bad  { opacity: 1; color: #d98077; }
+
+.pol-row { display: flex; gap: 14px; align-items: center; justify-content: space-between;
+           padding: 10px 0; border-top: 1px solid rgba(255, 255, 255, .07); }
+.pol-metin { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.pol-baslik { font-size: 14px; letter-spacing: .03em; }
+.pol-aciklama { font-size: 12.5px; opacity: .7; line-height: 1.45; }
+.pol-kim { font-size: 11.5px; opacity: .55; }
+.pol-kilit { font-size: 10.5px; letter-spacing: .08em; padding: 1px 6px; border-radius: 3px;
+             background: rgba(192, 86, 75, .18); color: #d98077; vertical-align: middle; }
+.pol-btn { flex: 0 0 auto; min-width: 92px; }
+.pol-btn.is-acik { border-color: rgba(78, 168, 122, .5); color: #7fc6a1; }
+.pol-btn.is-kapali { opacity: .65; }
+.pol-onay { display: flex; gap: 8px; flex-wrap: wrap; }
+
+@media (max-width: 720px) {
+  .sys-row { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .sys-bar { width: 100%; }
+  .pol-row { flex-direction: column; align-items: flex-start; }
+}
+
+.sys-bar-ic.w-0 { width: 0%; }
+.sys-bar-ic.w-5 { width: 5%; }
+.sys-bar-ic.w-10 { width: 10%; }
+.sys-bar-ic.w-15 { width: 15%; }
+.sys-bar-ic.w-20 { width: 20%; }
+.sys-bar-ic.w-25 { width: 25%; }
+.sys-bar-ic.w-30 { width: 30%; }
+.sys-bar-ic.w-35 { width: 35%; }
+.sys-bar-ic.w-40 { width: 40%; }
+.sys-bar-ic.w-45 { width: 45%; }
+.sys-bar-ic.w-50 { width: 50%; }
+.sys-bar-ic.w-55 { width: 55%; }
+.sys-bar-ic.w-60 { width: 60%; }
+.sys-bar-ic.w-65 { width: 65%; }
+.sys-bar-ic.w-70 { width: 70%; }
+.sys-bar-ic.w-75 { width: 75%; }
+.sys-bar-ic.w-80 { width: 80%; }
+.sys-bar-ic.w-85 { width: 85%; }
+.sys-bar-ic.w-90 { width: 90%; }
+.sys-bar-ic.w-95 { width: 95%; }
+.sys-bar-ic.w-100 { width: 100%; }

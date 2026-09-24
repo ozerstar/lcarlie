@@ -95,6 +95,8 @@ KNOWN_ROUTES = {
     "/api/kreatif-itiraz", "/api/kreatif-itiraz/muhatap", "/api/kreatif-parti",
     # Tasarim departmani.
     "/api/tasarim",
+    # SISTEM sekmesi: uc makinenin kaynak kullanimi + kaynak politikasi.
+    "/api/sistem", "/api/sistem/anahtar",
 }
 
 # Arka ucu olan bolumler. Bu kume, navigasyonun neyi sunabilecegini belirler:
@@ -108,7 +110,8 @@ BACKED_VIEWS = {"home", "analiz", "gorevler", "veri", "ajanlar", "raporlar",
                 "kargo",      # /api/kargo
                 "musteri",    # /api/musteri
                 "tasarim",    # /api/tasarim
-                "asistan"}    # /api/asistan
+                "asistan",   # /api/asistan
+                "sistem"}    # /api/sistem
 PANEL_VIEWS = {"veri", "ajanlar", "raporlar", "ayarlar"}
 
 

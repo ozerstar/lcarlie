@@ -156,7 +156,8 @@ const VIEWS = {
                 veri: 'viewVeri', ajanlar: 'viewAjanlar', fiyat: 'viewFiyat',
                 raporlar: 'viewRaporlar', ayarlar: 'viewAyarlar',
                 eticaret: 'viewEticaret', reklam: 'viewReklam',
-                hafiza: 'viewHafiza', ekip: 'viewEkip' };
+                hafiza: 'viewHafiza', ekip: 'viewEkip',
+                sistem: 'viewSistem' };
 
 function setView(name) {
   if (!VIEWS[name]) return;
@@ -173,6 +174,7 @@ function setView(name) {
   if (name === 'kargo') loadKargo();
   if (name === 'musteri') loadMusteri();
   if (name === 'reklam') loadKreatif();
+  if (name === 'sistem') loadSistem();
   if (name === 'kreatifParti') loadKreatifParti();
   if (name === 'tasarim') tasarimYukle();
   if (name === 'asistan') asistanYukle();
@@ -5300,3 +5302,268 @@ async function kpItirazGonder(form) {
   sonuc.textContent = `İtiraz ${body.muhatap} departmanına açıldı. `
     + 'Bir sonraki kreatif koşusu bu itirazı okumak zorunda.';
 }
+
+
+/* ===================================================================
+   SISTEM sekmesi -- uc makinenin kaynak kullanimi + kaynak politikasi.
+
+   🔴 CSP kurali: style-src 'self', unsafe-inline YOK. Bir cubugun
+   genisligi bu yuzden satir ici bicimle verilemez -- ne HTML metninde
+   bir bicim ozniteligiyle, ne de onu DOM'dan yazarak. Cozum: yuzde 5'in
+   katina yuvarlanip `w-40` gibi bir SINIF veriliyor (app.css'te 21 tane
+   tanimli). Gorsel cozunurluk %5; sayinin kendisi her zaman tam
+   degeriyle yanina yazili duruyor.
+   Not: asagida o yasak kalibin harfi harfine yazilmamasi da bilincli --
+   sozlesme testi ham metinde ariyor ve bir ornek bile testi kirar.
+   =================================================================== */
+
+const sistemState = { yukleniyor: false, veri: null, onayBekleyen: null };
+
+function sysBar(yuzde, tehlikeEsigi) {
+  if (yuzde === null || yuzde === undefined || isNaN(yuzde)) {
+    return '<div class="sys-bar"><span class="sys-bar-yok">ölçülemedi</span></div>';
+  }
+  const v = Math.max(0, Math.min(100, Number(yuzde)));
+  const adim = Math.round(v / 5) * 5;
+  const esik = tehlikeEsigi === undefined ? 90 : tehlikeEsigi;
+  const ton = v >= esik ? 'bad' : v >= esik - 15 ? 'warn' : 'good';
+  return `<div class="sys-bar"><i class="sys-bar-ic t-${ton} w-${adim}"></i></div>`;
+}
+
+function sysSatir(etiket, deger, yuzde, esik) {
+  return `<div class="sys-row">
+    <span class="sys-k">${escapeHtml(etiket)}</span>
+    <span class="sys-v">${escapeHtml(deger)}</span>
+    ${sysBar(yuzde, esik)}
+  </div>`;
+}
+
+function sysDurumRozeti(m) {
+  const d = m.durum || '';
+  const ton = d === 'TAZE' ? 'good' : d === 'BAYAT' ? 'warn' : 'bad';
+  const yas = (m.yas_s === null || m.yas_s === undefined) ? '' : ` · ${m.yas_s} sn önce`;
+  return `<span class="chip chip-${ton}">${escapeHtml(d)}${escapeHtml(yas)}</span>`;
+}
+
+/* Sunucu karti: olcum app.py'den anlik gelir. Balon duzeltmesi varsa
+   HAM yuzdenin yaninda GERCEK satirlari da gosterilir -- sanal makinede
+   `free`'nin "used" degeri uygulamalarin kullanimi DEGILDIR. */
+function sistemSunucuKart(m) {
+  const v = m.veri || {};
+  const cpu = v.cpu || {};
+  const ram = v.ram || {};
+  const disk = v.disk || {};
+  const bg = v.bellek_gercegi || {};
+  let govde = '';
+
+  govde += sysSatir('CPU',
+    cpu.percent === null || cpu.percent === undefined
+      ? (cpu.error || 'ölçülemedi')
+      : `%${cpu.percent}` + (cpu.cores ? ` · ${cpu.cores} çekirdek` : '')
+        + (cpu.load ? ` · yük ${cpu.load.join(' ')}` : ''),
+    cpu.percent);
+
+  if (ram.percent === null || ram.percent === undefined) {
+    govde += sysSatir('RAM', ram.error || 'ölçülemedi', null);
+  } else {
+    govde += sysSatir('RAM (ham)', `%${ram.percent} · ${ram.used_gib} / ${ram.total_gib} GB`, ram.percent);
+  }
+
+  if (bg.durum === 'BALON_VAR') {
+    govde += sysSatir('RAM (gerçek)',
+      `%${bg.gercek_yuzde} · ${bg.surec_rss_gib} / ${bg.gercek_toplam_gib} GB · boş ${bg.gercek_bos_gib} GB`,
+      bg.gercek_yuzde);
+    govde += `<p class="sys-not is-warn">${escapeHtml(bg.not || '')}</p>`;
+  } else if (bg.durum === 'DUZELTILEMEDI') {
+    govde += `<p class="sys-not is-warn">${escapeHtml(bg.not || '')}</p>`;
+  } else if (bg.surec_rss_gib !== undefined && bg.surec_rss_gib !== null) {
+    govde += sysSatir('Süreçlerin gerçek kullanımı', `${bg.surec_rss_gib} GB (RSS toplamı, üst sınır)`, null);
+  }
+
+  govde += sysSatir('Disk',
+    disk.percent === null || disk.percent === undefined
+      ? (disk.error || 'ölçülemedi')
+      : `%${disk.percent} · ${disk.used_gib} / ${disk.total_gib} GB`,
+    disk.percent);
+
+  return card('SUNUCU', `<div class="sys-kart">${govde}</div>`, sysDurumRozeti(m));
+}
+
+function sistemPcKart(m, baslik) {
+  if (!m.veri) {
+    return card(baslik,
+      `<div class="sys-kart"><p class="sys-not is-bad">${escapeHtml(m.sebep || 'veri yok')}</p></div>`,
+      sysDurumRozeti(m));
+  }
+  const v = m.veri;
+  let govde = '';
+  if (m.durum === 'BAYAT') {
+    govde += `<p class="sys-not is-warn">${escapeHtml(m.sebep || '')}</p>`;
+  }
+  govde += sysSatir('CPU',
+    v.cpu_yuzde === null || v.cpu_yuzde === undefined ? 'ölçülemedi'
+      : `%${v.cpu_yuzde} · ${escapeHtml(String(v.cpu_model || ''))}`,
+    v.cpu_yuzde);
+  govde += sysSatir('RAM',
+    v.ram_yuzde === null || v.ram_yuzde === undefined ? 'ölçülemedi'
+      : `%${v.ram_yuzde} · ${(v.ram_dolu_mb / 1024).toFixed(1)} / ${(v.ram_toplam_mb / 1024).toFixed(1)} GB · boş ${v.ram_bos_mb} MB`,
+    v.ram_yuzde);
+
+  const g = v.gpu || {};
+  if (g.kaynak === 'nvidia-smi') {
+    govde += sysSatir('Ekran kartı',
+      `${escapeHtml(String(g.ad || ''))} · %${g.kullanim_yuzde} · ${g.sicaklik_c} °C · ${g.guc_w} W`,
+      g.kullanim_yuzde);
+    govde += sysSatir('VRAM', `%${g.vram_yuzde} · ${g.vram_dolu_mb} / ${g.vram_toplam_mb} MB`, g.vram_yuzde, 92);
+  } else if (g.kaynak === 'windows-sayac') {
+    govde += sysSatir('Ekran kartı',
+      `${escapeHtml(String(g.ad || ''))} · %${g.kullanim_yuzde === undefined ? '—' : g.kullanim_yuzde}`
+      + (g.vram_dolu_mb !== undefined ? ` · ${g.vram_dolu_mb} MB kullanımda` : ''),
+      g.kullanim_yuzde);
+    govde += `<p class="sys-not">${escapeHtml(g.not || '')}</p>`;
+  } else {
+    govde += sysSatir('Ekran kartı', g.not || 'okunamadı', null);
+  }
+
+  (v.diskler || []).forEach((d) => {
+    govde += sysSatir(`Disk ${d.surucu}`,
+      `%${d.yuzde} · boş ${d.bos_gb} GB / ${d.toplam_gb} GB · ${escapeHtml(String(d.dosya_sistemi || ''))}`,
+      d.yuzde);
+  });
+
+  /* "PC-2'nin RAM'ini kim yiyor" 24.09.2026'da soruldu ve cevap Jarvis
+     DEGILDI. Bu satir o ayrimi her zaman gorunur tutar. */
+  const bizimMb = v.jarvis_ram_mb || 0;
+  govde += sysSatir('Bunun Jarvis&#39;e ait olan kısmı',
+    `${bizimMb} MB` + (v.ram_dolu_mb ? ` (toplam kullanımın %${(bizimMb / v.ram_dolu_mb * 100).toFixed(1)}&#39;i)` : ''),
+    null);
+
+  const enb = (v.en_buyuk_surecler || []).map((p) => `${escapeHtml(p.ad)} ${p.ram_mb} MB`).join(' · ');
+  if (enb) govde += `<p class="sys-not">En büyük süreçler: ${enb}</p>`;
+  govde += `<p class="sys-not">Açık kalma: ${v.acik_saat} saat · ölçüm ${escapeHtml(String(v.olcum_utc || ''))}</p>`;
+
+  return card(baslik, `<div class="sys-kart">${govde}</div>`, sysDurumRozeti(m));
+}
+
+/* Politika anahtarlari. Kilitli bir anahtari ACMAK iki adim ister:
+   tarayici modali kullanmiyoruz (sayfayi kilitler), yerine satirin
+   icinde bir onay dugmesi aciliyor. */
+function sistemPolitikaKart(pol) {
+  const anahtarlar = pol.anahtarlar || {};
+  const sirali = Object.keys(anahtarlar).sort(
+    (a, b) => (anahtarlar[a].sira || 99) - (anahtarlar[b].sira || 99));
+
+  const satirlar = sirali.map((ad) => {
+    const t = anahtarlar[ad];
+    const acik = !!t.acik;
+    const kilitli = t.kilit === 'ozel_izin';
+    const onayda = sistemState.onayBekleyen === ad;
+    const durumSinif = acik ? 'is-acik' : 'is-kapali';
+    const kim = t.degistiren
+      ? `<span class="pol-kim">${escapeHtml(t.degistiren)} · ${escapeHtml(String(t.degistirildi || ''))}</span>`
+      : '';
+    let dugme;
+    if (onayda) {
+      dugme = `<span class="pol-onay">
+          <button type="button" class="btn btn-danger pol-btn" data-anahtar="${escapeHtml(ad)}" data-acik="1" data-onay="1">ÖZEL İZNİ VER</button>
+          <button type="button" class="btn pol-btn" data-anahtar="${escapeHtml(ad)}" data-iptal="1">VAZGEÇ</button>
+        </span>`;
+    } else {
+      dugme = `<button type="button" class="btn pol-btn ${durumSinif}"
+          data-anahtar="${escapeHtml(ad)}" data-acik="${acik ? '0' : '1'}"
+          ${kilitli && !acik ? 'data-kilit="1"' : ''}>${acik ? 'AÇIK' : 'KAPALI'}</button>`;
+    }
+    return `<div class="pol-row ${durumSinif}">
+      <div class="pol-metin">
+        <span class="pol-baslik">${escapeHtml(t.baslik || ad)}${kilitli ? ' <span class="pol-kilit">özel izin</span>' : ''}</span>
+        <span class="pol-aciklama">${escapeHtml(t.aciklama || '')}</span>
+        ${kim}
+      </div>
+      ${dugme}
+    </div>`;
+  }).join('');
+
+  const sira = (pol.siralama || []).join(' → ');
+  const meta = pol.kaynak === 'dosya'
+    ? '<span class="chip chip-good">kayıtlı</span>'
+    : '<span class="chip chip-flat">varsayılan</span>';
+
+  return card('KAYNAK POLİTİKASI',
+    `<div class="sys-kart">
+      <p class="sys-not">Sıra: <strong>${escapeHtml(sira)}</strong>. Bir iş önce
+      sunucuda denenir; sunucu yetmezse PC-1 devreye girer; PC-2&#39;den yalnız
+      ekran kartı kullanılır.</p>
+      ${satirlar}
+    </div>`, meta);
+}
+
+async function sistemAnahtarCevir(anahtar, acik) {
+  const { ok, status, body } = await api('/api/sistem/anahtar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ anahtar, acik }),
+  });
+  if (!ok) {
+    const govde = qs('sistemGovde');
+    if (govde) {
+      govde.insertAdjacentHTML('afterbegin',
+        `<p class="sys-not is-bad">Anahtar çevrilemedi (HTTP ${status}). ${escapeHtml(String((body && body.error) || ''))}</p>`);
+    }
+    return;
+  }
+  sistemState.onayBekleyen = null;
+  if (sistemState.veri) sistemState.veri.politika = body.politika;
+  sistemCiz();
+}
+
+function sistemCiz() {
+  const govde = qs('sistemGovde');
+  const d = sistemState.veri;
+  if (!govde || !d) return;
+  const m = d.makineler || {};
+  govde.innerHTML = [
+    sistemPolitikaKart(d.politika || {}),
+    sistemSunucuKart(m.sunucu || {}),
+    sistemPcKart(m.pc1 || {}, 'PC-1  (gömme · RX 6600)'),
+    sistemPcKart(m.pc2 || {}, 'PC-2  (dil modeli · RTX 5060)'),
+  ].join('');
+
+  const say = qs('sistemCount');
+  if (say) {
+    const taze = ['sunucu', 'pc1', 'pc2'].filter((k) => (m[k] || {}).durum === 'TAZE').length;
+    say.textContent = `${taze}/3 makine taze`;
+  }
+}
+
+async function loadSistem() {
+  const govde = qs('sistemGovde');
+  if (!govde || sistemState.yukleniyor) return;
+  sistemState.yukleniyor = true;
+  if (!sistemState.veri) govde.innerHTML = '<p class="sect-empty">Yükleniyor…</p>';
+
+  const { ok, status, body } = await api('/api/sistem');
+  sistemState.yukleniyor = false;
+  if (!ok) {
+    govde.innerHTML = `<p class="sect-empty is-bad">Sistem verisi okunamadı (HTTP ${status}).</p>`;
+    return;
+  }
+  sistemState.veri = body;
+  sistemCiz();
+}
+
+/* Tek delege dinleyici: kartlar her cizimde yeniden yazildigi icin
+   dugmelere tek tek dinleyici baglamak sessizce kopardi. */
+document.addEventListener('click', (ev) => {
+  const btn = ev.target.closest && ev.target.closest('.pol-btn');
+  if (!btn) return;
+  ev.preventDefault();
+  if (btn.dataset.iptal) { sistemState.onayBekleyen = null; sistemCiz(); return; }
+  const anahtar = btn.dataset.anahtar;
+  const acik = btn.dataset.acik === '1';
+  if (btn.dataset.kilit && !btn.dataset.onay) {
+    sistemState.onayBekleyen = anahtar;
+    sistemCiz();
+    return;
+  }
+  sistemAnahtarCevir(anahtar, acik);
+});

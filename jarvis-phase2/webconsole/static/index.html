@@ -91,6 +91,7 @@
           <button type="button" class="nav-item" data-view="ajanlar">AJANLAR</button>
           <button type="button" class="nav-item" data-view="hafiza">HAFIZA</button>
           <button type="button" class="nav-item" data-view="veri">VERİ</button>
+          <button type="button" class="nav-item" data-view="sistem">SİSTEM</button>
           <button type="button" class="nav-item" data-view="ayarlar">AYARLAR</button>
         </div>
       </div>
@@ -574,6 +575,24 @@
   </section>
 </main>
 
+<main class="stage stage-single view-panel" id="viewSistem" hidden>
+  <section class="panel" aria-label="SİSTEM KAYNAKLARI">
+    <div class="panel-head">
+      <h2 class="panel-title">SİSTEM</h2>
+      <span class="panel-count" id="sistemCount">—</span>
+    </div>
+    <div class="panel-body sect-body" id="sistemBody">
+      <p class="fm-sub">
+        Üç makinenin gerçek kaynak kullanımı ve hangi makinenin neyi
+        kullanabileceğini belirleyen anahtarlar. Sunucu her istekte
+        <strong>anlık ölçülür</strong>; iki bilgisayar dakikada bir kendi
+        ölçümünü sunucuya iter. Bir PC&#39;den veri gelmiyorsa sebebi yazılır —
+        <strong>veri yokluğu, makinenin kapalı olduğunu kanıtlamaz.</strong>
+      </p>
+      <div id="sistemGovde"></div>
+    </div>
+  </section>
+</main>
 <main class="stage stage-single view-panel" id="viewHafiza" hidden>
   <section class="panel" aria-label="KİŞİSEL ASİSTAN HAFIZASI">
     <div class="panel-head">
