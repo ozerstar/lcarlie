@@ -33,7 +33,6 @@ Hedef alıcı ve hangi durumda önerileceği: **İNSAN DOLDURUR.** Bu, Wix açı
 
 Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçisinden **temiz** geçti. Olduğu gibi kullanılabilir.
 
-- L’CARLIÉ CALMAROS , günlük bakımda ferahlık ve hafif nem hissi sunmak üzere tasarlanmış tonik spreydir.
 - Gül suyu, papatya suyu, lavanta suyu, aynısefa ekstresi, aloe vera, yeşil çay ekstresi ve bitkisel gliserin gibi bileşenler formülde yer alır.
 - Karanfil ve tarçın kabuğu yağları da ürünün aromatik bitkisel bileşenleri arasındadır.
 - İnce sprey formu sayesinde bakım rutininin farklı anlarında pratik biçimde kullanılabilir ve ciltte taze, bakımlı bir his bırakmaya yardımcı olur.
@@ -41,9 +40,6 @@ Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçi
 - İsteğe bağlı olarak pamuk yardımıyla da uygulanabilir.
 - UYARILAR Göz ile temas ettirmeyiniz.
 - İlk kullanım öncesinde küçük bir bölgede test edilmesi önerilir.
-
-## Kullanım
-Temiz cilde sabah ve akşam yaklaşık 20 cm mesafeden püskürtün. İsteğe bağlı olarak pamuk yardımıyla da uygulanabilir. Haricen kullanım içindir. UYARILAR Göz ile temas ettirmeyiniz. Açık yaralara uygulamayınız. Çocukların erişemeyeceği yerde muhafaza ediniz. İlk kullanım öncesinde küçük bir bölgede t
 
 ## İçindekiler
 (TR) Gül Suyu, Papatya Suyu, Aynısefa Ekstresi, Aloe Vera Yaprağı Suyu, Lavanta Suyu, Karanfil Yağı, Tarçın Kabuğu Yağı, Yeşil Çay Ekstresi, Bitkisel Gliserin, Saf Su, Benzil Alkol, Salisilik Asit, Sorbik Asit. INCI Rosa Damascena Flower Water, Chamomilla Recutita (Matricaria) Flower Water, Calendula Officinalis Flower Extract, Aloe Barbadensis Leaf Juice, Lavandula Angustifolia Flower Water, Eugenia Caryophyllus Bud Oil, Cinnamomum Zeylanicum Bark Oil, Camellia Sinensis Leaf Extract, Glycerin, Aqua, Benzyl Alcohol, Salicylic Acid, Sorbic Acid.

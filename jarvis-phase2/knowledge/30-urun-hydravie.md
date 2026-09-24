@@ -1,6 +1,6 @@
 ---
 konu: HYDRAVIE | Yoğun Nemlendirici Yüz Kremi ürün bilgisi
-anahtar: [asit, bakimini, bakımını, cildin, destekler, hassas, hydravie, iceren, içeren, kremi, kuru, nem, nemlendirici, squalane, yogun, yoğun, yuz, yüz, zengin, yüz]
+anahtar: [asit, bakimini, bakımını, cildin, hassas, hydravie, iceren, içeren, kremi, kuru, nem, nemlendirici, panthenol, squalane, yogun, yoğun, yuz, yüz, zengin, yüz]
 gizlilik: ic-bilgi
 kaynak: mart.urun_karti (Wix yayındaki metin) + jarvis.compliance taraması
 uretim: tools/urun-bilgi-uret.py -- ELLE DÜZENLENEBİLİR, yeniden üretim üzerine yazar
@@ -33,7 +33,6 @@ Hedef alıcı ve hangi durumda önerileceği: **İNSAN DOLDURUR.** Bu, Wix açı
 
 Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçisinden **temiz** geçti. Olduğu gibi kullanılabilir.
 
-- Niacinamide, Panthenol, Hyaluronik Asit, Squalane ve Bakuchiol içeren zengin formülüyle kuru ve hassas cildin günlük nem bakımını destekler.
 - Cilde daha yumuşak, pürüzsüz ve konforlu bir his kazandırmaya yardımcı olur.
 - Sabah Akşam · 50 ml YOĞUN NEM.
 - L’CARLIÉ HYDRAVIE , kuru ve hassas ciltlerin günlük bakımına yönelik geliştirilmiş yoğun nemlendirici yüz kremidir.
@@ -41,9 +40,6 @@ Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçi
 - Bakuchiol, Aloe Vera, Shea Yağı, Jojoba Yağı, Nar Çekirdeği Yağı, Allantoin ve Vitamin E ile zenginleştirilen formül, günlük cilt bakım rutinine konforlu bir bakım adımı olarak eşlik eder.
 - ÖNE ÇIKAN İÇERİKLER Niacinamide Daha dengeli ve bakımlı bir cilt görünümünü destekler.
 - Panthenol Kuru ve hassas ciltlerin günlük bakımına eşlik eder.
-
-## Kullanım
-Sabah ve akşam temiz cilde ince bir tabaka halinde uygulayın. Nazikçe masaj yaparak emilmesini sağlayın. UYARI Haricen kullanılır. Göz ile temasından kaçınınız. Temas halinde bol su ile durulayınız. Çocukların ulaşamayacağı yerde muhafaza ediniz. Hassas ciltler için ilk kullanımdan önce küçük bir al
 
 ## İçindekiler
 / INCI Aqua, Aloe Barbadensis Leaf Juice, Panthenol, Glycerin, Sodium Hyaluronate, Niacinamide, Squalane, Butyrospermum Parkii Butter, Cocos Nucifera Oil, Simmondsia Chinensis Seed Oil, Punica Granatum Seed Oil, Bakuchiol, Tocopherol, Calendula Officinalis Flower Oil, Chamomilla Recutita Flower Oil, Allantoin, Cetearyl Alcohol, Cetearyl Glucoside, Benzyl Alcohol, Salicylic Acid, Sorbic Acid, Decyl Glucoside, Potassium Sorbate.

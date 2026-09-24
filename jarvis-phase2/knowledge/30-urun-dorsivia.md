@@ -33,7 +33,6 @@ Hedef alıcı ve hangi durumda önerileceği: **İNSAN DOLDURUR.** Bu, Wix açı
 
 Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçisinden **temiz** geçti. Olduğu gibi kullanılabilir.
 
-- L’CARLIE Dorsivia, doğal yağlar ve bitkisel özlerle zenginleştirilmiş formülüyle bel ve sırt gibi gün içinde yoğun kullanılan bölgelerin bakım rutinine eşlik etmek üzere geliştirilmiş bir masaj ve bakım kremidir.
 - Formülünde yer alan capsicum ekstresi, cilt üzerinde sıcaklık hissi oluşturarak masaj sırasında konforlu bir kullanım deneyimi sunar.
 - Wintergreen (kış yeşili) ve arnika ekstresi, masaj uygulamasına eşlik eden bitkisel bileşenler olarak formülde yer alır.
 - Tamanu ve hodan yağları, cildin nem dengesinin korunmasına ve bakım hissinin desteklenmesine yardımcı olur.
@@ -43,7 +42,7 @@ Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçi
 - Dairesel masaj hareketleriyle yayılması önerilir.
 
 ## Kullanım
-deneyimi sunar. Wintergreen (kış yeşili) ve arnika ekstresi, masaj uygulamasına eşlik eden bitkisel bileşenler olarak formülde yer alır. Tamanu ve hodan yağları, cildin nem dengesinin korunmasına ve bakım hissinin desteklenmesine yardımcı olur. Sedir ve vetiver yağları ise aromatik bitkisel profiliy
+Temiz ve kuru cilde, ihtiyaç duyulan bölgelere günde 1–2 kez ince bir tabaka halinde uygulanır. Dairesel masaj hareketleriyle yayılması önerilir. Harici kullanım içindir. Uyarılar Yalnızca haricen kullanım içindir. Göz ile temas ettirmeyiniz. Açık yaralara uygulamayınız.
 
 ## İçindekiler
 (TR) : Su, Tamanu Yağı, Hodan Yağı, Karanfil Yağı, Kış Yeşili Yağı, Zerdeçal Ekstresi, Akgünlük Yağı, Arnika Ekstresi, Kırmızı Biber Ekstresi, Magnezyum Klorür Çözeltisi, Sedir Ağacı Yağı, Vetiver Yağı, Shea Yağı, Hindistan Cevizi Yağı, Gliserin, Setearil Olivat, Sorbitan Olivat, Melisa Suyu, E Vitamini, Benzil Alkol, Salisilik Asit, Sorbik Asit. Ingredients (INCI): Aqua, Calophyllum Inophyllum Seed Oil, Borago Officinalis Seed Oil, Eugenia Caryophyllus Bud Oil, Gaultheria Procumbens Leaf Oil, Curcuma Longa Root Extract, Boswellia Carterii Oil, Arnica Montana Flower Extract, Capsicum Frutescens Fruit Extract, Magnesium Chloride Solution, Cedrus Atlantica Bark Oil, Vetiveria Zizanoides Root Oil, Butyrospermum Parkii Butter, Cocos Nucifera Oil, Glycerin, Cetearyl Olivate, Sorbitan Olivate, Melissa Officinalis Flower/Leaf/Stem Water, Tocopherol, Benzyl Alcohol, Salicylic Acid, Sorbic Acid.

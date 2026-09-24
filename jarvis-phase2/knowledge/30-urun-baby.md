@@ -1,6 +1,6 @@
 ---
 konu: BABY RESCUE (Anlık Yatıştırıcı) ürün bilgisi
-anahtar: [anlik, anlık, baby, balm, cilt, eslik, etmek, eşlik, formunda, rescue, stick, urunudur, yatistirici, yatıştırıcı, ürünüdür, bebek ve çocuk]
+anahtar: [anlik, anlık, baby, balm, cilt, eslik, etmek, eşlik, rescue, rutinine, stick, urunudur, yatistirici, yatıştırıcı, ürünüdür, bebek ve çocuk]
 gizlilik: ic-bilgi
 kaynak: mart.urun_karti (Wix yayındaki metin) + jarvis.compliance taraması
 uretim: tools/urun-bilgi-uret.py -- ELLE DÜZENLENEBİLİR, yeniden üretim üzerine yazar
@@ -33,7 +33,6 @@ Hedef alıcı ve hangi durumda önerileceği: **İNSAN DOLDURUR.** Bu, Wix açı
 
 Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçisinden **temiz** geçti. Olduğu gibi kullanılabilir.
 
-- L’CARLIE Baby Rescue, günlük cilt bakım rutinine eşlik etmek üzere formüle edilmiş, stick balm formunda bir bakım ürünüdür.
 - Doğal içeriklerden oluşan yapısıyla cilt bakımına pratik bir kullanım sunar.
 - Shea yağı, avokado yağı ve hodan yağı içeriğiyle cildin nem dengesinin korunmasına ve yumuşak bir his kazanmasına yardımcı olur.
 - Tamanu yağı, arnika ekstresi ve ozonlu kantaron yağı, cildin bakımlı ve canlı görünümünü desteklemeye katkı sağlar.
@@ -43,7 +42,7 @@ Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçi
 - İlk kullanım öncesi küçük bir bölgede test ediniz.
 
 ## Kullanım
-sunar. Shea yağı, avokado yağı ve hodan yağı içeriğiyle cildin nem dengesinin korunmasına ve yumuşak bir his kazanmasına yardımcı olur. Tamanu yağı, arnika ekstresi ve ozonlu kantaron yağı, cildin bakımlı ve canlı görünümünü desteklemeye katkı sağlar. Balmumu ve mum meyvesi mumu, cilt üzerinde ince 
+Temiz ve kuru cilde, ihtiyaç duyulan bölgeye günde 2–3 kez ince bir tabaka halinde uygulayınız. Uygulama öncesinde bölgenin kuru olmasına özen gösteriniz. UYARILAR Yalnızca harici kullanım içindir. Açık yaralara uygulanmamalıdır. Göz ile temasından kaçınınız.
 
 ## İçindekiler
 LİSTESİ Cera Alba, Butyrospermum Parkii Butter, Calophyllum Inophyllum Oil, Ozonized Hypericum Perforatum Oil, Arnica Montana Flower Extract, Persea Gratissima Oil, Borago Officinalis Seed Oil, Anthemis Nobilis Flower Oil, Lavandula Angustifolia Oil, Calendula Officinalis Flower Oil, Achillea Millefolium Oil, Zingiber Officinale Root Extract, Tocopherol, Myrica Cerifera Fruit Wax, Olea Europaea Oil.

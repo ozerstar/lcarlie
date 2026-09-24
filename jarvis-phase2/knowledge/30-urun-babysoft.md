@@ -33,7 +33,6 @@ Hedef alıcı ve hangi durumda önerileceği: **İNSAN DOLDURUR.** Bu, Wix açı
 
 Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçisinden **temiz** geçti. Olduğu gibi kullanılabilir.
 
-- L’CARLIE Babysoft, bebeklerin hassas cilt bakım rutinine eşlik etmek üzere bitkisel yağlar ve destekleyici içeriklerle formüle edilmiş bir bakım losyonudur.
 - Shea yağı, hindistan cevizi yağı, jojoba yağı ve avokado yağı içeriğiyle cilt bakımına yumuşak ve nemli bir his kazandırmaya yardımcı olur.
 - Hodan yağı ve yulaf ekstresi, cilt bakım rutinine destekleyici içerikler olarak formülde yer alır.
 - Aloe vera, papatya hidrosolü ve lavanta hidrosolü ile formülü zenginleştirilen Babysoft, günlük bakımda cildin nem dengesinin korunmasına katkı sağlar.
@@ -43,7 +42,7 @@ Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçi
 - Banyo sonrası hafif nemli cilde uygulanması önerilir.
 
 ## Kullanım
-a uygundur. Harici kullanım içindir. Kullanım: Temiz cilde günde 1–2 kez nazik masajla uygulanır. Banyo sonrası hafif nemli cilde uygulanması önerilir. Uyarı: Sadece harici kullanım içindir. Göz ile temasından kaçınınız. Temas halinde bol su ile durulayınız. Yeni doğanlarda doktor önerisiyle kullanı
+Temiz cilde günde 1–2 kez nazik masajla uygulanır. Banyo sonrası hafif nemli cilde uygulanması önerilir. Uyarı: Sadece harici kullanım içindir. Göz ile temasından kaçınınız. Temas halinde bol su ile durulayınız. Yeni doğanlarda doktor önerisiyle kullanınız. Tahriş durumunda kullanımı bırakınız.
 
 ## İçindekiler
 Aqua, Butyrospermum Parkii Butter, Cocos Nucifera Oil, Simmondsia Chinensis Seed Oil, Persea Gratissima Oil, Borago Officinalis Seed Oil, Aloe Barbadensis Leaf Juice, Glycerin, Chamomilla Recutita Flower Water, Lavandula Angustifolia Water, Tocopherol, Benzyl Alcohol, Sorbic Acid

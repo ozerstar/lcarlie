@@ -1,6 +1,6 @@
 ---
 konu: DERMANOVA (Yenileyici ve İz Görünümünü Azaltmaya Yardımcı Bitkisel Krem) ürün bilgisi
-anahtar: [aza, azaltmaya, bitkisel, carli, cilt, dermanova, destekler, dogal, doğal, formulu, formülü, gorunumunu, görünümünü, krem, sayesinde, yaglar, yardimci, yardımcı, yağlar, yenileyici, ürün]
+anahtar: [aza, azaltmaya, bitkisel, carli, cilt, dermanova, dogal, doğal, formulu, formülü, gorunumunu, görünümünü, krem, sayesinde, yaglar, yardimci, yardımcı, yağlar, yenileyici, ürün]
 gizlilik: ic-bilgi
 kaynak: mart.urun_karti (Wix yayındaki metin) + jarvis.compliance taraması
 uretim: tools/urun-bilgi-uret.py -- ELLE DÜZENLENEBİLİR, yeniden üretim üzerine yazar
@@ -33,7 +33,6 @@ Hedef alıcı ve hangi durumda önerileceği: **İNSAN DOLDURUR.** Bu, Wix açı
 
 Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçisinden **temiz** geçti. Olduğu gibi kullanılabilir.
 
-- L’CARLIÉ DERMANOVA , bitkisel yağlar ve doğal ekstrelerle zenginleştirilmiş özel formülü sayesinde, cilt bariyerinin korunmasını destekler ve iz görünümünün azalmasına yardımcı olur.
 - Tamanu, ozonize kantaron ve aynısefa ekstreleri, yenilenme eğilimini artırarak cildin pürüzsüz ve dengeli bir görünüm kazanmasına katkı sağlar.
 - Hodan, haşhaş ve shea yağları yoğun nem ve esneklik desteği sunarken; mür, günlük ve palmarosa yağları cilt tonunun eşitlenmesine ve cildin esnek görünmesine yardımcı olur.
 - Düzenli kullanımda Dermanova, cildin doğal yenilenme döngüsünü destekleyen bitkisel bir bakım sağlar.
@@ -43,7 +42,7 @@ Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçi
 - Serin, kuru ve güneş ışığından uzak yerde muhafaza edin.
 
 ## Kullanım
-da Dermanova, cildin doğal yenilenme döngüsünü destekleyen bitkisel bir bakım sağlar. Kullanım : Temiz ve kuru cilde ince bir tabaka halinde uygulanır, nazikçe masaj yaparak yedirilir. Gün içerisinde ihtiyaç duydukça tekrarlanabilir. Uyarılar: Haricen kullanım içindir, göz ve mukoz membranlarla tema
+Temiz ve kuru cilde ince bir tabaka halinde uygulanır, nazikçe masaj yaparak yedirilir. Gün içerisinde ihtiyaç duydukça tekrarlanabilir. Uyarılar: Haricen kullanım içindir, göz ve mukoz membranlarla temas ettirmeyin. Çocukların erişemeyeceği yerde saklayın.
 
 ## İçindekiler
 Tamanu Yağı, Ozonize Sarı Kantaron Yağı, Aynısefa Ekstresi, Haşhaş Tohumu Yağı, Hodan Tohumu Yağı, Günlük Yağı, Palmarosa Yağı, Elemi Yağı, Mür Yağı, Karanfil Yağı, Yaban Mersini Ekstresi, Tarçın Yağı, Havuç Ekstresi, Shea Yağı, Aloe Vera Suyu, Tokoferol (E Vitamini), Seteril Olivat, Sorbitan Olivat, Saf Su, Benzil Alkol, Salisilik Asit, Gliserin, Sorbik Asit Ingredients (INCI): Calophyllum Inophyllum Seed Oil, Ozonized Hypericum Perforatum Oil, Calendula Officinalis Extract, Papaver Somniferum Seed Oil, Borago Officinalis Seed Oil, Boswellia Serrata Oil, Cymbopogon Martinii Oil, Canarium Luzonicum Gum Oil, Commiphora Myrrha Oil, Eugenia Caryophyllus Oil, Vaccinium Myrtillus Extract, Cinnamomum Zeylanicum Oil, Daucus Carota Sativa Extract, Butyrospermum Parkii Butter, Aloe Barbadensis Juice, Tocopherol (Vitamin E), Cetearyl Olivate, Sorbitan Olivate, Aqua, Benzyl Alcohol, Salicylic Acid,

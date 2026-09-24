@@ -33,7 +33,6 @@ Hedef alıcı ve hangi durumda önerileceği: **İNSAN DOLDURUR.** Bu, Wix açı
 
 Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçisinden **temiz** geçti. Olduğu gibi kullanılabilir.
 
-- L’CARLIE Dermastra , gerilme ve yoğun nem ihtiyacına bağlı olarak oluşabilen cilt görünümüne yönelik bakım rutinine eşlik etmek üzere geliştirilmiş, bitkisel yağlar ve mineral içeriklerle formüle edilmiş bir bakım kremidir.
 - Liposomal C vitamini, ozonize sarı kantaron yağı, Calcium Phosphoricum içeren formülü, cilt bakım rutininde destekleyici bileşenler olarak yer alır ve cildin daha canlı, bakımlı ve dengeli bir görünüm kazanmasına yardımcı olur.
 - Tamanu, nar çekirdeği, hodan ve havuç tohumu yağları, cildin nem dengesinin korunmasına ve daha konforlu bir his kazanmasına katkı sağlar.
 - Shea yağı, aloe vera ve gliserin içeriğiyle ciltte yumuşak, esnek ve pürüzsüz bir his oluşmasına yardımcı olur.
@@ -43,7 +42,7 @@ Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçi
 - ÖNE ÇIKAN ÖZELLİKLER Gerilme hissine sahip cilt bölgeleri için bakım rutini Bitkisel yağlar ve mineral içeriklerle formüle edilmiştir Ciltte yumuşaklık, esneklik hissi ve konfor sunan yapı Hamilelik ve kilo değişimi dönemlerinde bakım amaçlı kullanıma uygundur Hızla emilen, yağlı his bırakmayan krem formu Kullanım: Günde 2 kez temiz ve kuru cilde dairesel masaj hareketleriyle uygulanır.
 
 ## Kullanım
-da cildin daha bakımlı, dengeli ve pürüzsüz algılanan bir görünüm kazanmasına yardımcı olur. Hızla emilen yapısıyla ciltte yağlı his bırakmaz. Harici kullanım içindir. ÖNE ÇIKAN ÖZELLİKLER Gerilme hissine sahip cilt bölgeleri için bakım rutini Bitkisel yağlar ve mineral içeriklerle formüle edilmişti
+Günde 2 kez temiz ve kuru cilde dairesel masaj hareketleriyle uygulanır. Uyarılar Yalnızca haricen kullanım içindir. Gözle temas ettirmeyiniz. Açık yaralara uygulamayınız. Çocukların erişemeyeceği yerde saklayınız. Hamilelik ve emzirme döneminde kullanmadan önce doktorunuza danışınız.
 
 ## İçindekiler
 Tamanu Yağı, Ozonize Sarı Kantaron Yağı, Nar Çekirdeği Yağı, Hodan Tohumu Yağı, Havuç Tohumu Yağı, Biberiye Yağı, Sandal Ağacı Ekstresi, Mür Yağı, Shea Yağı, Aloe Vera Jeli, Magnezyum Klorür Çözeltisi, Liposomal C Vitamini, Calcium Phosphoricum, Non-nano Çinko Oksit, Capsicum Ekstresi, Gliserin, Saf Su, Zeytinden Türetilmiş Emülgatörler, E Vitamini, Benzil Alkol, Salisilik Asit, Sorbik Asit INCI: CALOPHYLLUM INOPHYLLUM SEED OIL, HYPERICUM PERFORATUM OIL, PUNICA GRANATUM SEED OIL, BORAGO OFFICINALIS SEED OIL, DAUCUS CAROTA SATIVA SEED OIL, ROSMARINUS OFFICINALIS LEAF OIL, SANTALUM ALBUM EXTRACT, COMMIPHORA MYRRHA OIL, BUTYROSPERMUM PARKII BUTTER, ZINC OXIDE, ALOE BARBADENSIS LEAF JUICE, CALCIUM PHOSPHATE, CAPSICUM ANNUUM FRUIT EXTRACT, GLYCERIN, AQUA, CETEARYL OLIVATE, SORBITAN OLIVATE, TOCOPHEROL, BENZYL ALCOHOL, SALICYLIC ACID, SORBIC ACID

@@ -1,6 +1,6 @@
 ---
 konu: BABYSOL (Güneş Kremi) ürün bilgisi
-anahtar: [alinarak, alınarak, babysol, cilt, dikkate, filtre, gunes, güneş, hassas, iceren, içeren, kremi, yapisi, yapısı, bebek ve çocuk]
+anahtar: [babysol, cilt, dikkate, filtre, fiziksel, gunes, güneş, hassas, iceren, içeren, kremi, yapisi, yapısı, bebek ve çocuk]
 gizlilik: ic-bilgi
 kaynak: mart.urun_karti (Wix yayındaki metin) + jarvis.compliance taraması
 uretim: tools/urun-bilgi-uret.py -- ELLE DÜZENLENEBİLİR, yeniden üretim üzerine yazar
@@ -33,7 +33,6 @@ Hedef alıcı ve hangi durumda önerileceği: **İNSAN DOLDURUR.** Bu, Wix açı
 
 Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçisinden **temiz** geçti. Olduğu gibi kullanılabilir.
 
-- L’CARLIE Babysol, bebeklerin hassas cilt yapısı dikkate alınarak geliştirilmiş, fiziksel filtre içeren bir güneş bakım ürünüdür.
 - Non-nano çinko oksit içeriğiyle, güneş bakım rutinine eşlik eden koruyucu bir bakım sunmayı amaçlar.
 - Tamanu yağı, shea yağı, mango yağı, jojoba yağı ve üzüm çekirdeği yağı ile zenginleştirilen formül, cilt bakımına destekleyici içerikler sunar.
 - Aloe vera, yulaf özü, bisabolol ve ceramid NP içeriğiyle cilt bakım rutinine nazik bir bakım hissi kazandırmaya yardımcı olur.
@@ -43,7 +42,7 @@ Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçi
 - Su ile temas, terleme veya havlu ile kurulanma sonrasında uygulamayı tekrarlayınız.
 
 ## Kullanım
-a uygundur. Harici kullanım içindir. Kullanım Talimatı (TR) Güneşe çıkmadan 15 dakika önce, temiz ve kuru cilde cömert ve eşit şekilde uygulayınız. Etikette belirtilen SPF değeri 2 mg/cm² uygulama miktarına göre belirlenir; daha az uygulanması koruma düzeyini belirgin şekilde düşürür. Özellikle bez 
+(TR) Güneşe çıkmadan 15 dakika önce, temiz ve kuru cilde cömert ve eşit şekilde uygulayınız. Etikette belirtilen SPF değeri 2 mg/cm² uygulama miktarına göre belirlenir; daha az uygulanması koruma düzeyini belirgin şekilde düşürür.
 
 ## İçindekiler
 Listesi Su, Çinko Oksit, Shea Yağı, Mango Çekirdeği Yağı, Tamanu Yağı, Nar Çekirdeği Yağı, Üzüm Çekirdeği Yağı, Jojoba Yağı, Aloe Vera Suyu, Yulaf Özü, Gliserin, E Vitamini, Stabil C Vitamini, Seramid, Sandal Ağacı Yağı, Mür Yağı, Balmumu, Benzil Alkol, Sorbik Asit, Bisabolol (EN) Aqua, Zinc Oxide, Butyrospermum Parkii Butter, Mangifera Indica Seed Butter, Calophyllum Inophyllum Seed Oil, Punica Granatum Seed Oil, Vitis Vinifera Seed Oil, Simmondsia Chinensis Seed Oil, Aloe Barbadensis Leaf Juice, Avena Sativa Kernel Extract, Glycerin, Tocopherol, Sodium Ascorbyl Phosphate, Ceramide NP, Santalum Album Oil, Commiphora Myrrha Oil, Cera Alba, Benzyl Alcohol, Sorbic Acid, Bisabolol

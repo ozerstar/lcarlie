@@ -33,7 +33,6 @@ Hedef alıcı ve hangi durumda önerileceği: **İNSAN DOLDURUR.** Bu, Wix açı
 
 Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçisinden **temiz** geçti. Olduğu gibi kullanılabilir.
 
-- L’CARLIE Hair Nourisher, saç derisi bakım rutinine eşlik etmek üzere bitkisel yağlar, vitaminler ve bitki özlerinden oluşan bir bakım yağıdır.
 - Saç derisine uygulamaya uygun hafif yapısıyla günlük bakım kullanımına uygun olarak tasarlanmıştır.
 - Hindistan cevizi, jojoba ve kenevir yağları içeren formülü, saç derisinin nem dengesinin korunmasına ve saç tellerinin daha bakımlı bir görünüm kazanmasına yardımcı olur.
 - Centella Asiatica ve Lycopus Lucidus bitki özleri, saç derisi bakımında kullanılan destekleyici bitkisel bileşenler arasında yer alır.
@@ -43,7 +42,7 @@ Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçi
 - KULLANIM ŞEKLİ Temiz saç derisine günde 1–2 kez, 4–5 damla ürünü bölgesel olarak uygulayınız.
 
 ## Kullanım
-ına uygun olarak tasarlanmıştır. Hindistan cevizi, jojoba ve kenevir yağları içeren formülü, saç derisinin nem dengesinin korunmasına ve saç tellerinin daha bakımlı bir görünüm kazanmasına yardımcı olur. Centella Asiatica ve Lycopus Lucidus bitki özleri, saç derisi bakımında kullanılan destekleyici 
+Temiz saç derisine günde 1–2 kez, 4–5 damla ürünü bölgesel olarak uygulayınız. Parmak uçlarıyla nazik masaj hareketleriyle yayılması önerilir. Durulama gerektirmez . Raf Ömrü: 24 ay – Serin ve kuru yerde, doğrudan güneş ışığından uzakta saklayınız.
 
 ## İçindekiler
 Hindistan Cevizi Yağı, Jojoba Yağı, Kenevir Tohumu Yağı, Selvi Yağı, Niaouli Yağı, Okaliptüs Yağı, Mavi Papatya Yağı, Tarçın Kabuğu Yağı, Mersin Yağı, Nane Yağı, Ylang Ylang Yağı, Sedir Ağacı Yağı, Karanfil Tomurcuğu Yağı, Havuç Tohumu Yağı, Itır Yağı, Centella Asiatica Ekstresi, Lycopus Lucidus Ekstresi, İnülin, Probiyotik Kompleksi (Bacillus Lactis, Bacillus spp, L. acidophilus, L. paracasei, L. plantarum, L. rhamnosus), E Vitamini, Benzil Alkol, Salisilik Asit, Sorbik Asit, Laktik Asit

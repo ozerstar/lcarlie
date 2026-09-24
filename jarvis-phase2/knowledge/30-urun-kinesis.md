@@ -33,7 +33,6 @@ Hedef alıcı ve hangi durumda önerileceği: **İNSAN DOLDURUR.** Bu, Wix açı
 
 Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçisinden **temiz** geçti. Olduğu gibi kullanılabilir.
 
-- L’CARLIE Kinesis+ , spor yapanlar ve aktif yaşam süren bireylerin günlük bakım rutinine eşlik etmek üzere geliştirilmiş, bitkisel yağlar ve mineral içerikler ile formüle edilmiş bir bakım kremidir.
 - Susam, avokado, hodan, tamanu ve kantaron yağları içeren formülü, cilt bakımına destekleyici içerikler sunarak cildin daha esnek, bakımlı ve konforlu bir his kazanmasına yardımcı olur.
 - Tarçın, nane, karanfil ve greyfurt yağlarından oluşan aromatik karışım, masajla birlikte uygulandığında cilt üzerinde sıcaklık ve ferahlık hissi oluşmasına katkı sağlar.
 - Aloe vera, E vitamini ve çinko, magnezyum, selenyum gibi mineraller, cildin bakımlı ve dengeli görünümünü korumaya yardımcı olan destekleyici içerikler olarak formülde yer alır.
@@ -43,7 +42,7 @@ Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçi
 - Spor öncesi veya sonrası kullanıma uygundur.
 
 ## Kullanım
-da, yoğun fiziksel aktivite sonrasında ciltte oluşabilen gerginlik hissine karşı bakım rutinine eşlik eder; masajla birlikte uygulandığında ciltte rahat ve konforlu bir his bırakmayı amaçlar. Hızla emilen yapısı sayesinde yağlı bir his bırakmadan ciltte ferahlık, sıcaklık ve konfor hissi sunar. Hari
+Temiz ve kuru cilde, sabah ve akşam olmak üzere günde 2 kez 5–10 pompa ürün alınarak dairesel hareketlerle masaj yaparak uygulayınız. Spor öncesi veya sonrası kullanıma uygundur.
 
 ## İçindekiler
 Listesi AQUA, SESAMUM INDICUM OIL UNSAPONIFIABLES, PERSEA GRATISSIMA OIL, COCOS NUCIFERA OIL, BORAGO OFFICINALIS SEED OIL, CALOPHYLLUM INOPHYLLUM SEED OIL, ALOE BARBADENSIS LEAF JUICE, CALENDULA OFFICINALIS FLOWER EXTRACT, PAPAVER SOMNIFERUM SEED OIL, HYPERICUM PERFORATUM OIL, CINNAMOMUM ZEYLANICUM LEAF OIL, EUGENIA CARYOPHYLLUS BUD OIL, BOSWELLIA CARTERII OIL, CANARIUM LUZONICUM GUM OIL, MELALEUCA QUINQUENERVIA LEAF OIL, MENTHA PIPERITA OIL, JUNIPERUS COMMUNIS FRUIT OIL, CITRUS PARADISI PEEL OIL, TANACETUM ANNUUM FLOWER OIL, CUPRESSUS SEMPERVIRENS OIL, LAVANDULA ANGUSTIFOLIA OIL, DAUCUS CAROTA SATIVA ROOT EXTRACT, CALCIUM PHOSPHATE, CALCIUM SULFATE, MAGNESIUM ASCORBYL PHOSPHATE, ZINC PCA, COPPER PCA, BORON NITRIDE, TOCOPHEROL, CETEARYL OLIVATE, SORBITAN OLIVATE, GLYCERIN, BENZYL ALCOHOL, SORBIC ACID

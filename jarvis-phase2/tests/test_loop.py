@@ -111,8 +111,18 @@ class RunCycleTests(unittest.TestCase):
                                       "schema_version": "v1", "execution_enabled": True,
                                       "proposal_enabled": True})()
 
+        # 🔴 Anahtardaki slug ("demo-1") bir SARTNAME dosyasi ISTER.
+        # Eskiden dosya yoksa genel bir yer tutucu yazilirdi ve onay
+        # kuyruguna ICI BOS bir oneri duserdi; uretimde olculdu ve
+        # 21.09.2026'da kaldirildi -- "ici bos bir oneriyi onaylamak,
+        # onay degildir". Bu test gercek bir sartname VEREREK kendi asil
+        # iddiasini sinar: gecerli bir gorev gercek bir oneri uretir.
+        gercek_payload = {"subject_ref": "demo-1",
+                          "reason": "kampanya sartnamesi: gercek metin"}
+
         with self._healthy_memory(), patch.object(loop, "_claim_task", return_value=claimed), \
              patch.object(loop, "ContractCache", return_value=contract), \
+             patch.object(loop, "_build_agency_payload", return_value=gercek_payload), \
              patch.object(loop, "_propose_action", return_value=555) as propose_mock, \
              patch.object(loop, "_fail_task") as fail_mock:
             report = loop.run_cycle(host=None)
@@ -121,6 +131,44 @@ class RunCycleTests(unittest.TestCase):
         self.assertEqual(report["task_detail"]["action_type"], "REQUEST_HUMAN_REVIEW")
         fail_mock.assert_not_called()
         propose_mock.assert_called_once()
+
+    def test_sartnamesi_olmayan_slug_ICI_BOS_oneri_YAZMAZ(self):
+        """Slug verilmisse cagiran taraf bir sartname KASTETMISTIR.
+
+        Dosya yoksa bu bir hatadir, yer tutucu degil: gorev duser ve onay
+        kuyruguna hicbir sey yazilmaz. Onceden buraya "Automated proposal
+        from operator-originated task ..." diye onaylanabilir ama ici bos
+        bir satir duserdi.
+        """
+        claimed = {"task_id": 101, "task_type": "PROPOSE_ACTION",
+                   "idempotency_key": "jarvis:HUMAN_REVIEW_REQUEST:olmayan-sartname",
+                   "lease_token": "33333333-3333-3333-3333-333333333333",
+                   "source_type": "MANUAL", "source_id": None,
+                   "context_profile": "default", "attempt_count": 1}
+
+        class FakeContract:
+            valid = True
+            contract_hash = "deadbeef"
+            def canonical_for(self, intent):
+                return "REQUEST_HUMAN_REVIEW"
+            def action(self, canonical):
+                return type("A", (), {"risk_class": "LOW", "approval_mode": "ONE_PERSON",
+                                      "schema_version": "v1", "execution_enabled": True,
+                                      "proposal_enabled": True})()
+
+        contract = type("C", (), {"get": lambda self: FakeContract()})()
+
+        with self._healthy_memory(), patch.object(loop, "_claim_task", return_value=claimed), \
+             patch.object(loop, "ContractCache", return_value=contract), \
+             patch.object(loop, "_build_agency_payload", return_value=None), \
+             patch.object(loop, "_propose_action") as propose_mock, \
+             patch.object(loop, "_fail_task") as fail_mock:
+            report = loop.run_cycle(host=None)
+
+        self.assertEqual(report["result"], "CODING_TASK_DENIED")
+        propose_mock.assert_not_called()      # kuyruga HICBIR sey yazilmadi
+        fail_mock.assert_called_once()
+        self.assertIn("SARTNAME_YOK", report["task_detail"]["error"])
 
     def test_malformed_idempotency_key_fails_closed(self):
         claimed = {"task_id": 101, "task_type": "PROPOSE_ACTION", "idempotency_key": "not-the-convention",

@@ -33,7 +33,6 @@ Hedef alıcı ve hangi durumda önerileceği: **İNSAN DOLDURUR.** Bu, Wix açı
 
 Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçisinden **temiz** geçti. Olduğu gibi kullanılabilir.
 
-- L’CARLIE Cal Jaw , gece bakım rutinine eşlik etmek üzere bitkisel yağların dengeli bir karışımıyla formüle edilmiş, roll-on formatında bir bakım yağıdır.
 - Pratik ambalajı sayesinde kontrollü ve kolay uygulama imkânı sunar.
 - Hodan yağı, lavanta yağı, vetiver yağı ve akgünlük (frankincense) yağı, formülde yer alan bitkisel bileşenler arasında bulunur ve bakım rutininde kullanılan destekleyici içerikler olarak yer alır.
 - Ylang ylang, sedir ağacı, palmarosa, elemi ve mercanköşk yağları ise formülün bitkisel profilini tamamlar.
@@ -43,7 +42,7 @@ Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçi
 - ÖNE ÇIKAN ÖZELLİKLER Bitkisel yağ bileşenleriyle geliştirilmiş roll-on bakım yağı Gece bakım rutinine eşlik edecek hafif ve bitkisel formül Ciltle uyumlu, kolay yayılabilen doku Dengeli bitkisel yağ kompozisyonu Roll-on başlık sayesinde kontrollü ve pratik uygulama Kullanım Şekli Gece bakım rutininizin bir aşaması olarak ürünü temiz ve kuru cilt üzerine ince bir tabaka halinde uygulayın.
 
 ## Kullanım
-deneyimi sunar. Gece bakım rutininde, roll-on başlığı sayesinde pratik bir şekilde kullanılabilir. Düzenli kullanımda, ciltte bakımlı ve dengeli bir his bırakmayı amaçlar. Harici kullanım içindir. ÖNE ÇIKAN ÖZELLİKLER Bitkisel yağ bileşenleriyle geliştirilmiş roll-on bakım yağı Gece bakım rutinine e
+Gece bakım rutininizin bir aşaması olarak ürünü temiz ve kuru cilt üzerine ince bir tabaka halinde uygulayın. Roll-on başlığı ile dairesel hareketler yaparak ürünün cilt üzerinde eşit şekilde yayılmasını sağlayın. Göz çevresiyle temas ettirmeyiniz.
 
 ## İçindekiler
 (INCI) Borago Officinalis Seed Oil, Lavandula Angustifolia Oil, Boswellia Carterii Oil, Vetiveria Zizanoides Root Oil, Canarium Luzonicum Gum Oil, Cymbopogon Martinii Oil, Origanum Majorana Oil, Cedrus Atlantica Bark Oil, Cananga Odorata Flower Oil, Cocos Nucifera Oil (Fractionated), Tocopherol, Benzyl Alcohol, Salicylic Acid, Glycerin, Sorbic Acid.

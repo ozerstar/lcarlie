@@ -98,13 +98,40 @@ class DogrulamaTests(unittest.TestCase):
 
 class PlanTests(unittest.TestCase):
     class SahteRouter:
+        """🔴 IMZA GERCEK ROUTER'LA AYNI OLMAK ZORUNDA.
+
+        24.09.2026'da iki test bu yuzden kirmiziydi. `plan()` gercek
+        router'a `is_anahtari="query_planner"` gecirmeye baslamisti;
+        buradaki taklit o parametreyi tanimiyordu. Sonuc TypeError'du ama
+        `plan()` icindeki genis `except Exception` onu yakalayip
+        "model cagrisi basarisiz" diye RAPORLADI -- yani bir PROGRAMLAMA
+        hatasi, normal bir calisma zamani arizasi gibi gorundu.
+
+        Testler "model hic cagrilmamis" davranisini dogrulayip gecti;
+        gercekte sinanmak istenen yol (model ciktisinin dogrulanmasi)
+        HIC calismadi. Asagidaki imza testi bunun tekrarini engeller.
+        """
+
         def __init__(self, text=None, patlat=False):
             self.text, self.patlat = text, patlat
 
-        def generate(self, messages, max_tokens, escalate=False):
+        def generate(self, messages, max_tokens, escalate=False,
+                     is_anahtari=None):
             if self.patlat:
                 raise RuntimeError("model yok")
             return {"text": self.text}, "LOCAL_GPU", 1
+
+    def test_taklit_router_GERCEK_imzayla_uyumlu(self):
+        """Taklit gercegin gerisinde kalirsa testler sessizce anlamsizlasir."""
+        import inspect
+        from jarvis.model_layer import ModelRouter
+
+        gercek = inspect.signature(ModelRouter.generate).parameters
+        taklit = inspect.signature(self.SahteRouter.generate).parameters
+        eksik = [ad for ad in gercek if ad not in taklit]
+        self.assertEqual([], eksik,
+                         "taklit router gercek imzadaki su parametreleri "
+                         "tanimiyor: " + ", ".join(eksik))
 
     def test_model_yoksa_deterministige_duser(self):
         out = qp.plan(REQUEST, None)

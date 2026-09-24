@@ -33,7 +33,6 @@ Hedef alıcı ve hangi durumda önerileceği: **İNSAN DOLDURUR.** Bu, Wix açı
 
 Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçisinden **temiz** geçti. Olduğu gibi kullanılabilir.
 
-- Her nefeste ferahlık hissi… L’CARLIE Calmoris, lavanta, bergamot, ylang ylang, günlük, vetiver, paçuli ve elemi yağlarının dengeli birleşiminden oluşan bitkisel içerikli bir roll-on bakım ürünüdür.
 - Doğal bitki yağlarının hoş kokusu sayesinde uygulandığı bölgede ferahlık ve tazelenme hissi sunar.
 - Tatlı badem yağı ve E vitamini ile zenginleştirilen formülü, cildin nemlenmesine ve yumuşamasına yardımcı olur.
 - Hafif yapısı sayesinde kolay emilir ve ciltte yağlı bir his bırakmaz.
@@ -43,7 +42,7 @@ Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçi
 - • Göz ve mukozalar ile temas ettirmeyiniz.
 
 ## Kullanım
-sağlar. Kullanım Şakaklara, alına, enseye, bileklere veya burun altına ince bir tabaka halinde uygulayınız. Gün içerisinde ihtiyaç duyuldukça tekrarlanabilir. Uyarılar • Yalnızca harici kullanım içindir. • Göz ve mukozalar ile temas ettirmeyiniz. • Fototoksik bileşenler içerdiğinden uygulama sonrası
+Şakaklara, alına, enseye, bileklere veya burun altına ince bir tabaka halinde uygulayınız. Gün içerisinde ihtiyaç duyuldukça tekrarlanabilir. Uyarılar • Yalnızca harici kullanım içindir. • Göz ve mukozalar ile temas ettirmeyiniz.
 
 ## İçindekiler
 Tatlı Badem Yağı, Lavanta Yağı, Bergamot Yağı, Ylang Ylang Yağı, Günlük Yağı (Frankincense), Vetiver Yağı, Paçuli Yağı, Elemi Yağı, E Vitamini (Tokoferol) Ingredients (INCI) Prunus Amygdalus Dulcis Oil, Lavandula Angustifolia Oil, Citrus Aurantium Bergamia Fruit Oil, Cananga Odorata Flower Oil, Boswellia Carterii Oil, Vetiveria Zizanoides Root Oil, Pogostemon Cablin Leaf Oil, Canarium Luzonicum Gum Oil, Tocopherol

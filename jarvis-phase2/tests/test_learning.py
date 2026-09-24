@@ -75,9 +75,30 @@ class SiralamaTests(unittest.TestCase):
         self.assertEqual(report.lessons[0].value, "INSUFFICIENT_EVIDENCE")
         self.assertEqual(report.lessons[0].decided, 0)
 
-    def test_beklemede_olan_ders_bunu_soyler(self):
+    def test_beklemede_olan_ders_hicbirinin_karara_baglanmadigini_soyler(self):
+        """Sinanmak istenen sey BAGIRMA degil, BILGI.
+
+        Test eskiden ozette "HİÇBİRİ" diye BUYUK harfli bir kelime
+        ariyordu. Raporlar sonradan sadelestirildi ve cumle "...hiçbiri
+        karara bağlanmamış" oldu; bilgi aynen duruyor, yalniz bagirma
+        gitti. Test bu yuzden kirmiziydi -- kusur metinde degil, testin
+        neye tutundugundaydi.
+
+        🔴 Türkçe tuzağı: "HİÇBİRİ".casefold() birleşik noktalı
+        "i\u0307" üretir, metindeki "hiçbiri" ise sade "i" taşır. İki taraf
+        aynı şekilde normalleştirilmezse eşleşme SESSİZCE başarısız olur.
+        """
+        def sadelestir(metin):
+            return metin.casefold().replace("i\u0307", "i")
+
         rows = [karar("PROPOSED", red_team="INSUFFICIENT_EVIDENCE") for _ in range(4)]
-        self.assertIn("HİÇBİRİ", learning.analyze(rows).lessons[0].summary)
+        ders = learning.analyze(rows).lessons[0]
+
+        self.assertEqual(0, ders.decided)
+        ozet = sadelestir(ders.summary)
+        self.assertIn(sadelestir("HİÇBİRİ"), ozet,
+                      "özet hiçbirinin karara bağlanmadığını söylemiyor")
+        self.assertIn("4", ders.summary, "kaç kararın beklediği yazılmıyor")
 
     def test_dusuk_onay_orani_yuksekten_once(self):
         rows = ([karar("APPROVED", tip="MEDIA_BUDGET") for _ in range(5)]

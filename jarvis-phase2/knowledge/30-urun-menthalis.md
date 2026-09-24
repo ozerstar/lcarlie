@@ -33,7 +33,6 @@ Hedef alıcı ve hangi durumda önerileceği: **İNSAN DOLDURUR.** Bu, Wix açı
 
 Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçisinden **temiz** geçti. Olduğu gibi kullanılabilir.
 
-- L CARLIE Menthalis, nane, bergamot, niaouli, ylang ylang, servi ve palmarosa bitki yağlarının dengeli birleşimiyle geliştirilen ferahlatıcı bir bakım roll-onudur.
 - Cilde uygulandığında serinletici ve tazeleyici bir his sağlar.
 - Gün içinde yoğun tempoda çalışan, bilgisayar başında uzun süre vakit geçiren veya zihinsel olarak aktif bir gün geçiren kişiler için pratik bir ferahlık desteği sunar.
 - Formülünde bulunan tatlı badem yağı ve E vitamini , cildin nem dengesini desteklemeye yardımcı olur.
@@ -43,7 +42,7 @@ Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçi
 - Gün içinde ihtiyaç duyuldukça tekrarlanabilir.
 
 ## Kullanım
-için uygun hafif yapı Kullanım Yüz bölgesine ince bir tabaka hâlinde uygulayınız. Gün içinde ihtiyaç duyuldukça tekrarlanabilir. Uyarılar Yalnızca harici kullanım içindir. Göz ve mukozalarla temas ettirmeyiniz. Fototoksik bileşenler içerdiğinden uygulama sonrası doğrudan güneş ışığından kaçınınız. H
+Yüz bölgesine ince bir tabaka hâlinde uygulayınız. Gün içinde ihtiyaç duyuldukça tekrarlanabilir. Uyarılar Yalnızca harici kullanım içindir. Göz ve mukozalarla temas ettirmeyiniz. Fototoksik bileşenler içerdiğinden uygulama sonrası doğrudan güneş ışığından kaçınınız.
 
 ## İçindekiler
 (TR) Tatlı Badem Yağı, Nane Yağı, Bergamot Yağı, Ylang Ylang Yağı, Servi Yaprağı Yağı, Niaouli Yağı, Palmarosa Yağı, Tokoferol (E Vitamini) INCI (EN) Prunus Amygdalus Dulcis Oil, Mentha Piperita Oil, Citrus Aurantium Bergamia Peel Oil, Cananga Odorata Flower Oil, Cupressus Sempervirens Leaf Oil, Melaleuca Quinquenervia Oil, Cymbopogon Martinii Oil, Tocopherol (Vitamin E)

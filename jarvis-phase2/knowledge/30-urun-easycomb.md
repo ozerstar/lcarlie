@@ -33,7 +33,6 @@ Hedef alıcı ve hangi durumda önerileceği: **İNSAN DOLDURUR.** Bu, Wix açı
 
 Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçisinden **temiz** geçti. Olduğu gibi kullanılabilir.
 
-- L’CARLIE EasyComb, bebek ve çocukların saç bakım rutinine eşlik etmek üzere bitki bazlı içeriklerle formüle edilmiş bir saç bakım spreyidir.
 - Hassas saç yapısı dikkate alınarak geliştirilmiştir.
 - Saç ve saç derisi bakımına yönelik nazik bir kullanım sunar ve günlük saç bakım rutinini desteklemeye yardımcı olur.
 - Aloe vera ve jojoba yağı içeriğiyle saç bakımına yumuşak bir bakım hissi kazandırmaya katkı sağlar.
@@ -43,7 +42,7 @@ Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçi
 - Günlük kullanıma uygundur.
 
 ## Kullanım
-sunar ve günlük saç bakım rutinini desteklemeye yardımcı olur. Aloe vera ve jojoba yağı içeriğiyle saç bakımına yumuşak bir bakım hissi kazandırmaya katkı sağlar. Lavanta ve papatya suları ise saçın taranmasını kolaylaştırmaya yardımcı olabilecek bitkisel içerikler olarak formülde yer alır. Günlük k
+Yeterli miktarda ürünü nemli veya kuru saça, özellikle tarama öncesinde saç uçları ve boylarına uygulayınız. Durulama gerektirmez. Günlük kullanıma uygundur. Uyarılar Sadece harici kullanım içindir. Göz ile temasından kaçınınız. Temas halinde bol su ile durulayınız.
 
 ## İçindekiler
 (TR) Aloe Vera Yaprağı Suyu, Papatya Suyu, Lavanta Suyu, Gliserin, Jojoba Yağı, Avokado Yağı, Hodan Tohumu Yağı, Laktobasil Ferment Lizatı, Bifida Ferment Lizatı, Saccharomyces Ferment Filtratı, Sitrimonyum Klorür, E Vitamini, Benzil Alkol, Salisilik Asit, Sorbik Asit, Saf Su.

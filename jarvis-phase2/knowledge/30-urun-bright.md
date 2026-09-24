@@ -33,7 +33,6 @@ Hedef alıcı ve hangi durumda önerileceği: **İNSAN DOLDURUR.** Bu, Wix açı
 
 Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçisinden **temiz** geçti. Olduğu gibi kullanılabilir.
 
-- (Doğal İçerikli Beyazlatıcı Diş Macunu) L’CARLIE BrightSmile, doğal mineraller ve bitkisel özlerle formüle edilmiş, günlük ağız bakımına yönelik bir diş macunudur.
 - Bambu kaynaklı aktif karbon, zeolit ve diatom toprağı içeriği sayesinde diş yüzeyinde biriken kalıntıların nazikçe uzaklaştırılmasına yardımcı olur ve ağız bakım rutininizi destekler.
 - Aloe vera jel ve yeşil çay ekstresi, ağız bakımına yumuşak bir bakım hissi kazandırmaya katkı sağlar.
 - Nane ve çay ağacı yağı içeriği ise kullanım sonrası ağızda ferahlık hissi oluşmasına yardımcı olur.
@@ -43,7 +42,7 @@ Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçi
 - Serin, kuru ve güneş ışığından uzak ortamda muhafaza ediniz.
 
 ## Kullanım
-sonrası ağızda ferahlık hissi oluşmasına yardımcı olur. Düzenli kullanımda ağız bakım alışkanlığınızı tamamlayan, bitkisel içerik ağırlıklı bir bakım ürünü olarak günlük kullanıma uygundur. Ürün Özellikleri • Günlük ağız bakımına uygun formül • Doğal mineraller ve bitkisel özler içerir • Diş yüzeyin
+Günde en az 2 kez, bezelye tanesi kadar ürünü diş fırçasına alarak dişlerinizi 2–3 dakika boyunca fırçalayınız. Yutmayınız. Uyarılar Sadece ağız bakımı amacıyla kullanılır. Yutulmamalıdır. Göz ile temasından kaçınınız. Tahriş oluşması halinde kullanımı bırakınız.
 
 ## İçindekiler
 (TR) Aloe Vera Jel, Ksilitol, Hindistan Cevizi Yağı, Bambu Aktif Karbon, Bentonit Kili, Diatom Toprağı, Sodyum Bikarbonat, Kalsiyum Karbonat, Zeolit, Çinko Sitrat, Decyl Glucoside, Nane Yağı, Çay Ağacı Yağı, Karanfil Yağı, E Vitamini, Probiyotik Kompleks, Yeşil Çay Ekstresi, Karagenan, Doğal Koruyucu, Saf Su. Ingredients (EN) Aqua, Aloe Barbadensis Leaf Juice, Xylitol, Cocos Nucifera Oil, Charcoal Powder (Bamboo), Bentonite, Diatomaceous Earth, Sodium Bicarbonate, Calcium Carbonate, Zeolite, Zinc Citrate, Decyl Glucoside, Mentha Piperita Oil, Melaleuca Alternifolia Leaf Oil, Eugenia Caryophyllus Bud Oil, Tocopherol, Lactobacillus Ferment, Streptococcus Salivarius Ferment, Camellia Sinensis Leaf Extract, Carrageenan, Benzyl Alcohol, Salicylic Acid, Sorbic Acid.

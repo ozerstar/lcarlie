@@ -33,7 +33,6 @@ Hedef alıcı ve hangi durumda önerileceği: **İNSAN DOLDURUR.** Bu, Wix açı
 
 Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçisinden **temiz** geçti. Olduğu gibi kullanılabilir.
 
-- L’CARLIE BugGuard, lavanta çiçeği suyu, aloe vera özü ve yoğun aromatik karaktere sahip bitkisel uçucu yağların dengeli birleşimiyle formüle edilmiş, hafif yapılı bir vücut bakım ve bitkisel savunma spreyidir.
 - Doğadan ilham alan aromatik profili sayesinde, özellikle yaz döneminde açık alanlarda ve dış ortam koşullarında, cilt üzerinde belirgin ve uzun süre hissedilen bitkisel bir bariyer hissi oluşturmayı amaçlayan bir kullanım deneyimi sunar.
 - Formülünde yer alan Citriodiol (limon okaliptüs yağı fraksiyonu), citronella, neem, paçuli, limon otu, çay ağacı, karanfil ve nane yağları; ürüne yoğun, karakteristik ve doğada fark edilir bir aromatik yapı kazandırır.
 - Lavanta çiçeği suyu ile desteklenen yapı, uygulama sırasında ferahlık hissi sağlarken; aloe vera özü ciltte yumuşak ve konforlu bir bakım hissi oluşmasına katkıda bulunur.
@@ -43,7 +42,7 @@ Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçi
 - Spreyi uygularken eşit dağılım sağlayacak şekilde hareket ettirin.
 
 ## Kullanım
-deneyimi sunar. Formülünde yer alan Citriodiol (limon okaliptüs yağı fraksiyonu), citronella, neem, paçuli, limon otu, çay ağacı, karanfil ve nane yağları; ürüne yoğun, karakteristik ve doğada fark edilir bir aromatik yapı kazandırır. Lavanta çiçeği suyu ile desteklenen yapı, uygulama sırasında fera
+Ürünü temiz ve kuru cilt üzerine yaklaşık 20–30 cm mesafeden püskürtün. Spreyi uygularken eşit dağılım sağlayacak şekilde hareket ettirin. Gerektiğinde gün içinde tekrarlanabilir. Uyarılar 2 yaş altı çocuklarda yalnızca doktor önerisi ile kullanınız. Harici kullanım içindir.
 
 ## İçindekiler
 Lavandula Angustifolia Flower Water, Aloe Barbadensis Leaf Juice, Azadirachta Indica Seed Oil, Eucalyptus Citriodora Oil, Cymbopogon Winterianus Oil, Pogostemon Cablin Oil, Cymbopogon Citratus Leaf Oil, Melaleuca Alternifolia Leaf Oil, Mentha Piperita Oil, Lavandula Angustifolia Oil, Syzygium Aromaticum Bud Oil, Vanillin, Glycine Soja Oil, Glycerin, Tocopherol, Benzyl Alcohol, Salicylic Acid, Sorbic Acid, Aqua

@@ -1,6 +1,6 @@
 ---
 konu: OPTYWAVE (Göz Çevresi Aydınlatıcı ve Koruyucu Roll-On) ürün bilgisi
-anahtar: [aydinlatici, aydınlatıcı, bazli, bazlı, bitkisel, cevresi, eslik, etmek, eşlik, formunda, goz, göz, koruyucu, optywave, roll, yag, yağ, çevresi, göz çevresi]
+anahtar: [aydinlatici, aydınlatıcı, bazli, bazlı, bitkisel, cevresi, eslik, etmek, eşlik, goz, göz, koruyucu, optywave, roll, urunudur, yag, yağ, çevresi, ürünüdür, göz çevresi]
 gizlilik: ic-bilgi
 kaynak: mart.urun_karti (Wix yayındaki metin) + jarvis.compliance taraması
 uretim: tools/urun-bilgi-uret.py -- ELLE DÜZENLENEBİLİR, yeniden üretim üzerine yazar
@@ -33,7 +33,6 @@ Hedef alıcı ve hangi durumda önerileceği: **İNSAN DOLDURUR.** Bu, Wix açı
 
 Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçisinden **temiz** geçti. Olduğu gibi kullanılabilir.
 
-- L’CARLIE Optywave, göz çevresi bakım rutinine eşlik etmek üzere geliştirilmiş, bitkisel yağ bazlı roll-on formunda bir bakım ürünüdür.
 - Ekran karşısında uzun süre geçirilen günlerde, göz çevresine uygulamaya uygun hafif ve pratik bir kullanım sunar.
 - Formülünde yer alan astaksantin, lutein ve zeaksantin, göz çevresi bakımında kullanılan destekleyici içerikler olarak yer alır.
 - Hodan yağı, aynısefa ekstresi ve üzüm çekirdeği yağı, göz çevresinin nemli ve bakımlı bir his kazanmasına yardımcı olur.
@@ -43,7 +42,7 @@ Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçi
 - Öne Çıkan Özellikler Göz çevresi bakımına yönelik bitkisel roll-on formül Astaksantin, lutein ve zeaksantin içeren bakım bileşenleri Hodan ve aynısefa ile nem ve konfor hissi Hafif dokulu, ciltte yağlı his bırakmayan yapı Roll-on formatıyla pratik ve hijyenik kullanım Kullanım Talimatı: Günde 1–2 kez temiz göz çevresine roll-on başlık ile dairesel hareketlerle nazikçe uygulayınız.
 
 ## Kullanım
-sunar. Formülünde yer alan astaksantin, lutein ve zeaksantin, göz çevresi bakımında kullanılan destekleyici içerikler olarak yer alır. Hodan yağı, aynısefa ekstresi ve üzüm çekirdeği yağı, göz çevresinin nemli ve bakımlı bir his kazanmasına yardımcı olur. Hafif dokusu sayesinde ciltle kolayca bütünl
+Günde 1–2 kez temiz göz çevresine roll-on başlık ile dairesel hareketlerle nazikçe uygulayınız. Gözle doğrudan temas ettirmeyiniz. Uyarılar Yalnızca harici kullanım içindir. Göz ile doğrudan temas ettirmeyiniz, yalnızca göz çevresine uygulayınız.
 
 ## İçindekiler
 INCI Hodan Yağı, Aynısefa Ekstresi, Lif Kabağı Yağı, Niaouli Yağı, Lavanta Yağı, Selvi Yağı, E Vitamini, Astaksantin, Lutein, Zeaksantin, Yaban Mersini CO₂ Ekstresi, Soğuk Pres Üzüm Çekirdeği Yağı.

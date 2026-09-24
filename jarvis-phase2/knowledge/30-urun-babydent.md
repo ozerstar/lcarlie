@@ -1,6 +1,6 @@
 ---
 konu: BABYDENT (Bebek ve Çocuklar İçin Diş Bakım Jeli) ürün bilgisi
-anahtar: [agiz, ağız, babydent, bakim, bakım, bebek, cocuklar, dis, diş, eslik, etmek, eşlik, ilk, itibaren, i̇cin, i̇çin, jeli, çocuklar, bebek ve çocuk]
+anahtar: [agiz, ağız, babydent, bakim, bakım, bebek, cocuklar, dis, diş, eslik, etmek, eşlik, ilk, itibaren, i̇cin, i̇çin, jeli, rutinine, çocuklar, bebek ve çocuk]
 gizlilik: ic-bilgi
 kaynak: mart.urun_karti (Wix yayındaki metin) + jarvis.compliance taraması
 uretim: tools/urun-bilgi-uret.py -- ELLE DÜZENLENEBİLİR, yeniden üretim üzerine yazar
@@ -33,7 +33,6 @@ Hedef alıcı ve hangi durumda önerileceği: **İNSAN DOLDURUR.** Bu, Wix açı
 
 Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçisinden **temiz** geçti. Olduğu gibi kullanılabilir.
 
-- L’CARLIE BabyDent – Bebek ve Çocuklar İçin Diş Bakım Jeli L’CARLIE BabyDent, çocukların ilk dişlerinden itibaren günlük ağız bakım rutinine eşlik etmek üzere formüle edilmiş bir diş bakım jelidir.
 - Yutulmaya uygun yapıya sahip formülü ile kullanım kolaylığı sunar ve günlük ağız bakım rutinini desteklemeye yardımcı olur.
 - Aloe vera, hatmi kökü ekstresi ve mavi papatya yağı içeriğiyle ağız bakımına nazik bir bakım hissi kazandırmaya katkı sağlar.
 - Ksilitol, hindistan cevizi yağı ve probiyotik bileşenler, ağız bakım rutinini destekleyici içerikler olarak formülde yer alır.
@@ -43,7 +42,7 @@ Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçi
 - Uyarılar Sadece ağız bakımı amacıyla kullanılır.
 
 ## Kullanım
-kolaylığı sunar ve günlük ağız bakım rutinini desteklemeye yardımcı olur. Aloe vera, hatmi kökü ekstresi ve mavi papatya yağı içeriğiyle ağız bakımına nazik bir bakım hissi kazandırmaya katkı sağlar. Ksilitol, hindistan cevizi yağı ve probiyotik bileşenler, ağız bakım rutinini destekleyici içerikler
+Temiz bir bez veya yumuşak bebek diş fırçası yardımıyla az miktarda ürünü alarak diş yüzeylerine nazikçe uygulayınız. Durulama gerektirmez. Uyarılar Sadece ağız bakımı amacıyla kullanılır. Yutulmaya uygun formüldür. Göz ile temasından kaçınınız. Çocukların erişemeyeceği yerde saklayınız.
 
 ## İçindekiler
 (EN) Aloe Barbadensis Leaf Juice, Xylitol, Cocos Nucifera Oil, Chamomilla Recutita Flower Water, Eugenia Caryophyllus Bud Oil, Althaea Officinalis Root Extract, Chamomilla Recutita (Matricaria) Flower Oil, Vanilla Planifolia Fruit Extract, Natural Fruit Flavor (Apple–Pear), Carrageenan, Glycerin, Tocopherol, Lactobacillus Ferment, Camellia Sinensis Leaf Extract, Benzyl Alcohol, Salicylic Acid, Sorbic Acid, Aqua.

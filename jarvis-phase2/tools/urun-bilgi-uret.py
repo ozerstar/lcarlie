@@ -30,6 +30,7 @@ from __future__ import annotations
 import json
 import pathlib
 import re
+import os
 import subprocess
 import sys
 import unicodedata
@@ -37,7 +38,17 @@ import unicodedata
 sys.path.insert(0, "/opt/lcarlie/jarvis-phase2")
 from jarvis import compliance  # noqa: E402
 
-KNOWLEDGE = pathlib.Path("/opt/lcarlie/jarvis-phase2/knowledge")
+# 🔴 ESKIDEN URETIM AGACINA SABITLENMISTI:
+#   pathlib.Path("/opt/lcarlie/jarvis-phase2/knowledge")
+# Uretilen dosyalar boylece git'in DISINDA kaliyordu. deploy.sh ise
+# kaynaktan uretime kopyalarken ayni dosyalari ESKI haliyle geri
+# yaziyor -- yani her dagitim, urettigimiz dosyalari sessizce geri
+# aliyordu. Kaynak ile uretim 24.09.2026'da olculdu: 31 dosya farkli.
+# Artik yol betigin KENDI konumundan turetiliyor: kaynakta calisir,
+# ciktisi git'e girer, dagitim onu uretime tasir.
+KNOWLEDGE = pathlib.Path(os.environ.get(
+    "JARVIS_KNOWLEDGE_DIR",
+    str(pathlib.Path(__file__).resolve().parents[1] / "knowledge")))
 ELLE_YAZILAN = {"vireon", "femisia", "intimblanc", "liftelle", "dermavasc"}
 
 SORGU = r"""
@@ -59,9 +70,63 @@ _BOSLUK = re.compile(r"\s+")
 _ICINDEKILER = re.compile(
     r"(İçindekiler|Icindekiler|INCI|Ingredients)\s*[:：]?\s*(.{40,1200})",
     re.IGNORECASE | re.DOTALL)
-_KULLANIM = re.compile(
-    r"(Kullanım|Kullanim|Nasıl kullanılır|Nasil kullanilir)\s*[:：]?\s*(.{20,400})",
-    re.IGNORECASE | re.DOTALL)
+# 🔴 ESKI HALI CEKIMLI KELIMENIN ICINDEN ESLESIYORDU.
+# Desen "Kullanım" idi ve IGNORECASE ile "günlük kullanım|da", "harici
+# kullanım| içindir", "kullanım|a uygundur" gibi SIRADAN geçişlere de
+# takılıyordu. re.search ilk eşleşmeyi aldığı için bölüm cümlenin
+# ORTASINDAN başlıyordu -- 36 ürün dosyasının çoğunda ölçüldü:
+#   dermastra  -> "da cildin daha bakımlı, dengeli ..."
+#   babysoft   -> "a uygundur. Harici kullanım içindir. ..."
+# Hiçbir hata vermedi; bölüm doluydu, yalnız ANLAMSIZDI.
+#
+# Aynı sınıf hata bu projede daha önce de oldu (bir desenin kelime
+# ortasında eşleşmesi). Çözüm iki parçalı:
+#   1. anahtar kelimeden SONRA Türkçe ek harfi gelmemeli,
+#   2. desenler GÜVEN SIRASINA göre denenir: önce "Kullanım Talimatı",
+#      sonra iki nokta ile ayrılmış başlık, en son başlık gibi duran
+#      (büyük harfle devam eden) kullanım. Hiçbiri tutmazsa bölüm
+#      YAZILMAZ -- yanlış metin yazmaktansa boş bırakmak doğrudur.
+_EK_HARFI = r"(?![a-zçğıiöşü])"        # IGNORECASE açık; büyük harf zaten devam değil
+_KULLANIM_DESENLERI = (
+    re.compile(r"Kullan[ıi]m\s+(?:Talimat[ıi]|Şekli|Sekli)" + _EK_HARFI + r"\s*[:：]?\s*(.{20,400})",
+               re.IGNORECASE | re.DOTALL),
+    re.compile(r"Nas[ıi]l\s+kullan[ıi]l[ıi]r" + _EK_HARFI + r"\s*[:：]?\s*(.{20,400})",
+               re.IGNORECASE | re.DOTALL),
+    re.compile(r"Kullan[ıi]m" + _EK_HARFI + r"\s*[:：]\s*(.{20,400})",
+               re.IGNORECASE | re.DOTALL),
+    # Başlık gibi: "Kullanım Şakaklara, alına, enseye ..." -- iki nokta yok
+    # ama devamı BÜYÜK harfle başlıyor, yani yeni bir cümle/başlık.
+    re.compile(r"Kullan[ıi]m" + _EK_HARFI + r"\s+(?=[A-ZÇĞİÖŞÜ])(.{20,400})",
+               re.DOTALL),
+)
+
+
+def kullanim_bul(metin: str):
+    """En güvenilir desenden başlayarak kullanım talimatını arar."""
+    for desen in _KULLANIM_DESENLERI:
+        m = desen.search(metin or "")
+        if m:
+            return m
+    return None
+
+
+def cumlede_kes(metin: str, sinir: int) -> str:
+    """Metni KELİME/CÜMLE ortasından kesmez.
+
+    Eski kod düz `[:300]` yapıyordu ve bölüm "... formüle edilmişti"
+    diye yarım kelimeyle bitiyordu. Önce son cümle sonu, o da yoksa son
+    boşluk aranır.
+    """
+    metin = (metin or "").strip()
+    if len(metin) <= sinir:
+        return metin
+    kirpik = metin[:sinir]
+    for bitis in (". ", "! ", "? "):
+        yer = kirpik.rfind(bitis)
+        if yer >= sinir // 3:
+            return kirpik[:yer + 1].strip()
+    yer = kirpik.rfind(" ")
+    return (kirpik[:yer] if yer > sinir // 2 else kirpik).strip()
 
 
 def slugla(ad: str) -> str:
@@ -204,7 +269,7 @@ def dosya_uret(u: dict) -> tuple[str, str, dict]:
     belge = belge_bulgulari(metin)
 
     ic = _ICINDEKILER.search(metin)
-    kul = _KULLANIM.search(metin)
+    kul = kullanim_bul(metin)
 
     wix = u.get("wix_satis")
     liste = u.get("wix_liste")
@@ -305,16 +370,29 @@ def dosya_uret(u: dict) -> tuple[str, str, dict]:
     A("Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat"
       " denetçisinden **temiz** geçti. Olduğu gibi kullanılabilir.")
     A("")
-    if temiz:
-        for c in temiz[:8]:
+    # 🔴 İLK CÜMLE BURADA TEKRARLANMAZ: yukarıdaki "Tek cümlede" bölümü
+    # zaten temiz[0]. Aynı cümleyi iki kez yazmak dosyayı ~230 karakter
+    # şişiriyordu ve iki üründe (dermastra, sunacnea) 4200 karakterlik
+    # getirme bütçesini AŞTIRIYORDU -- bütçeyi aşan dosya sessizce hiç
+    # getirilmez, yani ürün hakkında model bilgisiz cevap verir.
+    # Tek cümlelik metinlerde tekrar sayılmaz, o cümle burada da durur.
+    # [1:8] -- [1:9] DEGIL. [1:9] madde sayisini 8'de TUTUP pencereyi
+    # kaydiriyordu: tekrar gidiyor ama yerine YENI bir cumle geliyor,
+    # yani dosya hic kisalmiyordu. Olculdu -- yeniden uretimden sonra
+    # dermanova 4300, sunacnea 4481 ile butceyi DAHA DA asti.
+    # Amac tekrari SILMEK, baska bir cumleyle degistirmek degil.
+    maddeler = temiz[1:8] if len(temiz) > 1 else temiz
+    if maddeler:
+        for c in maddeler:
             A(f"- {c}")
     else:
         A("- İNSAN DOLDURUR — temiz cümle çıkmadı.")
     A("")
 
     if kul:
+        # group(1): her desende yakalanan tek grup metnin kendisidir.
         A("## Kullanım")
-        A(_BOSLUK.sub(" ", kul.group(2)).strip()[:300])
+        A(cumlede_kes(_BOSLUK.sub(" ", kul.group(1)), 300))
         A("")
 
     if ic:

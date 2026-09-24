@@ -33,7 +33,6 @@ Hedef alıcı ve hangi durumda önerileceği: **İNSAN DOLDURUR.** Bu, Wix açı
 
 Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçisinden **temiz** geçti. Olduğu gibi kullanılabilir.
 
-- L’CARLIE Lipvora , bitkisel yağlar ve doğal balmumlarıyla zenginleştirilmiş formülüyle dudak bakımına yönelik olarak geliştirilmiş bir dudak balmıdır.
 - Dudaklarda yumuşak, parlak ve bakımlı bir görünüm elde edilmesine yardımcı olur.
 - Jojoba, shea ve hodan yağları içeren formülü, dudakların nem dengesinin korunmasına ve pürüzsüz bir his kazanmasına katkı sağlar.
 - Tarçın ve ylang ylang yağlarının aromatik profili, uygulama sırasında dudaklarda sıcaklık ve canlılık hissi oluşmasına eşlik eder.
@@ -43,7 +42,7 @@ Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçi
 - Dilerseniz makyaj altına baz olarak veya tek başına doğal parlaklık için kullanabilirsiniz.
 
 ## Kullanım
-sunar. Günlük kullanıma uygundur. Harici kullanım içindir. ÖNE ÇIKAN ÖZELLİKLER Bitkisel yağlar ve balmumları içeren dudak bakım ürünü Dudaklarda parlak ve bakımlı görünüm algısına destek Jojoba, shea ve hodan yağlarıyla nem ve yumuşaklık hissi Tarçın ve ylang ylang ile sıcaklık ve canlılık hissi Gü
+Temiz dudaklara ihtiyaç duyuldukça uygulayınız. Dilerseniz makyaj altına baz olarak veya tek başına doğal parlaklık için kullanabilirsiniz.. Uyarı : Haricen kullanım içindir. Tahriş veya yanma hissi oluşursa kullanımı bırakınız. Çocukların erişemeyeceği yerde, serin ve kuru ortamda saklayınız.
 
 ## İçindekiler
 (TR): Jojoba Yağı, Shea Yağı, Hodan Yağı, Arı Mumu, Candelilla Mumu, Ylang Ylang Yağı, Tarçın Yağı, Elemi Yağı, E Vitamini, Benzil Alkol, Salisilik Asit, Sorbik Asit, Gliserin. INCI (EN): Simmondsia Chinensis Seed Oil, Butyrospermum Parkii Butter, Borago Officinalis Seed Oil, Cera Alba, Euphorbia Cerifera Wax, Cananga Odorata Flower Oil, Cinnamomum Zeylanicum Bark Oil, Canarium Luzonicum Gum Oil, Tocopherol, Benzyl Alcohol, Salicylic Acid, Sorbic Acid, Glycerin.

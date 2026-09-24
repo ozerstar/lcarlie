@@ -33,7 +33,6 @@ Hedef alıcı ve hangi durumda önerileceği: **İNSAN DOLDURUR.** Bu, Wix açı
 
 Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçisinden **temiz** geçti. Olduğu gibi kullanılabilir.
 
-- L’CARLIE Dermarnica , arnica montana ekstresi ağırlıklı bitkisel içeriklerle formüle edilmiş bir cilt bakım kremidir.
 - Günlük bakım rutinine uygun yapısıyla, yoğun tempo, spor veya dış etkenlere maruz kalınan dönemlerde cilt bakımına eşlik etmeyi amaçlar.
 - Arnica ekstresi, centella (gotu kola) ve kantaron yağı gibi bitkisel bileşenler, cilt bakımına destekleyici içerikler olarak formülde yer alır.
 - Hodan yağı, aynısefa ekstresi ve ozonize kantaron yağı, cildin nem dengesinin korunmasına ve daha konforlu bir his kazanmasına yardımcı olur.
@@ -43,7 +42,7 @@ Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçi
 - Kullanım: Temiz ve kuru cilde günde 2–3 kez, nazikçe masaj yaparak uygulayınız.
 
 ## Kullanım
-konforu sunar. Düzenli kullanımda, cildin daha bakımlı, canlı ve dengeli bir görünüm kazanmasına yardımcı olur. Harici kullanım içindir. Kullanım: Temiz ve kuru cilde günde 2–3 kez, nazikçe masaj yaparak uygulayınız. Göz çevresine uygulamayınız. Yalnızca harici kullanım içindir. Uyarılar: Göz ve açı
+Temiz ve kuru cilde günde 2–3 kez, nazikçe masaj yaparak uygulayınız. Göz çevresine uygulamayınız. Yalnızca harici kullanım içindir. Uyarılar: Göz ve açık yaralarla temas ettirmeyiniz. Çocukların ulaşamayacağı yerde saklayınız. Alerji riskine karşı önce küçük bir bölgede test ediniz.
 
 ## İçindekiler
 AQUA, BORAGO OFFICINALIS SEED OIL, CALENDULA OFFICINALIS EXTRACT, HYPERICUM PERFORATUM OIL, ARNICA MONTANA EXTRACT, CENTELLA ASIATICA EXTRACT, GLYCERIN, BROMELAIN, CURCUMA LONGA ROOT OIL, MENTHA PIPERITA OIL, EUGENIA CARYOPHYLLUS BUD OIL, BOSWELLIA CARTERII OIL, TOCOPHEROL, CETEARYL OLIVATE, SORBITAN OLIVATE, BENZYL ALCOHOL

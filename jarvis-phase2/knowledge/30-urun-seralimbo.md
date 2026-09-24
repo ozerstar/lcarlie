@@ -33,7 +33,6 @@ Hedef alıcı ve hangi durumda önerileceği: **İNSAN DOLDURUR.** Bu, Wix açı
 
 Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçisinden **temiz** geçti. Olduğu gibi kullanılabilir.
 
-- L’CARLIE Seralimbo, gün sonunda bacaklara bakım ve masaj rutinine eşlik etmek üzere geliştirilmiş, bitkisel yağlar ve mineral içeriklerle formüle edilmiş bir gece bakım kremidir.
 - Tamanu, hodan ve shea yağı içeren formülü, cildin nem dengesinin korunmasına ve yumuşak bir bakım hissi kazanmasına yardımcı olur.
 - Arnika ekstresi ve magnezyum içeren bileşenler, masaj uygulaması sırasında ciltte konforlu bir his oluşmasına katkı sağlar.
 - Vetiver, nane, ylang ylang ve selvi yağlarından oluşan bitkisel karışım, gece bakım rutini sırasında ferah ve dengeli bir kullanım deneyimi sunmayı amaçlar.
@@ -43,7 +42,7 @@ Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçi
 - Açık yara üzerine uygulanmaz.
 
 ## Kullanım
-deneyimi sunmayı amaçlar. Düzenli kullanımda, bacak cildinin daha bakımlı, pürüzsüz ve dengeli algılanan bir görünüm kazanmasına yardımcı olur. Hafif yapısı sayesinde ciltte yağlı bir his bırakmadan kolayca emilir. Harici kullanım içindir. ÖNE ÇIKAN ÖZELLİKLER Gün sonu bacak bakım ve masaj rutini iç
+Yatmadan önce temiz cilde, diz, baldır ve ayak bileği gibi bölgelere hafif masaj hareketleriyle uygulanır. Açık yara üzerine uygulanmaz. Harici kullanım içindir. Uyarı: Göz ile temas ettirmeyiniz. Açık yaralara uygulamayınız. Çocukların erişemeyeceği yerde saklayınız.
 
 ## İçindekiler
 (TR): Tamanu Yağı, Ozonize Sarı Kantaron Yağı, Hodan Yağı, Vetiver Yağı, Niaouli Yağı, Akgünlük Yağı, Ylang Ylang Yağı, Karanfil Yağı, Nane Yağı, Selvi Yağı, Ardıç Yağı, Limon Yağı, Adaçayı Yağı, Arnika Ekstresi, Magnezyum Klorür Çözeltisi, Melisa Suyu, Gliserin, Shea Yağı, Hindistan Cevizi Yağı, Doğal Emülgatör, E Vitamini, Benzil Alkol, Salisilik Asit, Gliserin, Sorbik Asit.

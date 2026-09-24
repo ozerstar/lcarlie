@@ -1,6 +1,6 @@
 ---
 konu: ORAGARDE (Ağız Bakım Spreyi) ürün bilgisi
-anahtar: [agiz, aromatik, ağız, bakim, bakım, bitkisel, dengeli, eslik, etmek, eşlik, kaynakli, kaynaklı, oragarde, spreyi, yaglarin, yağların, ağız ve diş]
+anahtar: [agiz, aromatik, ağız, bakim, bakım, bitkisel, dengeli, eslik, etmek, eşlik, kaynakli, kaynaklı, oragarde, rutinine, spreyi, ağız ve diş]
 gizlilik: ic-bilgi
 kaynak: mart.urun_karti (Wix yayındaki metin) + jarvis.compliance taraması
 uretim: tools/urun-bilgi-uret.py -- ELLE DÜZENLENEBİLİR, yeniden üretim üzerine yazar
@@ -33,7 +33,6 @@ Hedef alıcı ve hangi durumda önerileceği: **İNSAN DOLDURUR.** Bu, Wix açı
 
 Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçisinden **temiz** geçti. Olduğu gibi kullanılabilir.
 
-- L’CARLIE Oragarde , bitkisel kaynaklı aromatik yağların dengeli birleşimiyle formüle edilmiş, ağız bakım rutinine eşlik etmek üzere tasarlanmış bir ağız bakım spreyidir.
 - Mür, karanfil, niaouli ve limon yağlarının aromatik profili, kullanım sırasında ağız içinde ferah ve temiz bir his oluşmasına katkı sağlar.
 - Ksilitol içeren formülü, ağız bakım rutininde tazelik hissinin sürdürülmesine yardımcı olur.
 - Sprey formu gün içinde pratik bir kullanım sunar.
@@ -43,7 +42,7 @@ Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçi
 - ÖNE ÇIKAN ÖZELLİKLER Bitkisel kaynaklı aromatik yağlarla geliştirilmiş ağız bakım spreyi Mür, karanfil, niaouli ve limon yağları ile ferah aroma profili Ksilitol ile tazelik hissine eşlik eden formül Pratik sprey format Günlük ağız bakım rutinine uygun kullanım Kullanım Şekli Günde 2–3 kez, ağıza 2 fıs püskürtülerek uygulanır.
 
 ## Kullanım
-sırasında ağız içinde ferah ve temiz bir his oluşmasına katkı sağlar. Ksilitol içeren formülü, ağız bakım rutininde tazelik hissinin sürdürülmesine yardımcı olur. Sprey formu gün içinde pratik bir kullanım sunar. Sprey formu, ağız bakım rutinine kolay ve konforlu bir şekilde eşlik eder. Düzenli kull
+Günde 2–3 kez, ağıza 2 fıs püskürtülerek uygulanır. Çalkalamaya gerek yoktur, yutulmaz. Uyarılar Yalnızca ağız içi kullanım içindir. Yutmayınız, 4 yaş altı çocuklar için uygun değildir. Göz ve burun içine doğrudan uygulamayınız. Tahriş veya hassasiyet görülürse kullanımı durdurunuz.
 
 ## İçindekiler
 Mür Ekstresi, Karanfil Tomurcuğu Yağı, Niaouli Yağı, Palmarosa Yağı, Limon Kabuğu Yağı, Gliserin, Ksilitol, Saf Su, Benzil Alkol, Salisilik Asit, Sorbik Asit

@@ -33,7 +33,6 @@ Hedef alıcı ve hangi durumda önerileceği: **İNSAN DOLDURUR.** Bu, Wix açı
 
 Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçisinden **temiz** geçti. Olduğu gibi kullanılabilir.
 
-- L’CARLIE Baby Shampoo, bebeklerin hassas saç derisi ve cilt yapısı dikkate alınarak geliştirilmiş, bitkisel bazlı içeriklerle formüle edilmiş bir çocuk şampuanıdır.
 - Günlük kullanıma uygun, nazik temizleme sunmayı amaçlayan bir bakım ürünüdür.
 - Günlük saç ve vücut bakım rutinine eşlik etmeye yardımcıdır.
 - Hindistan cevizi türevli temizleyici bileşenler, saç ve cilt bakım rutinine nazik bir temizlik hissi kazandırmaya yardımcı olur.
@@ -43,7 +42,7 @@ Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçi
 - Kullanım: Islak saça ve vücuda nazikçe masaj yaparak uygulayınız.
 
 ## Kullanım
-a uygun, nazik temizleme sunmayı amaçlayan bir bakım ürünüdür. Günlük saç ve vücut bakım rutinine eşlik etmeye yardımcıdır. Hindistan cevizi türevli temizleyici bileşenler, saç ve cilt bakım rutinine nazik bir temizlik hissi kazandırmaya yardımcı olur. Aloe vera, papatya hidrosolü, hodan yağı, jojob
+Islak saça ve vücuda nazikçe masaj yaparak uygulayınız. Köpürdükten sonra durulayınız. Günlük kullanıma uygundur. Uyarılar: Harici kullanım içindir. Göz ile temas ettirmeyiniz. Tahriş durumunda kullanımı bırakınız. Çocukların erişemeyeceği yerde muhafaza ediniz.
 
 ## ⚠️ Bu üründe dikkat
 

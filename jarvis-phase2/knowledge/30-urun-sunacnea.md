@@ -33,7 +33,6 @@ Hedef alıcı ve hangi durumda önerileceği: **İNSAN DOLDURUR.** Bu, Wix açı
 
 Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçisinden **temiz** geçti. Olduğu gibi kullanılabilir.
 
-- L’CARLIÉ SUNACNEA SPF 30 , günlük güneş bakım rutinine yönelik çinko oksit içeren güneş kremidir.
 - Tamanu yağı, nar çekirdeği yağı, üzüm çekirdeği yağı, mür yağı, sandal ağacı ekstresi, shea yağı, aloe vera ve aronia fermenti gibi bileşenler formülde yer alır.
 - Ürün, SPF 30 seviyesinde güneş koruması sunarken günlük cilt bakım rutinine de eşlik eder.
 - KULLANIM TALİMATI Güneşe çıkmadan 15 dakika önce temiz cilde eşit bir tabaka halinde ve cömertçe uygulayınız.
@@ -43,7 +42,7 @@ Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçi
 - INCI Listesi (TR) Su (Aqua), Tamanu Yağı, Nar Çekirdeği Yağı, Üzüm Çekirdeği Yağı, Mür Yağı, Sandal Ağacı Ekstresi, Çinko Oksit, Shea Yağı, Hindistan Cevizi Yağı, Aloe Vera Yaprağı Suyu, Aronia Meyvesi Ferment Filtratı, Gliserin, Zeytin Bazlı Emülgatörler, E Vitamini, Benzil Alkol, Salisilik Asit, Sorbik Asit.
 
 ## Kullanım
-TALİMATI Güneşe çıkmadan 15 dakika önce temiz cilde eşit bir tabaka halinde ve cömertçe uygulayınız. Etikette belirtilen SPF değeri 2 mg/cm² uygulama miktarına göre belirlenir; daha az uygulanması koruma düzeyini belirgin şekilde düşürür. Suya dayanıklı değildir; terleme, yüzme veya havlu ile silme 
+Güneşe çıkmadan 15 dakika önce temiz cilde eşit bir tabaka halinde ve cömertçe uygulayınız. Etikette belirtilen SPF değeri 2 mg/cm² uygulama miktarına göre belirlenir; daha az uygulanması koruma düzeyini belirgin şekilde düşürür.
 
 ## İçindekiler
 Listesi (TR) Su (Aqua), Tamanu Yağı, Nar Çekirdeği Yağı, Üzüm Çekirdeği Yağı, Mür Yağı, Sandal Ağacı Ekstresi, Çinko Oksit, Shea Yağı, Hindistan Cevizi Yağı, Aloe Vera Yaprağı Suyu, Aronia Meyvesi Ferment Filtratı, Gliserin, Zeytin Bazlı Emülgatörler, E Vitamini, Benzil Alkol, Salisilik Asit, Sorbik Asit. INCI (EN) Aqua, Calophyllum Inophyllum Seed Oil, Punica Granatum Seed Oil, Vitis Vinifera Seed Oil, Commiphora Myrrha Oil, Santalum Album Extract, Zinc Oxide, Butyrospermum Parkii Butter, Cocos Nucifera Oil, Aloe Barbadensis Leaf Juice, Aronia Melanocarpa Fruit Ferment Filtrate, Glycerin, Cetearyl Olivate, Sorbitan Olivate, Tocopherol, Benzyl Alcohol, Salicylic Acid, Sorbic Acid.

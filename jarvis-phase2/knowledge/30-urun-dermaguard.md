@@ -33,7 +33,6 @@ Hedef alıcı ve hangi durumda önerileceği: **İNSAN DOLDURUR.** Bu, Wix açı
 
 Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçisinden **temiz** geçti. Olduğu gibi kullanılabilir.
 
-- L’CARLIE Dermaguard, bitkisel yağlar ve doğal özlerle zenginleştirilmiş özel formülüyle ayak ve cilt bakımına yönelik geliştirilmiştir.
 - Shea yağı ve tatlı badem yağı, ciltteki kuruluğu gidererek yumuşak, pürüzsüz ve esnek bir görünüm kazandırır.
 - Aloe vera ve çörek otu yağı, cildin doğal yenilenme sürecini desteklerken, gliserin ve E vitamini uzun süreli nem sağlar.
 - Düzenli kullanımda topuk, tırnak çevresi ve ayak tabanında koruyucu bariyer oluşturur, cildin rahatlamasına yardımcı olur.
@@ -43,7 +42,7 @@ Aşağıdaki cümleler **yayındaki Wix metninden** alındı ve mevzuat denetçi
 - İlk kullanımdan önce küçük bir alanda test edilmesi önerilir.
 
 ## Kullanım
-da topuk, tırnak çevresi ve ayak tabanında koruyucu bariyer oluşturur, cildin rahatlamasına yardımcı olur. Hassas ciltler için uygundur. Öne Çıkan Özellikler Bitkisel yağlarla geliştirilmiş koruyucu formül Ayak, topuk ve tırnak çevresi bakımında etkilidir Ayak bakım rutininde hijyenik dengeye katkı 
+Günde 2 kez temiz ve kuru cilde masaj yaparak uygulayınız. Açık yaralara uygulanmaz. Yalnızca harici kullanım içindir. Uyarılar Göz ile temasından kaçınınız. Temas halinde bol su ile durulayınız. İlk kullanımdan önce küçük bir alanda test edilmesi önerilir.
 
 ## İçindekiler
 (TR INCI): Shea Yağı, Tatlı Badem Yağı, Aloe Vera Yaprağı Suyu, Çörek Otu Yağı, Çay Ağacı Yağı, Kekik Yağı, Mersin Yağı, Mercanköşk Yağı, Paçuli Yağı, Acı Portakal Yağı, Melisa Yağı, Gliserin, Setearil Olivat, Sorbitan Olivat, Su, E Vitamini, Benzil Alkol, Salisilik Asit, Sorbik Asit.
