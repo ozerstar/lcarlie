@@ -60,6 +60,7 @@ from jarvis.transport import memory_host  # noqa: E402
 import auth  # noqa: E402
 import meta_webhook  # noqa: E402
 import isler  # noqa: E402
+import harita  # noqa: E402
 import saha  # noqa: E402
 import sistem  # noqa: E402
 
@@ -870,6 +871,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._route_api_get(path, parse_qs(parsed.query))
             elif path.startswith("/kreatif/"):
                 self._route_kreatif(path)
+            elif path.startswith("/karo/"):
+                self._route_karo(path)
             elif path.startswith("/etiket/"):
                 self._route_etiket(path)
             elif path.startswith("/canva/"):
@@ -1031,6 +1034,45 @@ class Handler(BaseHTTPRequestHandler):
                ".md": "text/markdown; charset=utf-8",
                }.get(hedef.suffix.lower(), "application/octet-stream")
         self._send_file(hedef, tur)
+
+    def _route_karo(self, path: str) -> None:
+        """Harita karosu: /karo/{z}/{x}/{y}.png
+
+        🔴 OTURUM ZORUNLU. Kapı olmasaydı uç, herkesin kullanabildiği bir
+        karo vekiline dönerdi -- yukarı akıştaki servisin şartlarını bizim
+        adımıza çiğneyen, diskimizi dolduran bir uç.
+
+        Önbellek başlığı UZUN: karo görüntüsü değişmez sayılır. Tazeliği
+        sunucu tarafı yönetir (harita.TAZELIK_GUN); tarayıcıya her seferinde
+        sordurmak, sahada mobil veriyi boşa harcardı.
+        """
+        if self._current_session() is None:
+            self._send_json(401, {"error": "oturum gerekli"})
+            return
+        parcalar = path[len("/karo/"):].split("/")
+        if len(parcalar) != 3 or not parcalar[2].endswith(".png"):
+            self._send_json(404, {"error": "not found"})
+            return
+        try:
+            z = int(parcalar[0])
+            x = int(parcalar[1])
+            y = int(parcalar[2][:-4])
+        except ValueError:
+            self._send_json(404, {"error": "not found"})
+            return
+        try:
+            veri = harita.karo(z, x, y)
+        except harita.HaritaHatasi as hata:
+            # Sebep gizlenmez; ama gövde resim degil JSON oldugu icin
+            # tarayici kirik kare gosterir ve konsolda sebebi okunur.
+            self._send_json(404, {"error": str(hata)})
+            return
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "image/png")
+        self.send_header("Content-Length", str(len(veri)))
+        self.send_header("Cache-Control", "public, max-age=604800")
+        self.end_headers()
+        self.wfile.write(veri)
 
     def _route_etiket(self, path: str) -> None:
         """Üretilen HB-1006 etiket belgesini servis eder.
@@ -1217,7 +1259,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/saha/konum/gecmis":
             # Kisi KENDI verisini gorur. Takip edilenin goremedigi bir kayit,
             # denetlenemeyen bir kayittir.
-            s2 = parse_qs(parsed.query)
+            s2 = query
             kim = (s2.get("kullanici") or [session.username])[0]
             if kim != session.username and not getattr(session, "admin", False):
                 kim = session.username
@@ -1228,13 +1270,19 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(400, {"error": str(hata)})
             return
         if path == "/api/saha/filtreler":
+            # Secenek SAYILARI mevcut secime gore hesaplanir; bu yuzden
+            # filtre ucu da filtre parametreleri alir.
             try:
-                self._send_json(200, saha.filtre_secenekleri())
+                self._send_json(200, saha.filtre_secenekleri(
+                    tur=query.get("tur"), brans=query.get("brans"),
+                    ilce=query.get("ilce"),
+                    arama=(query.get("arama") or [None])[0],
+                    ziyaret_durumu=(query.get("ziyaret") or [None])[0]))
             except saha.SahaHatasi as hata:
-                self._send_json(502, {"error": str(hata)})
+                self._send_json(400, {"error": str(hata)})
             return
         if path == "/api/saha":
-            s = parse_qs(parsed.query)
+            s = query
             def _ilk(ad, varsayilan=None):
                 d = s.get(ad, [])
                 return d[0] if d else varsayilan
@@ -1514,6 +1562,21 @@ class Handler(BaseHTTPRequestHandler):
                     foto_b64=body.get("foto", "")))
             except saha.SahaHatasi as hata:
                 # Gecersiz istek "tamam" gorunmez: sebebi AYNEN gosterilir.
+                self._send_json(400, {"error": str(hata)})
+            return
+        if path == "/api/saha/bilgi":
+            # Sahada ogrenilen bilgi. Aylik tarama bunu SILMEZ.
+            body = _read_json_body(self)
+            try:
+                self._send_json(200, saha.bilgi_kaydet(
+                    body.get("hedef_anahtari", ""), giren=session.username,
+                    ad=body.get("ad", ""), brans=body.get("brans", ""),
+                    telefon=body.get("telefon", ""),
+                    eposta=body.get("eposta", ""),
+                    ilgili_kisi=body.get("ilgili_kisi", ""),
+                    notlar=body.get("notlar", ""),
+                    hedef_disi=body.get("hedef_disi")))
+            except saha.SahaHatasi as hata:
                 self._send_json(400, {"error": str(hata)})
             return
         if path == "/api/saha/nokta":

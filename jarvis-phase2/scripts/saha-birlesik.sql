@@ -1,24 +1,22 @@
--- SAHA: üç kaynağı tek hedef listesinde birleştirir
+-- SAHA: üç kaynağı tek hedef listesinde birleştirir (sürüm 2)
+--
+-- Sürüm 1'den farkı:
+--   * saha_bilgi ARTIK ÜÇ KAYNAĞA DA bağlanır. Önce yalnız OSM'ye
+--     bağlıydı; sahada Overture kaydı hakkında öğrenilen telefon hiçbir
+--     yere yazılamıyordu.
+--   * Overture kategorisinden BRANŞ çıkarılır (core.saha_brans_esleme).
+--   * Kopya grubu tek bir `grup` metnine indirildi; ziyaret sayısı artık
+--     KAYDA değil GRUBA bağlanıyor (neden: saha-sema3.sql başlığı).
 --
 -- KAYNAKLAR VE NEDEN ÜÇÜ BİRDEN:
---   OSM       eczanede lider (1.799 / 886), koordinatı %100 güvenilir
---   OVERTURE  diğer her şeyde lider; güzellik salonu OSM'de HİÇ yok,
---             e-posta %36 (OSM'de %0,5), adres %96 (OSM'de %23)
+--   OSM       eczanede lider, koordinatı %100 güvenilir
+--   OVERTURE  diğer her şeyde lider; güzellik salonu OSM'de HİÇ yok
 --   ELLE      sahada görülüp haritada olmayan yerler
--- Biri diğerinin yerine geçmez; hangisinin daha zengin olduğu KAYITA göre
--- değişir, kaynağa göre değil.
 --
--- 🔴 KOPYA AYIKLAMA. Aynı işletme iki kaynakta da olabilir. Gruplama:
--- normalize edilmiş ad + 3 ondalık koordinat (≈100 m). Grupta ZENGİNLİK
--- puanı yüksek olan kazanır -- yani dolu alan sayısı fazla olan.
---
--- Eşiğin bedeli AÇIKÇA söylenmeli: 100 m içinde aynı adı taşıyan iki AYRI
--- işletme birleşir (zincir şubeleri). Daha dar eşik seçseydik bu kez aynı
--- işletmenin iki kaydı ayrı görünürdü ve saha elemanı aynı kapıyı iki kez
--- çalardı. İkinci hata sahada daha pahalı.
---
--- Adsız kayıt ASLA birleştirilmez: adı olmayan iki nokta aynı yer olabilir
--- de olmayabilir de, ve bunu bilmiyoruz.
+-- 🔴 KOPYA AYIKLAMA eşiğinin bedeli: 100 m içinde aynı adı taşıyan iki AYRI
+-- işletme birleşir (zincir şubeleri). Daha dar eşikte aynı işletme iki kez
+-- görünür ve saha elemanı aynı kapıyı iki kez çalar. İkincisi daha pahalı.
+-- Adsız kayıt ASLA birleştirilmez.
 
 BEGIN;
 
@@ -41,26 +39,37 @@ WITH hepsi AS (
          b.ilgili_kisi, b.notlar, COALESCE(b.hedef_disi, false) AS hedef_disi,
          NULL::numeric AS guven, p.ilk_gorulme, p.son_gorulme, p.kayip_at
     FROM raw.osm_poi p
-    LEFT JOIN core.saha_bilgi b USING (osm_tur, osm_id)
+    LEFT JOIN core.saha_bilgi b
+           ON b.hedef_anahtari = 'osm:' || p.osm_tur || ':' || p.osm_id
   UNION ALL
   -- OVERTURE
   SELECT ('ovt:' || o.overture_id), 'OVERTURE',
          NULL::text, NULL::bigint, NULL::bigint, o.overture_id,
-         o.ad, o.tur, NULL::text, 'YOK', o.kategori,
-         o.telefon, o.eposta, o.website, o.sosyal, o.adres, o.ilce,
-         o.enlem, o.boylam, NULL::text, NULL::text, false,
+         COALESCE(b.ad, o.ad), o.tur,
+         COALESCE(b.brans, m.brans),
+         CASE WHEN b.brans IS NOT NULL THEN 'BEYAN'
+              WHEN m.brans IS NOT NULL THEN 'CIKARIM' ELSE 'YOK' END,
+         o.kategori,
+         COALESCE(b.telefon, o.telefon), COALESCE(b.eposta, o.eposta),
+         o.website, o.sosyal, o.adres, o.ilce, o.enlem, o.boylam,
+         b.ilgili_kisi, b.notlar, COALESCE(b.hedef_disi, false),
          o.guven, o.ilk_gorulme, o.son_gorulme, o.kayip_at
     FROM raw.overture_poi o
+    LEFT JOIN core.saha_bilgi b ON b.hedef_anahtari = 'ovt:' || o.overture_id
+    LEFT JOIN core.saha_brans_esleme m ON m.kategori = o.kategori
   UNION ALL
   -- ELLE
   SELECT ('elle:' || e.nokta_id), 'ELLE',
          NULL::text, NULL::bigint, e.nokta_id, NULL::text,
-         e.ad, e.tur, e.brans,
-         CASE WHEN e.brans IS NOT NULL THEN 'BEYAN' ELSE 'YOK' END,
-         NULL::text, e.telefon, e.eposta, e.website, NULL::text,
-         e.adres, e.ilce, e.enlem, e.boylam, e.ilgili_kisi, e.notlar,
-         e.hedef_disi, NULL::numeric, e.eklendi, e.eklendi, NULL::timestamptz
+         COALESCE(b.ad, e.ad), e.tur, COALESCE(b.brans, e.brans),
+         CASE WHEN COALESCE(b.brans, e.brans) IS NOT NULL THEN 'BEYAN' ELSE 'YOK' END,
+         NULL::text, COALESCE(b.telefon, e.telefon), COALESCE(b.eposta, e.eposta),
+         e.website, NULL::text, e.adres, e.ilce, e.enlem, e.boylam,
+         COALESCE(b.ilgili_kisi, e.ilgili_kisi), COALESCE(b.notlar, e.notlar),
+         COALESCE(b.hedef_disi, e.hedef_disi, false),
+         NULL::numeric, e.eklendi, e.eklendi, NULL::timestamptz
     FROM core.saha_elle_nokta e
+    LEFT JOIN core.saha_bilgi b ON b.hedef_anahtari = 'elle:' || e.nokta_id
 ),
 puanli AS (
   SELECT h.*,
@@ -73,32 +82,37 @@ puanli AS (
           + (website IS NOT NULL)::int
           + (brans   IS NOT NULL)::int * 2
           + (ilce    IS NOT NULL)::int) AS zenginlik,
-         CASE WHEN ad IS NULL OR btrim(ad) = '' THEN NULL
-              ELSE lower(regexp_replace(ad, '[^[:alnum:]]', '', 'g')) END AS ad_anahtar
+         -- Kopya grubu: normalize ad + 3 ondalık koordinat (≈100 m).
+         -- Adı ya da koordinatı olmayan kayıt KENDİ BAŞINA bir gruptur.
+         CASE WHEN ad IS NULL OR btrim(ad) = '' OR enlem IS NULL OR boylam IS NULL
+              THEN hedef_anahtari
+              ELSE lower(regexp_replace(ad, '[^[:alnum:]]', '', 'g'))
+                   || '@' || round(enlem::numeric, 3)
+                   || ',' || round(boylam::numeric, 3) END AS grup
     FROM hepsi h
+),
+-- Ziyaret GRUBA bağlanır: aynı işletmenin OSM kaydına gidildiyse, tazeleme
+-- sonrası Overture kaydı öne geçse bile "gidildi" görünür.
+ziyaret AS (
+  SELECT g.grup,
+         count(*) AS ziyaret_sayisi,
+         max(z.ziyaret_at) AS son_ziyaret,
+         (array_agg(z.sonuc ORDER BY z.ziyaret_at DESC))[1] AS son_sonuc
+    FROM core.saha_ziyaret z
+    JOIN (SELECT DISTINCT hedef_anahtari, grup FROM puanli) g
+      ON g.hedef_anahtari = z.hedef_anahtari
+   GROUP BY g.grup
 )
-SELECT DISTINCT ON (
-         COALESCE(ad_anahtar, hedef_anahtari),
-         CASE WHEN ad_anahtar IS NULL THEN NULL ELSE round(enlem::numeric, 3) END,
-         CASE WHEN ad_anahtar IS NULL THEN NULL ELSE round(boylam::numeric, 3) END)
-       hedef_anahtari, kaynak, osm_tur, osm_id, nokta_id, overture_id,
-       ad, tur, brans, brans_kaynagi, kategori, telefon, eposta, website,
-       sosyal, adres, ilce, enlem, boylam, ilgili_kisi, notlar, hedef_disi,
-       guven, ilk_gorulme, son_gorulme, kayip_at, zenginlik,
-       z.ziyaret_sayisi, z.son_ziyaret, z.son_sonuc
+SELECT DISTINCT ON (p.grup)
+       p.hedef_anahtari, p.kaynak, p.osm_tur, p.osm_id, p.nokta_id, p.overture_id,
+       p.ad, p.tur, p.brans, p.brans_kaynagi, p.kategori, p.telefon, p.eposta,
+       p.website, p.sosyal, p.adres, p.ilce, p.enlem, p.boylam, p.ilgili_kisi,
+       p.notlar, p.hedef_disi, p.guven, p.ilk_gorulme, p.son_gorulme, p.kayip_at,
+       p.zenginlik, p.grup,
+       COALESCE(z.ziyaret_sayisi, 0) AS ziyaret_sayisi,
+       z.son_ziyaret, z.son_sonuc
   FROM puanli p
-  LEFT JOIN LATERAL (
-       SELECT count(*) AS ziyaret_sayisi, max(ziyaret_at) AS son_ziyaret,
-              (SELECT sonuc FROM core.saha_ziyaret s2
-                WHERE (s2.osm_tur = p.osm_tur AND s2.osm_id = p.osm_id)
-                   OR (s2.nokta_id = p.nokta_id AND p.nokta_id IS NOT NULL)
-                ORDER BY ziyaret_at DESC LIMIT 1) AS son_sonuc
-         FROM core.saha_ziyaret s1
-        WHERE (s1.osm_tur = p.osm_tur AND s1.osm_id = p.osm_id)
-           OR (s1.nokta_id = p.nokta_id AND p.nokta_id IS NOT NULL)) z ON true
- ORDER BY COALESCE(ad_anahtar, hedef_anahtari),
-          CASE WHEN ad_anahtar IS NULL THEN NULL ELSE round(enlem::numeric, 3) END,
-          CASE WHEN ad_anahtar IS NULL THEN NULL ELSE round(boylam::numeric, 3) END,
-          zenginlik DESC;
+  LEFT JOIN ziyaret z ON z.grup = p.grup
+ ORDER BY p.grup, p.zenginlik DESC;
 
 COMMIT;

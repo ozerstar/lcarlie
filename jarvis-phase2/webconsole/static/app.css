@@ -3986,3 +3986,72 @@ html, body { max-width: 100%; overflow-x: hidden; }
   .sh-kayit { align-items: flex-start; }
   .sh-iletisim { flex: 1 1 100%; }
 }
+
+/* ------------------------- SAHA: filtreler ------------------------- */
+/* Üç çoklu-seçim kutusu yerine sayılı facet sütunları. Sayı görünmeden
+   seçim yapmak, karanlıkta tıklamaktır: kullanıcı "İLGİLENMEDİ" ile "hiç
+   kayıt yok"u ayırt edemezdi. */
+.sh-ust { display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  margin: 12px 0 10px; }
+.sh-ara { flex: 1 1 220px; min-width: 160px; }
+.sh-ziy { flex: 0 1 200px; }
+.sh-eslesen { font-family: var(--font-mono); font-size: 12px;
+  color: var(--gold); letter-spacing: .02em; white-space: nowrap; }
+.sh-eslesen-bos { color: var(--crit); }
+
+.sh-filtreler { display: grid; gap: 10px; margin-bottom: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+.sh-facet { border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--glass); padding: 8px 10px 6px; min-width: 0; }
+.sh-facet-bas { display: flex; align-items: baseline; justify-content: space-between;
+  gap: 8px; margin-bottom: 6px; }
+.sh-facet-bas h3 { margin: 0; font-size: 10px; letter-spacing: .16em;
+  font-weight: 600; color: var(--ivory-2); text-transform: uppercase; }
+.sh-facet-temizle { background: none; border: 0; padding: 0; cursor: pointer;
+  font-family: var(--font-ui); font-size: 10px; color: var(--ivory-3);
+  text-decoration: underline; text-underline-offset: 2px; }
+.sh-facet-temizle:hover { color: var(--gold); }
+.sh-facet-ara { width: 100%; margin-bottom: 6px; font-size: 12px; padding: 4px 6px; }
+.sh-facet-liste { max-height: 190px; overflow-y: auto; margin: 0 -4px; padding: 0 4px; }
+.sh-facet-bos { font-size: 11px; color: var(--ivory-4); margin: 6px 2px; }
+
+.sh-secim { display: flex; align-items: center; gap: 7px; padding: 3px 2px;
+  font-size: 12.5px; cursor: pointer; border-radius: 2px; }
+.sh-secim:hover { background: var(--glass-2); }
+.sh-secim input { flex: 0 0 auto; margin: 0; accent-color: var(--gold); }
+.sh-secim-ad { flex: 1 1 auto; min-width: 0; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; color: var(--ivory); }
+.sh-secim-adet { flex: 0 0 auto; font-family: var(--font-mono); font-size: 11px;
+  color: var(--ivory-3); font-variant-numeric: tabular-nums; }
+/* Sıfır çıkan seçenek SİLİNMEZ, söner: liste zıplamaz ve kullanıcı
+   seçeneğin var olduğunu ama bu seçimde eşleşmediğini görür. */
+.sh-secim-sifir { opacity: .32; cursor: not-allowed; }
+.sh-secim-sifir:hover { background: none; }
+.sh-cikarim { color: var(--warn); margin-left: 2px; cursor: help; }
+
+/* --------------------------- SAHA: harita -------------------------- */
+.sh-harita-sar { margin: 10px 0 14px; }
+.sh-harita { height: 420px; width: 100%; border: 1px solid var(--line);
+  border-radius: var(--radius); background: var(--ink-2); }
+.sh-harita-not { font-size: 11px; color: var(--ivory-3); margin: 6px 2px 0; }
+.leaflet-container { background: var(--ink-2); font-family: var(--font-ui); }
+.leaflet-popup-content-wrapper, .leaflet-popup-tip {
+  background: var(--ink-3); color: var(--ivory);
+  border: 1px solid var(--line); box-shadow: var(--shadow); }
+.leaflet-popup-content { margin: 10px 12px; font-size: 12.5px; line-height: 1.55; }
+.leaflet-control-attribution { background: rgba(8, 8, 10, .72) !important;
+  color: var(--ivory-3) !important; font-size: 10px; }
+.leaflet-control-attribution a { color: var(--ivory-2) !important; }
+.sh-balon-alt { font-size: 11px; color: var(--ivory-3); }
+.sh-balon .btn { margin-top: 6px; }
+.sh-pin { background: var(--gold); color: var(--ink-0); border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono); font-size: 12px; font-weight: 600;
+  border: 2px solid var(--ink-0); box-shadow: 0 2px 6px rgba(0, 0, 0, .6); }
+.sh-pin-bas { background: var(--ok); }
+
+@media (max-width: 720px) {
+  .sh-harita { height: 320px; }
+  .sh-filtreler { grid-template-columns: 1fr; }
+  .sh-facet-liste { max-height: 150px; }
+}

@@ -6,7 +6,8 @@
 <title>L’CARLIÉ · AUTONOMOUS COMPANY INTELLIGENCE OS</title>
 <meta name="theme-color" content="#0a0a0b">
 <link rel="manifest" href="/manifest.webmanifest">
-<link rel="stylesheet" href="/app.css">
+<link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="/app.css">
 </head>
 <body>
 
@@ -590,32 +591,39 @@
         tazelemede silinmez.</strong>
       </p>
 
-      <div class="sh-arac">
-        <div class="sh-grup">
-          <label class="is-label" for="shArama">ARA</label>
-          <input id="shArama" class="is-input" type="search" maxlength="60"
-                 placeholder="işletme adı">
-        </div>
-        <div class="sh-grup">
-          <label class="is-label" for="shTur">TÜR</label>
-          <select id="shTur" class="is-input" multiple size="4"></select>
-        </div>
-        <div class="sh-grup">
-          <label class="is-label" for="shBrans">BRANŞ</label>
-          <select id="shBrans" class="is-input" multiple size="4"></select>
-        </div>
-        <div class="sh-grup">
-          <label class="is-label" for="shIlce">İLÇE</label>
-          <select id="shIlce" class="is-input" multiple size="4"></select>
-        </div>
-        <div class="sh-grup">
-          <label class="is-label" for="shZiyaret">ZİYARET</label>
-          <select id="shZiyaret" class="is-input">
-            <option value="">hepsi</option>
-            <option value="GIDILMEDI">gidilmedi</option>
-            <option value="GIDILDI">gidildi</option>
-          </select>
-        </div>
+      <div class="sh-ust">
+        <input id="shArama" class="is-input sh-ara" type="search" maxlength="60"
+               placeholder="işletme adı ara…">
+        <select id="shZiyaret" class="is-input sh-ziy">
+          <option value="">gidilen · gidilmeyen</option>
+          <option value="GIDILMEDI">henüz gidilmedi</option>
+          <option value="GIDILDI">gidilmiş</option>
+        </select>
+        <span id="shEslesen" class="sh-eslesen">—</span>
+        <button type="button" class="btn btn-ince" id="shSifirla">FİLTREYİ SIFIRLA</button>
+      </div>
+
+      <div class="sh-filtreler" id="shFiltreler">
+        <section class="sh-facet" data-alan="tur">
+          <header class="sh-facet-bas"><h3>TÜR</h3>
+            <button type="button" class="sh-facet-temizle" data-alan="tur">temizle</button>
+          </header>
+          <div class="sh-facet-liste" id="shTur"></div>
+        </section>
+        <section class="sh-facet" data-alan="brans">
+          <header class="sh-facet-bas"><h3>BRANŞ</h3>
+            <button type="button" class="sh-facet-temizle" data-alan="brans">temizle</button>
+          </header>
+          <input class="is-input sh-facet-ara" data-alan="brans" placeholder="branş ara…">
+          <div class="sh-facet-liste" id="shBrans"></div>
+        </section>
+        <section class="sh-facet" data-alan="ilce">
+          <header class="sh-facet-bas"><h3>İLÇE</h3>
+            <button type="button" class="sh-facet-temizle" data-alan="ilce">temizle</button>
+          </header>
+          <input class="is-input sh-facet-ara" data-alan="ilce" placeholder="ilçe ara…">
+          <div class="sh-facet-liste" id="shIlce"></div>
+        </section>
       </div>
 
       <div class="sh-satir">
@@ -627,6 +635,8 @@
         <label class="is-label" for="shDurak">DURAK</label>
         <input id="shDurak" class="is-input is-dar" type="number"
                min="1" max="60" value="20">
+        <button type="button" class="btn btn-ince" id="shHaritaAc">🗺 HARİTA</button>
+        <button type="button" class="btn btn-ince" id="shAlanTara" hidden>BU ALANI TARA</button>
         <button type="button" class="btn btn-ince" id="shNoktaAc">+ YENİ NOKTA</button>
         <span id="shDurum" class="is-sonuc"></span>
       </div>
@@ -651,6 +661,14 @@
         </div>
       </form>
 
+      <div class="sh-harita-sar" id="shHaritaSar" hidden>
+        <div id="shHarita" class="sh-harita"></div>
+        <p class="sh-harita-not">
+          Harita karoları <strong>kendi sunucumuzdan</strong> gelir ve orada
+          saklanır — hangi bölgeye baktığın dışarı çıkmaz.
+          Karo verisi © OpenStreetMap katkıcıları (ODbL).
+        </p>
+      </div>
       <div id="shRotaOzet"></div>
       <div id="shListe"></div>
     </div>
@@ -1045,6 +1063,7 @@
 
 </div>
 
-<script src="/app.js"></script>
+<script src="/vendor/leaflet/leaflet.js"></script>
+  <script src="/app.js"></script>
 </body>
 </html>

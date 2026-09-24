@@ -5807,51 +5807,97 @@ function shDurum(metin, kotu) {
   d.textContent = metin || '';
 }
 
+/* Seçili değerler: artık <select multiple> değil, işaretli kutular.
+ * Neden değişti: çoklu seçim kutusunda kaç kayıt olduğu görünmüyordu,
+ * seçenekler ham anahtarlarıyla ("PSIKOLOG", "BEBEK") alt alta diziliyordu
+ * ve bir branş seçildiğinde o branşta olmayan ilçeler listede duruyordu --
+ * kullanıcı boş sonuca ancak tıklayarak varıyordu. */
 function shSecilenler(id) {
-  const el = qs(id);
-  if (!el) return [];
-  return Array.from(el.selectedOptions || []).map(function (o) { return o.value; });
-}
-
-/* Konum: söz (Promise) döner, reddetmez -- izin verilmezse null.
- * Hata fırlatsaydı her çağıran ayrı ayrı yakalamak zorunda kalır ve
- * biri unutulduğunda ekran sessizce boş kalırdı. */
-function shKonumAl(zamanAsimiMs) {
-  return new Promise(function (coz) {
-    if (!navigator.geolocation) { coz(null); return; }
-    navigator.geolocation.getCurrentPosition(
-      function (p) {
-        coz({ enlem: p.coords.latitude, boylam: p.coords.longitude,
-              dogruluk_m: p.coords.accuracy });
-      },
-      function () { coz(null); },
-      { enableHighAccuracy: true, timeout: zamanAsimiMs || 12000, maximumAge: 30000 });
+  const kap = qs(id);
+  if (!kap) return [];
+  return Array.from(kap.querySelectorAll('input:checked')).map(function (o) {
+    return o.value;
   });
 }
 
-async function loadSaha() {
-  if (!SH.filtreler) {
-    const f = await api('/api/saha/filtreler');
-    if (f.ok) {
-      SH.filtreler = f.body;
-      shDoldur('shTur', f.body.turler);
-      shDoldur('shBrans', f.body.branslar);
-      shDoldur('shIlce', f.body.ilceler);
-      shDoldur('shnTur', f.body.turler, true);
-      const c = qs('sahaCount');
-      if (c) c.textContent = (f.body.toplam || 0) + ' hedef';
-    }
-  }
-  if (!SH.hedefler.length) shListele();
+const SH_FACET = { tur: 'shTur', brans: 'shBrans', ilce: 'shIlce' };
+
+function shSayi(n) {
+  return Number(n || 0).toLocaleString('tr-TR');
 }
 
-function shDoldur(id, degerler, tekli) {
-  const el = qs(id);
-  if (!el || !degerler) return;
-  el.innerHTML = (tekli ? '' : '')
-    + degerler.map(function (d) {
-        return '<option value="' + escapeHtml(d) + '">' + escapeHtml(d) + '</option>';
-      }).join('');
+/* Bir facet'i çizer. SIFIR ÇIKAN SEÇENEK LİSTEDEN DÜŞMEZ, sönük görünür ve
+ * tıklanamaz. Düşseydi liste her tıklamada zıplar, kullanıcı bir seçeneğin
+ * hiç var olmadığını mı yoksa kendi seçimiyle elendiğini mi anlayamazdı. */
+function shFacetCiz(alan, secenekler) {
+  const kap = qs(SH_FACET[alan]);
+  if (!kap) return;
+  const secili = new Set(shSecilenler(SH_FACET[alan]));
+  const ara = document.querySelector('.sh-facet-ara[data-alan="' + alan + '"]');
+  const suzgec = (ara && ara.value.trim().toLocaleLowerCase('tr')) || '';
+  const liste = (secenekler || []).filter(function (s) {
+    if (!suzgec) return true;
+    return String(s.etiket || s.deger).toLocaleLowerCase('tr').indexOf(suzgec) >= 0;
+  });
+  if (!liste.length) {
+    kap.innerHTML = '<p class="sh-facet-bos">eşleşen yok</p>';
+    return;
+  }
+  kap.innerHTML = liste.map(function (s) {
+    const sifir = !s.adet && !secili.has(s.deger);
+    return '<label class="sh-secim' + (sifir ? ' sh-secim-sifir' : '') + '">'
+      + '<input type="checkbox" value="' + escapeHtml(s.deger) + '"'
+      + (secili.has(s.deger) ? ' checked' : '') + (sifir ? ' disabled' : '') + '>'
+      + '<span class="sh-secim-ad">' + escapeHtml(s.etiket || s.deger) + '</span>'
+      + '<span class="sh-secim-adet">' + shSayi(s.adet) + '</span>'
+      + '</label>';
+  }).join('');
+}
+
+/* Sayılar seçime göre yeniden hesaplanır: bir tür seçilince branş ve ilçe
+ * sayıları O TÜRÜN içindekini gösterir. Bir facet kendi seçimiyle
+ * daraltılmaz -- yoksa seçimi genişletmek imkânsız olurdu. */
+async function shFiltreYenile() {
+  const p = new URLSearchParams();
+  shSecilenler('shTur').forEach(function (v) { p.append('tur', v); });
+  shSecilenler('shBrans').forEach(function (v) { p.append('brans', v); });
+  shSecilenler('shIlce').forEach(function (v) { p.append('ilce', v); });
+  const z = qs('shZiyaret');
+  if (z && z.value) p.set('ziyaret', z.value);
+  const a = qs('shArama');
+  if (a && a.value.trim()) p.set('arama', a.value.trim());
+
+  const cevap = await api('/api/saha/filtreler?' + p.toString());
+  if (!cevap.ok) {
+    shDurum((cevap.body && cevap.body.error)
+      || ('filtreler okunamadı (HTTP ' + cevap.status + ')'), true);
+    return;
+  }
+  SH.filtreler = cevap.body;
+  shFacetCiz('tur', cevap.body.turler);
+  shFacetCiz('brans', cevap.body.branslar);
+  shFacetCiz('ilce', cevap.body.ilceler);
+  const e = qs('shEslesen');
+  if (e) {
+    e.textContent = shSayi(cevap.body.eslesen) + ' / '
+      + shSayi(cevap.body.toplam) + ' hedef';
+    e.className = 'sh-eslesen' + (cevap.body.eslesen ? '' : ' sh-eslesen-bos');
+  }
+  const c = qs('sahaCount');
+  if (c) c.textContent = shSayi(cevap.body.toplam) + ' hedef';
+
+  const nt = qs('shnTur');
+  if (nt && !nt.options.length && cevap.body.turler_tanim) {
+    nt.innerHTML = Object.keys(cevap.body.turler_tanim).map(function (k) {
+      return '<option value="' + escapeHtml(k) + '">'
+        + escapeHtml(cevap.body.turler_tanim[k]) + '</option>';
+    }).join('');
+  }
+}
+
+async function loadSaha() {
+  await shFiltreYenile();
+  if (!SH.hedefler.length) shListele();
 }
 
 function shSorguDizesi(konum) {
@@ -5873,17 +5919,31 @@ function shSorguDizesi(konum) {
 
 async function shListele(konum) {
   shDurum('yükleniyor…');
-  const { ok, status, body } = await api('/api/saha?' + shSorguDizesi(konum));
-  if (!ok) {
-    shDurum('liste okunamadı (HTTP ' + status + ')', true);
+  const cevap = await api('/api/saha?' + shSorguDizesi(konum));
+  if (!cevap.ok) {
+    shDurum((cevap.body && cevap.body.error)
+      || ('liste okunamadı (HTTP ' + cevap.status + ')'), true);
     return;
   }
-  SH.hedefler = body.hedefler || [];
+  SH.hedefler = cevap.body.hedefler || [];
+  SH.sonSorguKonum = konum || null;
   SH.rota = null;
   qs('shRotaOzet').innerHTML = '';
-  shDurum(body.sayi + ' hedef' + (body.sayi >= body.limit
-    ? ' (ilk ' + body.limit + ' — daralt)' : ''));
+  shDurum(shSayi(cevap.body.sayi) + ' hedef' + (cevap.body.sayi >= cevap.body.limit
+    ? ' (ilk ' + cevap.body.limit + ' — daralt)' : ''));
   shCiz();
+  shHaritaCiz();
+}
+
+function shTurAdi(k) {
+  const t = SH.filtreler && SH.filtreler.turler_tanim;
+  return (t && t[k]) || k || '';
+}
+
+function shBransAdi(k) {
+  const b = (SH.filtreler && SH.filtreler.branslar) || [];
+  for (let i = 0; i < b.length; i += 1) if (b[i].deger === k) return b[i].etiket;
+  return k || '';
 }
 
 function shCiz() {
@@ -5904,13 +5964,20 @@ function shCiz() {
     const ziyaret = h.ziyaret_sayisi
       ? '<span class="sh-rozet sh-gidildi">' + escapeHtml(h.son_sonuc || 'gidildi') + '</span>'
       : '';
+    /* "~" işareti: branş kategoriden ÇIKARILDI, kimse beyan etmedi.
+     * Çıkarımı beyan gibi göstermek, sahada yanlış kapıya götürür. */
+    const brans = h.brans
+      ? (' · ' + escapeHtml(shBransAdi(h.brans))
+         + (h.brans_kaynagi && h.brans_kaynagi !== 'BEYAN'
+            ? '<span class="sh-cikarim" title="kategoriden çıkarıldı, beyan değil">~</span>'
+            : ''))
+      : '';
     return '<li class="sh-kayit" data-anahtar="' + anahtar + '">'
       + sira
       + '<input type="checkbox" class="sh-sec" data-anahtar="' + anahtar + '"' + secili + '>'
       + '<span class="sh-orta">'
       +   '<span class="sh-ad">' + escapeHtml(h.ad || '(adsız)') + '</span>'
-      +   '<span class="sh-alt">' + escapeHtml(h.tur)
-      +     (h.brans ? ' · ' + escapeHtml(h.brans) : '')
+      +   '<span class="sh-alt">' + escapeHtml(shTurAdi(h.tur)) + brans
       +     (h.ilce ? ' · ' + escapeHtml(h.ilce) : '')
       +     (h.adres ? ' · ' + escapeHtml(String(h.adres).slice(0, 40)) : '')
       +   '</span>'
@@ -6151,3 +6218,217 @@ setInterval(function () {
     if (k) { SH.konum = k; shKonumBildir(k); }
   });
 }, 120000);
+
+
+/* ==================== SAHA HARİTASI ====================================
+ *
+ * Karolar /karo/{z}/{x}/{y}.png üzerinden KENDİ SUNUCUMUZDAN gelir.
+ * Tarayıcı dış bir sunucuyla hiç konuşmaz: içerik güvenliği ilkesi
+ * (img-src 'self') olduğu gibi kalır ve saha elemanının haritada nereye
+ * baktığı üçüncü tarafa gitmez. Sunucu indirdiği karoyu diske yazar,
+ * ikinci kez indirmez.
+ *
+ * 🔴 HARİTA VARSAYILAN OLARAK KAPALI. Açılışta kurulsaydı, listeyi
+ * kullanmak isteyen herkes için onlarca karo indirilirdi -- sahada mobil
+ * veri bedava değil. Düğmeye basılınca kurulur.
+ */
+const SH_HARITA = { harita: null, katman: null, rota: null, secKonum: null };
+
+const SH_TUR_RENK = {
+  ECZANE: '#2e9e6b', HUZUREVI: '#c2572f', KLINIK: '#3f7bd1',
+  DOKTOR: '#3f7bd1', HASTANE: '#2b5fa8', DIS: '#5aa9c9',
+  GUZELLIK: '#b3559b', KUAFOR: '#b3559b', SPOR: '#7a57c4',
+  OTEL: '#8a8f98', KRES: '#d2a13a', PSIKOLOG: '#6f8fb0',
+  OPTIK: '#4f9c9c', DIYETISYEN: '#79a343', BEBEK: '#d98cb3',
+  AYAK: '#9c7a4f',
+};
+
+function shHaritaKur() {
+  if (SH_HARITA.harita) return SH_HARITA.harita;
+  const el = qs('shHarita');
+  if (!el || typeof L === 'undefined') return null;
+  const m = L.map(el, { zoomControl: true, attributionControl: true })
+    .setView([39.925, 32.866], 12);
+  L.tileLayer('/karo/{z}/{x}/{y}.png', {
+    minZoom: 10, maxZoom: 18,
+    attribution: 'Karo verisi &copy; OpenStreetMap katkıcıları (ODbL)',
+  }).addTo(m);
+  SH_HARITA.katman = L.layerGroup().addTo(m);
+  SH_HARITA.harita = m;
+  /* Haritaya tıklayınca "yeni nokta" formu açıksa koordinat oraya düşer.
+   * Telefonda GPS çalışmadığında (bodrum, kapalı otopark) tek yol bu. */
+  m.on('click', function (olay) {
+    const form = qs('shNoktaForm');
+    if (!form || form.hidden) return;
+    SH_HARITA.secKonum = {
+      enlem: olay.latlng.lat, boylam: olay.latlng.lng, dogruluk_m: null,
+    };
+    form.dataset.konum = JSON.stringify(SH_HARITA.secKonum);
+    form.dataset.kaynak = 'HARITA';
+    const n = qs('shnKonum');
+    if (n) {
+      n.className = 'is-sonuc is-ok';
+      n.textContent = 'haritadan seçildi: '
+        + olay.latlng.lat.toFixed(5) + ', ' + olay.latlng.lng.toFixed(5);
+    }
+    shHaritaCiz();
+  });
+  return m;
+}
+
+function shHaritaCiz() {
+  const m = SH_HARITA.harita;
+  if (!m || !SH_HARITA.katman) return;
+  SH_HARITA.katman.clearLayers();
+  const kayitlar = SH.rota ? SH.rota.duraklar : SH.hedefler;
+  const noktalar = [];
+
+  kayitlar.forEach(function (h, i) {
+    if (h.enlem == null || h.boylam == null) return;
+    const yer = [h.enlem, h.boylam];
+    noktalar.push(yer);
+    if (SH.rota) {
+      /* Rotada sıra numarası GÖRÜNMELİ: saha elemanı hangi duraktan
+       * sonra hangisine gideceğini haritadan okur. */
+      L.marker(yer, {
+        icon: L.divIcon({
+          className: 'sh-pin', html: String(i + 1),
+          iconSize: [26, 26], iconAnchor: [13, 13],
+        }),
+      }).addTo(SH_HARITA.katman).bindPopup(shHaritaBalon(h));
+    } else {
+      L.circleMarker(yer, {
+        radius: 6, weight: 2, opacity: 0.95, fillOpacity: 0.65,
+        color: h.ziyaret_sayisi ? '#8a8f98' : (SH_TUR_RENK[h.tur] || '#3f7bd1'),
+        fillColor: h.ziyaret_sayisi ? '#8a8f98' : (SH_TUR_RENK[h.tur] || '#3f7bd1'),
+      }).addTo(SH_HARITA.katman).bindPopup(shHaritaBalon(h));
+    }
+  });
+
+  if (SH.rota && SH.rota.baslangic) {
+    const b = [SH.rota.baslangic.enlem, SH.rota.baslangic.boylam];
+    noktalar.unshift(b);
+    L.marker(b, {
+      icon: L.divIcon({ className: 'sh-pin sh-pin-bas', html: '▶',
+                        iconSize: [26, 26], iconAnchor: [13, 13] }),
+    }).addTo(SH_HARITA.katman).bindPopup('Başlangıç');
+    /* 🔴 ÇİZGİ KUŞ UÇUŞU. Gerçek yürüyüş güzergâhı DEĞİL; yalnız hangi
+     * duraktan hangisine gidildiğini gösterir. Yol çizgisi çizseydik
+     * ölçmediğimiz bir şeyi ölçmüş gibi gösterirdik. */
+    L.polyline(noktalar, { color: '#c2572f', weight: 2.5, opacity: 0.8,
+                           dashArray: '6 5' }).addTo(SH_HARITA.katman);
+  }
+
+  if (SH_HARITA.secKonum) {
+    L.circleMarker([SH_HARITA.secKonum.enlem, SH_HARITA.secKonum.boylam], {
+      radius: 9, weight: 3, color: '#d2a13a', fillOpacity: 0.25,
+    }).addTo(SH_HARITA.katman).bindPopup('Yeni nokta buraya eklenecek');
+  }
+
+  if (noktalar.length) {
+    m.fitBounds(L.latLngBounds(noktalar).pad(0.12), { maxZoom: 16 });
+  }
+}
+
+function shHaritaBalon(h) {
+  const parcalar = ['<strong>' + escapeHtml(h.ad || '(adsız)') + '</strong>',
+    '<span class="sh-balon-alt">' + escapeHtml(shTurAdi(h.tur))
+      + (h.brans ? ' · ' + escapeHtml(shBransAdi(h.brans)) : '')
+      + (h.ilce ? ' · ' + escapeHtml(h.ilce) : '') + '</span>'];
+  if (h.adres) parcalar.push('<span class="sh-balon-alt">' + escapeHtml(h.adres) + '</span>');
+  parcalar.push(h.telefon
+    ? '<a href="tel:' + escapeHtml(h.telefon) + '">' + escapeHtml(h.telefon) + '</a>'
+    : '<span class="sh-yok">telefon yok</span>');
+  if (h.ziyaret_sayisi) {
+    parcalar.push('<span class="sh-rozet sh-gidildi">'
+      + escapeHtml(h.son_sonuc || 'gidildi') + '</span>');
+  }
+  parcalar.push('<button type="button" class="btn btn-ince sh-ziyaret" data-anahtar="'
+    + escapeHtml(h.hedef_anahtari) + '">ZİYARET KAYDET</button>');
+  return '<div class="sh-balon">' + parcalar.join('<br>') + '</div>';
+}
+
+function shHaritaAc() {
+  const sar = qs('shHaritaSar');
+  const dugme = qs('shHaritaAc');
+  const tara = qs('shAlanTara');
+  if (!sar) return;
+  const acilacak = sar.hidden;
+  sar.hidden = !acilacak;
+  if (tara) tara.hidden = !acilacak;
+  if (dugme) dugme.textContent = acilacak ? '🗺 HARİTAYI KAPAT' : '🗺 HARİTA';
+  if (!acilacak) return;
+  const m = shHaritaKur();
+  if (!m) { shDurum('harita yüklenemedi', true); return; }
+  /* Kap yeni görünür oldu; Leaflet boyutu yeniden ölçmeli yoksa karolar
+   * yarım kalır. */
+  setTimeout(function () { m.invalidateSize(); shHaritaCiz(); }, 60);
+}
+
+/* Haritada görünen alanı tara: merkez + köşeye olan uzaklık yarıçap olur. */
+function shAlaniTara() {
+  const m = SH_HARITA.harita;
+  if (!m) return;
+  const merkez = m.getCenter();
+  const yaricap = Math.round(Math.min(20000, Math.max(100,
+    merkez.distanceTo(m.getBounds().getNorthEast()))));
+  const y = qs('shYaricap');
+  if (y) y.value = yaricap;
+  shListele({ enlem: merkez.lat, boylam: merkez.lng });
+}
+
+/* ---------- filtre olayları ----------
+ * Her tıklamada sunucuya gitmek yerine kısa bir bekleme: kullanıcı üç
+ * kutuyu peş peşe işaretlerse tek sorgu gider. */
+let shFiltreZaman = null;
+function shFiltreGecikmeli(msn) {
+  clearTimeout(shFiltreZaman);
+  shFiltreZaman = setTimeout(function () {
+    shFiltreYenile();
+    shListele(SH.sonSorguKonum || null);
+  }, msn || 260);
+}
+
+document.addEventListener('change', function (e) {
+  const kutu = e.target.closest('.sh-facet-liste input[type="checkbox"]');
+  if (kutu) { shFiltreGecikmeli(); return; }
+  if (e.target.id === 'shZiyaret') { shFiltreGecikmeli(0); }
+});
+
+document.addEventListener('input', function (e) {
+  if (e.target.id === 'shArama') { shFiltreGecikmeli(420); return; }
+  const ara = e.target.closest('.sh-facet-ara');
+  if (ara && SH.filtreler) {
+    /* Facet içi arama SUNUCUYA GİTMEZ: zaten elimizdeki seçenekleri süzer.
+     * Gitseydi her harfte bir sorgu olurdu ve sayılar değişmezdi. */
+    const alan = ara.dataset.alan;
+    const kaynak = { tur: 'turler', brans: 'branslar', ilce: 'ilceler' }[alan];
+    shFacetCiz(alan, SH.filtreler[kaynak]);
+  }
+});
+
+document.addEventListener('click', function (e) {
+  const temizle = e.target.closest('.sh-facet-temizle');
+  if (temizle) {
+    const kap = qs(SH_FACET[temizle.dataset.alan]);
+    if (kap) {
+      kap.querySelectorAll('input:checked').forEach(function (i) { i.checked = false; });
+    }
+    shFiltreGecikmeli(0);
+    return;
+  }
+  if (e.target.closest('#shSifirla')) {
+    Object.keys(SH_FACET).forEach(function (alan) {
+      const kap = qs(SH_FACET[alan]);
+      if (kap) kap.querySelectorAll('input:checked').forEach(function (i) { i.checked = false; });
+    });
+    document.querySelectorAll('.sh-facet-ara').forEach(function (i) { i.value = ''; });
+    const a = qs('shArama'); if (a) a.value = '';
+    const z = qs('shZiyaret'); if (z) z.value = '';
+    SH.konum = null;
+    shFiltreGecikmeli(0);
+    return;
+  }
+  if (e.target.closest('#shHaritaAc')) { shHaritaAc(); return; }
+  if (e.target.closest('#shAlanTara')) { shAlaniTara(); return; }
+});

@@ -81,6 +81,7 @@ KNOWN_ROUTES = {
     "/api/saha/rota",
     "/api/saha/ziyaret",
     "/api/saha/nokta",
+    "/api/saha/bilgi",
     # Konum takibi: yazma (panelden periyodik), yonetici gorunumu, kisinin
     # kendi gecmisi. Ucu de app.py'de sunuluyor.
     "/api/saha/konum",

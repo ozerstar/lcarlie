@@ -30,7 +30,52 @@ FOTO_DIZIN = Path("/opt/lcarlie/saha-foto")
 EN_COK_FOTO_BAYT = 4 * 1024 * 1024        # 4 MB
 EN_COK_SONUC = 500                         # tek sorguda dönecek hedef tavanı
 
-TURLER = ("ECZANE", "KLINIK", "DIS", "DOKTOR", "HASTANE", "SPOR")
+# 🔴 BU LISTE VERIYLE AYNI OLMAK ZORUNDA. Onceden alti tur yaziyordu ama
+# veride on alti var. Eksik turler filtrede SESSIZCE dusuyordu: HUZUREVI
+# secen kisi 18.845 kaydin tamamini geri aliyor ve secimin islediğini
+# saniyordu. Yeni tur eklendiginde scripts/saha-tara.py ile birlikte burasi
+# da guncellenir; sinama ikisini karsilastirir.
+TURLER = ("ECZANE", "KLINIK", "DIS", "DOKTOR", "HASTANE", "SPOR",
+          "GUZELLIK", "KUAFOR", "OTEL", "KRES", "PSIKOLOG", "OPTIK",
+          "DIYETISYEN", "HUZUREVI", "BEBEK", "AYAK")
+
+# Ekranda gorunen ad. Anahtar ASCII kalir (SQL ve filtre icin), etiket
+# Turkce yazilir -- "PSIKOLOG" degil "Psikolog", "HUZUREVI" degil
+# "Huzurevi / bakim evi".
+TUR_ETIKET = {
+    "ECZANE": "Eczane", "KLINIK": "Klinik / tıp merkezi",
+    "DIS": "Diş kliniği", "DOKTOR": "Muayenehane",
+    "HASTANE": "Hastane", "SPOR": "Spor salonu",
+    "GUZELLIK": "Güzellik merkezi", "KUAFOR": "Kuaför / berber",
+    "OTEL": "Otel", "KRES": "Kreş / anaokulu", "PSIKOLOG": "Psikolog",
+    "OPTIK": "Optik", "DIYETISYEN": "Diyetisyen",
+    "HUZUREVI": "Huzurevi / bakım evi", "BEBEK": "Bebek ürünleri",
+    "AYAK": "Ayak sağlığı (podoloji)",
+}
+
+BRANS_ETIKET = {
+    "AILE_SAGLIGI": "Aile sağlığı merkezi", "KADIN_DOGUM": "Kadın doğum",
+    "DERMATOLOJI": "Dermatoloji", "ORTOPEDI": "Ortopedi",
+    "UROLOJI": "Üroloji", "KARDIYOLOJI": "Kardiyoloji",
+    "NOROLOJI": "Nöroloji", "FIZIK_TEDAVI": "Fizik tedavi",
+    "COCUK": "Çocuk", "DIYALIZ": "Diyaliz",
+    "LABORATUVAR": "Laboratuvar", "GORUNTULEME": "Görüntüleme",
+    "GENEL": "Genel", "ESTETIK": "Estetik", "ORTODONTI": "Ortodonti",
+    "AGIZ_CENE": "Ağız ve çene cerrahisi", "ENDODONTI": "Endodonti",
+    "PERIODONTOLOJI": "Periodontoloji", "GOZ": "Göz", "KBB": "KBB",
+    "GASTROENTEROLOJI": "Gastroenteroloji",
+    "ENDOKRINOLOJI": "Endokrinoloji", "ONKOLOJI": "Onkoloji",
+    "PSIKIYATRI": "Psikiyatri", "PSIKOLOJI": "Psikoloji",
+    "ALTERNATIF": "Tamamlayıcı tıp", "VETERINER": "Veteriner",
+    "AYAK": "Podoloji", "DIS": "Diş",
+}
+
+ZIYARET_ETIKET = {
+    "GORUSULDU": "Görüşüldü", "KAPALI": "Kapalı",
+    "YETKILI_YOK": "Yetkili yoktu", "ILGILENMEDI": "İlgilenmedi",
+    "NUMUNE_BIRAKILDI": "Numune bırakıldı", "SIPARIS_SOZU": "Sipariş sözü",
+    "TEKRAR_GEL": "Tekrar gelinecek",
+}
 ZIYARET_SONUCLARI = ("GORUSULDU", "KAPALI", "YETKILI_YOK", "ILGILENMEDI",
                      "NUMUNE_BIRAKILDI", "SIPARIS_SOZU", "TEKRAR_GEL")
 KONUM_KAYNAKLARI = ("GPS", "HARITA", "ELLE")
@@ -95,37 +140,111 @@ def _sayi(deger, ad: str, en_az=None, en_cok=None):
 
 
 def _liste_kosulu(alan: str, degerler, izinli=None) -> str:
-    """IN listesi. Değerler beyaz listeden geçer -- serbest metin SQL'e girmez."""
+    """IN listesi. Değerler beyaz listeden geçer -- serbest metin SQL'e girmez.
+
+    🔴 REDDEDİLEN DEĞER HATA VERİR, SESSİZCE DÜŞMEZ. Eskiden geçersiz değer
+    atlanıyordu; hepsi atlanınca koşul hiç eklenmiyor ve sorgu FİLTRESİZ
+    dönüyordu. Kullanıcı "HUZUREVİ seçtim" diyordu, ekran 18.845 kayıt
+    gösteriyordu ve ikisi de doğru görünüyordu. Yokluk ile reddediliş ayrı
+    şeylerdir; ayrı söylenir.
+    """
     if not degerler:
         return ""
     temiz = []
     for d in degerler:
         d = str(d).strip().upper()
-        if not d or not d.replace("_", "").isalnum():
+        if not d:
             continue
+        if not d.replace("_", "").isalnum():
+            raise SahaHatasi("gecersiz %s degeri: %s" % (alan, d[:40]))
         if izinli and d not in izinli:
-            continue
+            raise SahaHatasi("bilinmeyen %s: %s" % (alan, d[:40]))
         temiz.append("'" + d + "'")
     if not temiz:
         return ""
     return " AND %s IN (%s)" % (alan, ", ".join(temiz))
 
 
-def filtre_secenekleri() -> dict:
-    """Panelde gösterilecek filtre değerleri -- uydurma değil, VERİDEN."""
-    satirlar = _oku("""
-      SELECT row_to_json(t) FROM (
-        SELECT
-          (SELECT json_agg(x ORDER BY x) FROM
-             (SELECT DISTINCT tur x FROM mart.saha_hedef WHERE tur IS NOT NULL) a) AS turler,
-          (SELECT json_agg(x ORDER BY x) FROM
-             (SELECT DISTINCT brans x FROM mart.saha_hedef WHERE brans IS NOT NULL) b) AS branslar,
-          (SELECT json_agg(x ORDER BY x) FROM
-             (SELECT DISTINCT ilce x FROM mart.saha_hedef WHERE ilce IS NOT NULL) c) AS ilceler,
-          (SELECT count(*) FROM mart.saha_hedef) AS toplam
-      ) t;""")
+TEMEL_KOSUL = "NOT hedef_disi AND kayip_at IS NULL"
+
+
+def _kosul_parcalari(tur=None, brans=None, ilce=None, arama=None,
+                     ziyaret_durumu=None) -> dict:
+    """Her filtreyi AYRI parça olarak üretir.
+
+    Ayrı tutulmasının sebebi facet sayımı: bir filtrenin kendi seçenekleri
+    sayılırken KENDİ koşulu uygulanmaz -- yoksa seçili olmayan her seçenek
+    sıfır görünür ve kullanıcı seçimini genişletemez. Arama motorlarının
+    kenar çubuğu da böyle çalışır.
+    """
+    p = {}
+    k = _liste_kosulu("tur", tur, set(TURLER))
+    if k:
+        p["tur"] = k
+    k = _liste_kosulu("brans", brans)
+    if k:
+        p["brans"] = k
+    if ilce:
+        temiz = [str(i).replace("'", "")[:60] for i in ilce if str(i).strip()]
+        if temiz:
+            p["ilce"] = " AND ilce IN (%s)" % ", ".join("'" + t + "'" for t in temiz)
+    if arama:
+        a = str(arama).replace("'", "")[:60]
+        if a:
+            p["arama"] = " AND ad ILIKE '%%" + a + "%%'"
+    if ziyaret_durumu == "GIDILMEDI":
+        p["ziyaret"] = " AND COALESCE(ziyaret_sayisi, 0) = 0"
+    elif ziyaret_durumu == "GIDILDI":
+        p["ziyaret"] = " AND COALESCE(ziyaret_sayisi, 0) > 0"
+    elif ziyaret_durumu:
+        raise SahaHatasi("gecersiz ziyaret durumu: %s" % str(ziyaret_durumu)[:30])
+    return p
+
+
+def _birlestir(parcalar: dict, haric: str = "") -> str:
+    return "WHERE " + TEMEL_KOSUL + "".join(
+        v for k, v in sorted(parcalar.items()) if k != haric)
+
+
+def _facet(alan: str, parcalar: dict) -> str:
+    """Bir filtrenin seçenekleri + mevcut seçim altındaki kayıt sayısı.
+
+    Sıfır çıkan seçenek LİSTEDEN DÜŞMEZ, sayısı 0 olarak döner; panel onu
+    söner gösterir. Düşseydi liste her tıklamada zıplardı ve kullanıcı bir
+    seçeneğin hiç var olmadığını mı yoksa seçimiyle elendiğini mi
+    bilemezdi.
+    """
+    return """(SELECT json_agg(json_build_object('deger', u.x, 'adet',
+                 COALESCE(c.n, 0)) ORDER BY COALESCE(c.n, 0) DESC, u.x)
+        FROM (SELECT DISTINCT {alan} x FROM mart.saha_hedef
+               WHERE {temel} AND {alan} IS NOT NULL) u
+        LEFT JOIN (SELECT {alan} x, count(*) n FROM mart.saha_hedef
+                    {kosul} AND {alan} IS NOT NULL GROUP BY 1) c
+               ON c.x = u.x)""".format(
+        alan=alan, temel=TEMEL_KOSUL, kosul=_birlestir(parcalar, haric=alan))
+
+
+def filtre_secenekleri(tur=None, brans=None, ilce=None, arama=None,
+                       ziyaret_durumu=None) -> dict:
+    """Filtre seçenekleri + mevcut seçim altındaki sayılar. VERİDEN."""
+    p = _kosul_parcalari(tur, brans, ilce, arama, ziyaret_durumu)
+    sql = """SELECT row_to_json(t) FROM (SELECT
+        {ftur} AS turler, {fbrans} AS branslar, {filce} AS ilceler,
+        (SELECT count(*) FROM mart.saha_hedef {tam}) AS eslesen,
+        (SELECT count(*) FROM mart.saha_hedef WHERE {temel}) AS toplam
+      ) t;""".format(ftur=_facet("tur", p), fbrans=_facet("brans", p),
+                     filce=_facet("ilce", p), tam=_birlestir(p),
+                     temel=TEMEL_KOSUL)
+    satirlar = _oku(sql)
     d = satirlar[0] if satirlar else {}
-    d["ziyaret_sonuclari"] = list(ZIYARET_SONUCLARI)
+    for ad, etiketler in (("turler", TUR_ETIKET), ("branslar", BRANS_ETIKET)):
+        for secenek in (d.get(ad) or []):
+            secenek["etiket"] = etiketler.get(secenek["deger"], secenek["deger"])
+    for secenek in (d.get("ilceler") or []):
+        secenek["etiket"] = secenek["deger"]
+    d["ziyaret_sonuclari"] = [{"deger": s, "etiket": ZIYARET_ETIKET.get(s, s)}
+                              for s in ZIYARET_SONUCLARI]
+    d["turler_tanim"] = dict(TUR_ETIKET)
     return d
 
 
@@ -138,23 +257,8 @@ def hedefler(tur=None, brans=None, ilce=None, enlem=None, boylam=None,
     Konum verilirse yarıçap içindekiler, mesafeye göre sıralı gelir.
     """
     limit = int(_sayi(limit, "limit", 1, EN_COK_SONUC))
-    kosul = " WHERE NOT hedef_disi AND kayip_at IS NULL"
-    kosul += _liste_kosulu("tur", tur, set(TURLER))
-    kosul += _liste_kosulu("brans", brans)
-    if ilce:
-        temiz = [str(i).replace("'", "") for i in ilce if str(i).strip()]
-        if temiz:
-            kosul += " AND ilce IN (%s)" % ", ".join("'" + t + "'" for t in temiz)
-    if arama:
-        # Tek tırnak temizlenir; LIKE kalıbı yine de veriden değil kullanıcıdan
-        # geliyor, o yüzden uzunluk da sınırlanır.
-        a = str(arama).replace("'", "")[:60]
-        if a:
-            kosul += " AND ad ILIKE '%%" + a + "%%'"
-    if ziyaret_durumu == "GIDILMEDI":
-        kosul += " AND COALESCE(ziyaret_sayisi, 0) = 0"
-    elif ziyaret_durumu == "GIDILDI":
-        kosul += " AND COALESCE(ziyaret_sayisi, 0) > 0"
+    kosul = " " + _birlestir(
+        _kosul_parcalari(tur, brans, ilce, arama, ziyaret_durumu))
 
     mesafe_sec, sirala = "NULL::numeric AS mesafe_m", "ad"
     if enlem is not None and boylam is not None:
@@ -191,6 +295,46 @@ def rota(baslangic_enlem, baslangic_boylam, en_fazla_durak=20, **filtre) -> dict
     return sonuc
 
 
+def _anahtar_coz(hedef_anahtari: str) -> dict:
+    """'osm:node:12' / 'ovt:08f...' / 'elle:7' -> eski sütunlar.
+
+    🔴 ÜÇÜNCÜ KAYNAK BURADA UNUTULMUŞTU. Fonksiyon yalnız 'osm:' ve 'elle:'
+    kabul ediyordu; oysa 18.845 hedefin 16.625'i (%88) 'ovt:' önekli.
+    Saha elemanı listedeki neredeyse her yere ziyaret kaydedemiyordu ve
+    aldığı hata "gecersiz hedef anahtari" idi -- sebebini söylemeyen bir
+    cümle. Artık anahtar metin olarak SAKLANIR; kaynağa özel sütunlar
+    yalnızca eski kayıtlarla uyum için doldurulur.
+    """
+    anahtar = str(hedef_anahtari or "").strip()
+    if len(anahtar) > 120:
+        raise SahaHatasi("hedef anahtari cok uzun")
+    alanlar = {"osm_tur": "NULL", "osm_id": "NULL", "nokta_id": "NULL"}
+    if anahtar.startswith("osm:"):
+        parcalar = anahtar.split(":", 2)
+        if len(parcalar) != 3:
+            raise SahaHatasi("gecersiz osm anahtari")
+        _, tur, kimlik = parcalar
+        if tur not in ("node", "way", "relation") or not kimlik.isdigit():
+            raise SahaHatasi("gecersiz osm anahtari")
+        alanlar.update({"osm_tur": "'%s'" % tur, "osm_id": kimlik})
+    elif anahtar.startswith("elle:"):
+        kimlik = anahtar.split(":", 1)[1]
+        if not kimlik.isdigit():
+            raise SahaHatasi("gecersiz elle anahtari")
+        alanlar["nokta_id"] = kimlik
+    elif anahtar.startswith("ovt:"):
+        kimlik = anahtar.split(":", 1)[1]
+        # Overture kimliği onaltılık/harf-rakam; sütun yok, anahtar metni
+        # kendisi taşır.
+        if not kimlik or not kimlik.replace("-", "").replace("_", "").isalnum():
+            raise SahaHatasi("gecersiz overture anahtari")
+    else:
+        raise SahaHatasi(
+            "hedef anahtari 'osm:', 'ovt:' ya da 'elle:' ile baslamali")
+    alanlar["anahtar"] = anahtar
+    return alanlar
+
+
 def ziyaret_kaydet(hedef_anahtari: str, sonuc: str, giden: str,
                    not_metni: str = "", enlem=None, boylam=None,
                    konum_dogruluk_m=None, siparis_ref: str = "",
@@ -198,19 +342,7 @@ def ziyaret_kaydet(hedef_anahtari: str, sonuc: str, giden: str,
     """Ziyaret kaydı + isteğe bağlı fotoğraf."""
     if sonuc not in ZIYARET_SONUCLARI:
         raise SahaHatasi("gecersiz sonuc: %s" % sonuc)
-    anahtar = str(hedef_anahtari or "")
-    if anahtar.startswith("osm:"):
-        _, tur, kimlik = anahtar.split(":", 2)
-        if tur not in ("node", "way", "relation") or not kimlik.isdigit():
-            raise SahaHatasi("gecersiz hedef anahtari")
-        hedef = {"osm_tur": "'%s'" % tur, "osm_id": kimlik, "nokta_id": "NULL"}
-    elif anahtar.startswith("elle:"):
-        kimlik = anahtar.split(":", 1)[1]
-        if not kimlik.isdigit():
-            raise SahaHatasi("gecersiz hedef anahtari")
-        hedef = {"osm_tur": "NULL", "osm_id": "NULL", "nokta_id": kimlik}
-    else:
-        raise SahaHatasi("hedef anahtari 'osm:' ya da 'elle:' ile baslamali")
+    hedef = _anahtar_coz(hedef_anahtari)
 
     kon = "NULL, NULL, NULL"
     if enlem is not None and boylam is not None:
@@ -221,24 +353,79 @@ def ziyaret_kaydet(hedef_anahtari: str, sonuc: str, giden: str,
 
     sql = """WITH s AS (
       INSERT INTO core.saha_ziyaret
-        (osm_tur, osm_id, nokta_id, giden, sonuc, not_metni, siparis_ref,
-         enlem, boylam, konum_dogruluk_m)
-      VALUES (%s, %s, %s, :'giden', :'sonuc', NULLIF(:'not', ''),
+        (hedef_anahtari, osm_tur, osm_id, nokta_id, giden, sonuc, not_metni,
+         siparis_ref, enlem, boylam, konum_dogruluk_m)
+      VALUES (:'anahtar', %s, %s, %s, :'giden', :'sonuc', NULLIF(:'not', ''),
               NULLIF(:'siparis', ''), %s)
       RETURNING ziyaret_id, ziyaret_at)
       SELECT row_to_json(t) FROM s t;""" % (
         hedef["osm_tur"], hedef["osm_id"], hedef["nokta_id"], kon)
 
-    satir = _yaz(sql, {"giden": giden, "sonuc": sonuc,
+    satir = _yaz(sql, {"anahtar": hedef["anahtar"], "giden": giden,
+                       "sonuc": sonuc,
                        "not": (not_metni or "")[:4000],
                        "siparis": (siparis_ref or "")[:80]})
     if not satir:
         raise SahaHatasi("ziyaret yazilamadi")
     kayit = satir[0]
+    kayit["hedef_anahtari"] = hedef["anahtar"]
 
     if foto_b64:
         kayit["foto"] = foto_kaydet(kayit["ziyaret_id"], foto_b64, enlem, boylam)
     return kayit
+
+
+def bilgi_kaydet(hedef_anahtari: str, giren: str, ad: str = "",
+                 brans: str = "", telefon: str = "", eposta: str = "",
+                 ilgili_kisi: str = "", notlar: str = "",
+                 hedef_disi=None) -> dict:
+    """Sahada öğrenilen bilgiyi hedefin üzerine yazar.
+
+    🔴 BU KAYIT AYLIK TARAMADA SİLİNMEZ. Tarama raw.* tablolarını tazeler;
+    burası core.saha_bilgi'dir ve görünümde tazelenen veriyi YENER. Sahibin
+    şartı buydu: "senin girdiğin bilgi tazelemede silinmez."
+
+    Boş bırakılan alan DEĞİŞTİRİLMEZ; "bilmiyorum" ile "boş olsun" aynı şey
+    değildir. Bir alanı gerçekten boşaltmak için '-' yazılır.
+    """
+    hedef = _anahtar_coz(hedef_anahtari)
+    degerler = {"anahtar": hedef["anahtar"], "giren": (giren or "")[:80]}
+    atamalar, sutunlar, girisler = [], ["hedef_anahtari", "giren"], [":'anahtar'", ":'giren'"]
+    for ad_alan, deger, uzunluk in (
+            ("ad", ad, 200), ("brans", brans, 40), ("telefon", telefon, 60),
+            ("eposta", eposta, 120), ("ilgili_kisi", ilgili_kisi, 120),
+            ("notlar", notlar, 4000)):
+        if deger is None or str(deger).strip() == "":
+            continue
+        ham = str(deger).strip()[:uzunluk]
+        if ad_alan == "brans":
+            ham = ham.upper().replace(" ", "_")
+            if not ham.replace("_", "").isalnum():
+                raise SahaHatasi("gecersiz brans")
+        degerler[ad_alan] = "" if ham == "-" else ham
+        sutunlar.append(ad_alan)
+        girisler.append("NULLIF(:'%s', '')" % ad_alan)
+        atamalar.append("%s = NULLIF(:'%s', '')" % (ad_alan, ad_alan))
+    if hedef_disi is not None:
+        sutunlar.append("hedef_disi")
+        girisler.append("true" if hedef_disi else "false")
+        atamalar.append("hedef_disi = %s" % ("true" if hedef_disi else "false"))
+    if not atamalar:
+        raise SahaHatasi("degistirilecek alan yok")
+    atamalar.append("giren = :'giren'")
+    atamalar.append("girildi = now()")
+
+    sql = """WITH s AS (
+      INSERT INTO core.saha_bilgi (%s, girildi)
+      VALUES (%s, now())
+      ON CONFLICT (hedef_anahtari) DO UPDATE SET %s
+      RETURNING hedef_anahtari, giren, girildi)
+      SELECT row_to_json(t) FROM s t;""" % (
+        ", ".join(sutunlar), ", ".join(girisler), ", ".join(atamalar))
+    satir = _yaz(sql, degerler)
+    if not satir:
+        raise SahaHatasi("bilgi yazilamadi")
+    return satir[0]
 
 
 def foto_kaydet(ziyaret_id: int, veri_b64: str, enlem=None, boylam=None) -> dict:
