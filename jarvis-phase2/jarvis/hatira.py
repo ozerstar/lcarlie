@@ -72,7 +72,29 @@ GEMINI_GOMME = "models/gemini-embedding-001"
 # ayrı durumlardır ve öyle bildirilir.
 #
 # Sağlayıcı değiştirilecekse indeks önce BOŞALTILMALI.
-YEREL_GOMME_URL = os.environ.get("JARVIS_GOMME_URL", "http://127.0.0.1:8096/v1")
+# İki uç, TEK model. İkisi de aynı BGE-M3 FP16'yı aynı havuzlama (cls) ve aynı
+# normalleştirme (L2) ile çalıştırıyor -- ürettikleri vektörler BİREBİR aynı
+# uzayda. Bu yüzden biri diğerinin yerine geçebilir; indeks karışmaz.
+#
+# Sıra ÖLÇÜLDÜ (24.09.2026, aynı metinler, aynı istemci):
+#                        tek tek (p50)   toplu verim   1.799 lead
+#     PC-1 RX 6600           55,5 ms     10,49/sn        2,9 dk
+#     VDS işlemci           136,8 ms      0,71/sn       42,1 dk
+#
+# PC-1 14,7 kat hızlı, ama VDS de YETERLİ: 137 ms sohbet akışında fark
+# edilmez, 42 dakikalık toplu iş ayda bir gece koşar. Bu yüzden PC-1'i
+# 7/24 açık tutmak gerekmiyor -- ayda ~360 ₺ elektrik demekti.
+#
+# Zincir: PC-1 açıksa hızlı yol, kapalıysa VDS. Hafıza her hâlükârda çalışır.
+GOMME_UCLARI = tuple(
+    u.strip() for u in os.environ.get(
+        "JARVIS_GOMME_URLLERI",
+        "http://127.0.0.1:8096/v1,http://127.0.0.1:8094/v1").split(",") if u.strip())
+# Geriye dönük uyum: tek uç veren eski değişken hâlâ okunur ve başa geçer.
+_tek = os.environ.get("JARVIS_GOMME_URL")
+if _tek:
+    GOMME_UCLARI = (_tek,) + tuple(u for u in GOMME_UCLARI if u != _tek)
+YEREL_GOMME_URL = GOMME_UCLARI[0]
 YEREL_GOMME_ADI = os.environ.get("JARVIS_GOMME_MODELI", "bge-m3")
 GOMME_SAGLAYICI = os.environ.get("JARVIS_GOMME", "yerel")   # yerel | gemini
 GEMINI_LLM = "gemini-3.5-flash-lite"   # bu sunucuda ölçülmüş çalışan ad
@@ -147,18 +169,31 @@ def _telemetri_kapali() -> bool:
         return False
 
 
-def yerel_gomme_saglikli() -> bool:
-    """Yerel gömme ucu ayakta mı. Tünel kapalıysa hızlı düşmeli: PC'nin kapalı
-    olması gecenin normalidir, beklenecek bir istisna değil."""
+def _uc_saglikli(url: str) -> bool:
+    """Tek bir gömme ucu ayakta mı. 3 saniyede düşer: PC'nin kapalı olması
+    gecenin normalidir, beklenecek bir istisna değil."""
     import urllib.error
     import urllib.request
 
-    kok = YEREL_GOMME_URL.rsplit("/v1", 1)[0]
+    kok = url.rsplit("/v1", 1)[0]
     try:
         with urllib.request.urlopen(kok + "/health", timeout=3) as y:
             return json.loads(y.read()).get("status") == "ok"
     except (urllib.error.URLError, TimeoutError, OSError, ValueError):
         return False
+
+
+def calisan_gomme_ucu() -> str | None:
+    """Sıradaki ilk ayakta uç. Hiçbiri yoksa None -- "yavaş" değil, YOK."""
+    for url in GOMME_UCLARI:
+        if _uc_saglikli(url):
+            return url
+    return None
+
+
+def yerel_gomme_saglikli() -> bool:
+    """Herhangi bir gömme ucu ayakta mı."""
+    return calisan_gomme_ucu() is not None
 
 
 def _yapilandirma() -> dict[str, Any] | None:
@@ -170,8 +205,19 @@ def _yapilandirma() -> dict[str, Any] | None:
     # LLM'i HİÇ çağrılmaz, ama mem0 yine de bir LLM yapılandırması bekliyor.
     if not (ip and pw and key):
         return None
-    if yerel and not yerel_gomme_saglikli():
-        # Sessizce Gemini'ye düşmek indeksi zehirlerdi. Bkz. YEREL_GOMME_URL.
+    secilen = calisan_gomme_ucu() if yerel else None
+    if yerel and secilen is None:
+        # Sessizce Gemini'ye düşmek indeksi zehirlerdi. Bkz. GOMME_UCLARI.
+        # İki uç da kapalıysa anlamsal hafıza KULLANILAMAZ -- "boş" değil.
+        #
+        # 🔴 SEBEBİ YAZMAK ZORUNDAYIZ. İlk yazımda buradan sadece None dönüyordu
+        # ve çağıran taraf onu "yapılandırma eksik (IP / parola / GEMINI_API_KEY)"
+        # diye raporluyordu -- yapılandırma gayet yerindeyken. Yokluğun SEBEBİNİ
+        # bilmeden yokluğu bir cümleye çevirmek bu projenin tekrar eden kök
+        # hatası; kendi testim yakaladı.
+        global _kurulum_hatasi
+        _kurulum_hatasi = ("gomme ucu yok -- denenen: " + ", ".join(GOMME_UCLARI)
+                           + " (yapilandirma yerinde)")
         return None
     return {
         "vector_store": {
@@ -193,7 +239,7 @@ def _yapilandirma() -> dict[str, Any] | None:
                 # değer bekler; anlamsız bir sabit veriliyor.
                 "provider": "openai",
                 "config": {"model": YEREL_GOMME_ADI, "embedding_dims": BOYUT,
-                           "openai_base_url": YEREL_GOMME_URL,
+                           "openai_base_url": secilen,
                            "api_key": "yerel-gomme"},
             } if yerel else {
                 "provider": "gemini",
@@ -217,9 +263,13 @@ def _bellegi_al():
     with _kilit:
         if _bellek is not None:
             return _bellek
+        _kurulum_hatasi = None
         cfg = _yapilandirma()
         if cfg is None:
-            _kurulum_hatasi = "yapilandirma eksik (IP / parola / GEMINI_API_KEY)"
+            # _yapilandirma() daha kesin bir sebep yazdıysa onu KORU. Genel
+            # mesajla üzerine yazmak, doğru teşhisi yanlışla değiştirmek olur.
+            if not _kurulum_hatasi:
+                _kurulum_hatasi = "yapilandirma eksik (IP / parola / GEMINI_API_KEY)"
             return None
         try:
             from mem0 import Memory
