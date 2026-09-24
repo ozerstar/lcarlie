@@ -1,10 +1,19 @@
-"""The GPU box is a desktop, so it is allowed to disappear.
+"""API once, yerel model yedek -- 24.09.2026'da sahip karariyla tersine dondu.
 
-It answers a knowledge-backed question in ~6 s where the server's four cores
-take ~60 s, which is why it goes first. It is also switched off at night,
-which is why it cannot be the only one. These tests pin the consequence: when
-it is gone the server's own model answers, and nothing reaches the external
-provider just because a desktop was powered down.
+ESKI SOZLESME (artik gecersiz): masaustu GPU once gelirdi, kapaliysa sunucunun
+kendi modeli cevaplardi ve "bir masaustu kapandi diye trafik disariya cikmasin"
+kurali vardi. Gerekcesi hizdi.
+
+NEDEN DEGISTI -- olculdu:
+  gemini-3.5-flash-lite  0,63 sn · 0,30/2,50 USD/1M · 7 gunluk toplam 4,46 TL
+  PC-2 RTX 5060          ~0,65 sn isinmis, ilk istekte 14 sn, gece kapali
+  VDS CPU                7,45 jeton/sn -- bir paragraf ~30 sn
+API hem hizli hem her zaman acik; yerel modelin bedeli para degil BAGIMLILIK
+(tunel dusuyor, GPU'yu ComfyUI ile paylasmak gerekiyor).
+
+Bu testler YENI sonucu civiler: API cevapliyorsa yerel kademeler hic
+yoklanmaz; API dustugunde is DURMAZ, masaustune ve sonra sunucuya iner.
+Yerel kademeler silinmedi -- bedava sigorta olarak duruyorlar.
 """
 import unittest
 
@@ -36,39 +45,47 @@ class _Provider:
         yield f"answer from {self.name}"
 
 
-def _router(gpu_state=AdapterState.AVAILABLE, gpu_fails=False):
+def _router(gpu_state=AdapterState.AVAILABLE, gpu_fails=False,
+            external_state=AdapterState.AVAILABLE, external_fails=False):
     return ModelRouter(
         gpu=_Provider("gpu", TIER_GPU, gpu_state, gpu_fails),
         local=_Provider("local", TIER_LOCAL),
-        external=_Provider("external", TIER_EXTERNAL))
+        external=_Provider("external", TIER_EXTERNAL, external_state,
+                           external_fails))
 
 
 MSG = [{"role": "user", "content": "Intimblanc nedir?"}]
 
 
-class GpuPreferredTest(unittest.TestCase):
+class ApiFirstTest(unittest.TestCase):
 
-    def test_gpu_answers_when_the_desktop_is_on(self):
+    def test_api_answers_and_local_rungs_are_never_touched(self):
+        """Asil kazanc burada: masaustu ACIK olsa bile yoklanmaz."""
         router = _router()
+        _result, tier, _calls = router.generate(MSG, 64)
+        self.assertEqual(tier, TIER_EXTERNAL)
+        self.assertEqual(router.gpu.calls, 0)
+        self.assertEqual(router.local.calls, 0)
+
+    def test_api_down_falls_back_to_the_desktop(self):
+        """Yerel kademeler sigorta: API dustugunde is DURMAZ."""
+        router = _router(external_state=AdapterState.UNAVAILABLE)
         _result, tier, _calls = router.generate(MSG, 64)
         self.assertEqual(tier, TIER_GPU)
         self.assertEqual(router.local.calls, 0)
-        self.assertEqual(router.external.calls, 0)
 
-    def test_desktop_off_falls_back_to_the_server_not_the_internet(self):
-        # The exact night-time case: no tunnel, so no health, so no GPU.
-        router = _router(gpu_state=AdapterState.UNAVAILABLE)
+    def test_api_and_desktop_down_leaves_the_always_on_server(self):
+        router = _router(external_state=AdapterState.UNAVAILABLE,
+                         gpu_state=AdapterState.UNAVAILABLE)
         _result, tier, _calls = router.generate(MSG, 64)
         self.assertEqual(tier, TIER_LOCAL)
-        self.assertEqual(router.external.calls, 0,
-                         "a powered-down desktop must not push traffic outside")
 
-    def test_desktop_dies_mid_request_and_the_server_finishes_the_job(self):
-        # Health said yes, then the tunnel dropped between check and request.
-        router = _router(gpu_fails=True)
+    def test_api_dies_mid_request_and_the_desktop_finishes_the_job(self):
+        """Saglik "evet" dedi, istek ile cevap arasinda dustu."""
+        router = _router(external_fails=True)
         result, tier, calls = router.generate(MSG, 64)
-        self.assertEqual(tier, TIER_LOCAL)
-        self.assertEqual(result["text"], "answer from local")
+        self.assertEqual(tier, TIER_GPU)
+        self.assertEqual(result["text"], "answer from gpu")
         self.assertEqual(calls, 2)
 
     def test_escalation_still_means_the_external_model(self):
@@ -78,10 +95,16 @@ class GpuPreferredTest(unittest.TestCase):
         _result, tier, _calls = router.generate(MSG, 64, escalate=True)
         self.assertEqual(tier, TIER_EXTERNAL)
 
-    def test_chain_order_is_fast_then_always_on_then_paid(self):
+    def test_chain_is_api_first_and_escalate_no_longer_reorders(self):
+        """escalate artik SIRAYI degistirmiyor -- dis saglayici zaten basta.
+
+        Anlami daraldi: yalnizca "ucretli modele kadar inebilirsin" demek.
+        Sira ikiye ayrilmadigi icin iki cagri da ayni listeyi vermeli; aksi
+        halde escalate sessizce yerel kademeleri one alirdi.
+        """
         router = _router()
         self.assertEqual([p.name for p in router._chain(False)],
-                         ["gpu", "local", "external"])
+                         ["external", "gpu", "local"])
         self.assertEqual([p.name for p in router._chain(True)],
                          ["external", "gpu", "local"])
 

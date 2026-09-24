@@ -289,6 +289,34 @@ def _tail_jsonl(path: Path, limit: int) -> list[dict]:
     return out
 
 
+def _kademe_gorunumu(limit: int = 200) -> dict:
+    """Hangi kademe cevap veriyor: canli durum + son kayitlarin ozeti.
+
+    Iki kaynak AYRI try icinde. Canli yoklama uc makineye HTTP saglik istegi
+    atar; biri asili kalirsa gecmis kayitlar yine de gorunmelidir. Bos bir
+    kademe ekrani "her sey yolunda" diye okunur -- en tehlikeli yanlis bu.
+
+    "simdi" ANLIK durumdur, "ozet" GECMIStir. Ikisi celisebilir ve bu bir hata
+    degildir: makine az once acilmis olabilir. Panelde ayri gosterilmeli.
+    """
+    gorunum: dict = {}
+    try:
+        from webconsole.conversation import _router
+        gorunum["simdi"] = _router().provider_states()
+    except Exception as exc:  # noqa: BLE001
+        gorunum["simdi"] = {"hata": str(exc)[:200]}
+    try:
+        from jarvis import kademe_kaydi
+        kayitlar = kademe_kaydi.son_kayitlar(limit)
+        gorunum["son"] = kayitlar[:30]
+        gorunum["ozet"] = kademe_kaydi.ozet(kayitlar)
+    except Exception as exc:  # noqa: BLE001
+        gorunum["son"] = []
+        gorunum["ozet"] = {"hata": str(exc)[:200]}
+    return gorunum
+
+
+
 # ══════════════════════════════════════════════════════════════════════
 # SATIŞ MERKEZİ
 #
@@ -1095,6 +1123,9 @@ class Handler(BaseHTTPRequestHandler):
             # Sunucu OLCULUR (anlik), PC'ler state/hosts/*.json'dan
             # OKUNUR -- onlar NAT arkasinda, kendileri iter.
             self._send_json(200, sistem.gorunum(STATE_DIR, _host_metrics()))
+            return
+        if path == "/api/kademe":
+            self._send_json(200, _kademe_gorunumu())
             return
         if path == "/api/hafiza":
             self._send_json(200, _hafiza_gorunumu())

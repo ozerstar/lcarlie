@@ -36,7 +36,7 @@ from typing import Any, Iterable
 
 from .adapter_factory import AdapterState
 
-from . import answer_guard, is_sinifi
+from . import answer_guard, is_sinifi, kademe_kaydi
 
 # The GPU box reaches the server through a reverse SSH tunnel, so from
 # here it is just another loopback port. When the desktop is off the
@@ -447,20 +447,48 @@ class ModelRouter:
                 "external": self.external.state().value}
 
     def _chain(self, escalate: bool) -> list[Any]:
-        """GPU first because it is ten times faster, the VDS next because it is
-        always on, the external provider last -- or first when the task needs a
-        stronger model rather than a faster one."""
-        fast = [self.gpu, self.local]
-        return [self.external, *fast] if escalate else [*fast, self.external]
+        """API once, yerel model yedek.
+
+        24.09.2026'da sahip karariyla ters cevrildi. Onceki sira yerel-onceydi
+        ve gerekcesi hizdi; olcum bu gerekceyi zayiflatti:
+
+          gemini-3.5-flash-lite  0,63 sn  ·  0,30/2,50 USD/1M jeton
+          PC-2 RTX 5060          ~0,65 sn isinmis, ilk istekte 14 sn
+          VDS CPU                5,9-7,45 jeton/sn -- pratikte kullanilamaz
+
+        Olculmus maliyet: 7 gunde 4,46 TL. API hem hizli hem her zaman acik.
+        Yerel modelin asil bedeli para degil BAGIMLILIK: PC acilip kapaniyor,
+        tunel dusuyor, GPU'yu ComfyUI ile paylasmak gerekiyor -- 24.09'da
+        olculdu, gorsel uretilirken butun ajans 30 dakikaya kadar
+        7,45 jeton/sn'ye dusuyordu.
+
+        Yerel kademeler YEDEK olarak kaliyor: API ayakta oldugu surece hic
+        yoklanmiyorlar (dongu ilk basarili kademede durur), yani bedava
+        sigorta. Anahtar biterse ya da kota dolarsa is durmaz.
+        """
+        return [self.external, self.gpu, self.local]
 
     def generate(self, messages: list[dict[str, str]], max_tokens: int,
                  escalate: bool = False,
                  is_anahtari: str | None = None) -> tuple[dict[str, Any], str, int]:
         attempts = 0
         for provider in self._chain(escalate):
-            if provider.state() != AdapterState.AVAILABLE:
+            uc = getattr(provider, "name", type(provider).__name__)
+            kademe = getattr(provider, "tier", None)
+            model_adi = getattr(provider, "model", None)
+            durum = provider.state()
+            if durum != AdapterState.AVAILABLE:
+                # Atlanan kademe de bir olcumdur: makinenin kapali olmasi ile
+                # acikken cevap verememesi ayni sey degil.
+                kademe_kaydi.kaydet(
+                    uc=uc, kademe=kademe, model=model_adi,
+                    sonuc=kademe_kaydi.SONUC_ATLANDI,
+                    gerekce=getattr(durum, "value", str(durum)),
+                    deneme=attempts + 1, escalate=escalate,
+                    is_anahtari=is_anahtari)
                 continue
             attempts += 1
+            basladi = time.perf_counter()
             try:
                 # `escalate` iki sey demek: dis saglayiciyi ONCE dene, VE
                 # gerekirse UCRETLI saglayiciya kadar in. Ucretli saglayici
@@ -476,10 +504,26 @@ class ModelRouter:
                                                is_anahtari=is_anahtari)
                 else:
                     result = provider.complete(messages, max_tokens)
+                kademe_kaydi.kaydet(
+                    uc=uc, kademe=kademe, model=model_adi,
+                    sonuc=kademe_kaydi.SONUC_BASARILI,
+                    gecikme_ms=round((time.perf_counter() - basladi) * 1000, 1),
+                    deneme=attempts, escalate=escalate,
+                    is_anahtari=is_anahtari)
                 return result, provider.tier, attempts
             except (ModelUnavailable, urllib.error.URLError, TimeoutError, OSError,
-                    KeyError, ValueError):
+                    KeyError, ValueError) as istisna:
+                kademe_kaydi.kaydet(
+                    uc=uc, kademe=kademe, model=model_adi,
+                    sonuc=kademe_kaydi.SONUC_HATA,
+                    gecikme_ms=round((time.perf_counter() - basladi) * 1000, 1),
+                    gerekce=type(istisna).__name__,
+                    deneme=attempts, escalate=escalate,
+                    is_anahtari=is_anahtari)
                 continue
+        kademe_kaydi.kaydet(
+            uc="-", kademe=None, sonuc=kademe_kaydi.SONUC_ZINCIR_TUKENDI,
+            deneme=attempts, escalate=escalate, is_anahtari=is_anahtari)
         raise ModelUnavailable("no model provider could answer")
 
     # -- the two capabilities this layer exposes ------------------------
