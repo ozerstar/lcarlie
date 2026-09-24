@@ -6348,7 +6348,7 @@ function shHaritaBalon(h) {
   return '<div class="sh-balon">' + parcalar.join('<br>') + '</div>';
 }
 
-function shHaritaAc() {
+function shHaritaGoster() {
   const sar = qs('shHaritaSar');
   const dugme = qs('shHaritaAc');
   const tara = qs('shAlanTara');
@@ -6429,6 +6429,6 @@ document.addEventListener('click', function (e) {
     shFiltreGecikmeli(0);
     return;
   }
-  if (e.target.closest('#shHaritaAc')) { shHaritaAc(); return; }
+  if (e.target.closest('#shHaritaAc')) { shHaritaGoster(); return; }
   if (e.target.closest('#shAlanTara')) { shAlaniTara(); return; }
 });
