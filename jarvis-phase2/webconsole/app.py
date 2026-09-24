@@ -19,6 +19,7 @@ framework, no new package install.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import os
@@ -682,15 +683,49 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _send_file(self, path: Path, content_type: str) -> None:
+        """Statik dosya. JS/CSS icin ETag ile DOGRULAMALI onbellek.
+
+        🔴 24.09.2026'da olculdu: dagitim yapildi, sunucudaki app.js yenilendi,
+        ama operatorun tarayicisi 'max-age=300' yuzunden eski dosyayi
+        kullanmaya devam etti -- yeni sekme panelde HIC gorunmedi. Sayfanin
+        kendisi zaten no-store oldugu icin HTML taze geliyordu; yani yeni HTML
+        ile ESKI JS birlikte calisiyordu. Bu en kotu birlesim: hata vermez,
+        sadece eksik davranir.
+
+        Cozum surumleme degil DOGRULAMA: 'no-cache' tarayiciya "kullanmadan
+        once sor" der. Dosya degismediyse ETag eslesir ve 304 doner -- govde
+        hic gonderilmez, yani maliyet neredeyse sifir. Degistiyse aninda
+        yeni dosya iner ve kimsenin Ctrl+F5 yapmasi gerekmez.
+
+        HTML eskisi gibi no-store kalir: onun icin dogrulama bile gereksiz.
+        """
         data = path.read_bytes()
+        if path.suffix in (".html",):
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(data)
+            return
+
+        # ETag icerikten turetilir: mtime'a guvenmek, dagitimda `cp -p` ile
+        # tarih korunan bir dosyayi "degismemis" saymak demekti.
+        etag = '"%s"' % hashlib.sha256(data).hexdigest()[:32]
+        if (self.headers.get("If-None-Match") or "").strip() == etag:
+            self.send_response(HTTPStatus.NOT_MODIFIED)
+            self.send_header("ETag", etag)
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+            return
+
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(data)))
         self.send_header("X-Content-Type-Options", "nosniff")
-        if path.suffix in (".html",):
-            self.send_header("Cache-Control", "no-store")
-        else:
-            self.send_header("Cache-Control", "public, max-age=300")
+        self.send_header("ETag", etag)
+        self.send_header("Cache-Control", "no-cache")
         self.end_headers()
         self.wfile.write(data)
 
