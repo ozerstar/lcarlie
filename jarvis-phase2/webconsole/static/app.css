@@ -3931,3 +3931,23 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .is-metin { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .is-kim { font-size: 11px; opacity: .6; white-space: nowrap; }
 @media (max-width: 640px) { .is-satir { align-items: stretch; } .is-dar { width: 100%; } }
+
+
+/* ==================== MODEL KADEMELERİ ==================== */
+.kd-blok { margin-top: 22px; border-top: 1px solid var(--line, #2a2e37); padding-top: 16px; }
+.kd-baslik { font-size: 12px; letter-spacing: .12em; margin: 0 0 6px; opacity: .85; }
+.kd-yan { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; }
+.kd-kutu { flex: 1 1 260px; min-width: 0; }
+.kd-alt { font-size: 10px; letter-spacing: .14em; opacity: .6; margin: 0 0 6px; }
+.kd-liste { list-style: none; margin: 0; padding: 0; }
+.kd-satir { display: flex; align-items: baseline; gap: 10px; padding: 5px 0;
+            border-bottom: 1px solid var(--line, #2a2e37); }
+.kd-uc { flex: 0 0 auto; min-width: 128px; }
+.kd-dagilim { flex: 1; font-size: 12px; opacity: .85; overflow-wrap: anywhere; }
+.kd-ms { font-size: 11px; opacity: .6; white-space: nowrap; }
+.kd-rozet { font-size: 10px; letter-spacing: .06em; padding: 2px 7px; border-radius: 3px;
+            border: 1px solid var(--line, #2a2e37); white-space: nowrap; }
+.kd-hazir  { border-color: var(--ok, #7ee787); }
+.kd-kapali { border-color: var(--line, #2a2e37); opacity: .65; }
+.kd-zayif  { border-color: var(--warn, #d29922); }
+@media (max-width: 640px) { .kd-yan { flex-direction: column; } .kd-uc { min-width: 0; } }

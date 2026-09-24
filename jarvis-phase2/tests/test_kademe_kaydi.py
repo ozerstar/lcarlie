@@ -280,6 +280,31 @@ class AktarimTest(unittest.TestCase):
         self.assertEqual(kademe_kaydi.tum_kayitlar(), [])
         self.assertEqual(kademe_kaydi.aktarim_csv([]), "")
 
+    def test_ayni_saniyedeki_cagrilar_BIRBIRINE_KARISMAZ(self):
+        """🔴 Olculmus veri kaybi: 350 kaydin 86'si (%25) tek satira inmisti.
+
+        Zaman damgasi saniye cozunurlugunde; ayni saniyede ayni alanlarla
+        dort cagri olunca dordu de ayni kimligi aliyordu ve aktarimda tek
+        satir kaliyordu. "Kac kez yedege dustuk" sorusunun cevabi eksik
+        cikardi. Sira alani bunu kapatir.
+        """
+        for _ in range(4):
+            kademe_kaydi.kaydet(uc="gpu", kademe="LOCAL_GPU",
+                                sonuc=kademe_kaydi.SONUC_ATLANDI,
+                                gerekce="UNAVAILABLE", deneme=1)
+        kayitlar = kademe_kaydi.tum_kayitlar()
+        self.assertEqual(len(kayitlar), 4)
+        hashler = {kademe_kaydi.satir_hash(k) for k in kayitlar}
+        self.assertEqual(len(hashler), 4,
+                         "ayni saniyedeki dort ayri cagri dort ayri kayittir")
+
+    def test_ayni_kayit_iki_kez_aktarilirsa_yine_tek(self):
+        """Sira dosyaya YAZILIR: ayni dosyayi iki kez aktarmak guvenli kalmali."""
+        kademe_kaydi.kaydet(uc="external", sonuc=kademe_kaydi.SONUC_BASARILI)
+        birinci = [kademe_kaydi.satir_hash(k) for k in kademe_kaydi.tum_kayitlar()]
+        ikinci = [kademe_kaydi.satir_hash(k) for k in kademe_kaydi.tum_kayitlar()]
+        self.assertEqual(birinci, ikinci)
+
 
 if __name__ == "__main__":
     unittest.main()

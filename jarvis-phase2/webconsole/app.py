@@ -291,6 +291,49 @@ def _tail_jsonl(path: Path, limit: int) -> list[dict]:
     return out
 
 
+class _HizliYoklama:
+    """Panel icin kisa zaman asimli saglik yoklamasi.
+
+    🔴 Paylasilan yonlendiricinin provider_states()'i kullanilmaz. Iki sebep:
+
+    1. Zaman asimi. Gercek cagri yolunda 3 saniye makul -- bir kademeyi
+       erken elemek, calisan bir makineyi kaybetmek olur. Ekranda ise 3
+       saniye pahali: llama soküldükten sonra gpu ucu olu ve her sekme
+       acilisinda o sureyi bekletiyordu.
+    2. Yan etki. Paylasilan yonlendiricinin zaman asimini ekran icin
+       kisaltmak, gercek cagrilari da etkilerdi.
+
+    1,2 saniyede saglik cevabi veremeyen bir uc zaten kullanilabilir degil.
+    """
+
+    ZAMAN_ASIMI_S = 1.2
+
+
+def _kademe_canli_durum() -> dict:
+    """Uc kademenin ANLIK durumu. Gecmisten DEGIL, su andan.
+
+    external.state() ag istegi yapmaz (anahtar + kota kontrolu), bu yuzden
+    ucuzdur; yalniz iki yerel uc yoklanir.
+    """
+    from jarvis import model_layer as ML
+
+    class _Kisa(ML.LocalProvider):
+        health_timeout_s = _HizliYoklama.ZAMAN_ASIMI_S
+
+    durumlar = {}
+    for ad, url, model in (("gpu", ML.GPU_URL, ML.GPU_MODEL),
+                           ("local", ML.LOCAL_URL, ML.LOCAL_MODEL)):
+        try:
+            durumlar[ad] = _Kisa(url=url, model=model).state().value
+        except Exception:  # noqa: BLE001 - yoklanamamak da bir durumdur
+            durumlar[ad] = "BILINMIYOR"
+    try:
+        durumlar["external"] = ML.ExternalProvider().state().value
+    except Exception:  # noqa: BLE001
+        durumlar["external"] = "BILINMIYOR"
+    return durumlar
+
+
 def _kademe_gorunumu(limit: int = 200) -> dict:
     """Hangi kademe cevap veriyor: canli durum + son kayitlarin ozeti.
 
@@ -303,8 +346,7 @@ def _kademe_gorunumu(limit: int = 200) -> dict:
     """
     gorunum: dict = {}
     try:
-        from webconsole.conversation import _router
-        gorunum["simdi"] = _router().provider_states()
+        gorunum["simdi"] = _kademe_canli_durum()
     except Exception as exc:  # noqa: BLE001
         gorunum["simdi"] = {"hata": str(exc)[:200]}
     try:

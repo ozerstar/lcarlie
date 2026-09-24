@@ -5549,6 +5549,7 @@ async function loadSistem() {
     return;
   }
   sistemState.veri = body;
+  loadKademe();
   sistemCiz();
 }
 
@@ -5691,3 +5692,81 @@ document.addEventListener('click', async function (e) {
   }
   sonuc.textContent = cevap.ok ? 'istek kaydedildi' : 'istek gönderilemedi';
 });
+
+
+/* ==================== MODEL KADEMELERİ (SİSTEM sekmesi içinde) ==========
+ *
+ * İki ayrı şey gösterilir ve BİRBİRİNİN YERİNE GEÇMEZ:
+ *   ŞU AN  canlı sağlık yoklaması -- bu saniyedeki durum
+ *   ÖZET   son çağrıların kaydı   -- geçmiş
+ * İkisi çelişebilir ve bu bir hata değildir: makine az önce açılmış ya da
+ * az önce kapanmış olabilir. Tek satırda birleştirmek, birini diğerinin
+ * kanıtı gibi göstermek olurdu.
+ */
+const KD_DURUM_ETIKET = {
+  AVAILABLE: 'HAZIR', UNAVAILABLE: 'KAPALI', DEGRADED: 'ZAYIF',
+  RATE_LIMITED: 'KOTA DOLU', BILINMIYOR: 'BİLİNMİYOR',
+};
+const KD_UC_ADI = { external: 'API (dış sağlayıcı)', gpu: 'PC-2 ekran kartı',
+                    local: 'Sunucu CPU', '-': 'zincirin tamamı' };
+const KD_SONUC_ETIKET = { BASARILI: 'cevapladı', HATA: 'düştü',
+                          ATLANDI: 'hazır değildi', ZINCIR_TUKENDI: 'cevap yok' };
+
+async function loadKademe() {
+  const govde = qs('kademeGovde');
+  if (!govde) return;
+  const { ok, status, body: d } = await api('/api/kademe');
+  if (!ok) {
+    govde.innerHTML = '<p class="sect-empty is-bad">Kademe verisi okunamadı (HTTP '
+      + status + ').</p>';
+    return;
+  }
+
+  /* ŞU AN */
+  const simdi = d.simdi || {};
+  let satirlar = '';
+  if (simdi.hata) {
+    satirlar = '<p class="sect-empty is-bad">Yoklanamadı: '
+      + escapeHtml(String(simdi.hata)) + '</p>';
+  } else {
+    satirlar = '<ul class="kd-liste">' + ['external', 'gpu', 'local'].map(function (uc) {
+      const ham = String(simdi[uc] || 'BILINMIYOR');
+      const et = KD_DURUM_ETIKET[ham] || ham;
+      const sinif = ham === 'AVAILABLE' ? 'kd-hazir'
+                  : (ham === 'UNAVAILABLE' ? 'kd-kapali' : 'kd-zayif');
+      return '<li class="kd-satir"><span class="kd-uc">'
+        + escapeHtml(KD_UC_ADI[uc] || uc) + '</span>'
+        + '<span class="kd-rozet ' + sinif + '">' + escapeHtml(et) + '</span></li>';
+    }).join('') + '</ul>';
+  }
+
+  /* ÖZET */
+  const ozet = d.ozet || {};
+  let ozetHtml = '';
+  if (ozet.hata) {
+    ozetHtml = '<p class="sect-empty is-bad">Geçmiş okunamadı: '
+      + escapeHtml(String(ozet.hata)) + '</p>';
+  } else if (!ozet.toplam) {
+    ozetHtml = '<p class="sect-empty">Henüz kayıtlı çağrı yok.</p>';
+  } else {
+    const gec = ozet.ortalama_gecikme_ms || {};
+    const dag = ozet.dagilim || {};
+    ozetHtml = '<ul class="kd-liste">' + Object.keys(dag).map(function (uc) {
+      const parcalar = Object.keys(dag[uc]).map(function (s) {
+        return escapeHtml(KD_SONUC_ETIKET[s] || s) + ' ' + dag[uc][s];
+      }).join(' · ');
+      const ms = (gec[uc] !== undefined && gec[uc] !== null)
+        ? ('<span class="kd-ms">' + gec[uc] + ' ms</span>') : '';
+      return '<li class="kd-satir"><span class="kd-uc">'
+        + escapeHtml(KD_UC_ADI[uc] || uc) + '</span>'
+        + '<span class="kd-dagilim">' + parcalar + '</span>' + ms + '</li>';
+    }).join('') + '</ul>'
+      + '<p class="fm-sub">son ' + ozet.toplam + ' çağrı</p>';
+  }
+
+  govde.innerHTML =
+    '<div class="kd-yan"><div class="kd-kutu"><h4 class="kd-alt">ŞU AN</h4>'
+    + satirlar + '</div>'
+    + '<div class="kd-kutu"><h4 class="kd-alt">SON ÇAĞRILAR</h4>'
+    + ozetHtml + '</div></div>';
+}

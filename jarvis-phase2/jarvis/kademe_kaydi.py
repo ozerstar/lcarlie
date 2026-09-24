@@ -30,6 +30,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import io
+import itertools
 import json
 import os
 import time
@@ -43,6 +44,18 @@ SONUC_ATLANDI = "ATLANDI"
 SONUC_ZINCIR_TUKENDI = "ZINCIR_TUKENDI"
 
 
+# 🔴 Zaman damgasi SANIYE cozunurlugunde. Ayni saniyede dort cagri
+# olabiliyor ve alanlari ayni oldugunda satirlar birbirinden AYIRT
+# EDILEMIYORDU. Olculdu 24.09.2026: 350 kaydin 86'si (%25) aktarimda tek
+# satira indi -- "kac kez yedege dustuk" sorusunun cevabi eksik cikardi.
+#
+# Sira, surec kimligi + artan sayac. Zaman damgasini milisaniyeye cevirmek
+# yerine bu secildi: bicim degisikligi paneli ve mevcut kayitlari etkilerdi,
+# ayrica iki cagri ayni milisaniyeye de dusebilir. Sira dosyaya YAZILDIGI
+# icin ayni dosyayi iki kez aktarmak hala guvenli -- kimlik degismez.
+_SIRA = itertools.count(1)
+
+
 def _yol() -> Path:
     """Yol her cagride okunur: testler JARVIS_KADEME_LOG ile yonlendirir."""
     return Path(os.environ.get("JARVIS_KADEME_LOG", VARSAYILAN_YOL))
@@ -51,7 +64,8 @@ def _yol() -> Path:
 def kaydet(**alanlar) -> None:
     """Tek satir ekle. Hicbir kosulda istisna firlatmaz."""
     try:
-        satir = {"ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"), **alanlar}
+        satir = {"ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+                 "sira": "%d-%d" % (os.getpid(), next(_SIRA)), **alanlar}
         yol = _yol()
         yol.parent.mkdir(parents=True, exist_ok=True)
         with yol.open("a", encoding="utf-8") as dosya:

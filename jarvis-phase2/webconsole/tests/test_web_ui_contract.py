@@ -71,6 +71,9 @@ KNOWN_ROUTES = {
     # ISLER: gorsel uretim kuyrugunu okur (GET) ve ona is koyar (POST).
     # Kuyrugu PC-2'deki hakem yokluyor; app.py ikisini de sunuyor.
     "/api/isler",
+    # Model kademeleri: SISTEM sekmesindeki "hangi kademe cevap veriyor"
+    # bolumu. app.py sunuyor.
+    "/api/kademe",
     # Uzaktan ACMA istegi. Uc GERCEKTEN sunuluyor, ama donanim on kosulu
     # saglanmadigi icin "hazir: false" ve eksik listesi donuyor -- panel de
     # dugmeyi calismis gibi gostermiyor. Sunulan yol ile calisan ozellik
