@@ -36,7 +36,8 @@ import os
 import time
 from pathlib import Path
 
-VARSAYILAN_YOL = "/opt/lcarlie/jarvis-phase2/state/kademe.jsonl"
+VARSAYILAN_DURUM_DIZINI = "/opt/lcarlie/jarvis-phase2/state"
+VARSAYILAN_YOL = VARSAYILAN_DURUM_DIZINI + "/kademe.jsonl"
 
 SONUC_BASARILI = "BASARILI"
 SONUC_HATA = "HATA"
@@ -57,8 +58,29 @@ _SIRA = itertools.count(1)
 
 
 def _yol() -> Path:
-    """Yol her cagride okunur: testler JARVIS_KADEME_LOG ile yonlendirir."""
-    return Path(os.environ.get("JARVIS_KADEME_LOG", VARSAYILAN_YOL))
+    """Gunluk dosyasinin yolu. Her cagride yeniden okunur.
+
+    🔴 VARSAYILAN, JARVIS_STATE_DIR'DAN TURETILIR. Onceki surum mutlak bir
+    yol kullaniyordu ve bu projede daha once yasanmis bir hatayi aynen
+    tekrar etti: testler URETIM dosyasina yazdi. Olculdu 24.09.2026 --
+    tek bir test kosusu uretim gunlugune 19-20 satir ekledi ve o satirlar
+    "zincir tukendi" gibi gorunup gercek olcumu kirletti. Ayni sinif hata
+    20.09.2026'da sohbet dokumunde yasanmisti (369 satir test fixture'i
+    uretim dokumune karisti).
+
+    Proje zaten bir izolasyon kurali kurmus: test modulleri ice aktarmadan
+    once JARVIS_STATE_DIR'i gecici klasore alir. Bu modul ayri bir
+    degisken kullandigi icin o korumanin DISINDA kaliyordu. Yeni bir
+    mekanizma eklemek yerine mevcut kurala baglanmasi dogrusu.
+
+    JARVIS_KADEME_LOG yine de acik bir gecersiz kilma olarak kalir:
+    dogrudan bu dosyayi sinayan testler onu kullanir.
+    """
+    acik = os.environ.get("JARVIS_KADEME_LOG")
+    if acik:
+        return Path(acik)
+    durum = os.environ.get("JARVIS_STATE_DIR", VARSAYILAN_DURUM_DIZINI)
+    return Path(durum) / "kademe.jsonl"
 
 
 def kaydet(**alanlar) -> None:

@@ -280,6 +280,38 @@ class AktarimTest(unittest.TestCase):
         self.assertEqual(kademe_kaydi.tum_kayitlar(), [])
         self.assertEqual(kademe_kaydi.aktarim_csv([]), "")
 
+    def test_JARVIS_STATE_DIR_uretim_dosyasini_korur(self):
+        """🔴 Olculmus kirlenme: bir test kosusu uretim gunlugune 19 satir yazdi.
+
+        Proje, test modullerinde JARVIS_STATE_DIR'i gecici klasore aliyor.
+        Bu modul ayri bir degisken kullandigi icin o korumanin DISINDA
+        kaliyordu ve olcumu kirletiyordu. Varsayilan artik STATE_DIR'dan
+        turetilir; kural tek yerde kalir.
+        """
+        os.environ.pop("JARVIS_KADEME_LOG", None)
+        gecici = Path(self._dizin.name) / "izole"
+        os.environ["JARVIS_STATE_DIR"] = str(gecici)
+        try:
+            kademe_kaydi.kaydet(uc="x", sonuc=kademe_kaydi.SONUC_BASARILI)
+            self.assertTrue((gecici / "kademe.jsonl").exists(),
+                            "kayit STATE_DIR altina dusmeli")
+            self.assertFalse(
+                str(kademe_kaydi._yol()).startswith(kademe_kaydi.VARSAYILAN_DURUM_DIZINI),
+                "STATE_DIR ayarliyken uretim yoluna YAZILMAMALI")
+        finally:
+            os.environ.pop("JARVIS_STATE_DIR", None)
+
+    def test_acik_gecersiz_kilma_STATE_DIR_i_yener(self):
+        """Bu dosyayi dogrudan sinayan testler JARVIS_KADEME_LOG kullanir."""
+        os.environ["JARVIS_STATE_DIR"] = "/olmayan/dizin"
+        hedef = Path(self._dizin.name) / "acik.jsonl"
+        os.environ["JARVIS_KADEME_LOG"] = str(hedef)
+        try:
+            kademe_kaydi.kaydet(uc="y", sonuc=kademe_kaydi.SONUC_BASARILI)
+            self.assertTrue(hedef.exists())
+        finally:
+            os.environ.pop("JARVIS_STATE_DIR", None)
+
     def test_ayni_saniyedeki_cagrilar_BIRBIRINE_KARISMAZ(self):
         """🔴 Olculmus veri kaybi: 350 kaydin 86'si (%25) tek satira inmisti.
 
