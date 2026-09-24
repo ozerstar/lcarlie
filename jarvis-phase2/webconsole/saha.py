@@ -219,13 +219,14 @@ def ziyaret_kaydet(hedef_anahtari: str, sonuc: str, giden: str,
             ("%f" % _sayi(konum_dogruluk_m, "konum_dogruluk_m", 0, 100000))
             if konum_dogruluk_m is not None else "NULL")
 
-    sql = """SELECT row_to_json(t) FROM (
+    sql = """WITH s AS (
       INSERT INTO core.saha_ziyaret
         (osm_tur, osm_id, nokta_id, giden, sonuc, not_metni, siparis_ref,
          enlem, boylam, konum_dogruluk_m)
       VALUES (%s, %s, %s, :'giden', :'sonuc', NULLIF(:'not', ''),
               NULLIF(:'siparis', ''), %s)
-      RETURNING ziyaret_id, ziyaret_at) t;""" % (
+      RETURNING ziyaret_id, ziyaret_at)
+      SELECT row_to_json(t) FROM s t;""" % (
         hedef["osm_tur"], hedef["osm_id"], hedef["nokta_id"], kon)
 
     satir = _yaz(sql, {"giden": giden, "sonuc": sonuc,
@@ -298,14 +299,15 @@ def nokta_ekle(ad: str, tur: str, enlem, boylam, ekleyen: str,
     dogruluk = ("%f" % _sayi(konum_dogruluk_m, "konum_dogruluk_m", 0, 100000)
                 ) if konum_dogruluk_m is not None else "NULL"
 
-    sql = """SELECT row_to_json(t) FROM (
+    sql = """WITH s AS (
       INSERT INTO core.saha_elle_nokta
         (ad, tur, brans, enlem, boylam, telefon, eposta, adres, notlar,
          konum_kaynagi, konum_dogruluk_m, ekleyen)
       VALUES (:'ad', :'tur', NULLIF(:'brans',''), %f, %f,
               NULLIF(:'tel',''), NULLIF(:'eposta',''), NULLIF(:'adres',''),
               NULLIF(:'notlar',''), :'kaynak', %s, :'ekleyen')
-      RETURNING nokta_id, ad, tur) t;""" % (en, bo, dogruluk)
+      RETURNING nokta_id, ad, tur)
+      SELECT row_to_json(t) FROM s t;""" % (en, bo, dogruluk)
 
     satir = _yaz(sql, {"ad": ad[:200], "tur": tur, "brans": (brans or "")[:60],
                        "tel": (telefon or "")[:60], "eposta": (eposta or "")[:120],
@@ -316,3 +318,137 @@ def nokta_ekle(ad: str, tur: str, enlem, boylam, ekleyen: str,
     kayit = satir[0]
     kayit["hedef_anahtari"] = "elle:%s" % kayit["nokta_id"]
     return kayit
+
+
+# ---------------------------------------------------------------------------
+# KONUM TAKİBİ
+#
+# 🔴 Bu, çalışanın KİŞİSEL VERİSİDİR -- işletme adresi tutmakla aynı kategori
+# değil. Üç koruma koda gömülüdür, sonradan eklenen koruma eklenmez:
+#
+#   SAKLAMA_GUN      kayıtlar bu süre sonunda silinir
+#   konum_gecmisi()  kişi kendi verisini görebilir
+#   TAZELIK          panel "bayat" ile "hareketsiz"i ayırır
+#
+# "Bayat" hareketsizlik DEĞİLDİR: tarayıcı tabanlı konum, telefon kilitlenince
+# ya da sekme arkaya atılınca durur. Bunu "duruyor" diye okumak, olmayan bir
+# olguyu rapor etmek olur.
+# ---------------------------------------------------------------------------
+
+SAKLAMA_GUN = 90
+BAYAT_ESIGI_DK = 10
+ROTADA_SAYILAN_MESAFE_M = 150.0
+
+
+def konum_yaz(kullanici: str, enlem, boylam, dogruluk_m=None, hiz_m_s=None,
+              kaynak: str = "TARAYICI", rota_id=None) -> dict:
+    """Tek konum noktası kaydeder."""
+    if kaynak not in ("TARAYICI", "OWNTRACKS"):
+        raise SahaHatasi("gecersiz konum kaynagi")
+    en = _sayi(enlem, "enlem", -90, 90)
+    bo = _sayi(boylam, "boylam", -180, 180)
+    dog = ("%f" % _sayi(dogruluk_m, "dogruluk_m", 0, 100000)
+           ) if dogruluk_m is not None else "NULL"
+    hiz = ("%f" % _sayi(hiz_m_s, "hiz_m_s", 0, 200)
+           ) if hiz_m_s is not None else "NULL"
+    rota = str(int(rota_id)) if rota_id not in (None, "", 0) else "NULL"
+
+    satir = _yaz("""WITH s AS (
+      INSERT INTO core.saha_konum
+        (kullanici, enlem, boylam, dogruluk_m, hiz_m_s, kaynak, rota_id)
+      VALUES (:'kullanici', %f, %f, %s, %s, :'kaynak', %s)
+      RETURNING konum_id, ts)
+      SELECT row_to_json(t) FROM s t;""" % (en, bo, dog, hiz, rota),
+                 {"kullanici": kullanici, "kaynak": kaynak})
+    if not satir:
+        raise SahaHatasi("konum yazilamadi")
+    return satir[0]
+
+
+def son_konumlar() -> dict:
+    """Yönetici görünümü: kim nerede, ne kadar önce, taze mi."""
+    kayitlar = _oku("""SELECT row_to_json(t) FROM (
+      SELECT kullanici, ts, enlem, boylam, dogruluk_m, kaynak, rota_id,
+             kac_saniye_once, tazelik
+        FROM mart.saha_son_konum ORDER BY ts DESC) t;""")
+    return {
+        "sayi": len(kayitlar),
+        "kisiler": kayitlar,
+        "bayat_esigi_dk": BAYAT_ESIGI_DK,
+        # Panelde AYNEN gösterilir: yorumu okuyana bırakmak, yanlış okumayı
+        # davet etmek olurdu.
+        "uyari": ("BAYAT, kisinin durdugu anlamina GELMEZ: tarayici konumu "
+                  "telefon kilitlenince gondermeyi durdurur."),
+    }
+
+
+def konum_gecmisi(kullanici: str, saat: int = 12, limit: int = 500) -> dict:
+    """Bir kişinin son N saatlik izi. Kişi KENDİ verisini buradan görür."""
+    s = int(_sayi(saat, "saat", 1, 24 * 30))
+    lim = int(_sayi(limit, "limit", 1, 5000))
+    ad = str(kullanici).replace("'", "")[:60]
+    kayitlar = _oku("""SELECT row_to_json(t) FROM (
+      SELECT ts, enlem, boylam, dogruluk_m, hiz_m_s, kaynak, rota_id
+        FROM core.saha_konum
+       WHERE kullanici = '%s' AND ts > now() - interval '%d hours'
+       ORDER BY ts DESC LIMIT %d) t;""" % (ad, s, lim))
+    return {"kullanici": ad, "saat": s, "sayi": len(kayitlar),
+            "noktalar": kayitlar, "saklama_gun": SAKLAMA_GUN}
+
+
+def rota_uzerinde_mi(kullanici: str, rota_id: int) -> dict:
+    """Kişinin son konumu, rotanın duraklarına göre nerede.
+
+    Ölçüm verir, HÜKÜM vermez: "en yakın durak şu, şu kadar metre uzakta".
+    "Rotadan çıktı" demek, sokağın karşısına geçmiş birini suçlamak olabilir.
+    """
+    ad = str(kullanici).replace("'", "")[:60]
+    rid = int(_sayi(rota_id, "rota_id", 1, 10 ** 12))
+    son = _oku("""SELECT row_to_json(t) FROM (
+      SELECT enlem, boylam, ts, kac_saniye_once, tazelik
+        FROM mart.saha_son_konum WHERE kullanici = '%s') t;""" % ad)
+    if not son:
+        return {"durum": "KONUM_YOK", "kullanici": ad}
+    k = son[0]
+
+    duraklar = _oku("""SELECT row_to_json(t) FROM (
+      SELECT d.sira, h.ad, h.enlem, h.boylam
+        FROM core.saha_rota_durak d
+        JOIN mart.saha_hedef h
+          ON (h.osm_tur = d.osm_tur AND h.osm_id = d.osm_id)
+       WHERE d.rota_id = %d ORDER BY d.sira) t;""" % rid)
+    if not duraklar:
+        return {"durum": "DURAK_YOK", "kullanici": ad, "rota_id": rid}
+
+    from jarvis import saha_rota
+    konum = (k["enlem"], k["boylam"])
+    en_yakin = min(duraklar,
+                   key=lambda d: saha_rota.mesafe_m(konum, (d["enlem"], d["boylam"])))
+    mesafe = saha_rota.mesafe_m(konum, (en_yakin["enlem"], en_yakin["boylam"]))
+    return {
+        "durum": "OLCULDU",
+        "kullanici": ad,
+        "rota_id": rid,
+        "tazelik": k["tazelik"],
+        "kac_saniye_once": k["kac_saniye_once"],
+        "en_yakin_durak": {"sira": en_yakin["sira"], "ad": en_yakin["ad"]},
+        "mesafe_m": round(mesafe, 1),
+        "rotada": mesafe <= ROTADA_SAYILAN_MESAFE_M,
+        "esik_m": ROTADA_SAYILAN_MESAFE_M,
+    }
+
+
+def konum_temizle(gun: int = SAKLAMA_GUN) -> dict:
+    """Saklama süresi dolmuş konum kayıtlarını siler.
+
+    Süresiz saklanan konum geçmişi, toplanma amacıyla ilgisi olmayan şeyleri
+    de anlatır: ev adresi, mesai dışı alışkanlıklar. Bu yüzden silme bir
+    bakım işi değil, verinin tutulma koşuludur.
+    """
+    g = int(_sayi(gun, "gun", 1, 3650))
+    satir = _yaz("""SELECT row_to_json(t) FROM (
+      WITH s AS (DELETE FROM core.saha_konum
+                  WHERE ts < now() - interval '%d days' RETURNING 1)
+      SELECT count(*) AS silinen FROM s) t;""" % g, {})
+    silinen = satir[0]["silinen"] if satir else 0
+    return {"silinen": silinen, "saklama_gun": g}

@@ -81,6 +81,10 @@ KNOWN_ROUTES = {
     "/api/saha/rota",
     "/api/saha/ziyaret",
     "/api/saha/nokta",
+    # Konum takibi: yazma (panelden periyodik), yonetici gorunumu, kisinin
+    # kendi gecmisi. Ucu de app.py'de sunuluyor.
+    "/api/saha/konum",
+    "/api/saha/konum/gecmis",
     # Uzaktan ACMA istegi. Uc GERCEKTEN sunuluyor, ama donanim on kosulu
     # saglanmadigi icin "hazir: false" ve eksik listesi donuyor -- panel de
     # dugmeyi calismis gibi gostermiyor. Sunulan yol ile calisan ozellik

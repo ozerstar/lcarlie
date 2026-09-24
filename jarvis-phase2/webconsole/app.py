@@ -1206,6 +1206,27 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/kademe":
             self._send_json(200, _kademe_gorunumu())
             return
+        if path == "/api/saha/konum":
+            # Yonetici gorunumu: kim nerede. "BAYAT" hareketsizlik DEGILDIR;
+            # cevapta bu uyari da doner ve panel onu AYNEN gosterir.
+            try:
+                self._send_json(200, saha.son_konumlar())
+            except saha.SahaHatasi as hata:
+                self._send_json(502, {"error": str(hata)})
+            return
+        if path == "/api/saha/konum/gecmis":
+            # Kisi KENDI verisini gorur. Takip edilenin goremedigi bir kayit,
+            # denetlenemeyen bir kayittir.
+            s2 = parse_qs(parsed.query)
+            kim = (s2.get("kullanici") or [session.username])[0]
+            if kim != session.username and not getattr(session, "admin", False):
+                kim = session.username
+            try:
+                self._send_json(200, saha.konum_gecmisi(
+                    kim, saat=(s2.get("saat") or [12])[0]))
+            except saha.SahaHatasi as hata:
+                self._send_json(400, {"error": str(hata)})
+            return
         if path == "/api/saha/filtreler":
             try:
                 self._send_json(200, saha.filtre_secenekleri())
@@ -1455,6 +1476,18 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(502, {"error": f"soru islenemedi: {str(exc)[:200]}"})
                 return
             self._send_json(200, sonuc)
+            return
+        if path == "/api/saha/konum":
+            body = _read_json_body(self)
+            try:
+                self._send_json(200, saha.konum_yaz(
+                    session.username, body.get("enlem"), body.get("boylam"),
+                    dogruluk_m=body.get("dogruluk_m"),
+                    hiz_m_s=body.get("hiz_m_s"),
+                    kaynak=body.get("kaynak", "TARAYICI"),
+                    rota_id=body.get("rota_id")))
+            except saha.SahaHatasi as hata:
+                self._send_json(400, {"error": str(hata)})
             return
         if path == "/api/saha/rota":
             body = _read_json_body(self)
