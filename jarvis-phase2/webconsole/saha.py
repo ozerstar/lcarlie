@@ -446,9 +446,14 @@ def konum_temizle(gun: int = SAKLAMA_GUN) -> dict:
     bakım işi değil, verinin tutulma koşuludur.
     """
     g = int(_sayi(gun, "gun", 1, 3650))
-    satir = _yaz("""SELECT row_to_json(t) FROM (
-      WITH s AS (DELETE FROM core.saha_konum
-                  WHERE ts < now() - interval '%d days' RETURNING 1)
-      SELECT count(*) AS silinen FROM s) t;""" % g, {})
+    # Veri degistiren CTE EN UST DUZEYDE olmali; alt sorguya gomulemez.
+    # Olculdu 25.09.2026: "WITH clause containing a data-modifying statement
+    # must be at the top level".
+    satir = _yaz("""WITH s AS (
+        DELETE FROM core.saha_konum
+         WHERE ts < now() - interval '%d days'
+      RETURNING 1)
+      SELECT row_to_json(t) FROM (SELECT count(*) AS silinen FROM s) t;"""
+                 % g, {})
     silinen = satir[0]["silinen"] if satir else 0
     return {"silinen": silinen, "saklama_gun": g}
