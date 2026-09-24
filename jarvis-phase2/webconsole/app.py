@@ -1277,7 +1277,8 @@ class Handler(BaseHTTPRequestHandler):
                     tur=query.get("tur"), brans=query.get("brans"),
                     ilce=query.get("ilce"),
                     arama=(query.get("arama") or [None])[0],
-                    ziyaret_durumu=(query.get("ziyaret") or [None])[0]))
+                    ziyaret_durumu=(query.get("ziyaret") or [None])[0],
+                    eleme=(query.get("eleme") or [None])[0]))
             except saha.SahaHatasi as hata:
                 self._send_json(400, {"error": str(hata)})
             return
@@ -1292,7 +1293,7 @@ class Handler(BaseHTTPRequestHandler):
                     enlem=_ilk("enlem"), boylam=_ilk("boylam"),
                     yaricap_m=_ilk("yaricap_m"),
                     ziyaret_durumu=_ilk("ziyaret"), arama=_ilk("arama"),
-                    limit=_ilk("limit", 200)))
+                    eleme=_ilk("eleme"), limit=_ilk("limit", 200)))
             except saha.SahaHatasi as hata:
                 self._send_json(400, {"error": str(hata)})
             return

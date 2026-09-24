@@ -5866,6 +5866,8 @@ async function shFiltreYenile() {
   if (z && z.value) p.set('ziyaret', z.value);
   const a = qs('shArama');
   if (a && a.value.trim()) p.set('arama', a.value.trim());
+  const el = qs('shEleme');
+  if (el && el.value) p.set('eleme', el.value);
 
   const cevap = await api('/api/saha/filtreler?' + p.toString());
   if (!cevap.ok) {
@@ -5885,6 +5887,26 @@ async function shFiltreYenile() {
   }
   const c = qs('sahaCount');
   if (c) c.textContent = shSayi(cevap.body.toplam) + ' hedef';
+
+  /* İlçesi bilinmeyen kayıt GİZLENMEZ, sayısı yazılır. Kaynak veride
+   * ilçe yerine 'Ankara' yazan 575 kayıt ve hiç ilçe yazmayan 2.264 kayıt
+   * var; bunlar ilçe seçilince listeden düşer. Sayıyı göstermeseydik
+   * kullanıcı "ilçeleri topladığımda toplam çıkmıyor" derdi ve haklı
+   * olurdu. */
+  const inot = qs('shIlceNot');
+  if (inot) {
+    inot.textContent = cevap.body.ilcesiz
+      ? shSayi(cevap.body.ilcesiz) + ' kaydın ilçesi kaynakta yok — ilçe seçilince düşer'
+      : '';
+  }
+  const eleme = qs('shEleme');
+  if (eleme && cevap.body.elenen !== undefined) {
+    const ilk = eleme.options[0];
+    if (ilk) {
+      ilk.textContent = cevap.body.elenen
+        ? shSayi(cevap.body.elenen) + ' elenen gizli' : 'elenen yok';
+    }
+  }
 
   const nt = qs('shnTur');
   if (nt && !nt.options.length && cevap.body.turler_tanim) {
@@ -5909,6 +5931,8 @@ function shSorguDizesi(konum) {
   if (z && z.value) p.set('ziyaret', z.value);
   const a = qs('shArama');
   if (a && a.value.trim()) p.set('arama', a.value.trim());
+  const el = qs('shEleme');
+  if (el && el.value) p.set('eleme', el.value);
   if (konum) {
     p.set('enlem', konum.enlem); p.set('boylam', konum.boylam);
     p.set('yaricap_m', (qs('shYaricap') || {}).value || 1500);
@@ -5989,8 +6013,18 @@ function shCiz() {
                     + escapeHtml(h.eposta) + '</a>' : '')
       + '</span>'
       + mesafe + ziyaret
+      + (h.hedef_disi_neden
+         ? '<span class="sh-rozet sh-elendi" title="elendi">'
+           + escapeHtml(h.hedef_disi_neden) + '</span>' : '')
       + '<button type="button" class="btn btn-ince sh-ziyaret" data-anahtar="'
       + anahtar + '">ZİYARET</button>'
+      /* Kalıpla yakalanamayan kayıtlar için tek tıkla eleme. Veride
+       * 'Ardacan Oto' (otomotiv) ile 'Prof Dr M Ali Oto' (hekim, soyadı
+       * Oto) aynı şekilde yazılıyor -- hiçbir desen bu ikisini ayıramaz,
+       * bakan insan ayırır. */
+      + '<button type="button" class="btn btn-ince sh-disla" data-anahtar="'
+      + anahtar + '" data-ad="' + escapeHtml(h.ad || '')
+      + '">' + (h.hedef_disi_neden ? 'HEDEFTİR' : 'HEDEF DEĞİL') + '</button>'
       + (SH.rota ? '<button type="button" class="btn btn-ince sh-cikar" data-anahtar="'
                  + anahtar + '">ÇIKAR</button>' : '')
       + '</li>';
@@ -6392,7 +6426,9 @@ function shFiltreGecikmeli(msn) {
 document.addEventListener('change', function (e) {
   const kutu = e.target.closest('.sh-facet-liste input[type="checkbox"]');
   if (kutu) { shFiltreGecikmeli(); return; }
-  if (e.target.id === 'shZiyaret') { shFiltreGecikmeli(0); }
+  if (e.target.id === 'shZiyaret' || e.target.id === 'shEleme') {
+    shFiltreGecikmeli(0);
+  }
 });
 
 document.addEventListener('input', function (e) {
@@ -6429,6 +6465,34 @@ document.addEventListener('click', function (e) {
     shFiltreGecikmeli(0);
     return;
   }
+  const disla = e.target.closest('.sh-disla');
+  if (disla) { shDisla(disla); return; }
   if (e.target.closest('#shHaritaAc')) { shHaritaGoster(); return; }
   if (e.target.closest('#shAlanTara')) { shAlaniTara(); return; }
 });
+
+
+/* Bir kaydı hedef listesinden çıkar ya da geri al.
+ *
+ * 🔴 SİLMEZ. core.saha_bilgi'ye insan beyanı yazar; kayıt duruyor, yalnız
+ * işaretli. Silseydik yanlış elediğimizi bir daha göremez, aylık tarama da
+ * onu yeniden getirirdi. Beyan deseni YENER: "hedeftir" dendiyse otomatik
+ * kalıp onu geri eleyemez. */
+async function shDisla(dugme) {
+  const anahtar = dugme.dataset.anahtar;
+  const geriAl = dugme.textContent.trim() === 'HEDEFTİR';
+  dugme.disabled = true;
+  const cevap = await api('/api/saha/bilgi', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hedef_anahtari: anahtar, hedef_disi: !geriAl }),
+  });
+  dugme.disabled = false;
+  if (!cevap.ok) {
+    shDurum((cevap.body && cevap.body.error) || 'işaretlenemedi', true);
+    return;
+  }
+  shDurum((geriAl ? 'hedefe geri alındı: ' : 'hedef dışı: ')
+    + (dugme.dataset.ad || ''));
+  shFiltreYenile();
+  shListele(SH.sonSorguKonum || null);
+}

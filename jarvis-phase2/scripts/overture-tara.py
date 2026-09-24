@@ -320,6 +320,24 @@ def say(sql: str) -> int:
         return -1
 
 
+
+def gorunumu_tazele() -> None:
+    """Maddileştirilmiş hedef görünümlerini yeniden kurar.
+
+    CONCURRENTLY: tazeleme sürerken panel okumaya devam eder. Tarama
+    gece koşuyor olsa bile sahadaki kişi listeyi kaybetmemeli.
+    """
+    sql = ("REFRESH MATERIALIZED VIEW CONCURRENTLY mart.saha_tum;\n"
+           "REFRESH MATERIALIZED VIEW CONCURRENTLY mart.saha_kaynak;\n")
+    sonuc = psql("", girdi=sql)
+    if sonuc.returncode != 0:
+        # Sessizce gecilemez: tazelenmemis gorunum, taranmamis veriyle
+        # AYNI gorunur ama "tarandi" diye raporlanir.
+        print("UYARI: gorunum tazelenemedi -- panel ESKI veriyi gosterir")
+        print((sonuc.stderr or "").strip()[:400])
+    else:
+        print("gorunum tazelendi (mart.saha_tum, mart.saha_kaynak)")
+
 def main() -> int:
     t0 = time.time()
     con = duckdb.connect()
@@ -394,6 +412,7 @@ COMMIT;
     print("Overture %s · %d kayit okundu · %d alindi · %d kategori disi · %.0f sn"
           % (surum, len(satirlar), alinan, atlanan, time.time() - t0))
     print("tabloda %d -> %d (yeni %d)" % (once, sonra, sonra - once))
+    gorunumu_tazele()
     return 0
 
 

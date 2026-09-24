@@ -599,6 +599,11 @@
           <option value="GIDILMEDI">henüz gidilmedi</option>
           <option value="GIDILDI">gidilmiş</option>
         </select>
+        <select id="shEleme" class="is-input sh-ziy">
+          <option value="">elenenler gizli</option>
+          <option value="GOSTER">elenenleri de göster</option>
+          <option value="SADECE">yalnız elenenler</option>
+        </select>
         <span id="shEslesen" class="sh-eslesen">—</span>
         <button type="button" class="btn btn-ince" id="shSifirla">FİLTREYİ SIFIRLA</button>
       </div>
@@ -623,6 +628,7 @@
           </header>
           <input class="is-input sh-facet-ara" data-alan="ilce" placeholder="ilçe ara…">
           <div class="sh-facet-liste" id="shIlce"></div>
+          <p class="sh-facet-not" id="shIlceNot"></p>
         </section>
       </div>
 

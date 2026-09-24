@@ -158,6 +158,24 @@ def satir_say(sql: str) -> int:
         return -1
 
 
+
+def gorunumu_tazele() -> None:
+    """Maddileştirilmiş hedef görünümlerini yeniden kurar.
+
+    CONCURRENTLY: tazeleme sürerken panel okumaya devam eder. Tarama
+    gece koşuyor olsa bile sahadaki kişi listeyi kaybetmemeli.
+    """
+    sql = ("REFRESH MATERIALIZED VIEW CONCURRENTLY mart.saha_tum;\n"
+           "REFRESH MATERIALIZED VIEW CONCURRENTLY mart.saha_kaynak;\n")
+    sonuc = psql("", girdi=sql)  # stdin: her deyim kendi isleminde (CONCURRENTLY sart)
+    if sonuc.returncode != 0:
+        # Sessizce gecilemez: tazelenmemis gorunum, taranmamis veriyle
+        # AYNI gorunur ama "tarandi" diye raporlanir.
+        print("UYARI: gorunum tazelenemedi -- panel ESKI veriyi gosterir")
+        print((sonuc.stderr or "").strip()[:400])
+    else:
+        print("gorunum tazelendi (mart.saha_tum, mart.saha_kaynak)")
+
 def main() -> int:
     il = sys.argv[1] if len(sys.argv) > 1 else "Ankara"
     t0 = time.time()
@@ -249,6 +267,7 @@ COMMIT;
           % (il, len(ogeler), len(satirlar), atlanan, time.time() - t0))
     print("tabloda %d -> %d (yeni %d) · kayip isaretli %d"
           % (once, sonra, yeni, kayip))
+    gorunumu_tazele()
     return 0
 
 

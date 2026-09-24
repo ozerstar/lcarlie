@@ -167,6 +167,23 @@ def _liste_kosulu(alan: str, degerler, izinli=None) -> str:
 
 TEMEL_KOSUL = "NOT hedef_disi AND kayip_at IS NULL"
 
+# Eleme, silme değildir. Elenen kayıt listeden çıkar ama İSTENİRSE
+# görülebilir ve neden elendiği yazar. Görülemeseydi, yanlış elediğimizi
+# bir daha fark edemezdik.
+ELEME_GORUNUMU = {
+    None:     TEMEL_KOSUL,
+    "":       TEMEL_KOSUL,
+    "GIZLE":  TEMEL_KOSUL,
+    "GOSTER": "kayip_at IS NULL",
+    "SADECE": "hedef_disi AND kayip_at IS NULL",
+}
+
+
+def _temel(eleme=None) -> str:
+    if eleme not in ELEME_GORUNUMU:
+        raise SahaHatasi("gecersiz eleme gorunumu: %s" % str(eleme)[:30])
+    return ELEME_GORUNUMU[eleme]
+
 
 def _kosul_parcalari(tur=None, brans=None, ilce=None, arama=None,
                      ziyaret_durumu=None) -> dict:
@@ -191,7 +208,13 @@ def _kosul_parcalari(tur=None, brans=None, ilce=None, arama=None,
     if arama:
         a = str(arama).replace("'", "")[:60]
         if a:
-            p["arama"] = " AND ad ILIKE '%%" + a + "%%'"
+            # 🔴 AKSAN DUYARSIZ. ILIKE büyük/küçük harfi Türkçede doğru
+            # çeviriyordu (ölçüldü: 'diş' ve 'DİŞ' ikisi de 560 kayıt) ama
+            # aksanı çevirmiyordu: Türkçe karakteri olmayan klavyeden
+            # 'dis' yazan kişi 'Diş Kliniği'ni HİÇ bulamıyordu. Artık iki
+            # taraf da core.tr_anahtar'dan geçiyor.
+            p["arama"] = (" AND ad_ara LIKE '%' || core.tr_anahtar('"
+                          + a + "') || '%'")
     if ziyaret_durumu == "GIDILMEDI":
         p["ziyaret"] = " AND COALESCE(ziyaret_sayisi, 0) = 0"
     elif ziyaret_durumu == "GIDILDI":
@@ -201,12 +224,12 @@ def _kosul_parcalari(tur=None, brans=None, ilce=None, arama=None,
     return p
 
 
-def _birlestir(parcalar: dict, haric: str = "") -> str:
-    return "WHERE " + TEMEL_KOSUL + "".join(
+def _birlestir(parcalar: dict, haric: str = "", eleme=None) -> str:
+    return "WHERE " + _temel(eleme) + "".join(
         v for k, v in sorted(parcalar.items()) if k != haric)
 
 
-def _facet(alan: str, parcalar: dict) -> str:
+def _facet(alan: str, parcalar: dict, eleme=None) -> str:
     """Bir filtrenin seçenekleri + mevcut seçim altındaki kayıt sayısı.
 
     Sıfır çıkan seçenek LİSTEDEN DÜŞMEZ, sayısı 0 olarak döner; panel onu
@@ -221,20 +244,55 @@ def _facet(alan: str, parcalar: dict) -> str:
         LEFT JOIN (SELECT {alan} x, count(*) n FROM mart.saha_hedef
                     {kosul} AND {alan} IS NOT NULL GROUP BY 1) c
                ON c.x = u.x)""".format(
-        alan=alan, temel=TEMEL_KOSUL, kosul=_birlestir(parcalar, haric=alan))
+        alan=alan, temel=_temel(eleme),
+        kosul=_birlestir(parcalar, haric=alan, eleme=eleme))
+
+
+def _calistir(sql: str, zaman: int = 180) -> None:
+    """Çıktı beklemeyen komut. Her deyim kendi işleminde çalışır."""
+    p = subprocess.run(
+        ["docker", "exec", "-i", KAP, "psql", "-X", "-q",
+         "-v", "ON_ERROR_STOP=1", "-U", "n8n", "-d", "n8n", "-f", "-"],
+        input=sql, capture_output=True, text=True, timeout=zaman, check=False)
+    if p.returncode:
+        raise SahaHatasi((p.stderr or p.stdout).strip()[:300])
+
+
+def tazele() -> dict:
+    """Kaynak görünümlerini yeniden kurar.
+
+    🔴 NE ZAMAN ÇAĞRILIR: aylık tarama sonrası, ve sahada bilgi/nokta
+    yazıldığında. Ziyaret kaydı için GEREKMEZ -- ziyaret canlı bağlı.
+
+    CONCURRENTLY kullanılır: tazeleme sürerken panel okumaya devam eder.
+    Kilitleseydik, tarama koşarken sahadaki kişi listeyi göremezdi.
+    """
+    _calistir("REFRESH MATERIALIZED VIEW CONCURRENTLY mart.saha_tum;\n"
+              "REFRESH MATERIALIZED VIEW CONCURRENTLY mart.saha_kaynak;\n")
+    satir = _oku("SELECT row_to_json(t) FROM (SELECT"
+                 " (SELECT count(*) FROM mart.saha_hedef) AS kayit,"
+                 " (SELECT count(*) FROM mart.saha_hedef WHERE hedef_disi)"
+                 " AS hedef_disi) t;")
+    return satir[0] if satir else {}
 
 
 def filtre_secenekleri(tur=None, brans=None, ilce=None, arama=None,
-                       ziyaret_durumu=None) -> dict:
+                       ziyaret_durumu=None, eleme=None) -> dict:
     """Filtre seçenekleri + mevcut seçim altındaki sayılar. VERİDEN."""
     p = _kosul_parcalari(tur, brans, ilce, arama, ziyaret_durumu)
     sql = """SELECT row_to_json(t) FROM (SELECT
         {ftur} AS turler, {fbrans} AS branslar, {filce} AS ilceler,
         (SELECT count(*) FROM mart.saha_hedef {tam}) AS eslesen,
-        (SELECT count(*) FROM mart.saha_hedef WHERE {temel}) AS toplam
-      ) t;""".format(ftur=_facet("tur", p), fbrans=_facet("brans", p),
-                     filce=_facet("ilce", p), tam=_birlestir(p),
-                     temel=TEMEL_KOSUL)
+        (SELECT count(*) FROM mart.saha_hedef WHERE {temel}) AS toplam,
+        (SELECT count(*) FROM mart.saha_hedef
+          WHERE hedef_disi AND kayip_at IS NULL) AS elenen,
+        (SELECT count(*) FROM mart.saha_hedef
+          WHERE {temel} AND ilce IS NULL) AS ilcesiz
+      ) t;""".format(ftur=_facet("tur", p, eleme),
+                     fbrans=_facet("brans", p, eleme),
+                     filce=_facet("ilce", p, eleme),
+                     tam=_birlestir(p, eleme=eleme),
+                     temel=_temel(eleme))
     satirlar = _oku(sql)
     d = satirlar[0] if satirlar else {}
     for ad, etiketler in (("turler", TUR_ETIKET), ("branslar", BRANS_ETIKET)):
@@ -249,7 +307,7 @@ def filtre_secenekleri(tur=None, brans=None, ilce=None, arama=None,
 
 
 def hedefler(tur=None, brans=None, ilce=None, enlem=None, boylam=None,
-             yaricap_m=None, ziyaret_durumu=None, arama=None,
+             yaricap_m=None, ziyaret_durumu=None, arama=None, eleme=None,
              limit: int = 200) -> dict:
     """Filtreli hedef listesi.
 
@@ -258,7 +316,7 @@ def hedefler(tur=None, brans=None, ilce=None, enlem=None, boylam=None,
     """
     limit = int(_sayi(limit, "limit", 1, EN_COK_SONUC))
     kosul = " " + _birlestir(
-        _kosul_parcalari(tur, brans, ilce, arama, ziyaret_durumu))
+        _kosul_parcalari(tur, brans, ilce, arama, ziyaret_durumu), eleme=eleme)
 
     mesafe_sec, sirala = "NULL::numeric AS mesafe_m", "ad"
     if enlem is not None and boylam is not None:
@@ -274,7 +332,8 @@ def hedefler(tur=None, brans=None, ilce=None, enlem=None, boylam=None,
 
     sql = """SELECT row_to_json(t) FROM (
       SELECT hedef_anahtari, kaynak, ad, tur, brans, brans_kaynagi, telefon,
-             eposta, website, adres, ilce, enlem, boylam, ilgili_kisi, notlar,
+             eposta, website, adres, ilce, ilce_ham, ilce_kaynagi,
+             hedef_disi_neden, enlem, boylam, ilgili_kisi, notlar,
              ziyaret_sayisi, son_ziyaret, son_sonuc, %s
         FROM mart.saha_hedef %s
        ORDER BY %s LIMIT %d) t;""" % (mesafe_sec, kosul, sirala, limit)
@@ -504,6 +563,11 @@ def nokta_ekle(ad: str, tur: str, enlem, boylam, ekleyen: str,
         raise SahaHatasi("nokta eklenemedi")
     kayit = satir[0]
     kayit["hedef_anahtari"] = "elle:%s" % kayit["nokta_id"]
+    # 🔴 Elle nokta maddileştirilmiş katmandadır (kopya ayıklaması onu da
+    # kapsasın diye). Tazelemeseydik eklenen nokta listede GÖRÜNMEZ ve
+    # saha elemanı "kaydedilmedi" sanardı. ~5 sn sürer; ekleme nadir bir
+    # iştir, kopya çıkması ise her gün rahatsız ederdi.
+    tazele()
     return kayit
 
 

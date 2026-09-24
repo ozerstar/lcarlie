@@ -122,5 +122,110 @@ class HaritaAcikVekilDegildir(unittest.TestCase):
         return x, y
 
 
+class ElemeGizlemekDegilIsaretlemektir(unittest.TestCase):
+    def test_gecersiz_gorunum_hata(self):
+        with self.assertRaises(saha.SahaHatasi):
+            saha._temel("SACMA")
+
+    def test_varsayilan_elenenleri_gizler(self):
+        self.assertIn("NOT hedef_disi", saha._temel(None))
+
+    def test_goster_elenenleri_de_getirir(self):
+        self.assertNotIn("hedef_disi", saha._temel("GOSTER"))
+
+    def test_sadece_yalniz_elenenler(self):
+        self.assertIn("hedef_disi AND", saha._temel("SADECE"))
+
+
+# --- Veritabanı gerektiren sınamalar ---------------------------------------
+# Bunlar ölçüm sınamalarıdır: kod değil VERİ doğru mu diye bakarlar.
+# Veritabanına ulaşılamıyorsa ATLANIR -- "atlandı" ile "geçti" ayrı şeylerdir.
+
+def _db_var() -> bool:
+    try:
+        saha._oku("SELECT row_to_json(t) FROM (SELECT 1 AS x) t;")
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+@unittest.skipUnless(_db_var(), "veritabanina ulasilamadi")
+class IlceListesiTemizKalir(unittest.TestCase):
+    """Aynı ilçe dört ayrı seçenek olarak çıkıyordu: 'Çankaya' 7.955,
+    'ÇANKAYA' 1, 'çankaya' 2, 'Cankaya' 2."""
+
+    def setUp(self):
+        self.ilceler = [i["deger"] for i in
+                        saha.filtre_secenekleri().get("ilceler") or []]
+
+    def test_ayni_ilce_tek_secenek(self):
+        kucuk = [i.lower() for i in self.ilceler]
+        self.assertEqual(len(kucuk), len(set(kucuk)),
+                         "aynı ilçe birden fazla yazımla listede")
+
+    def test_il_adi_ilce_diye_listelenmez(self):
+        for yasak in ("Ankara", "ANKARA", "İç Anadolu Bölgesi"):
+            self.assertNotIn(yasak, self.ilceler,
+                             "il/bölge adı ilçe seçeneği olamaz")
+
+    def test_baska_ilin_ilcesi_listelenmez(self):
+        for yasak in ("Milas", "Nilüfer", "Şehitkamil"):
+            self.assertNotIn(yasak, self.ilceler)
+
+    def test_semt_ilce_diye_listelenmez(self):
+        for yasak in ("Batıkent", "Çayyolu", "Ümitköy", "Çukurambar"):
+            self.assertNotIn(yasak, self.ilceler)
+
+    def test_hepsi_resmi_ankara_ilcesi(self):
+        resmi = {
+            "Akyurt", "Altındağ", "Ayaş", "Bala", "Beypazarı", "Çamlıdere",
+            "Çankaya", "Çubuk", "Elmadağ", "Etimesgut", "Evren", "Gölbaşı",
+            "Güdül", "Haymana", "Kahramankazan", "Kalecik", "Keçiören",
+            "Kızılcahamam", "Mamak", "Nallıhan", "Polatlı", "Pursaklar",
+            "Sincan", "Şereflikoçhisar", "Yenimahalle"}
+        self.assertEqual(set(self.ilceler) - resmi, set())
+
+
+@unittest.skipUnless(_db_var(), "veritabanina ulasilamadi")
+class ElemeYanlisKaydiTutmaz(unittest.TestCase):
+    """🔴 Kör bir 'oto' filtresi hekimi de elerdi."""
+
+    def test_otomotiv_elendi(self):
+        elenen = {h["ad"] for h in
+                  saha.hedefler(eleme="SADECE", limit=100)["hedefler"]}
+        self.assertIn("Imza Oto Kuaför", elenen)
+        self.assertIn("Iskitler Oto Sanayi Sitesi", elenen)
+
+    def test_soyadi_oto_olan_hekim_elenmedi(self):
+        elenen = {h["ad"] for h in
+                  saha.hedefler(eleme="SADECE", limit=100)["hedefler"]}
+        self.assertNotIn("Prof Dr M Ali Oto", elenen)
+
+    def test_plastik_cerrahi_lastik_sanilmadi(self):
+        # 'lastik' kalıbı sınırsız yazılsaydı 'Plastik Cerrahi' eşleşirdi.
+        for h in saha.hedefler(eleme="SADECE", limit=100)["hedefler"]:
+            self.assertNotIn("lastik", (h["ad"] or "").lower().replace("plastik", ""))
+
+    def test_elenen_kayit_silinmedi(self):
+        self.assertGreater(saha.hedefler(eleme="SADECE", limit=5)["sayi"], 0)
+
+
+@unittest.skipUnless(_db_var(), "veritabanina ulasilamadi")
+class AramaAksanaTakilmaz(unittest.TestCase):
+    """Türkçe karakteri olmayan klavyeden 'dis' yazan hiçbir şey bulamıyordu."""
+
+    def test_aksansiz_yazim_bulur(self):
+        r = saha.hedefler(arama="dis klinig", limit=5)
+        self.assertGreater(r["sayi"], 0)
+
+    def test_buyuk_harf_farki_onemsiz(self):
+        a = saha.hedefler(arama="ECZANE", limit=50)["sayi"]
+        b = saha.hedefler(arama="eczane", limit=50)["sayi"]
+        self.assertEqual(a, b)
+
+    def test_kecioren(self):
+        self.assertGreater(saha.hedefler(arama="kecioren", limit=5)["sayi"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()

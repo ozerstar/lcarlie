@@ -4055,3 +4055,9 @@ html, body { max-width: 100%; overflow-x: hidden; }
   .sh-filtreler { grid-template-columns: 1fr; }
   .sh-facet-liste { max-height: 150px; }
 }
+
+.sh-facet-not { font-size: 10.5px; color: var(--ivory-4); margin: 6px 2px 0;
+  line-height: 1.4; }
+.sh-elendi { border-color: var(--crit); color: var(--crit);
+  max-width: 190px; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; }
