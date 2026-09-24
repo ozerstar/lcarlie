@@ -1,6 +1,6 @@
 ---
 konu: BABYDENT (Bebek ve Çocuklar İçin Diş Bakım Jeli) ürün bilgisi
-anahtar: [babydent, bebek ve çocuk]
+anahtar: [agiz, ağız, babydent, bakim, bakım, bebek, cocuklar, dis, diş, eslik, etmek, eşlik, ilk, itibaren, i̇cin, i̇çin, jeli, çocuklar, bebek ve çocuk]
 gizlilik: ic-bilgi
 kaynak: mart.urun_karti (Wix yayındaki metin) + jarvis.compliance taraması
 uretim: tools/urun-bilgi-uret.py -- ELLE DÜZENLENEBİLİR, yeniden üretim üzerine yazar

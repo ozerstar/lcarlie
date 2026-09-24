@@ -1,6 +1,6 @@
 ---
 konu: MINISOOTH (Bebek Bez Bölgesi Bakım Kremi) ürün bilgisi
-anahtar: [minisooth, bebek ve çocuk]
+anahtar: [bakim, bakım, bebek, bez, bolgesi, bölgesi, cildinin, eslik, etmek, eşlik, hassas, kremi, kremidir, minisooth, rutinine, bebek ve çocuk]
 gizlilik: ic-bilgi
 kaynak: mart.urun_karti (Wix yayındaki metin) + jarvis.compliance taraması
 uretim: tools/urun-bilgi-uret.py -- ELLE DÜZENLENEBİLİR, yeniden üretim üzerine yazar

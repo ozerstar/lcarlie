@@ -1,6 +1,6 @@
 ---
 konu: SERALIMBO (Gece Bakım Kremi) ürün bilgisi
-anahtar: [seralimbo, yüz]
+anahtar: [bakim, bakım, bitkisel, eslik, etmek, eşlik, gece, gun, gün, kremi, masaj, mineral, rutinine, seralimbo, sonunda, yaglar, yağlar, yüz]
 gizlilik: ic-bilgi
 kaynak: mart.urun_karti (Wix yayındaki metin) + jarvis.compliance taraması
 uretim: tools/urun-bilgi-uret.py -- ELLE DÜZENLENEBİLİR, yeniden üretim üzerine yazar

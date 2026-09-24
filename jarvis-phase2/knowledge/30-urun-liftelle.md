@@ -1,7 +1,6 @@
 ---
 konu: LIFTELLE ürün bilgisi
-anahtar: [liftelle, lifting, göğüs, dekolte, gıdı, sıkılaştırıcı, toparlayıcı,
-  centella, kafein, tamanu]
+anahtar: [liftelle, lifting, göğüs, dekolte, gıdı, sıkılaştırıcı, toparlayıcı, centella, kafein, tamanu, gogus, gidi, sikilastirici, toparlayici]
 gizlilik: ic-bilgi
 ---
 

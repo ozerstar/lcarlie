@@ -1,6 +1,6 @@
 ---
 konu: DERMASTRA (Gerilme Bölgeleri İçin Bakım Kremi) ürün bilgisi
-anahtar: [dermastra, vücut ve masaj]
+anahtar: [bagli, bakim, bakım, bağlı, bitkisel, bolgeleri, bölgeleri, cilt, dermastra, eslik, etmek, eşlik, gerilme, i̇cin, i̇çin, kremi, nem, rutinine, yogun, yoğun, vücut ve masaj]
 gizlilik: ic-bilgi
 kaynak: mart.urun_karti (Wix yayındaki metin) + jarvis.compliance taraması
 uretim: tools/urun-bilgi-uret.py -- ELLE DÜZENLENEBİLİR, yeniden üretim üzerine yazar

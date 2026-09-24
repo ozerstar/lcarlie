@@ -1,6 +1,6 @@
 ---
 konu: DORSIVIA  (Isınma Etkili  Masaj Kremi) ürün bilgisi
-anahtar: [dorsivia, vücut ve masaj]
+anahtar: [bel, dogal, dorsivia, doğal, eslik, etkili, eşlik, gibi, gun, gün, icinde, isinma, isınma, içinde, kremi, masaj, ozlerle, sirt, sırt, yaglar, yağlar, yogun, yoğun, özlerle, vücut ve masaj]
 gizlilik: ic-bilgi
 kaynak: mart.urun_karti (Wix yayındaki metin) + jarvis.compliance taraması
 uretim: tools/urun-bilgi-uret.py -- ELLE DÜZENLENEBİLİR, yeniden üretim üzerine yazar

@@ -1,7 +1,6 @@
 ---
 konu: INTIMBLANC ürün bilgisi
-anahtar: [intimblanc, hassas bölge, ton görünümü, koltuk altı, aydınlatıcı,
-  niasinamid, alfa-arbutin, traneksamik asit, kojik asit]
+anahtar: [intimblanc, hassas bölge, ton görünümü, koltuk altı, aydınlatıcı, niasinamid, alfa-arbutin, traneksamik asit, kojik asit, hassas bolge, ton gorunumu, koltuk alti, aydinlatici]
 gizlilik: ic-bilgi
 ---
 

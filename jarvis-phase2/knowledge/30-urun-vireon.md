@@ -1,7 +1,6 @@
 ---
 konu: VIREON FOR MEN ürün bilgisi
-anahtar: [vireon, vireon for men, erkek bakım kremi, erkek kremi, epimedium,
-  tribulus, l-arginin, damiana]
+anahtar: [vireon, vireon for men, erkek bakım kremi, erkek kremi, epimedium, tribulus, l-arginin, damiana, erkek bakim kremi]
 gizlilik: ic-bilgi
 ---
 

@@ -1,6 +1,6 @@
 ---
 konu: SOFTGUARD (Mite&Akar Sprey) ürün bilgisi
-anahtar: [softguard, ürün]
+anahtar: [akar, bazli, bazlı, bitki, cesitli, formu, formü, guclu, güçlü, mite, olmak, softguard, sprey, tekstil, çeşitli, ürün]
 gizlilik: ic-bilgi
 kaynak: mart.urun_karti (Wix yayındaki metin) + jarvis.compliance taraması
 uretim: tools/urun-bilgi-uret.py -- ELLE DÜZENLENEBİLİR, yeniden üretim üzerine yazar

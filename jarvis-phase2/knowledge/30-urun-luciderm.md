@@ -1,6 +1,6 @@
 ---
 konu: LUCIDERM (Yüz Temizleme Köpüğü) ürün bilgisi
-anahtar: [luciderm, yüz]
+anahtar: [bazli, bazlı, bitki, carli, cilt, eslik, etmek, eşlik, kopugu, köpüğü, luciderm, rutinine, temizleme, tum, tüm, yuz, yüz, yüz]
 gizlilik: ic-bilgi
 kaynak: mart.urun_karti (Wix yayındaki metin) + jarvis.compliance taraması
 uretim: tools/urun-bilgi-uret.py -- ELLE DÜZENLENEBİLİR, yeniden üretim üzerine yazar

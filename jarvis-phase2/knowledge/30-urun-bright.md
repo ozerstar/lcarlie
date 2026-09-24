@@ -1,6 +1,6 @@
 ---
 konu: BRIGHT SMILE ürün bilgisi
-anahtar: [bright, smile, ağız ve diş]
+anahtar: [agiz, ağız, bakimina, bakımına, bitkisel, bright, dis, diş, dogal, doğal, i̇cerikli, i̇çerikli, macunu, macunud, ozlerle, smile, özlerle, ağız ve diş]
 gizlilik: ic-bilgi
 kaynak: mart.urun_karti (Wix yayındaki metin) + jarvis.compliance taraması
 uretim: tools/urun-bilgi-uret.py -- ELLE DÜZENLENEBİLİR, yeniden üretim üzerine yazar

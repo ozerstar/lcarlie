@@ -1,6 +1,6 @@
 ---
 konu: OPTYWAVE (Göz Çevresi Aydınlatıcı ve Koruyucu Roll-On) ürün bilgisi
-anahtar: [optywave, göz çevresi]
+anahtar: [aydinlatici, aydınlatıcı, bazli, bazlı, bitkisel, cevresi, eslik, etmek, eşlik, formunda, goz, göz, koruyucu, optywave, roll, yag, yağ, çevresi, göz çevresi]
 gizlilik: ic-bilgi
 kaynak: mart.urun_karti (Wix yayındaki metin) + jarvis.compliance taraması
 uretim: tools/urun-bilgi-uret.py -- ELLE DÜZENLENEBİLİR, yeniden üretim üzerine yazar

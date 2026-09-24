@@ -1,6 +1,6 @@
 ---
 konu: DERMAMOVERA (Bitkisel Masaj ve Bakım Kremi) ürün bilgisi
-anahtar: [dermamovera, vücut ve masaj]
+anahtar: [ardindan, ardından, bakim, bakım, bitkisel, dermamovera, eslik, etmek, eşlik, gunun, günün, icerikli, içerikli, kremi, kremidir, masaj, vucut, vücut, yogun, yoğun, vücut ve masaj]
 gizlilik: ic-bilgi
 kaynak: mart.urun_karti (Wix yayındaki metin) + jarvis.compliance taraması
 uretim: tools/urun-bilgi-uret.py -- ELLE DÜZENLENEBİLİR, yeniden üretim üzerine yazar

@@ -1,7 +1,6 @@
 ---
 konu: FEMISIA for WOMEN ürün bilgisi
-anahtar: [femisia, femisia for women, kadın intim, intim bakım, maca,
-  epimedium, damiana, l-arginin]
+anahtar: [femisia, femisia for women, kadın intim, intim bakım, maca, epimedium, damiana, l-arginin, kadin intim, intim bakim]
 gizlilik: ic-bilgi
 ---
 

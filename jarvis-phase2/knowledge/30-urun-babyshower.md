@@ -1,6 +1,6 @@
 ---
 konu: BABYSHOWER (Şampuan) ürün bilgisi
-anahtar: [babyshower, bebek ve çocuk]
+anahtar: [baby, babyshower, bazli, bazlı, cilt, cocuk, derisi, hassas, sac, sampuan, saç, shampoo, yapisi, yapısı, çocuk, şampuan, bebek ve çocuk]
 gizlilik: ic-bilgi
 kaynak: mart.urun_karti (Wix yayındaki metin) + jarvis.compliance taraması
 uretim: tools/urun-bilgi-uret.py -- ELLE DÜZENLENEBİLİR, yeniden üretim üzerine yazar

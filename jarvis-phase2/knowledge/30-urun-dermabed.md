@@ -1,6 +1,6 @@
 ---
 konu: DERMABED (Bariyer ve Koruyucu Bakım Kremi) ürün bilgisi
-anahtar: [dermabed, ürün]
+anahtar: [bagli, bakim, bakım, bariyer, basinca, basınca, bağlı, cilt, dermabed, koruyucu, kremi, sureli, süreli, uzun, veya, yatis, yatış, ürün]
 gizlilik: ic-bilgi
 kaynak: mart.urun_karti (Wix yayındaki metin) + jarvis.compliance taraması
 uretim: tools/urun-bilgi-uret.py -- ELLE DÜZENLENEBİLİR, yeniden üretim üzerine yazar

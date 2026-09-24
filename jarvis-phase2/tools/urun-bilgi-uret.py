@@ -212,7 +212,42 @@ def dosya_uret(u: dict) -> tuple[str, str, dict]:
     stok = u.get("wix_stok")
     marj = u.get("en_dusuk_marj")
 
-    anahtarlar = sorted({slug, *[w.lower() for w in re.findall(r"[A-ZÇĞİÖŞÜ]{4,}", ad)]})
+    # 🔴 ÖLÇÜLDÜ: ince anahtar listesi yanlis urunu getiriyor.
+    # Ilk hali {slug, BUYUK_HARFLI_MARKA} idi. Sonuc:
+    #   "sporcu bakim kremi"    -> BABYDENT   (dogrusu KINESIS+)
+    #   "bebek bez bolgesi"     -> BABYDENT   (dogrusu MINISOOTH)
+    # Musteri urunu adiyla degil TARIFIYLE ariyor. Urun adinin parantez ici
+    # tanimi ("Sporcu Bakim Kremi", "Bebek Bez Bolgesi Bakim Kremi") tam o
+    # tarifi tasiyor ve zaten gercek veri -- uydurma degil.
+    # 🔴 IKINCI OLCUM: 12 tarif sorgusunun 4'u yanlis urun getirdi.
+    #   "sac bakim yagi"    -> BABYDENT   (dogrusu HAIR NOURISHER)
+    #   "agiz bakim spreyi" -> EASYCOMB   (dogrusu ORAGARDE)
+    # Sebep bu projenin klasik tuzagi: musteri ASCII yazar ("sac", "agiz"),
+    # anahtar Turkce yazilidir ("saç", "ağız") ve esleme SESSIZCE bos doner.
+    # Her anahtarin ASCII karsiligi da listeye girer.
+    _DOLGU = {"ve", "icin", "için", "ile", "bir", "ozel", "özel"}
+    _ASCII = str.maketrans("çğıöşüâî", "cgiosuai")
+
+    def _ascii(w: str) -> str:
+        return w.translate(_ASCII)
+
+    ad_sozcukleri = {w.lower() for w in re.findall(r"[A-Za-zÇĞİÖŞÜçğıöşüÂÎ]{3,}", ad)}
+    ad_sozcukleri = {w.replace("İ", "i").lower() for w in ad_sozcukleri}
+    # BRIGHT SMILE'in adinda Turkce tanim YOK -- "dis macunu" sorgusu onu
+    # bulamiyordu. Urunun kendi ilk cumlesi tanimi tasiyor ve gercek veri.
+    ilk_cumle = temiz[0] if temiz else ""
+    # 🔴 En az 4 harf kurali Turkcede is gormuyor: "dis", "goz", "sac", "cilt"
+    # hepsi kisa ve hepsi urunun ne oldugunu soyluyor. BRIGHT SMILE'in ilk
+    # cumlesi "(Dogal Icerikli Beyazlatici Dis Macunu)" ile basliyor ama "Dis"
+    # 3 harf oldugu icin eleniyordu; "dis macunu" sorgusu urunu bulamiyordu.
+    tanim = {w.lower() for w in re.findall(
+        r"[A-Za-zÇĞİÖŞÜçğıöşü]{3,}", ilk_cumle[:160])}
+    tanim -= {"carlie", "gunluk", "günlük", "uzere", "üzere", "rutine", "rutini",
+              "gelistirilmis", "geliştirilmiş", "formule", "formüle", "edilmis",
+              "edilmiş", "olarak", "yonelik", "yönelik", "bakim", "bakım"}
+    tum_anahtar = {slug} | ad_sozcukleri | set(sorted(tanim, key=len)[:10])
+    tum_anahtar |= {_ascii(w) for w in tum_anahtar}
+    anahtarlar = sorted(tum_anahtar - _DOLGU - {_ascii(d) for d in _DOLGU})
     kat = kategori(ad, metin)
 
     L: list[str] = []

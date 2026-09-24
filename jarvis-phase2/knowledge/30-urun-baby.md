@@ -1,6 +1,6 @@
 ---
 konu: BABY RESCUE (Anlık Yatıştırıcı) ürün bilgisi
-anahtar: [baby, rescue, bebek ve çocuk]
+anahtar: [anlik, anlık, baby, balm, cilt, eslik, etmek, eşlik, formunda, rescue, stick, urunudur, yatistirici, yatıştırıcı, ürünüdür, bebek ve çocuk]
 gizlilik: ic-bilgi
 kaynak: mart.urun_karti (Wix yayındaki metin) + jarvis.compliance taraması
 uretim: tools/urun-bilgi-uret.py -- ELLE DÜZENLENEBİLİR, yeniden üretim üzerine yazar

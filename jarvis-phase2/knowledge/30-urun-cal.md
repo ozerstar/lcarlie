@@ -1,6 +1,6 @@
 ---
 konu: CAL JAW (Gece Çene Bakım RollOnu) ürün bilgisi
-anahtar: [cal, ürün]
+anahtar: [bakim, bakım, cal, cene, dengeli, eslik, etmek, eşlik, gece, jaw, roll, rollonu, rutinine, yagidir, yağıdır, çene, ürün]
 gizlilik: ic-bilgi
 kaynak: mart.urun_karti (Wix yayındaki metin) + jarvis.compliance taraması
 uretim: tools/urun-bilgi-uret.py -- ELLE DÜZENLENEBİLİR, yeniden üretim üzerine yazar

@@ -1,6 +1,6 @@
 ---
 konu: HYDRAVIE | Yoğun Nemlendirici Yüz Kremi ürün bilgisi
-anahtar: [hydravie, yüz]
+anahtar: [asit, bakimini, bakımını, cildin, destekler, hassas, hydravie, iceren, içeren, kremi, kuru, nem, nemlendirici, squalane, yogun, yoğun, yuz, yüz, zengin, yüz]
 gizlilik: ic-bilgi
 kaynak: mart.urun_karti (Wix yayındaki metin) + jarvis.compliance taraması
 uretim: tools/urun-bilgi-uret.py -- ELLE DÜZENLENEBİLİR, yeniden üretim üzerine yazar

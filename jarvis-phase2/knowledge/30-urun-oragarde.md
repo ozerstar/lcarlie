@@ -1,6 +1,6 @@
 ---
 konu: ORAGARDE (Ağız Bakım Spreyi) ürün bilgisi
-anahtar: [oragarde, ağız ve diş]
+anahtar: [agiz, aromatik, ağız, bakim, bakım, bitkisel, dengeli, eslik, etmek, eşlik, kaynakli, kaynaklı, oragarde, spreyi, yaglarin, yağların, ağız ve diş]
 gizlilik: ic-bilgi
 kaynak: mart.urun_karti (Wix yayındaki metin) + jarvis.compliance taraması
 uretim: tools/urun-bilgi-uret.py -- ELLE DÜZENLENEBİLİR, yeniden üretim üzerine yazar

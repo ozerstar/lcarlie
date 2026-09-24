@@ -1,6 +1,6 @@
 ---
 konu: HAIR NOURISHER (Saç Bakım Yağı) ürün bilgisi
-anahtar: [hair, nourisher, saç]
+anahtar: [bakim, bakım, bitki, derisi, eslik, etmek, eşlik, hair, nourisher, olusan, oluşan, sac, saç, yagi, yagidir, yaglar, yağlar, yağı, yağıdır, saç]
 gizlilik: ic-bilgi
 kaynak: mart.urun_karti (Wix yayındaki metin) + jarvis.compliance taraması
 uretim: tools/urun-bilgi-uret.py -- ELLE DÜZENLENEBİLİR, yeniden üretim üzerine yazar

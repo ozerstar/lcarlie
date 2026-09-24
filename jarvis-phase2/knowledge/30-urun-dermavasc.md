@@ -1,7 +1,6 @@
 ---
 konu: DERMAVASC ürün bilgisi
-anahtar: [dermavasc, onarıcı bakım kremi, at kestanesi, cadı fındığı,
-  yaban mersini, tamanu, bacak, damar görünümü]
+anahtar: [dermavasc, onarıcı bakım kremi, at kestanesi, cadı fındığı, yaban mersini, tamanu, bacak, damar görünümü, onarici bakim kremi, cadi findigi, damar gorunumu]
 gizlilik: ic-bilgi
 ---
 

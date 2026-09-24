@@ -1,6 +1,6 @@
 ---
 konu: LIPVORA (Dudak Nemlendirici Balm) ürün bilgisi
-anahtar: [lipvora, dudak]
+anahtar: [bakimina, bakımına, balm, balmidir, balmumlariyla, balmumlarıyla, balmıdır, bitkisel, dogal, doğal, dudak, formuluyle, formülüyle, lipvora, nemlendirici, yaglar, yağlar, dudak]
 gizlilik: ic-bilgi
 kaynak: mart.urun_karti (Wix yayındaki metin) + jarvis.compliance taraması
 uretim: tools/urun-bilgi-uret.py -- ELLE DÜZENLENEBİLİR, yeniden üretim üzerine yazar

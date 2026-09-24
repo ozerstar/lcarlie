@@ -1,6 +1,6 @@
 ---
 konu: BABYSOFT (Bebek Vücut Losyonu) ürün bilgisi
-anahtar: [babysoft, bebek ve çocuk]
+anahtar: [babysoft, bebek, bebeklerin, bitkisel, cilt, eslik, etmek, eşlik, hassas, losyonu, rutinine, vucut, vücut, yaglar, yağlar, bebek ve çocuk]
 gizlilik: ic-bilgi
 kaynak: mart.urun_karti (Wix yayındaki metin) + jarvis.compliance taraması
 uretim: tools/urun-bilgi-uret.py -- ELLE DÜZENLENEBİLİR, yeniden üretim üzerine yazar

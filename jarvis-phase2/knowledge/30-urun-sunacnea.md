@@ -1,6 +1,6 @@
 ---
 konu: SUNACNEA +30 SPF (Güneş Kremi) ürün bilgisi
-anahtar: [sunacnea, güneş]
+anahtar: [carli, cinko, gunes, güneş, iceren, içeren, kremi, kremidir, oksit, rutinine, spf, sunacnea, çinko, güneş]
 gizlilik: ic-bilgi
 kaynak: mart.urun_karti (Wix yayındaki metin) + jarvis.compliance taraması
 uretim: tools/urun-bilgi-uret.py -- ELLE DÜZENLENEBİLİR, yeniden üretim üzerine yazar

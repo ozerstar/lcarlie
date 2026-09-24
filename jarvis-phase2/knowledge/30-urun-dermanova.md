@@ -1,6 +1,6 @@
 ---
 konu: DERMANOVA (Yenileyici ve İz Görünümünü Azaltmaya Yardımcı Bitkisel Krem) ürün bilgisi
-anahtar: [dermanova, ürün]
+anahtar: [aza, azaltmaya, bitkisel, carli, cilt, dermanova, destekler, dogal, doğal, formulu, formülü, gorunumunu, görünümünü, krem, sayesinde, yaglar, yardimci, yardımcı, yağlar, yenileyici, ürün]
 gizlilik: ic-bilgi
 kaynak: mart.urun_karti (Wix yayındaki metin) + jarvis.compliance taraması
 uretim: tools/urun-bilgi-uret.py -- ELLE DÜZENLENEBİLİR, yeniden üretim üzerine yazar

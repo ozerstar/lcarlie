@@ -1,6 +1,6 @@
 ---
 konu: CALMAROS (Ferahlatıcı Tonik Sprey) ürün bilgisi
-anahtar: [calmaros, ürün]
+anahtar: [bakimda, bakımda, calmaros, carli, ferahlatici, ferahlatıcı, ferahlik, ferahlık, hafif, hissi, nem, sprey, spreydir, sunmak, tonik, ürün]
 gizlilik: ic-bilgi
 kaynak: mart.urun_karti (Wix yayındaki metin) + jarvis.compliance taraması
 uretim: tools/urun-bilgi-uret.py -- ELLE DÜZENLENEBİLİR, yeniden üretim üzerine yazar

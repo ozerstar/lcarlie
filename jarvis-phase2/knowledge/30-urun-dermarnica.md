@@ -1,6 +1,6 @@
 ---
 konu: DERMARNICA (Arnica Özlü Bitkisel Bakım Kremi ) ürün bilgisi
-anahtar: [dermarnica, ürün]
+anahtar: [agirlikli, arnica, ağırlıklı, bakim, bakım, bitkisel, cilt, dermarnica, ekstresi, iceriklerle, içeriklerle, kremi, kremidir, montana, ozlu, özlü, ürün]
 gizlilik: ic-bilgi
 kaynak: mart.urun_karti (Wix yayındaki metin) + jarvis.compliance taraması
 uretim: tools/urun-bilgi-uret.py -- ELLE DÜZENLENEBİLİR, yeniden üretim üzerine yazar

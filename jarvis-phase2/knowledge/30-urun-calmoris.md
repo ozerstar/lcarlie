@@ -1,6 +1,6 @@
 ---
 konu: CALMORIS (Rahatlatıcı Bakım Roll-On) ürün bilgisi
-anahtar: [calmoris, ürün]
+anahtar: [bakim, bakım, calmoris, dengeli, elemi, her, hissi, lavanta, nefeste, olusan, oluşan, paculi, paçuli, rahatlatici, rahatlatıcı, roll, vetiver, ylang, ürün]
 gizlilik: ic-bilgi
 kaynak: mart.urun_karti (Wix yayındaki metin) + jarvis.compliance taraması
 uretim: tools/urun-bilgi-uret.py -- ELLE DÜZENLENEBİLİR, yeniden üretim üzerine yazar

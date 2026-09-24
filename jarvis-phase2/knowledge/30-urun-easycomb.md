@@ -1,6 +1,6 @@
 ---
 konu: EASYCOMB (Bebek ve Çocuklar İçin Saç Bakım Spreyi ürün bilgisi
-anahtar: [easycomb, bebek ve çocuk]
+anahtar: [bakim, bakım, bazli, bazlı, bebek, bitki, cocuklar, easycomb, eslik, etmek, eşlik, i̇cin, i̇çin, rutinine, sac, saç, spreyi, spreyidir, çocuklar, bebek ve çocuk]
 gizlilik: ic-bilgi
 kaynak: mart.urun_karti (Wix yayındaki metin) + jarvis.compliance taraması
 uretim: tools/urun-bilgi-uret.py -- ELLE DÜZENLENEBİLİR, yeniden üretim üzerine yazar

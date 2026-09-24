@@ -1,6 +1,6 @@
 ---
 konu: DERMAGUARD (Ayak ve Tırnak Bakım Kremi) ürün bilgisi
-anahtar: [dermaguard, ayak ve tırnak]
+anahtar: [ayak, bakim, bakimina, bakım, bakımına, bitkisel, cilt, dermaguard, dogal, doğal, formuluyle, formülüyle, kremi, ozlerle, tirnak, tırnak, yaglar, yağlar, özlerle, ayak ve tırnak]
 gizlilik: ic-bilgi
 kaynak: mart.urun_karti (Wix yayındaki metin) + jarvis.compliance taraması
 uretim: tools/urun-bilgi-uret.py -- ELLE DÜZENLENEBİLİR, yeniden üretim üzerine yazar

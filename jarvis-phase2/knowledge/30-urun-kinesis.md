@@ -1,6 +1,6 @@
 ---
 konu: KINESIS + (Sporcu Bakım Kremi) ürün bilgisi
-anahtar: [kinesis, vücut ve masaj]
+anahtar: [aktif, bakim, bakım, eslik, etmek, eşlik, kinesis, kremi, mineral, rutinine, spor, sporcu, suren, süren, yaglar, yasam, yağlar, yaşam, vücut ve masaj]
 gizlilik: ic-bilgi
 kaynak: mart.urun_karti (Wix yayındaki metin) + jarvis.compliance taraması
 uretim: tools/urun-bilgi-uret.py -- ELLE DÜZENLENEBİLİR, yeniden üretim üzerine yazar
