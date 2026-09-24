@@ -174,5 +174,112 @@ class KademeKaydiTest(unittest.TestCase):
         self.assertEqual(kademe_kaydi.ozet([])["toplam"], 0)
 
 
+class AktarimTest(unittest.TestCase):
+    """JSONL -> Postgres aktarimi: neyin gittigi ve neyin GITMEDIGI.
+
+    🔴 Hedef tablo core.ai_provider_attempt DEGIL. O tabloyu
+    mart.ai_provider_score okuyor ve "deneme" sayisi ile basari oranini
+    ondan cikariyor; ATLANDI satirlari HIC DENENMEMIS kademeleri anlatir.
+    Oraya yazmak, kapali duran bir makineyi "basarisiz saglayici" gibi
+    gosterip mevcut yonlendirme skorlarini bozardi. Bu yuzden ayri tablo:
+    core.kademe_denemesi.
+    """
+
+    def setUp(self):
+        self._dizin = tempfile.TemporaryDirectory()
+        self._onceki = os.environ.get("JARVIS_KADEME_LOG")
+        self.gunluk = Path(self._dizin.name) / "kademe.jsonl"
+        os.environ["JARVIS_KADEME_LOG"] = str(self.gunluk)
+
+    def tearDown(self):
+        if self._onceki is None:
+            os.environ.pop("JARVIS_KADEME_LOG", None)
+        else:
+            os.environ["JARVIS_KADEME_LOG"] = self._onceki
+        self._dizin.cleanup()
+
+    def test_ayni_kayit_ayni_hash_farkli_kayit_farkli(self):
+        """Tekrar calistirmak guvenli olmali: kimlik ICERIKTEN gelir.
+
+        Filigran/ofset tutulsaydi dosya donduruldugunde yaniltirdi.
+        """
+        a = {"ts": "2026-09-24T21:00:00+0300", "uc": "external", "sonuc": "BASARILI"}
+        b = {"sonuc": "BASARILI", "uc": "external", "ts": "2026-09-24T21:00:00+0300"}
+        c = {"ts": "2026-09-24T21:00:01+0300", "uc": "external", "sonuc": "BASARILI"}
+        self.assertEqual(kademe_kaydi.satir_hash(a), kademe_kaydi.satir_hash(b),
+                         "anahtar sirasi kimligi degistiremez")
+        self.assertNotEqual(kademe_kaydi.satir_hash(a), kademe_kaydi.satir_hash(c))
+
+    def test_ts_ya_da_sonuc_yoksa_satir_gitmez(self):
+        """NOT NULL sutuna bos deger gonderip BUTUN aktarimi dusurmemeli."""
+        csv_metni = kademe_kaydi.aktarim_csv([
+            {"ts": "2026-09-24T21:00:00+0300", "uc": "x", "sonuc": "BASARILI"},
+            {"uc": "x", "sonuc": "BASARILI"},          # ts yok
+            {"ts": "2026-09-24T21:00:00+0300", "uc": "x"},  # sonuc yok
+        ])
+        self.assertEqual(len([s for s in csv_metni.splitlines() if s.strip()]), 1)
+
+    def test_tirnak_ve_virgul_kacisi(self):
+        """Model adinda tirnak, gerekcede virgul olabilir -- elle kacis yazmak
+        bu projede daha once bozulmus bir yontem."""
+        csv_metni = kademe_kaydi.aktarim_csv([{
+            "ts": "2026-09-24T21:00:00+0300", "uc": "x", "sonuc": "HATA",
+            "model": 'a,b "tirnakli"', "gerekce": "bir, iki",
+        }])
+        import csv as _csv
+        import io as _io
+        satirlar = list(_csv.reader(_io.StringIO(csv_metni)))
+        self.assertEqual(len(satirlar), 1)
+        self.assertEqual(satirlar[0][3], 'a,b "tirnakli"')
+        self.assertEqual(satirlar[0][6], "bir, iki")
+
+    def test_sutun_sayisi_sabit(self):
+        """COPY sutun sayisina gore hizalanir; kayan tek sutun her satiri bozar."""
+        csv_metni = kademe_kaydi.aktarim_csv([
+            {"ts": "2026-09-24T21:00:00+0300", "uc": "x", "sonuc": "BASARILI"},
+            {"ts": "2026-09-24T21:00:01+0300", "uc": "y", "sonuc": "ATLANDI",
+             "kademe": "LOCAL_GPU", "model": "m", "gecikme_ms": 5.5,
+             "gerekce": "UNAVAILABLE", "deneme": 2, "escalate": True,
+             "is_anahtari": "sohbet"},
+        ])
+        import csv as _csv
+        import io as _io
+        for satir in _csv.reader(_io.StringIO(csv_metni)):
+            self.assertEqual(len(satir), len(kademe_kaydi.AKTARIM_SUTUNLARI))
+
+    def test_eksik_alanlar_BOS_gider_sifir_degil(self):
+        """Bos alan CSV'de bos kalir -> COPY onu NULL yapar.
+
+        0 yazsaydik "gecikme olculmedi" ile "gecikme sifirdi" ayni gorunurdu.
+        """
+        import csv as _csv
+        import io as _io
+        csv_metni = kademe_kaydi.aktarim_csv([
+            {"ts": "2026-09-24T21:00:00+0300", "uc": "x", "sonuc": "ATLANDI"}])
+        satir = list(_csv.reader(_io.StringIO(csv_metni)))[0]
+        self.assertEqual(satir[5], "", "gecikme_ms bos kalmali, 0 degil")
+        self.assertEqual(satir[7], "", "deneme bos kalmali, 0 degil")
+
+    def test_tum_kayitlar_eskiden_yeniye(self):
+        kademe_kaydi.kaydet(uc="a", sonuc=kademe_kaydi.SONUC_BASARILI)
+        kademe_kaydi.kaydet(uc="b", sonuc=kademe_kaydi.SONUC_BASARILI)
+        hepsi = kademe_kaydi.tum_kayitlar()
+        self.assertEqual([k["uc"] for k in hepsi], ["a", "b"],
+                         "son_kayitlar YENIDEN eskiye, tum_kayitlar ESKIDEN yeniye")
+
+    def test_bozuk_satir_aktarimi_durdurmaz(self):
+        self.gunluk.parent.mkdir(parents=True, exist_ok=True)
+        self.gunluk.write_text(
+            '{"ts":"2026-09-24T21:00:00+0300","uc":"a","sonuc":"BASARILI"}\n'
+            'bu json degil\n'
+            '{"ts":"2026-09-24T21:00:01+0300","uc":"b","sonuc":"HATA"}\n',
+            encoding="utf-8")
+        self.assertEqual(len(kademe_kaydi.tum_kayitlar()), 2)
+
+    def test_dosya_yoksa_bos(self):
+        self.assertEqual(kademe_kaydi.tum_kayitlar(), [])
+        self.assertEqual(kademe_kaydi.aktarim_csv([]), "")
+
+
 if __name__ == "__main__":
     unittest.main()

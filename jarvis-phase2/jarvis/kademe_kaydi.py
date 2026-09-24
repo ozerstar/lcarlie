@@ -27,6 +27,9 @@ makine acik ama cevap veremedi. Karistirmak, yanlis teshise goturur.
 """
 from __future__ import annotations
 
+import csv
+import hashlib
+import io
 import json
 import os
 import time
@@ -98,3 +101,83 @@ def ozet(kayitlar: list[dict]) -> dict:
     ortalama = {uc: round(sum(v) / len(v), 1) for uc, v in gecikmeler.items() if v}
     return {"toplam": len(kayitlar), "dagilim": dagilim,
             "ortalama_gecikme_ms": ortalama}
+
+
+# ---------------------------------------------------------------------------
+# POSTGRES AKTARIMI
+#
+# 🔴 Hedef tablo core.ai_provider_attempt DEGIL, core.kademe_denemesi.
+# Sebep olculdu: o tabloyu mart.ai_provider_score okuyor ve "deneme" sayisi
+# ile basari oranini ondan cikariyor. Bizim ATLANDI satirlarimiz HIC
+# DENENMEMIS kademeleri anlatir; oraya yazmak, kapali duran bir makineyi
+# "basarisiz saglayici" gibi gosterip mevcut yonlendirme skorlarini bozardi.
+#
+# Aktarim ESIRGEYICI degil FIKIRSIZ olmali: burasi satiri donusturur, ne
+# gonderilecegine karar vermez. Ayiklama yapsaydi, aktarilmayan satirin
+# sebebini kimse goremezdi.
+# ---------------------------------------------------------------------------
+
+AKTARIM_SUTUNLARI = ("ts", "uc", "kademe", "model", "sonuc", "gecikme_ms",
+                     "gerekce", "deneme", "escalate", "is_anahtari", "kayit_hash")
+
+
+def satir_hash(kayit: dict) -> str:
+    """Satirin kimligi. Ayni satir iki kez aktarilmasin diye.
+
+    Filigran/ofset tutmak yerine icerik hash'i secildi: dosya donduruldugunde
+    ya da aktarim yarida kaldiginda ofset yaniltir, hash yaniltmaz. Tekrar
+    calistirmak her kosulda guvenlidir.
+    """
+    ham = json.dumps(kayit, ensure_ascii=False, sort_keys=True,
+                     separators=(",", ":"))
+    return hashlib.sha256(ham.encode("utf-8")).hexdigest()[:40]
+
+
+def aktarim_csv(kayitlar: list[dict]) -> str:
+    """Kayitlari COPY ... FROM STDIN (FORMAT csv) icin metne cevirir.
+
+    csv modulu kullanilir: model adinda tirnak, gerekcede virgul olabilir ve
+    elle kacis yazmak bu projede daha once bozulmus bir yontemdir.
+    """
+    tampon = io.StringIO()
+    yazici = csv.writer(tampon, lineterminator="\n")
+    for kayit in kayitlar:
+        if not isinstance(kayit, dict) or not kayit.get("ts") or not kayit.get("sonuc"):
+            # ts ve sonuc olmadan satirin anlami yok; NOT NULL'a carpip
+            # butun aktarimi dusururdu.
+            continue
+        yazici.writerow([
+            kayit.get("ts"),
+            kayit.get("uc") or "-",
+            kayit.get("kademe") if kayit.get("kademe") is not None else "",
+            kayit.get("model") if kayit.get("model") is not None else "",
+            kayit.get("sonuc"),
+            kayit.get("gecikme_ms") if kayit.get("gecikme_ms") is not None else "",
+            kayit.get("gerekce") if kayit.get("gerekce") is not None else "",
+            kayit.get("deneme") if kayit.get("deneme") is not None else "",
+            "true" if kayit.get("escalate") else "false",
+            kayit.get("is_anahtari") if kayit.get("is_anahtari") is not None else "",
+            satir_hash(kayit),
+        ])
+    return tampon.getvalue()
+
+
+def tum_kayitlar(yol: "Path | None" = None) -> list[dict]:
+    """Gunlugun TAMAMI, eskiden yeniye. Bozuk satir atlanir ama sayilir."""
+    hedef = Path(yol) if yol else _yol()
+    if not hedef.exists():
+        return []
+    kayitlar = []
+    try:
+        with hedef.open("r", encoding="utf-8") as dosya:
+            for satir in dosya:
+                satir = satir.strip()
+                if not satir:
+                    continue
+                try:
+                    kayitlar.append(json.loads(satir))
+                except json.JSONDecodeError:
+                    continue
+    except OSError:
+        return []
+    return kayitlar
