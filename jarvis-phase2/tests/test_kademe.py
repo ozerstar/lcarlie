@@ -91,12 +91,17 @@ class _Provider:
         return {"text": self._text, "model": self.name}
 
 
-def _router(gpu_text, dis_durum=AdapterState.AVAILABLE):
+def _router(ilk_cevap, dis_durum=AdapterState.AVAILABLE):
+    """Zincir API-once oldugu icin ILK cevabi dis saglayici verir.
+
+    Eskiden ilk cevap GPU'dan gelirdi ve bu yardimci kusurlu metni oraya
+    koyardi. Kusuru artik ilk konusan kademeye koymak gerekiyor; yoksa
+    denetlenen sey hic uretilmemis bir cevap olur.
+    """
     return ModelRouter(
-        gpu=_Provider("gpu", TIER_GPU, gpu_text),
+        gpu=_Provider("gpu", TIER_GPU, "gpu cevabi"),
         local=_Provider("local", TIER_LOCAL, "yerel cevap"),
-        external=_Provider("external", TIER_EXTERNAL,
-                           "Guclu modelden gelen tam ve duzgun cevap.", dis_durum))
+        external=_Provider("external", TIER_EXTERNAL, ilk_cevap, dis_durum))
 
 
 KANIT = [{"ref": "K1", "text": "VIREON FOR MEN fiyati 1.200 TL."}]
@@ -104,31 +109,40 @@ KANIT = [{"ref": "K1", "text": "VIREON FOR MEN fiyati 1.200 TL."}]
 
 class KademeEntegrasyonu(unittest.TestCase):
     def test_temiz_cevap_yukselmez(self):
+        """Temiz cevap TEK cagriyla biter -- ikinci cagri bosa para demektir."""
         r = _router("VIREON FOR MEN fiyati 1.200 TL, stokta mevcuttur.")
         s = r.synthesize("fiyat", KANIT, known_products=KATALOG)
-        self.assertEqual(s.tier, TIER_GPU)
-        self.assertEqual(r.external.calls, 0)
+        self.assertEqual(s.tier, TIER_EXTERNAL)
+        self.assertEqual(r.external.calls, 1)
+        self.assertEqual(r.gpu.calls, 0)
         self.assertEqual(s.yukseltme_kusurlari, ())
 
     def test_uydurma_urun_yukseltir(self):
+        """Kusur yakalanmali ve IKINCI bir cagri yapilmali.
+
+        Kademe artik yukseltmenin gostergesi DEGIL (ikisi de EXTERNAL);
+        gosterge cagri sayisi ve kusur listesidir.
+        """
         r = _router("FEMISIA FOR WOMEN urunumuz genis kullanim alanina sahiptir.")
         s = r.synthesize("urunler", KANIT, known_products=KATALOG)
-        self.assertEqual(s.tier, TIER_EXTERNAL)
-        self.assertEqual(r.external.calls, 1)
         self.assertIn("uydurma_urun", s.yukseltme_kusurlari)
+        self.assertEqual(r.external.calls, 2)
 
     def test_cok_kisa_cevap_yukseltir(self):
         r = _router("Evet.")
         s = r.synthesize("fiyat", KANIT, known_products=KATALOG)
-        self.assertEqual(s.tier, TIER_EXTERNAL)
+        self.assertEqual(r.external.calls, 2)
+        self.assertTrue(s.yukseltme_kusurlari)
 
     def test_kozmetik_kusur_YUKSELTMEZ(self):
         """Ölçülen israf: emoji yüzünden ikinci ücretli çağrı."""
         r = _router("Tabii ki! Seninle konusmak guzel \U0001F60A Urun stokta mevcuttur.")
         s = r.synthesize("stok", KANIT, known_products=KATALOG)
-        self.assertEqual(s.tier, TIER_GPU)
-        self.assertEqual(r.external.calls, 0)
+        # Kusur GORULUR ama yukseltilmez: emoji cevabi yanlis yapmaz.
+        # Gosterge artik kademe degil CAGRI SAYISI -- ilk cevap zaten dis
+        # saglayicidan geliyor, ikinci (ucretli) cagri yapilmamis olmali.
         self.assertIn("emoji", s.yukseltme_kusurlari)
+        self.assertEqual(r.external.calls, 1)
 
     def test_dis_saglayici_yoksa_cokmez(self):
         r = _router("Evet.", dis_durum=AdapterState.UNAVAILABLE)

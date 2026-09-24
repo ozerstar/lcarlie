@@ -571,8 +571,17 @@ class ModelRouter:
         # yoklugu bir cumleye cevirmek. "Kusursuz cevap" ile "dis saglayici
         # kapali oldugu icin hic bakilmadi" ayni sey degildir.
         yukseltme_kusurlari: tuple[str, ...] | None = None
-        if (not escalate and tier in (TIER_GPU, TIER_LOCAL)
-                and self.external.state() == AdapterState.AVAILABLE):
+        # 🔴 KADEME KOSULU KALDIRILDI (24.09.2026). Eskiden bu kapi yalniz
+        # cevap YEREL bir kademeden geldiginde calisirdi; mantik "zayif yerel
+        # model kotu cevap verirse guclu dis modele yukselt" idi. Zincir
+        # API-once yapilinca tier HER ZAMAN EXTERNAL oldu ve kapi sessizce
+        # OLU KODA dondu: uydurma urun, cok kisa cevap, hicbiri yakalanmiyordu.
+        # Musteriye giden metni koruyan kapi buydu.
+        #
+        # Denetim artik cevabin nereden geldigine bakmaz -- kusur kusurdur.
+        # Yukseltme de kademe degistirmek degil, ayni kademede daha guclu
+        # (gerekirse ucretli) saglayiciya inmek demektir: deep=True.
+        if not escalate and self.external.state() == AdapterState.AVAILABLE:
             bulgular = answer_guard.kusurlar(
                 result.get("text") or "", soru=question,
                 known_products=tuple(known_products or ()),
@@ -580,7 +589,14 @@ class ModelRouter:
             yukseltme_kusurlari = tuple(bulgular)
             if answer_guard.yukseltilmeli(bulgular):
                 try:
-                    retry = self.external.complete(messages, max_tokens)
+                    # deep=True olmadan ayni saglayiciya ayni soruyu
+                    # tekrar sormak olurdu; yukseltmenin anlami ucretli
+                    # saglayiciya inme izni vermektir.
+                    if _accepts_deep(self.external.complete):
+                        retry = self.external.complete(messages, max_tokens,
+                                                       deep=True)
+                    else:
+                        retry = self.external.complete(messages, max_tokens)
                     result, tier, calls = retry, TIER_EXTERNAL, calls + 1
                 except (ModelUnavailable, urllib.error.URLError, TimeoutError,
                         OSError, KeyError, ValueError):
