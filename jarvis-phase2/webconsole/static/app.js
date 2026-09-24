@@ -157,7 +157,7 @@ const VIEWS = {
                 raporlar: 'viewRaporlar', ayarlar: 'viewAyarlar',
                 eticaret: 'viewEticaret', reklam: 'viewReklam',
                 hafiza: 'viewHafiza', ekip: 'viewEkip',
-                sistem: 'viewSistem' };
+                sistem: 'viewSistem', isler: 'viewIsler' };
 
 function setView(name) {
   if (!VIEWS[name]) return;
@@ -175,6 +175,7 @@ function setView(name) {
   if (name === 'musteri') loadMusteri();
   if (name === 'reklam') loadKreatif();
   if (name === 'sistem') loadSistem();
+  if (name === 'isler') loadIsler();
   if (name === 'kreatifParti') loadKreatifParti();
   if (name === 'tasarim') tasarimYukle();
   if (name === 'asistan') asistanYukle();
@@ -5566,4 +5567,127 @@ document.addEventListener('click', (ev) => {
     return;
   }
   sistemAnahtarCevir(anahtar, acik);
+});
+
+
+/* ==================== İŞLER — görsel üretim kuyruğu ====================
+ *
+ * Kuyruk sunucuda dosya sistemi olarak duruyor ve PC-2'deki hakem onu 20
+ * saniyede bir yokluyor. Bu ekran o kuyruğa iş koyar ve hâlini gösterir.
+ *
+ * 🔴 İki durum birbirine karıştırılmaz:
+ *   "iş yok"     kuyruk gerçekten boş
+ *   "okunamadı"  sayı yerine null gelir -- sıfır YAZILMAZ
+ *
+ * Hatırlatma da bir iddia değil: iş beklerken PC-2'nin raporu eskiyse panel
+ * bunu söyler ama makinenin KAPALI olduğunu ileri sürmez -- sebebi ağ da
+ * olabilir, sahip yanındaki makineye bakıp karar verir.
+ */
+const IS_ASAMA_ETIKET = { bekleyen: 'SIRADA', calisan: 'ÜRETİLİYOR',
+                          biten: 'BİTTİ', hata: 'HATA' };
+
+function isSayiYaz(n) { return (n === null || n === undefined) ? 'okunamadı' : String(n); }
+
+async function loadIsler() {
+  const count = qs('islerCount');
+  const liste = qs('islerListe');
+  const uyari = qs('islerUyari');
+  if (!liste) return;
+  if (count) count.textContent = 'yükleniyor…';
+
+  const { ok, status, body: d } = await api('/api/isler');
+  if (!ok) {
+    if (count) count.textContent = status === 401 ? 'oturum yok' : 'hata';
+    liste.innerHTML = '<p class="sect-empty is-bad">Kuyruk okunamadı (HTTP '
+      + status + ').</p>';
+    return;
+  }
+
+  if (d.durum === 'KUYRUK_YOK') {
+    if (count) count.textContent = 'kuyruk yok';
+    liste.innerHTML = '<p class="sect-empty is-bad">Kuyruk dizini bulunamadı: '
+      + escapeHtml(String(d.yol || '')) + '</p>';
+    return;
+  }
+
+  const s = d.sayilar || {};
+  if (count) count.textContent = isSayiYaz(s.bekleyen) + ' sırada';
+
+  uyari.innerHTML = d.hatirlatma
+    ? '<div class="is-uyari"><strong>' + escapeHtml(d.hatirlatma.metin) + '</strong>'
+      + '<button type="button" class="btn btn-ince" id="isUyandir">PC-2&#39;Yİ AÇ</button>'
+      + '<span id="isUyandirSonuc" class="is-sonuc"></span></div>'
+    : '';
+
+  const satirlar = (d.isler || []).map(function (i) {
+    const etiket = IS_ASAMA_ETIKET[i.asama] || i.asama;
+    const metin = i.bozuk
+      ? '<em>dosya bozuk — okunamadı</em>'
+      : escapeHtml(String(i.istem || '(istem yok)'));
+    return '<li class="is-satir-kayit"><span class="is-rozet is-rozet-'
+      + escapeHtml(String(i.asama)) + '">' + escapeHtml(etiket) + '</span>'
+      + '<span class="is-metin">' + metin + '</span>'
+      + '<span class="is-kim">' + escapeHtml(String(i.isteyen || '')) + '</span></li>';
+  });
+
+  liste.innerHTML =
+    '<p class="fm-sub">sırada ' + isSayiYaz(s.bekleyen)
+    + ' · üretiliyor ' + isSayiYaz(s.calisan)
+    + ' · bitti ' + isSayiYaz(s.biten)
+    + ' · hata ' + isSayiYaz(s.hata) + '</p>'
+    + (satirlar.length
+        ? '<ul class="is-liste">' + satirlar.join('') + '</ul>'
+        : '<p class="sect-empty">Kuyrukta hiç iş yok.</p>');
+}
+
+/* Form ve uyandırma düğmesi olay temsilcisiyle bağlanır: içerik yeniden
+ * çizildiğinde dinleyici kaybolmasın. */
+document.addEventListener('submit', async function (e) {
+  const form = e.target.closest('#isForm');
+  if (!form) return;
+  e.preventDefault();
+  const sonuc = qs('isSonuc');
+  sonuc.className = 'is-sonuc';
+  sonuc.textContent = 'gönderiliyor…';
+  const cevap = await api('/api/isler', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ istem: (qs('isIstem').value || '').trim(),
+                           negatif: qs('isNegatif').value || '',
+                           adet: Number(qs('isAdet').value || 1) }),
+  });
+  if (!cevap.ok) {
+    /* 400 = doğrulama reddi. Sebebi AYNEN gösterilir; "bir hata oluştu"
+     * demek, sahibi aynı hatayı tekrar yapmaya davet eder. */
+    sonuc.className = 'is-sonuc is-bad';
+    sonuc.textContent = (cevap.body && cevap.body.error)
+      ? cevap.body.error
+      : ('gönderilemedi (HTTP ' + cevap.status + ')');
+    return;
+  }
+  sonuc.className = 'is-sonuc is-ok';
+  sonuc.textContent = 'kuyruğa eklendi';
+  qs('isIstem').value = '';
+  loadIsler();
+});
+
+document.addEventListener('click', async function (e) {
+  if (!e.target.closest('#isUyandir')) return;
+  const sonuc = qs('isUyandirSonuc');
+  sonuc.className = 'is-sonuc';
+  sonuc.textContent = 'isteniyor…';
+  const cevap = await api('/api/uyandir', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hedef: 'pc2' }),
+  });
+  if (cevap.ok && cevap.body && cevap.body.hazir === false) {
+    /* Uzaktan açma DONANIM olarak hazır değil. Düğmeyi "çalıştı" gibi
+     * göstermek en kötüsü olurdu: eksik ön koşullar adıyla yazılır. */
+    sonuc.className = 'is-sonuc is-bad';
+    sonuc.textContent = 'Uzaktan açma hazır değil — '
+      + ((cevap.body.eksikler || []).join(' · '));
+    return;
+  }
+  sonuc.textContent = cevap.ok ? 'istek kaydedildi' : 'istek gönderilemedi';
 });

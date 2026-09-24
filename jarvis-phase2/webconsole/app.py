@@ -58,6 +58,7 @@ from jarvis.transport import memory_host  # noqa: E402
 
 import auth  # noqa: E402
 import meta_webhook  # noqa: E402
+import isler  # noqa: E402
 import sistem  # noqa: E402
 
 import chat  # noqa: E402
@@ -1127,6 +1128,13 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/kademe":
             self._send_json(200, _kademe_gorunumu())
             return
+        if path == "/api/isler":
+            # Hatirlatma icin PC-2'nin rapor TAZELIGI gerekiyor. Burada
+            # yeniden hesaplanmaz -- iki yerde iki farkli tanim olmasi bu
+            # projede daha once yasanmis bir hata sinifi.
+            self._send_json(200, isler.durum(
+                None, pc2_durum=sistem.makine_durumu(STATE_DIR, "pc2")))
+            return
         if path == "/api/hafiza":
             self._send_json(200, _hafiza_gorunumu())
             return
@@ -1346,6 +1354,29 @@ class Handler(BaseHTTPRequestHandler):
                 sonuc = _ekip_sor(kod, soru)
             except Exception as exc:  # noqa: BLE001
                 self._send_json(502, {"error": f"soru islenemedi: {str(exc)[:200]}"})
+                return
+            self._send_json(200, sonuc)
+            return
+        if path == "/api/isler":
+            body = _read_json_body(self)
+            try:
+                kayit = isler.is_ekle(
+                    None, body.get("istem", ""), body.get("negatif", ""),
+                    body.get("adet", 1), isteyen=session.username)
+            except isler.IsHatasi as exc:
+                # Gecersiz istek "tamam" gorunmez: panelde basarili sanilip
+                # kuyruga hic girmeyen is, bu projede yasanmis bir hata.
+                self._send_json(400, {"error": str(exc)})
+                return
+            self._send_json(200, {"eklendi": kayit})
+            return
+        if path == "/api/uyandir":
+            body = _read_json_body(self)
+            try:
+                sonuc = sistem.uyandirma_iste(
+                    STATE_DIR, str(body.get("hedef", "")), session.username)
+            except ValueError as exc:
+                self._send_json(400, {"error": str(exc)})
                 return
             self._send_json(200, sonuc)
             return

@@ -91,6 +91,7 @@
           <button type="button" class="nav-item" data-view="ajanlar">AJANLAR</button>
           <button type="button" class="nav-item" data-view="hafiza">HAFIZA</button>
           <button type="button" class="nav-item" data-view="veri">VERİ</button>
+          <button type="button" class="nav-item" data-view="isler">İŞLER</button>
           <button type="button" class="nav-item" data-view="sistem">SİSTEM</button>
           <button type="button" class="nav-item" data-view="ayarlar">AYARLAR</button>
         </div>
@@ -571,6 +572,38 @@
     </div>
     <div class="panel-body sect-body" id="ayarlarBody">
       <p class="sect-empty">Yükleniyor…</p>
+    </div>
+  </section>
+</main>
+
+<main class="stage stage-single view-panel" id="viewIsler" hidden>
+  <section class="panel" aria-label="İŞ KUYRUĞU">
+    <div class="panel-head">
+      <h2 class="panel-title">İŞLER</h2>
+      <span class="panel-count" id="islerCount">—</span>
+    </div>
+    <div class="panel-body sect-body">
+      <p class="fm-sub">
+        Görsel üretim kuyruğu. Buraya konan iş <strong>PC-2&#39;nin ekran
+        kartında</strong> üretilir: kuyrukta iş varsa ComfyUI açılır, kuyruk
+        boşalınca kart bırakılır. PC-2 kapalıysa iş kaybolmaz, sırada bekler.
+      </p>
+      <div id="islerUyari"></div>
+      <form id="isForm" class="is-form">
+        <label class="is-label" for="isIstem">Ne üretilsin</label>
+        <textarea id="isIstem" class="is-input" rows="3" maxlength="2000"
+                  placeholder="beyaz mermer zemin, yumuşak doğal ışık, ürün ortada"></textarea>
+        <label class="is-label" for="isNegatif">İstenmeyenler (isteğe bağlı)</label>
+        <input id="isNegatif" class="is-input" type="text" maxlength="2000"
+               placeholder="şişe, kutu, yazı">
+        <div class="is-satir">
+          <label class="is-label" for="isAdet">Adet</label>
+          <input id="isAdet" class="is-input is-dar" type="number" min="1" max="8" value="1">
+          <button type="submit" class="btn" id="isGonder">KUYRUĞA EKLE</button>
+          <span id="isSonuc" class="is-sonuc"></span>
+        </div>
+      </form>
+      <div id="islerListe"></div>
     </div>
   </section>
 </main>

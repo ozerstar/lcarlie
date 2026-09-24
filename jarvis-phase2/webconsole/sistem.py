@@ -353,3 +353,60 @@ def gorunum(state_dir: Path, sunucu_metrikleri: dict) -> dict:
         "politika": politika_oku(state_dir),
         "bayat_esigi_s": BAYAT_ESIGI_S,
     }
+
+
+def makine_durumu(state_dir: Path, anahtar: str) -> str:
+    """Tek makinenin rapor tazeligi: TAZE | BAYAT | RAPOR_YOK | BILINMIYOR.
+
+    Ayri bir yardimci cunku cagiranlarin cogu sunucu metriklerine ihtiyac
+    duymuyor; `makineler()` cagirmak icin bos bir olcum sozlugu uydurmak
+    gerekirdi ve o sozluk zamanla gercek saniliyordu.
+    """
+    if anahtar == "sunucu":
+        return "TAZE"
+    try:
+        return str(_rapor_oku(state_dir, anahtar).get("durum") or "BILINMIYOR")
+    except Exception:  # noqa: BLE001 - okunamamak da bir durumdur
+        return "BILINMIYOR"
+
+
+# Uzaktan ACMA (Wake-on-LAN) icin donanim on kosullari. 24.09.2026'da
+# PC-2 uzerinde OLCULDU ve saglanmiyor:
+#   Wi-Fi  TP-Link USB adaptor -> WakeOnMagicPacket: Unsupported
+#   Ethernet Realtek PCIe GbE  -> MAC 60-CF-84-A8-2E-F9, KABLO TAKILI DEGIL
+#   HiberbootEnabled = 1 (Hizli Baslatma WoL'u ayrica bozar)
+# Bu yuzden panelde "ac" dugmesi CALISIYORMUS gibi gosterilmez: istek
+# kaydedilir ama uc, eksik on kosulu adiyla bildirir. Calismayan bir
+# dugme, olmayan bir dugmeden kotudur.
+UYANDIRMA_ON_KOSULLARI = (
+    "PC-2'ye ethernet kablosu takilmali (Realtek PCIe GbE)",
+    "Kartta WakeOnMagicPacket etkinlestirilmeli",
+    "Hizli Baslatma kapatilmali (HiberbootEnabled = 0)",
+)
+
+
+def uyandirma_iste(state_dir: Path, hedef: str, kim: str) -> dict:
+    """Uyandirma istegini kaydeder ve ON KOSUL durumunu dondurur.
+
+    Istek dosyasi LAN'daki diger PC'nin ajani icindir: sunucu ev agina
+    sihirli paket gonderemez, paket LAN icinden cikmali.
+    """
+    if hedef not in ("pc1", "pc2"):
+        raise ValueError("bilinmeyen hedef: " + str(hedef))
+    yol = Path(state_dir) / "uyandirma-istegi.json"
+    kayit = {
+        "hedef": hedef,
+        "istendi": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "isteyen": str(kim)[:60],
+    }
+    yol.parent.mkdir(parents=True, exist_ok=True)
+    gecici = yol.with_suffix(".tmp")
+    gecici.write_text(json.dumps(kayit, ensure_ascii=False), encoding="utf-8")
+    os.replace(str(gecici), str(yol))
+    return {
+        "kaydedildi": True,
+        "istek": kayit,
+        "hazir": False,
+        "sebep": "DONANIM_ON_KOSULU_EKSIK",
+        "eksikler": list(UYANDIRMA_ON_KOSULLARI),
+    }
