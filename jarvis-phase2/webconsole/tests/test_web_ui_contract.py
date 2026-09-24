@@ -74,6 +74,13 @@ KNOWN_ROUTES = {
     # Model kademeleri: SISTEM sekmesindeki "hangi kademe cevap veriyor"
     # bolumu. app.py sunuyor.
     "/api/kademe",
+    # SAHA sekmesi: ziyaret hedefleri, rota, ziyaret kaydi, elle nokta.
+    # Dordu de app.py'de sunuluyor.
+    "/api/saha",
+    "/api/saha/filtreler",
+    "/api/saha/rota",
+    "/api/saha/ziyaret",
+    "/api/saha/nokta",
     # Uzaktan ACMA istegi. Uc GERCEKTEN sunuluyor, ama donanim on kosulu
     # saglanmadigi icin "hazir: false" ve eksik listesi donuyor -- panel de
     # dugmeyi calismis gibi gostermiyor. Sunulan yol ile calisan ozellik

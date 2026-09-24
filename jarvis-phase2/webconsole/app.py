@@ -60,6 +60,7 @@ from jarvis.transport import memory_host  # noqa: E402
 import auth  # noqa: E402
 import meta_webhook  # noqa: E402
 import isler  # noqa: E402
+import saha  # noqa: E402
 import sistem  # noqa: E402
 
 import chat  # noqa: E402
@@ -1205,6 +1206,27 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/kademe":
             self._send_json(200, _kademe_gorunumu())
             return
+        if path == "/api/saha/filtreler":
+            try:
+                self._send_json(200, saha.filtre_secenekleri())
+            except saha.SahaHatasi as hata:
+                self._send_json(502, {"error": str(hata)})
+            return
+        if path == "/api/saha":
+            s = parse_qs(parsed.query)
+            def _ilk(ad, varsayilan=None):
+                d = s.get(ad, [])
+                return d[0] if d else varsayilan
+            try:
+                self._send_json(200, saha.hedefler(
+                    tur=s.get("tur"), brans=s.get("brans"), ilce=s.get("ilce"),
+                    enlem=_ilk("enlem"), boylam=_ilk("boylam"),
+                    yaricap_m=_ilk("yaricap_m"),
+                    ziyaret_durumu=_ilk("ziyaret"), arama=_ilk("arama"),
+                    limit=_ilk("limit", 200)))
+            except saha.SahaHatasi as hata:
+                self._send_json(400, {"error": str(hata)})
+            return
         if path == "/api/isler":
             # Hatirlatma icin PC-2'nin rapor TAZELIGI gerekiyor. Burada
             # yeniden hesaplanmaz -- iki yerde iki farkli tanim olmasi bu
@@ -1433,6 +1455,48 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(502, {"error": f"soru islenemedi: {str(exc)[:200]}"})
                 return
             self._send_json(200, sonuc)
+            return
+        if path == "/api/saha/rota":
+            body = _read_json_body(self)
+            try:
+                self._send_json(200, saha.rota(
+                    body.get("enlem"), body.get("boylam"),
+                    en_fazla_durak=body.get("en_fazla_durak", 20),
+                    tur=body.get("tur"), brans=body.get("brans"),
+                    ziyaret_durumu=body.get("ziyaret"),
+                    yaricap_m=body.get("yaricap_m", 2000)))
+            except saha.SahaHatasi as hata:
+                self._send_json(400, {"error": str(hata)})
+            return
+        if path == "/api/saha/ziyaret":
+            body = _read_json_body(self)
+            try:
+                self._send_json(200, saha.ziyaret_kaydet(
+                    body.get("hedef_anahtari", ""), body.get("sonuc", ""),
+                    giden=session.username,
+                    not_metni=body.get("not", ""),
+                    enlem=body.get("enlem"), boylam=body.get("boylam"),
+                    konum_dogruluk_m=body.get("konum_dogruluk_m"),
+                    siparis_ref=body.get("siparis_ref", ""),
+                    foto_b64=body.get("foto", "")))
+            except saha.SahaHatasi as hata:
+                # Gecersiz istek "tamam" gorunmez: sebebi AYNEN gosterilir.
+                self._send_json(400, {"error": str(hata)})
+            return
+        if path == "/api/saha/nokta":
+            body = _read_json_body(self)
+            try:
+                self._send_json(200, saha.nokta_ekle(
+                    body.get("ad", ""), body.get("tur", ""),
+                    body.get("enlem"), body.get("boylam"),
+                    ekleyen=session.username,
+                    brans=body.get("brans", ""), telefon=body.get("telefon", ""),
+                    eposta=body.get("eposta", ""), adres=body.get("adres", ""),
+                    notlar=body.get("notlar", ""),
+                    konum_kaynagi=body.get("konum_kaynagi", "ELLE"),
+                    konum_dogruluk_m=body.get("konum_dogruluk_m")))
+            except saha.SahaHatasi as hata:
+                self._send_json(400, {"error": str(hata)})
             return
         if path == "/api/isler":
             body = _read_json_body(self)
