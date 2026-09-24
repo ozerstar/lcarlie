@@ -68,6 +68,14 @@ KNOWN_ROUTES = {
     "/api/fiyat-matrisi", "/api/fiyat-toplu-onizleme",
     # E-ticaret urun alanlari -- app.py sunuyor.
     "/api/urun-alanlari",
+    # ISLER: gorsel uretim kuyrugunu okur (GET) ve ona is koyar (POST).
+    # Kuyrugu PC-2'deki hakem yokluyor; app.py ikisini de sunuyor.
+    "/api/isler",
+    # Uzaktan ACMA istegi. Uc GERCEKTEN sunuluyor, ama donanim on kosulu
+    # saglanmadigi icin "hazir: false" ve eksik listesi donuyor -- panel de
+    # dugmeyi calismis gibi gostermiyor. Sunulan yol ile calisan ozellik
+    # ayri seylerdir; bu test yalnizca birincisini denetler.
+    "/api/uyandir",
     # Kreatif analizi -- app.py sunuyor.
     "/api/kreatif",
     # Kisisel asistan hafizasi -- okuma, ekleme ve unutma; app.py sunuyor.
@@ -110,6 +118,7 @@ BACKED_VIEWS = {"home", "analiz", "gorevler", "veri", "ajanlar", "raporlar",
                 "kargo",      # /api/kargo
                 "musteri",    # /api/musteri
                 "tasarim",    # /api/tasarim
+                "isler",      # /api/isler
                 "asistan",   # /api/asistan
                 "sistem"}    # /api/sistem
 PANEL_VIEWS = {"veri", "ajanlar", "raporlar", "ayarlar"}
