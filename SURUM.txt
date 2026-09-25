@@ -1,2 +1,2 @@
 n8n surumu: 2.40.6
-Workflow sayisi: 5
+Workflow sayisi: 6
