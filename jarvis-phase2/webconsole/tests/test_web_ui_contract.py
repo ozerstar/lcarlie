@@ -58,6 +58,10 @@ def _fonksiyon_govdeleri(js: str, onek: str):
 
 # Every path the frontend may call, and the reason each one is legitimate.
 KNOWN_ROUTES = {
+    # DOSYALAR: uretilen dosyalara salt okunur erisim (app.py sunuyor).
+    # /ham yalniz GORSEL dondurur; metin /icerik uzerinden gider.
+    "/api/dosyalar", "/api/dosyalar/liste", "/api/dosyalar/icerik",
+    "/api/dosyalar/ham",
     "/api/session", "/api/login", "/api/logout", "/api/status",
     "/api/activity", "/api/proposals", "/api/chat", "/api/chat/stream",
     "/api/plan", "/api/panel",
@@ -138,6 +142,10 @@ BACKED_VIEWS = {"home", "analiz", "gorevler", "veri", "ajanlar", "raporlar",
                 "kargo",      # /api/kargo
                 "musteri",    # /api/musteri
                 "tasarim",    # /api/tasarim
+                # 🔴 25.09.2026: DOSYALAR sekmesinin arka ucu webconsole/
+                #    dosyalar.py ve dort ucu app.py'de tanimli. Kural
+                #    degismedi -- kume disinda kalan sekme disabled kalir.
+                "dosyalar",   # /api/dosyalar
                 "isler",      # /api/isler
                 "saha",       # /api/saha
                 "katalog",    # /api/katalog

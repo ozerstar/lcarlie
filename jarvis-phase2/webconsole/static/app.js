@@ -158,7 +158,8 @@ const VIEWS = {
                 eticaret: 'viewEticaret', reklam: 'viewReklam',
                 hafiza: 'viewHafiza', ekip: 'viewEkip',
                 sistem: 'viewSistem', isler: 'viewIsler',
-                saha: 'viewSaha', katalog: 'viewKatalog' };
+                saha: 'viewSaha', katalog: 'viewKatalog',
+                dosyalar: 'viewDosyalar' };
 
 function setView(name) {
   if (!VIEWS[name]) return;
@@ -184,6 +185,7 @@ function setView(name) {
   if (name === 'asistan') asistanYukle();
   if (name === 'home') anaHaberYukle();
   if (name === 'hafiza') loadHafiza();
+  if (name === 'dosyalar') loadDosyalar();
   if (PANEL_SECTIONS[name]) loadSection(name);
 }
 
@@ -6941,4 +6943,212 @@ document.addEventListener('click', async function (e) {
     return;
   }
   loadIgPlan();
+});
+
+/* ==========================================================================
+ * DOSYALAR -- uretilen dosyalara panelden erisim
+ *
+ * Sahip: "yapilan dosyalarin panelden erisimi icin guzel bir arayuz yap,
+ * ben aradigimi bulamiyorum." Olculdu: 1.253 dosya (293 kreatif brief,
+ * 850 urun gorseli, 49 bilgi dosyasi, ...) ve hicbirine panelden
+ * ulasilamiyordu.
+ *
+ * 🔴 SALT OKUNUR. Silme/tasima dugmesi YOK -- geri alinamaz bir islemi
+ * panele koymak, gorunurluk istegini yetki degisikligine cevirirdi.
+ * ========================================================================== */
+const dosDurum = { alan: '', ara: '', tur: '', dosyalar: [], secili: null };
+
+function dosBoyut(b) {
+  if (b === null || b === undefined) return '—';
+  if (b < 1024) return b + ' B';
+  if (b < 1024 * 1024) return (b / 1024).toFixed(0) + ' KB';
+  return (b / 1024 / 1024).toFixed(1) + ' MB';
+}
+
+async function loadDosyalar() {
+  const kap = qs('dosAlanlar');
+  kap.textContent = 'yükleniyor…';
+  let veri;
+  try {
+    veri = await api('/api/dosyalar');
+  } catch (e) {
+    kap.textContent = 'Alanlar okunamadı: ' + (e && e.message ? e.message : e);
+    return;
+  }
+  kap.textContent = '';
+  (veri.alanlar || []).forEach((a) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'dos-alan';
+    btn.dataset.alan = a.alan;
+    /* Durum ayrimi gorunur kalir: "klasor yok" ile "okunamadi" ayni sey
+     * degildir ve ikisini de "0 dosya" diye gostermek yanlis teshise
+     * goturur. */
+    const not = a.durum === 'OK' ? (a.adet + ' dosya · ' + dosBoyut(a.bayt))
+      : (a.durum === 'VERI_YOK' ? 'klasör yok'
+        : (a.durum === 'OKUNAMADI' ? 'okunamadı' : a.durum));
+    if (a.durum !== 'OK') btn.classList.add('is-bos');
+    const ad = document.createElement('span');
+    ad.className = 'dos-alan-ad';
+    ad.textContent = a.baslik;
+    const alt = document.createElement('span');
+    alt.className = 'dos-alan-not';
+    alt.textContent = not;
+    btn.append(ad, alt);
+    btn.title = a.aciklama + ' — ' + a.yol;
+    kap.appendChild(btn);
+  });
+  const ilk = (veri.alanlar || []).find((a) => a.durum === 'OK' && a.adet > 0);
+  if (ilk) dosAlanSec(ilk.alan);
+}
+
+function dosAlanSec(alan) {
+  dosDurum.alan = alan;
+  document.querySelectorAll('.dos-alan').forEach((b) => {
+    b.classList.toggle('is-active', b.dataset.alan === alan);
+  });
+  dosListele();
+}
+
+async function dosListele() {
+  if (!dosDurum.alan) return;
+  const liste = qs('dosListe');
+  liste.textContent = 'yükleniyor…';
+  const p = new URLSearchParams({ alan: dosDurum.alan, ara: dosDurum.ara,
+    tur: dosDurum.tur, limit: '300' });
+  let veri;
+  try {
+    veri = await api('/api/dosyalar/liste?' + p.toString());
+  } catch (e) {
+    liste.textContent = 'Liste okunamadı: ' + (e && e.message ? e.message : e);
+    return;
+  }
+  dosDurum.dosyalar = veri.dosyalar || [];
+  qs('dosCount').textContent = veri.durum === 'OK'
+    ? (dosDurum.dosyalar.length + ' / ' + veri.toplam)
+    : veri.durum;
+  liste.textContent = '';
+  if (!dosDurum.dosyalar.length) {
+    const bos = document.createElement('p');
+    bos.className = 'dos-bos';
+    /* Bos sonucun SEBEBI yazilir: arama mi eledi, klasor mu bos. */
+    bos.textContent = veri.durum === 'VERI_YOK'
+      ? 'Bu alanın klasörü yok.'
+      : (dosDurum.ara || dosDurum.tur
+        ? 'Bu arama/filtreyle eşleşen dosya yok.'
+        : 'Bu alanda dosya yok.');
+    liste.appendChild(bos);
+    return;
+  }
+  dosDurum.dosyalar.forEach((d) => {
+    const sat = document.createElement('button');
+    sat.type = 'button';
+    sat.className = 'dos-satir';
+    sat.dataset.ad = d.ad;
+    const ad = document.createElement('span');
+    ad.className = 'dos-ad';
+    ad.textContent = d.ad;
+    const meta = document.createElement('span');
+    meta.className = 'dos-meta';
+    meta.textContent = [d.klasor, d.tur, dosBoyut(d.bayt), d.zaman]
+      .filter(Boolean).join(' · ');
+    sat.append(ad, meta);
+    liste.appendChild(sat);
+  });
+}
+
+async function dosAc(ad) {
+  const kap = qs('dosOnizleme');
+  dosDurum.secili = ad;
+  document.querySelectorAll('.dos-satir').forEach((b) => {
+    b.classList.toggle('is-active', b.dataset.ad === ad);
+  });
+  kap.textContent = 'açılıyor…';
+  const kayit = dosDurum.dosyalar.find((d) => d.ad === ad);
+  const p = new URLSearchParams({ alan: dosDurum.alan, ad: ad });
+
+  kap.textContent = '';
+  const baslik = document.createElement('div');
+  baslik.className = 'dos-oniz-bas';
+  const h = document.createElement('strong');
+  h.textContent = ad;
+  const indir = document.createElement('a');
+  indir.className = 'dos-indir';
+  indir.href = '/api/dosyalar/ham?' + p.toString();
+  indir.textContent = 'ham dosya';
+  indir.target = '_blank';
+  indir.rel = 'noopener';
+  baslik.append(h);
+  if (kayit && kayit.tur === 'gorsel') baslik.append(indir);
+  kap.appendChild(baslik);
+
+  if (kayit && kayit.tur === 'gorsel') {
+    const img = document.createElement('img');
+    img.className = 'dos-gorsel';
+    img.src = '/api/dosyalar/ham?' + p.toString();
+    img.alt = ad;
+    kap.appendChild(img);
+    return;
+  }
+
+  let veri;
+  try {
+    veri = await api('/api/dosyalar/icerik?' + p.toString());
+  } catch (e) {
+    kap.appendChild(Object.assign(document.createElement('p'),
+      { className: 'dos-bos', textContent: 'Açılamadı: ' + (e && e.message ? e.message : e) }));
+    return;
+  }
+  if (veri.durum === 'METIN_DEGIL') {
+    kap.appendChild(Object.assign(document.createElement('p'),
+      { className: 'dos-bos',
+        textContent: 'Bu dosya türü panelde gösterilemiyor (' + veri.tur + ').' }));
+    return;
+  }
+  if (veri.durum !== 'OK') {
+    kap.appendChild(Object.assign(document.createElement('p'),
+      { className: 'dos-bos', textContent: 'Okunamadı: ' + veri.durum }));
+    return;
+  }
+  if (veri.kirpildi) {
+    /* Kirpma SESSIZ kalmaz: eksik bir metni tam sanmak yanlis karar uretir. */
+    kap.appendChild(Object.assign(document.createElement('p'),
+      { className: 'dos-uyari',
+        textContent: 'Dosya ' + dosBoyut(veri.bayt) + ' — önizleme kırpıldı. '
+          + 'Tamamı için ham dosyayı indir.' }));
+  }
+  if (veri.json_hatasi) {
+    kap.appendChild(Object.assign(document.createElement('p'),
+      { className: 'dos-uyari', textContent: 'JSON bozuk: ' + veri.json_hatasi }));
+  }
+  const pre = document.createElement('pre');
+  pre.className = 'dos-metin';
+  pre.textContent = veri.json ? JSON.stringify(veri.json, null, 2) : veri.metin;
+  kap.appendChild(pre);
+}
+
+/* CSP satir ici onclick'e izin vermiyor; baglama burada yapilir. */
+qs('dosAlanlar').addEventListener('click', (e) => {
+  const b = e.target.closest('.dos-alan');
+  if (b) dosAlanSec(b.dataset.alan);
+});
+qs('dosListe').addEventListener('click', (e) => {
+  const b = e.target.closest('.dos-satir');
+  if (b) dosAc(b.dataset.ad);
+});
+qs('dosTurler').addEventListener('click', (e) => {
+  const b = e.target.closest('.dos-tur');
+  if (!b) return;
+  dosDurum.tur = b.dataset.tur;
+  document.querySelectorAll('.dos-tur').forEach((x) => {
+    x.classList.toggle('is-active', x === b);
+  });
+  dosListele();
+});
+let dosAramaZaman = null;
+qs('dosAra').addEventListener('input', (e) => {
+  dosDurum.ara = e.target.value;
+  /* Her tusa basista istek atmak 300 dosyalik listeyi bogar. */
+  if (dosAramaZaman) clearTimeout(dosAramaZaman);
+  dosAramaZaman = setTimeout(dosListele, 250);
 });

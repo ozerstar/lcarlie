@@ -63,6 +63,7 @@ import isler  # noqa: E402
 import katalog  # noqa: E402
 import harita  # noqa: E402
 import saha  # noqa: E402
+import dosyalar  # noqa: E402
 import sistem  # noqa: E402
 
 import chat  # noqa: E402
@@ -1298,6 +1299,61 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/api/kademe":
             self._send_json(200, _kademe_gorunumu())
+            return
+        if path == "/api/dosyalar":
+            # Alan listesi: her alanda kac dosya var. Klasor yoksa VERI_YOK,
+            # okunamiyorsa OKUNAMADI -- ikisi ayri gosterilir.
+            self._send_json(200, {"alanlar": dosyalar.alanlar()})
+            return
+        if path == "/api/dosyalar/liste":
+            q = query
+            try:
+                self._send_json(200, dosyalar.listele(
+                    (q.get("alan") or [""])[0],
+                    ara=(q.get("ara") or [""])[0],
+                    tur=(q.get("tur") or [""])[0],
+                    limit=int((q.get("limit") or ["200"])[0] or 200),
+                    atla=int((q.get("atla") or ["0"])[0] or 0)))
+            except dosyalar.AlanYok as hata:
+                self._send_json(404, {"hata": str(hata)})
+            except ValueError as hata:
+                self._send_json(400, {"hata": str(hata)})
+            return
+        if path == "/api/dosyalar/icerik":
+            q = query
+            try:
+                self._send_json(200, dosyalar.icerik(
+                    (q.get("alan") or [""])[0], (q.get("ad") or [""])[0]))
+            except dosyalar.AlanYok as hata:
+                self._send_json(404, {"hata": str(hata)})
+            except dosyalar.GuvensizAd as hata:
+                # 🔴 `gunluk` adi app.py icinde ZATEN yerel bir dosya yolu
+                # olarak kullaniliyor (kreatif-uretim.log); modulu o adla
+                # ice aktarmak sessiz bir golgeleme uretirdi. Reddedilen
+                # istek cagirana 400 ile donuyor, ayrica sunucu erisim
+                # kaydinda gorunuyor.
+                self._send_json(400, {"hata": str(hata)})
+            except FileNotFoundError:
+                self._send_json(404, {"hata": "dosya bulunamadi"})
+            return
+        if path == "/api/dosyalar/ham":
+            q = query
+            try:
+                ham, tip = dosyalar.ikili(
+                    (q.get("alan") or [""])[0], (q.get("ad") or [""])[0])
+            except (dosyalar.AlanYok, FileNotFoundError):
+                self._send_json(404, {"hata": "dosya bulunamadi"})
+                return
+            except dosyalar.GuvensizAd as hata:
+                self._send_json(400, {"hata": str(hata)})
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", tip)
+            self.send_header("Content-Length", str(len(ham)))
+            # Panel disindan gomulmesin.
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.end_headers()
+            self.wfile.write(ham)
             return
         if path == "/api/saha/konum":
             # Yonetici gorunumu: kim nerede. "BAYAT" hareketsizlik DEGILDIR;

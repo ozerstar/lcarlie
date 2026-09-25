@@ -92,6 +92,7 @@
           <button type="button" class="nav-item" data-view="ajanlar">AJANLAR</button>
           <button type="button" class="nav-item" data-view="hafiza">HAFIZA</button>
           <button type="button" class="nav-item" data-view="veri">VERİ</button>
+          <button type="button" class="nav-item" data-view="dosyalar">DOSYALAR</button>
           <button type="button" class="nav-item" data-view="katalog">KATALOG</button>
           <button type="button" class="nav-item" data-view="saha">SAHA</button>
           <button type="button" class="nav-item" data-view="isler">İŞLER</button>
@@ -575,6 +576,41 @@
     </div>
     <div class="panel-body sect-body" id="ayarlarBody">
       <p class="sect-empty">Yükleniyor…</p>
+    </div>
+  </section>
+</main>
+
+<main class="stage stage-single view-panel" id="viewDosyalar" hidden>
+  <section class="panel" aria-label="ÜRETİLEN DOSYALAR">
+    <div class="panel-head">
+      <h2 class="panel-title">DOSYALAR</h2>
+      <span class="panel-count" id="dosCount">—</span>
+    </div>
+    <div class="panel-body sect-body">
+      <p class="fm-sub">
+        Sistemin <strong>ürettiği</strong> dosyalar. Buradan yalnızca okunur —
+        panelden silme veya taşıma yoktur; görünürlük ile yetki ayrı şeylerdir.
+        Metin ve JSON dosyaları açılır, görseller önizlenir.
+      </p>
+
+      <div class="dos-alanlar" id="dosAlanlar"></div>
+
+      <div class="dos-arac">
+        <input type="search" id="dosAra" class="dos-ara"
+               placeholder="Dosya adında ara — örn. vireon, senaryo, 20260925"
+               autocomplete="off">
+        <div class="dos-turler" id="dosTurler">
+          <button type="button" class="dos-tur is-active" data-tur="">HEPSİ</button>
+          <button type="button" class="dos-tur" data-tur="metin">METİN</button>
+          <button type="button" class="dos-tur" data-tur="gorsel">GÖRSEL</button>
+          <button type="button" class="dos-tur" data-tur="diger">DİĞER</button>
+        </div>
+      </div>
+
+      <div class="dos-bolme">
+        <div class="dos-liste" id="dosListe"></div>
+        <div class="dos-onizleme" id="dosOnizleme"></div>
+      </div>
     </div>
   </section>
 </main>
