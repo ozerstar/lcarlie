@@ -20,6 +20,14 @@ iki kip var ve aralarındaki geçişi `jarvis-hakem.ps1` yönetir.
 | LLM (varsayılan) | `llama-server` Qwen3-8B | 8097 |
 | GÖRSEL | ComfyUI + SDXL | 8095 |
 
+> **25.09.2026 GÜNCELLEME — 8097 artık model zincirinin ayağı DEĞİL.**
+> Jarvis'in GPU kademesi (`JARVIS_GPU_MODEL_URL`) o gün PC-1'e taşındı:
+> `127.0.0.1:8098`, Qwen3-4B, sunucudan tünelle ölçülen **~55-66 t/sn**.
+> Buradaki 8097 yalnız PC-2'nin kendi kipi olarak duruyor; hakem görsel
+> işine geçtiğinde kapanır ve **kapanması artık zinciri etkilemez**.
+> Panelin TÜNELLER göstergesi bu yüzden 8097'yi izlemez — izleseydi her
+> gün yanlış alarm verirdi.
+
 ## Ölçülen döngü
 
 Tek görsel işi, uçtan uca:
