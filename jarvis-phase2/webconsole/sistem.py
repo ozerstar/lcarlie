@@ -388,7 +388,35 @@ def izinli_mi(state_dir: Path, anahtar: str) -> bool:
 
 TICARI_LOG = "/opt/lcarlie/ticari-kontrol.log"
 KADEME_LOG = "kademe.jsonl"
-IZLENEN_PORTLAR = ((8096, "PC-1 gomme"), (8097, "PC-2 GPU"), (8099, "sunucu CPU"))
+def _gpu_portu(varsayilan: int = 8098) -> int:
+    """GPU kademesinin portu AYARDAN okunur, elle yazilmaz.
+
+    NEDEN. Bu gosterge kurulurken GPU kademesi PC-2'deydi (8097) ve
+    port listesine elle yazilmisti. 25.09.2026'da kademe PC-1'e tasindi
+    (8098) ama gosterge eski portu izlemeye devam etti. Sonuc: gosterge
+    sonsuza kadar ZAYIF derdi -- cunku 8097 artik bilerek kapali -- ve
+    asil onemli olan 8098 dusse bunu HIC gormezdi. Yani gosterge hem
+    yanlis alarm verir hem gercek arizayi kacirirdi.
+
+    Bu yuzden port artik `JARVIS_GPU_MODEL_URL`'den cikariliyor: ayar
+    nereyi gosteriyorsa gosterge orayi izler, ikisi bir daha ayrisamaz.
+    """
+    import os
+    from urllib.parse import urlsplit
+    try:
+        ham = os.environ.get("JARVIS_GPU_MODEL_URL") or ""
+        port = urlsplit(ham).port
+        return int(port) if port else varsayilan
+    except (ValueError, TypeError):
+        return varsayilan
+
+
+# 8097 (PC-2) BILEREK IZLENMIYOR. O makine artik yalniz gorsel isi
+# yapiyor; LLM sunucusu orada surekli acik DEGIL ve acik olmasi da
+# beklenmiyor. Izlenen listeye konursa gosterge her gun ZAYIF der ve
+# gercek arizayi gormeyi zorlastirir.
+IZLENEN_PORTLAR = ((8096, "PC-1 gomme"), (_gpu_portu(), "PC-1 GPU (LLM)"),
+                   (8099, "sunucu CPU"))
 
 
 def _port_dinliyor(port: int, zaman_asimi: float = 1.0) -> "bool | None":
@@ -458,7 +486,7 @@ def _gosterge_kuyruk(sql) -> dict:
 
 
 def _gosterge_tuneller() -> dict:
-    """Model zincirinin ayaklari. 8097 dustugunde sistem 11 kat yavaslar."""
+    """Model zincirinin ayaklari. GPU ucu dustugunde sistem kat kat yavaslar."""
     uclar, bakilamadi = [], False
     for port, ad in IZLENEN_PORTLAR:
         acik = _port_dinliyor(port)

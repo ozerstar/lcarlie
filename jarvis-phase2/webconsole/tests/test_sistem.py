@@ -360,5 +360,54 @@ class SaglikGostergeleri(unittest.TestCase):
                 self.assertTrue(v.get("yakaladigi"), ad + " ne yakaladigini yazmamis")
 
 
+class IzlenenPortlar(unittest.TestCase):
+    """Gosterge, model zincirinin GERCEKTEN kullandigi portu izlemeli.
+
+    Bu sinif bir regresyonu kilitliyor. Gosterge 25.09'da kurulurken
+    GPU kademesi PC-2'deydi (8097) ve port listesine elle yazilmisti.
+    Ayni gun kademe PC-1'e (8098) tasindi; liste geride kaldi. O halde
+    gosterge iki yonde birden yaniltiyordu: bilerek kapatilmis 8097
+    yuzunden her gun "ZAYIF" diyordu ve asil calisan 8098 dusse
+    bunu goremiyordu. Yanlis alarm ile korluk ayni hatanin iki yuzu.
+    """
+
+    def test_izlenen_portlar_ayardaki_gpu_portunu_icerir(self):
+        eski = os.environ.get("JARVIS_GPU_MODEL_URL")
+        os.environ["JARVIS_GPU_MODEL_URL"] = "http://127.0.0.1:8123/v1"
+        try:
+            self.assertEqual(sistem._gpu_portu(), 8123)
+        finally:
+            if eski is None:
+                os.environ.pop("JARVIS_GPU_MODEL_URL", None)
+            else:
+                os.environ["JARVIS_GPU_MODEL_URL"] = eski
+
+    def test_ayar_okunamazsa_varsayilana_duser_PATLAMAZ(self):
+        eski = os.environ.get("JARVIS_GPU_MODEL_URL")
+        for bozuk in ("", "sacma", "http://yok", "http://h:abc/v1"):
+            os.environ["JARVIS_GPU_MODEL_URL"] = bozuk
+            try:
+                self.assertEqual(sistem._gpu_portu(), 8098,
+                                 "bozuk ayar: " + repr(bozuk))
+            finally:
+                pass
+        if eski is None:
+            os.environ.pop("JARVIS_GPU_MODEL_URL", None)
+        else:
+            os.environ["JARVIS_GPU_MODEL_URL"] = eski
+
+    def test_son_care_ucu_hep_izlenir(self):
+        # 8099 sunucu CPU'su son caredir; o dusunce hicbir model kalmaz.
+        portlar = [p for p, _ in sistem.IZLENEN_PORTLAR]
+        self.assertIn(8099, portlar)
+        self.assertIn(8096, portlar, "gomme ucu izlenmeli")
+
+    def test_PC2_portu_izlenmez(self):
+        # 8097 bilerek kapali: PC-2 artik yalniz gorsel isi yapiyor.
+        # Listeye konursa gosterge surekli yanlis alarm verir.
+        portlar = [p for p, _ in sistem.IZLENEN_PORTLAR]
+        self.assertNotIn(8097, portlar)
+
+
 if __name__ == "__main__":
     unittest.main()
