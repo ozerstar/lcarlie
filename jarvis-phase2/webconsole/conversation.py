@@ -346,6 +346,19 @@ def _company(message: str, domain: str, memory: Any, started: float) -> dict[str
         elif domain == "gundem":
             evidence = memory._fetch("agenda")
             answer = _gundem_answer(evidence.records)
+        elif domain == "advertising" and _kapsama_sorusu(message):
+            # Kapsama sorusu, performans sorusundan AYRIDIR: "hangi urunun
+            # reklami yok" ile "hangi reklam iyi calisiyor" ayni veriye
+            # bakmaz. Bu dal olmadan ikisi de harcama paragrafina dusuyordu.
+            evidence = memory._fetch("creative_coverage")
+            try:
+                katalog = memory._fetch("urun_karti").records
+            except Exception as exc:                            # noqa: BLE001
+                gunluk.yut("conversation", "_kapsama_katalog", exc,
+                           neden="katalog okunamazsa kapsama sayisi verilmez",
+                           agirlik=gunluk.AGIRLIK_ARIZA)
+                katalog = []
+            answer = _kapsama_answer(evidence.records, katalog)
         elif domain == "advertising" and _kreatif_sorusu(message):
             evidence = memory._fetch("kreatif_performans")
             answer = _kreatif_answer(evidence.records)
@@ -355,6 +368,12 @@ def _company(message: str, domain: str, memory: Any, started: float) -> dict[str
             spend = sum(float(row.get("harcama") or 0) for row in latest)
             answer = (f"30 günlük görünümde {len(latest)} reklam kaydı ve toplam {spend:,.2f} TL "
                       "harcama var. Meta satış iddiaları ticari doğrulama olmadan kesin satış sayılmadı.")
+        elif domain == "sales" and _urun_sira_sorusu(message):
+            # "En cok satan urun hangisi" bir SIRALAMA sorusudur; toplam
+            # siparis ozeti onu cevaplamaz ve olculdu: iki soru birebir
+            # ayni metni donduruyordu.
+            evidence = memory._fetch("sales_items")
+            answer = _urun_sira_answer(message, evidence.records)
         elif domain == "sales":
             evidence = memory._fetch("sales_orders")
             answer = _sales_answer(message, evidence.records, memory)
@@ -610,6 +629,136 @@ def _urun_tanimi(ham: str) -> str:
 _KREATIF_ISARETI = ("kreatif", "metin", "baslik", "gorsel", "video", "cta",
                     "hangi reklam", "reklam metni", "yorgun", "frekans",
                     "tutuyor", "calisiyor")
+
+
+# --- alan ICI soru ayrimi ---------------------------------------------------
+# 🔴 NEDEN VAR. _company() bir alani tek bir hazir cevaba esliyordu: her
+# reklam sorusuna ayni harcama paragrafi, her satis sorusuna ayni siparis
+# paragrafi donuyordu. Olculdu (25.09.2026): "en cok satan urun hangisi"
+# sorusuna "bu hafta kac siparis geldi" ile BIREBIR AYNI metin dondu ve
+# hicbir urun adi gecmedi. Veri vardi; soru o veriye baglanmamisti.
+#
+# Buradaki her algilayici DAR tutulur: yanlis yakalamak, dogru cevabi
+# yanlisiyla degistirmek demektir. Genis desen yazmaktansa kacirmak
+# yeglenir -- kacirilan soru eski davranisina duser, uydurma cevap almaz.
+
+_KAPSAMA_ISARETI = (
+    "hic reklami yok", "reklami yok", "reklamsiz", "reklam verilmemis",
+    "reklam kapsamasi", "kapsama", "hangi urunun reklami",
+    "reklami olmayan", "reklamda yok",
+)
+
+_URUN_SIRA_ISARETI = (
+    "en cok satan", "en az satan", "hangi urun", "urun bazinda",
+    "urun kirilimi", "en iyi satan", "cok satan", "hangisi satiyor",
+    "siralamasi", "en karli urun",
+)
+
+
+def _kapsama_sorusu(message: str) -> bool:
+    """'Hangi urunun hic reklami yok' turu soru mu."""
+    f = _ascii_fold(turkish.deasciify(message))
+    return any(_ascii_fold(k) in f for k in _KAPSAMA_ISARETI)
+
+
+def _urun_sira_sorusu(message: str) -> bool:
+    """'En cok satan urun hangisi' turu soru mu."""
+    f = _ascii_fold(turkish.deasciify(message))
+    return any(_ascii_fold(k) in f for k in _URUN_SIRA_ISARETI)
+
+
+def _kapsama_answer(kapsama: list[dict[str, Any]],
+                    katalog: list[dict[str, Any]]) -> str:
+    """Hangi urunun reklami VAR, hangisinin YOK.
+
+    🔴 "Reklami yok" ile "reklami duraklatilmis" AYNI SEY DEGILDIR ve
+    ayri sayilir: birincisi hic kreatif uretilmemis demek, ikincisi
+    uretilmis ama su an yayinda degil. Karistirmak "kreatif uretin"
+    onerisini yanlis urune goturur.
+    """
+    if not katalog:
+        return ("Reklam kapsaması hesaplanamadı: ürün kataloğu okunamıyor. "
+                "Kapsama = katalog eksi reklamı olan ürünler; katalog "
+                "olmadan 'hiç reklamı yok' denemez.")
+
+    kapsanan: dict[str, set[str]] = {}
+    for row in kapsama:
+        ad = str(row.get("urun_adi") or "").strip()
+        if not ad:
+            continue
+        kapsanan.setdefault(ad, set()).add(str(row.get("etkin_durum") or ""))
+
+    katalog_adlari = [str(r.get("urun_adi") or r.get("ad") or "").strip()
+                      for r in katalog]
+    katalog_adlari = [a for a in katalog_adlari if a]
+    reklamsiz = [a for a in katalog_adlari if a not in kapsanan]
+
+    aktif = [ad for ad, durumlar in kapsanan.items()
+             if any(d and "PAUSED" not in d for d in durumlar)]
+    durdurulmus = [ad for ad in kapsanan if ad not in aktif]
+
+    parcalar = [
+        f"Katalogdaki {len(katalog_adlari)} üründen {len(kapsanan)} tanesinin "
+        f"reklamı var, {len(reklamsiz)} tanesinin HİÇ reklamı yok."
+    ]
+    if durdurulmus:
+        parcalar.append(
+            f"Reklamı olan {len(kapsanan)} ürünün {len(durdurulmus)} tanesinde "
+            "tüm kampanyalar DURAKLATILMIŞ — bu 'reklamı yok' ile aynı şey "
+            "değildir; kreatif üretilmiş ama yayında değil.")
+    if reklamsiz:
+        ilk = ", ".join(sorted(reklamsiz)[:8])
+        kalan = len(reklamsiz) - 8
+        parcalar.append(f"Hiç reklamı olmayanlar: {ilk}"
+                        + (f" (+{kalan} tane daha)." if kalan > 0 else "."))
+    # Reklam harcamasi urun bazinda gorunmuyorsa urun maliyeti oldugundan
+    # dusuk cikar; bu sessiz bir hatadir, sayisi gizlenmez.
+    baglanmamis = sum(1 for row in kapsama if not str(row.get("urun_adi") or "").strip())
+    if baglanmamis:
+        parcalar.append(f"{baglanmamis} reklam hiçbir ürüne bağlanamıyor; "
+                        "o harcama ürün bazında görünmez.")
+    return " ".join(parcalar)
+
+
+def _urun_sira_answer(message: str, items: list[dict[str, Any]]) -> str:
+    """Urun bazinda satis siralamasi -- ADET ve CIRO ayri verilir.
+
+    🔴 "En cok satan" iki farkli sey olabilir: en cok ADET veya en cok
+    CIRO. Tek bir siralama vermek, soruyu soranin hangisini kastettigini
+    VARSAYMAKTIR. Ikisi de yaziliyor; farkliysa bu kendisi bir bulgudur.
+    """
+    if not items:
+        return "Ürün bazında satış kalemi okunamıyor."
+
+    toplam: dict[str, dict[str, float]] = {}
+    for row in items:
+        ad = str(row.get("urun_adi") or "").strip() or "(adsız)"
+        hedef = toplam.setdefault(ad, {"adet": 0.0, "ciro": 0.0, "marj": 0.0})
+        hedef["adet"] += float(row.get("adet") or 0)
+        hedef["ciro"] += float(row.get("satir_ciro_net") or 0)
+        hedef["marj"] += float(row.get("brut_marj") or 0)
+
+    az = "en az" in _ascii_fold(turkish.deasciify(message))
+    sirala = (lambda p: p[1]["adet"]) if not az else (lambda p: -p[1]["adet"])
+    adet_sirasi = sorted(toplam.items(), key=sirala, reverse=True)[:5]
+    ciro_sirasi = sorted(toplam.items(), key=lambda p: p[1]["ciro"],
+                         reverse=not az)[:5]
+
+    def _liste(sira, alan, birim):
+        return " · ".join(f"{ad} {veri[alan]:,.0f} {birim}".replace(",", "\u00a0")
+                          for ad, veri in sira)
+
+    basi = "En az satanlar" if az else "En çok satanlar"
+    parcalar = [
+        f"{len(toplam)} üründe satış var. {basi} (adet): {_liste(adet_sirasi, 'adet', 'adet')}.",
+        f"Ciroya göre: {_liste(ciro_sirasi, 'ciro', 'TL')}.",
+    ]
+    if adet_sirasi and ciro_sirasi and adet_sirasi[0][0] != ciro_sirasi[0][0]:
+        parcalar.append(
+            f"Adet lideri ({adet_sirasi[0][0]}) ile ciro lideri "
+            f"({ciro_sirasi[0][0]}) AYNI DEĞİL — hangisini kastettiğinize göre "
+            "cevap değişir.")
+    return " ".join(parcalar)
 
 
 def _kreatif_sorusu(message: str) -> bool:
