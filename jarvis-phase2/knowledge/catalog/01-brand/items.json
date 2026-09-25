@@ -1,0 +1,32 @@
+[
+ {
+  "knowledge_id": "brand-001",
+  "statement": "Dermokozmetik kategorisi bilimsel guven ile luks duygusu arasinda bir gerilimdir; her sayfada yeniden dengelenir.",
+  "discipline": "01-brand",
+  "source": "Kategori analizi + knowledge/11-marka-dili.md",
+  "source_type": "INTERNAL_BRAND_RULE",
+  "confidence": "ORTA",
+  "applicability": "C02 ve C07'nin ortak sinirini belirler.",
+  "last_verified": "2026-09-25"
+ },
+ {
+  "knowledge_id": "brand-002",
+  "statement": "Bitkisel icerik bir 'dogal urun' iddiasi degildir; dogal olani bilimin karsiti gibi sunmak marka konumuna aykiridir.",
+  "discipline": "01-brand",
+  "source": "knowledge/10-iddia-kurallari.md",
+  "source_type": "INTERNAL_BRAND_RULE",
+  "confidence": "YUKSEK",
+  "applicability": "C05 ve C06 icin baglayici.",
+  "last_verified": "2026-09-25"
+ },
+ {
+  "knowledge_id": "brand-003",
+  "statement": "Resmi logo kilavuzu ve marka renginin olculmus CMYK karsiligi bu depoda yoktur -- UNKNOWN.",
+  "discipline": "01-brand",
+  "source": "Depo taramasi 25.09.2026",
+  "source_type": "MEASURED_INTERNAL_EVIDENCE",
+  "confidence": "YUKSEK",
+  "applicability": "Baski karari bu alanlar doldurulmadan verilemez.",
+  "last_verified": "2026-09-25"
+ }
+]

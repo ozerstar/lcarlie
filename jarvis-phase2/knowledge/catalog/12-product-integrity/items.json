@@ -1,0 +1,22 @@
+[
+ {
+  "knowledge_id": "int-001",
+  "statement": "Koken kaydi yoksa urun butunlugu DOGRULANAMAZ; sonuc BILINMIYOR'dur ve gecmez -- bu kapida 'kanit yoksa gec' gecersizdir.",
+  "discipline": "12-product-integrity",
+  "source": "Sahip karari + kapi tasarimi",
+  "source_type": "INTERNAL_BRAND_RULE",
+  "confidence": "YUKSEK",
+  "applicability": "C12'nin tanimlayici kurali.",
+  "last_verified": "2026-09-25"
+ },
+ {
+  "knowledge_id": "int-002",
+  "statement": "Urun, ambalaj, etiket ve logo pikselleri hicbir uretken modelden gecemez; zincirde iz varsa HARD_FAIL.",
+  "discipline": "12-product-integrity",
+  "source": "Sahip karari (AI gorsel yasagi)",
+  "source_type": "INTERNAL_BRAND_RULE",
+  "confidence": "YUKSEK",
+  "applicability": "Asilamaz veto; kural degismeden istisna olmaz.",
+  "last_verified": "2026-09-25"
+ }
+]

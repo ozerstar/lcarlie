@@ -1,0 +1,32 @@
+[
+ {
+  "knowledge_id": "col-001",
+  "statement": "Renk farki CIEDE2000 ile Lab uzayinda olculur; sRGB mesafesi algisal fark degildir.",
+  "discipline": "07-color-science",
+  "source": "CIE DE2000 / ISO 11664-6",
+  "source_type": "STANDARD",
+  "confidence": "YUKSEK",
+  "applicability": "C10 ve C12'nin kabul olcutu.",
+  "last_verified": "2026-09-25"
+ },
+ {
+  "knowledge_id": "col-002",
+  "statement": "Kaplamali kagitta Avrupa ofseti icin guncel hedef PSO Coated v3 (FOGRA51, ISO 12647-2:2013)'tur.",
+  "discipline": "07-color-science",
+  "source": "color.org ICC kaydi + eci.org",
+  "source_type": "STANDARD",
+  "confidence": "YUKSEK",
+  "applicability": "Kagit karari verildikten sonra baglayici olur.",
+  "last_verified": "2026-09-25"
+ },
+ {
+  "knowledge_id": "col-003",
+  "statement": "Mevcut uretim RGB PDF cikariyor; ICC output intent yok.",
+  "discipline": "07-color-science",
+  "source": "lcarlie-katalog.pdf incelemesi 25.09.2026",
+  "source_type": "MEASURED_INTERNAL_EVIDENCE",
+  "confidence": "YUKSEK",
+  "applicability": "Prepress kapisinin ilk maddesi.",
+  "last_verified": "2026-09-25"
+ }
+]

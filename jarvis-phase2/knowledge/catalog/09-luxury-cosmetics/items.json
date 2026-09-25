@@ -1,0 +1,22 @@
+[
+ {
+  "knowledge_id": "lux-001",
+  "statement": "Luks kisitlama az oge ve dusuk gurultudur; bosluk kendiliginden premium degildir.",
+  "discipline": "09-luxury-cosmetics",
+  "source": "knowledge/41-gorsel-yonetimi.md + proje karari",
+  "source_type": "INTERNAL_BRAND_RULE",
+  "confidence": "ORTA",
+  "applicability": "Olu bosluk kusur tanimiyla birlikte uygulanir.",
+  "last_verified": "2026-09-25"
+ },
+ {
+  "knowledge_id": "lux-002",
+  "statement": "Basili katalogda kagit dokusu ve agirlik markanin bir parcasidir; kagit secimi marka kararidir.",
+  "discipline": "09-luxury-cosmetics",
+  "source": "Basili lookbook pratigi",
+  "source_type": "PROFESSIONAL_REFERENCE",
+  "confidence": "DUSUK",
+  "applicability": "Faz 1 kagit kararinin gerekcelerinden biri; tek basina yeterli degil.",
+  "last_verified": "2026-09-25"
+ }
+]

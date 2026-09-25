@@ -1,0 +1,32 @@
+[
+ {
+  "knowledge_id": "typ-001",
+  "statement": "PDF'e gomulu alt kume fontun cmap'i Unicode degildir; PDF uzerinden glif kapsamasi denetlenemez -- denendi ve 258 yanlis pozitif uretti.",
+  "discipline": "06-typography",
+  "source": "Proje ic olcumu 25.09.2026 + sayfa render dogrulamasi",
+  "source_type": "MEASURED_INTERNAL_EVIDENCE",
+  "confidence": "YUKSEK",
+  "applicability": "Glif denetimi kaynak font dosyalarinda yapilir.",
+  "last_verified": "2026-09-25"
+ },
+ {
+  "knowledge_id": "typ-002",
+  "statement": "Baslik satir kirma karari deterministik kurala birakilamaz; anlamsal olarak bozuk ama teknik olarak kusursuz basliklar uretir.",
+  "discipline": "06-typography",
+  "source": "Tipografi pratigi + proje ornegi",
+  "source_type": "PROFESSIONAL_REFERENCE",
+  "confidence": "ORTA",
+  "applicability": "09A/09B bolunmesinin gerekcesi.",
+  "last_verified": "2026-09-25"
+ },
+ {
+  "knowledge_id": "typ-003",
+  "statement": "Mevcut tip sisteminde not/isaretleme rolu yoktur; fiziksel satis katalogu bunu zorunlu kilar.",
+  "discipline": "06-typography",
+  "source": "katalog_mimari.py TIP sozlugu taramasi",
+  "source_type": "MEASURED_INTERNAL_EVIDENCE",
+  "confidence": "YUKSEK",
+  "applicability": "Faz 1 kagit karariyla birlikte cozulur.",
+  "last_verified": "2026-09-25"
+ }
+]

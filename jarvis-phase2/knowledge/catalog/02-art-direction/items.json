@@ -1,0 +1,32 @@
+[
+ {
+  "knowledge_id": "ad-001",
+  "statement": "Urun baskinligi boyutla degil kontrast, izolasyon, saliency ve cevre yogunlugunun birlesimiyle belirlenir.",
+  "discipline": "02-art-direction",
+  "source": "Proje ic olcumu -- lcarlie-katalog.rapor.json yerlesim olculeri",
+  "source_type": "MEASURED_INTERNAL_EVIDENCE",
+  "confidence": "YUKSEK",
+  "applicability": "C07'nin kabul olcutunu belirler; tek oran kurali yasaktir.",
+  "last_verified": "2026-09-25"
+ },
+ {
+  "knowledge_id": "ad-002",
+  "statement": "Isi olmayan bosluk olu bosluktur ve bir kusurdur; olculebilir imzasi buyuk bitisik bos bolge + dusuk saliency + kasitlilik isareti yoklugudur.",
+  "discipline": "02-art-direction",
+  "source": "Gestalt figur-zemin literaturu + proje karari",
+  "source_type": "ACADEMIC",
+  "confidence": "ORTA",
+  "applicability": "C13'un kusur taksonomisinde yer alir.",
+  "last_verified": "2026-09-25"
+ },
+ {
+  "knowledge_id": "ad-003",
+  "statement": "Sayfa rolu baskinlik hedefinden once gelir; DETAY sayfasinda sayfayi asan kadraj ihlal degil gerekliliktir.",
+  "discipline": "02-art-direction",
+  "source": "Editoryal yayin pratigi",
+  "source_type": "PROFESSIONAL_REFERENCE",
+  "confidence": "ORTA",
+  "applicability": "Tek oran kuralinin neden yasak oldugunun gerekcesi.",
+  "last_verified": "2026-09-25"
+ }
+]

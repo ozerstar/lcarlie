@@ -1,0 +1,22 @@
+[
+ {
+  "knowledge_id": "pqa-001",
+  "statement": "Estetik degerlendirme modelleri genel fotograf begenisi uzerinde egitildi; editoryal sayfa kalitesine ret yetkisi veremezler.",
+  "discipline": "15-perceptual-qa",
+  "source": "IQA model kapsamlari + FAZ -1 arastirmasi",
+  "source_type": "OFFICIAL_DOCUMENTATION",
+  "confidence": "ORTA",
+  "applicability": "Bu modeller yalniz teknik bozulma uyarisi icin kullanilir.",
+  "last_verified": "2026-09-25"
+ },
+ {
+  "knowledge_id": "pqa-002",
+  "statement": "Bagimsiz elestirmen brief'i ve gerekceleri gormez; niyeti ogrenen elestirmen sonucu degil niyeti degerlendirir.",
+  "discipline": "15-perceptual-qa",
+  "source": "Proje karari",
+  "source_type": "INTERNAL_BRAND_RULE",
+  "confidence": "YUKSEK",
+  "applicability": "C13'un girdisi teknik olarak sinirlanir.",
+  "last_verified": "2026-09-25"
+ }
+]

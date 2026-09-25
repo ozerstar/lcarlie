@@ -1,0 +1,32 @@
+[
+ {
+  "knowledge_id": "ed-001",
+  "statement": "Yapisal duzen cesitliligi gorsel cesitlilik demek degildir; imza cesitliligi 0.97 iken 9 cift sayfa algisal olarak ayni cikti.",
+  "discipline": "03-editorial-design",
+  "source": "Proje ic olcumu 25.09.2026 -- lcarlie-katalog.pdf",
+  "source_type": "MEASURED_INTERNAL_EVIDENCE",
+  "confidence": "YUKSEK",
+  "applicability": "Tekrar denetimi tek sinyalle yapilamaz.",
+  "last_verified": "2026-09-25"
+ },
+ {
+  "knowledge_id": "ed-002",
+  "statement": "Bilgi yogunlugu olcegi dogrusal olursa ust ucta doyar; 48-94 ogeli sayfalar ayni kademeye duser.",
+  "discipline": "03-editorial-design",
+  "source": "Proje ic olcumu -- logaritmik olcege gecis",
+  "source_type": "MEASURED_INTERNAL_EVIDENCE",
+  "confidence": "YUKSEK",
+  "applicability": "Ritim olcumu icin logaritmik olcek zorunlu.",
+  "last_verified": "2026-09-25"
+ },
+ {
+  "knowledge_id": "ed-003",
+  "statement": "Mevcut mimaride cilt payi tanimi yoktur; yalnizca 5 mm guvenli alan vardir.",
+  "discipline": "03-editorial-design",
+  "source": "scripts/katalog_mimari.py taramasi",
+  "source_type": "MEASURED_INTERNAL_EVIDENCE",
+  "confidence": "YUKSEK",
+  "applicability": "Acilim boyunca suren gorseller icin risk.",
+  "last_verified": "2026-09-25"
+ }
+]

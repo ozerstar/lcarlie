@@ -1,0 +1,32 @@
+[
+ {
+  "knowledge_id": "core-001",
+  "statement": "Olculmemis bir sey 'yok' degil 'olculmedi'dir; VERI_YOK, SORAMADIM ve OKUNAMADI ayri durumlardir.",
+  "discipline": "00-core",
+  "source": "Proje ic olcumu -- tekrarlanan kok hata",
+  "source_type": "MEASURED_INTERNAL_EVIDENCE",
+  "confidence": "YUKSEK",
+  "applicability": "Tum capability'ler icin baglayici.",
+  "last_verified": "2026-09-25"
+ },
+ {
+  "knowledge_id": "core-002",
+  "statement": "Olculebilir bir kural modele sorulmaz; yaratici yargi da sayiya cevrilmez.",
+  "discipline": "00-core",
+  "source": "FAZ -1 raporu B15 yurutme sinifi matrisi",
+  "source_type": "MEASURED_INTERNAL_EVIDENCE",
+  "confidence": "YUKSEK",
+  "applicability": "Capability tipi secerken uygulanir.",
+  "last_verified": "2026-09-25"
+ },
+ {
+  "knowledge_id": "core-003",
+  "statement": "Yaratici karar GOZLEM-KANIT-GEREKCE-KARAR-EYLEM biciminde kaydedilir; skor uretilmez.",
+  "discipline": "00-core",
+  "source": "Sahip karari",
+  "source_type": "INTERNAL_BRAND_RULE",
+  "confidence": "YUKSEK",
+  "applicability": "jarvis/katalog_kanit.py yapisal olarak zorlar.",
+  "last_verified": "2026-09-25"
+ }
+]

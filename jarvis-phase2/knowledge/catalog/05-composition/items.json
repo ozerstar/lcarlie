@@ -1,0 +1,22 @@
+[
+ {
+  "knowledge_id": "comp-001",
+  "statement": "Algisal agirlik alan x kontrast x karmasiklik ile belirlenir; kucuk ve yuksek kontrastli oge buyuk ve dusuk kontrastlidan agir olabilir.",
+  "discipline": "05-composition",
+  "source": "Gestalt figur-zemin literaturu",
+  "source_type": "ACADEMIC",
+  "confidence": "YUKSEK",
+  "applicability": "Baskinlik modelinin temel varsayimi.",
+  "last_verified": "2026-09-25"
+ },
+ {
+  "knowledge_id": "comp-002",
+  "statement": "Kasitli tam tasma ile kazayla kenara degme, konu-kenar mesafesinin sifir mi negatif mi oldugu ile ayirt edilir.",
+  "discipline": "05-composition",
+  "source": "Prepress ve editoryal pratik",
+  "source_type": "PROFESSIONAL_REFERENCE",
+  "confidence": "ORTA",
+  "applicability": "Kadraj denetiminin olculebilir kismi.",
+  "last_verified": "2026-09-25"
+ }
+]

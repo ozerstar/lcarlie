@@ -1,0 +1,32 @@
+[
+ {
+  "knowledge_id": "reg-001",
+  "statement": "Mevzuat denetiminde fiil degil cumlenin NESNESI denetlenir; 'cildi destekler' ile 'egzamayi destekler' ayni fiili tasir ama farkli siniftadir.",
+  "discipline": "16-regulatory",
+  "source": "knowledge/10-iddia-kurallari.md",
+  "source_type": "INTERNAL_BRAND_RULE",
+  "confidence": "YUKSEK",
+  "applicability": "Yasak kelime listesi tek basina yetersizdir.",
+  "last_verified": "2026-09-25"
+ },
+ {
+  "knowledge_id": "reg-002",
+  "statement": "Turkce'de tam kelime karsilastirmasi eklerde sessizce bos doner; morfolojik ayristirma zorunludur.",
+  "discipline": "16-regulatory",
+  "source": "jarvis/turkish.py -- olculmus vakalar",
+  "source_type": "MEASURED_INTERNAL_EVIDENCE",
+  "confidence": "YUKSEK",
+  "applicability": "Tum metin denetimlerinde gecerli.",
+  "last_verified": "2026-09-25"
+ },
+ {
+  "knowledge_id": "reg-003",
+  "statement": "TITCK Kozmetik Yonetmeligi'nin 2026 guncel surumu bu fazda dogrulanmadi -- UNKNOWN.",
+  "discipline": "16-regulatory",
+  "source": "Faz -1B arastirma kapsami",
+  "source_type": "MEASURED_INTERNAL_EVIDENCE",
+  "confidence": "YUKSEK",
+  "applicability": "C06 kurulmadan once kapatilmali.",
+  "last_verified": "2026-09-25"
+ }
+]

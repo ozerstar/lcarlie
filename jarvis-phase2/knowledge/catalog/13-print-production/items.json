@@ -1,0 +1,32 @@
+[
+ {
+  "knowledge_id": "print-001",
+  "statement": "L'CARLIE'nin diskteki dort katalog PDF'inin dordu de 210x210 mm ve 52 sayfadir; A4/33 sayfa uretim kodunun istisnasidir.",
+  "discipline": "13-print-production",
+  "source": "MediaBox olcumu 25.09.2026",
+  "source_type": "MEASURED_INTERNAL_EVIDENCE",
+  "confidence": "YUKSEK",
+  "applicability": "Format kararinda kanit yukunu kareden ayrilmak isteyene yukler.",
+  "last_verified": "2026-09-25"
+ },
+ {
+  "knowledge_id": "print-002",
+  "statement": "Kaplamali kagit keskin gorsel verir ama tukenmez kalem yuzeyde kurumaz; premium fotograf ile not alma fiziksel olarak catisir.",
+  "discipline": "13-print-production",
+  "source": "Media Village / Ironmark",
+  "source_type": "PROFESSIONAL_REFERENCE",
+  "confidence": "ORTA",
+  "applicability": "Faz 1'de karara baglanmasi zorunlu.",
+  "last_verified": "2026-09-25"
+ },
+ {
+  "knowledge_id": "print-003",
+  "statement": "Klasik amerikan cilt acik kalmaz; masada sunum ve acik sayfaya not alma Otabind veya Isvicre cildi gerektirir.",
+  "discipline": "13-print-production",
+  "source": "Universal Bookbindery / Allied Bindery",
+  "source_type": "PROFESSIONAL_REFERENCE",
+  "confidence": "ORTA",
+  "applicability": "Turkiye'de uygulanabilirligi matbaa teyidi ister.",
+  "last_verified": "2026-09-25"
+ }
+]

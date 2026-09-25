@@ -1,0 +1,32 @@
+[
+ {
+  "knowledge_id": "pp-001",
+  "statement": "Kesim adimi basilabilir olcunun yaklasik %75'ini goturur: ham medyan 106 mm, kesim medyan 25 mm (300 DPI).",
+  "discipline": "04-product-photography",
+  "source": "Pillow olcumu, varliklar/urun, 25.09.2026",
+  "source_type": "MEASURED_INTERNAL_EVIDENCE",
+  "confidence": "YUKSEK",
+  "applicability": "TYPE A korumasinin sayisal gerekcesi.",
+  "last_verified": "2026-09-25"
+ },
+ {
+  "knowledge_id": "pp-002",
+  "statement": "Buyutulerek saglanan efektif DPI kaynak kalitesi kaniti degildir; 43 yerlesimin 14'u buyutulmus ama rapor 'dusuk_dpi: 0' diyordu.",
+  "discipline": "04-product-photography",
+  "source": "lcarlie-katalog.rapor.json, 25.09.2026",
+  "source_type": "MEASURED_INTERNAL_EVIDENCE",
+  "confidence": "YUKSEK",
+  "applicability": "Kaynak/yerlesim ayriminin gerekcesi.",
+  "last_verified": "2026-09-25"
+ },
+ {
+  "knowledge_id": "pp-003",
+  "statement": "Duz dikissiz studyo fonu genis 'sakin alan' ve konu disi 'parlama' uretir; bu sinyaller konu maskesine sinirlanmazsa her packshot editoryal gorunur.",
+  "discipline": "04-product-photography",
+  "source": "Siniflandirici gelistirme olcumu",
+  "source_type": "MEASURED_INTERNAL_EVIDENCE",
+  "confidence": "YUKSEK",
+  "applicability": "Sinyal tanimlarinin neden konu ici sinirli oldugunun gerekcesi.",
+  "last_verified": "2026-09-25"
+ }
+]

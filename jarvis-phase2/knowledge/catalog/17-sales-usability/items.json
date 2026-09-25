@@ -1,0 +1,22 @@
+[
+ {
+  "knowledge_id": "su-001",
+  "statement": "Uretilecek sey cevrimici katalog degil, satis gorusmesinde elde tutulan ve uzerine not alinan fiziksel bir aractir.",
+  "discipline": "17-sales-usability",
+  "source": "Sahip karari",
+  "source_type": "INTERNAL_BRAND_RULE",
+  "confidence": "YUKSEK",
+  "applicability": "Format, kagit ve cilt kararlarinin tamamini belirler.",
+  "last_verified": "2026-09-25"
+ },
+ {
+  "knowledge_id": "su-002",
+  "statement": "Not alani kagit yuzeyinden bagimsiz degerlendirilemez; kaplamali kagitta tukenmez kalem kurumaz.",
+  "discipline": "17-sales-usability",
+  "source": "Media Village -- murekkep davranisi",
+  "source_type": "PROFESSIONAL_REFERENCE",
+  "confidence": "ORTA",
+  "applicability": "C14'un Faz 1 kagit kararini reddedebilmesinin gerekcesi.",
+  "last_verified": "2026-09-25"
+ }
+]

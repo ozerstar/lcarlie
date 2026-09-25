@@ -1,0 +1,32 @@
+[
+ {
+  "knowledge_id": "copy-001",
+  "statement": "Anlam tekrari n-gram ile yakalanmaz; farkli kelimelerle ayni vaadi soylemek yalnizca gomme ile olculur.",
+  "discipline": "08-copy-editorial",
+  "source": "Proje ic olcumu -- mevzuat baskisi altinda kalip daralmasi",
+  "source_type": "MEASURED_INTERNAL_EVIDENCE",
+  "confidence": "YUKSEK",
+  "applicability": "Anlamsal katmanin zorunlu olmasinin gerekcesi.",
+  "last_verified": "2026-09-25"
+ },
+ {
+  "knowledge_id": "copy-002",
+  "statement": "Mevzuat geregi tekrarlanan uyarilar tekrar sayimina girmez; aksi halde motor dogru davranisi kusur sayar.",
+  "discipline": "08-copy-editorial",
+  "source": "Proje karari + mevzuat pratigi",
+  "source_type": "INTERNAL_BRAND_RULE",
+  "confidence": "YUKSEK",
+  "applicability": "Tekrar motorunun zorunlu filtresi.",
+  "last_verified": "2026-09-25"
+ },
+ {
+  "knowledge_id": "copy-003",
+  "statement": "Olculdu: 31 urunun satis metninde 3-gram tekrari 126 kalip; 'temiz ve kuru' 13, 'nem dengesinin korunmasina' 12 urunde geciyor.",
+  "discipline": "08-copy-editorial",
+  "source": "jarvis/katalog_metin_tekrar.py olcumu 25.09.2026",
+  "source_type": "MEASURED_INTERNAL_EVIDENCE",
+  "confidence": "YUKSEK",
+  "applicability": "Kalip daralmasinin sayisal kaniti.",
+  "last_verified": "2026-09-25"
+ }
+]

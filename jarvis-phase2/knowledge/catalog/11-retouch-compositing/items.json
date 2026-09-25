@@ -1,0 +1,22 @@
+[
+ {
+  "knowledge_id": "ret-001",
+  "statement": "Temas golgesi olmayan kesim 'ucan urun' etkisi yaratir; izleyici bunu adlandiramaz ama sahtelik hisseder.",
+  "discipline": "11-retouch-compositing",
+  "source": "Still-life retus pratigi",
+  "source_type": "PROFESSIONAL_REFERENCE",
+  "confidence": "ORTA",
+  "applicability": "C10'un kabul olcutlerinden biri.",
+  "last_verified": "2026-09-25"
+ },
+ {
+  "knowledge_id": "ret-002",
+  "statement": "Mevcut kesim rembg'in en eski modeli u2net ile yapiliyor; isnet-general-use ve birefnet-general ayni pakette ve kenar kalitesinde ustun.",
+  "discipline": "11-retouch-compositing",
+  "source": "gorsel-kompozit.py:128 + rembg paket icerigi",
+  "source_type": "MEASURED_INTERNAL_EVIDENCE",
+  "confidence": "YUKSEK",
+  "applicability": "Yeni bagimlilik gerektirmeyen bir iyilestirme.",
+  "last_verified": "2026-09-25"
+ }
+]
