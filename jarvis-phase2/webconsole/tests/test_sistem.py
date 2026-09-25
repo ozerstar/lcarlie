@@ -332,6 +332,58 @@ class SaglikGostergeleri(unittest.TestCase):
                          + [{"sonuc": "BASARILI", "ts": "t"}] * 20)
         self.assertEqual(sistem._gosterge_model_kademesi(self.state)["durum"], "ZAYIF")
 
+    def test_tek_gecici_tukenme_genis_pencerede_ZAYIF_YAPMAZ(self):
+        """Her gun oten alarm, gercek alarmi gorunmez kilar.
+
+        Eski kural `elif tukendi:` idi: 300 kayitlik pencerede TEK bir
+        tukenme gostergeyi sariya cekiyordu. Saglayici tarafinda gecici
+        kesinti bu pencerede neredeyse her zaman bulunur -- yani gosterge
+        surekli sari yanar ve hicbir bilgi tasimazdi. Ayni hata bu
+        projede `ticari.mutabakat`ta yasandi.
+        """
+        self._kademe_yaz([{"sonuc": "ZINCIR_TUKENDI", "ts": "t"}]
+                         + [{"sonuc": "BASARILI", "ts": "t"}] * 199)
+        g = sistem._gosterge_model_kademesi(self.state)
+        self.assertEqual(g["durum"], "IYI")
+        self.assertEqual(g["zincir_tukendi"], 1, "olayi GIZLEMEMELI, saymali")
+        self.assertLess(g["tukenme_orani"], 1.0)
+
+    def test_kalici_tukenme_hala_yakalanir(self):
+        # %2 esigi gecici olayi susturur, kalici bozuklugu SUSTURMAZ.
+        self._kademe_yaz([{"sonuc": "ZINCIR_TUKENDI", "ts": "t"}] * 10
+                         + [{"sonuc": "BASARILI", "ts": "t"}] * 90)
+        self.assertEqual(sistem._gosterge_model_kademesi(self.state)["durum"], "ZAYIF")
+
+    def test_bayat_pencere_SOYLENIR_ama_ariza_sayilmaz(self):
+        """Yesil yaniyor olabilir; o yesil BUGUNU anlatmayabilir.
+
+        Trafik olmamasi ariza degildir, bu yuzden durum degistirilmiyor.
+        Ama sayilarin ne kadar eski oldugu yazilmali -- yoksa panel
+        'saglikli' ile 'kimse sormamis'i ayni gosterir.
+        """
+        from datetime import datetime, timedelta, timezone
+        eski = (datetime.now(timezone.utc) - timedelta(hours=30)).isoformat()
+        self._kademe_yaz([{"sonuc": "BASARILI", "ts": eski}] * 5)
+        g = sistem._gosterge_model_kademesi(self.state)
+        self.assertEqual(g["durum"], "IYI")
+        self.assertTrue(g.get("bayat_pencere"))
+        self.assertGreater(g.get("son_kayit_saat_once", 0), 24)
+
+    def test_taze_pencere_bayat_DEMEZ(self):
+        from datetime import datetime, timezone
+        simdi = datetime.now(timezone.utc).isoformat()
+        self._kademe_yaz([{"sonuc": "BASARILI", "ts": simdi}] * 5)
+        g = sistem._gosterge_model_kademesi(self.state)
+        self.assertNotIn("bayat_pencere", g)
+
+    def test_cozulemeyen_zaman_damgasi_TAHMIN_URETMEZ(self):
+        # Damga okunamiyorsa yas alani HIC olusmamali; uydurma sayi
+        # bu projede tekrar eden kok hata.
+        self._kademe_yaz([{"sonuc": "BASARILI", "ts": "sacma"}] * 3)
+        g = sistem._gosterge_model_kademesi(self.state)
+        self.assertNotIn("son_kayit_saat_once", g)
+        self.assertNotIn("bayat_pencere", g)
+
     def test_hic_tukenmiyorsa_IYI(self):
         self._kademe_yaz([{"sonuc": "BASARILI", "ts": "t"}] * 5)
         self.assertEqual(sistem._gosterge_model_kademesi(self.state)["durum"], "IYI")

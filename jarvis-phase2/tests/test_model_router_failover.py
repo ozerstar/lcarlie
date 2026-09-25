@@ -193,5 +193,43 @@ class SuppliedProviderKeepsItsIdentityTest(TelemetriIzolasyonu, unittest.TestCas
         self.assertEqual(router.gpu.tier, "CUSTOM_TIER")
 
 
+class CevaplayanModel(TelemetriIzolasyonu, unittest.TestCase):
+    """Telemetri, cevabi VEREN modeli yazmali.
+
+    Eski hali saglayici nesnesinin yapilandirilmis modelini yaziyordu ve
+    bu, cagri yapilmadan once okunuyordu. Dis saglayici kendi icinde bir
+    zincir isletiyor, dolayisiyla cevabi genellikle baska bir model
+    veriyor. Uretimde olculdu (25.09.2026): cevap
+    gemini/gemini-3.5-flash-lite'dan geldi, telemetriye
+    nvidia/nemotron-3-super-120b-a12b:free yazildi.
+
+    Yanlis model adi = yanlis maliyet analizi. Bu alan "hangi model
+    calisiyor" ve "ne kadar ucretli cagri gitti" sorularinin TEK kaynagi.
+    """
+
+    def test_sonuctaki_model_yazilir(self):
+        from jarvis.model_layer import _cevaplayan_model
+        self.assertEqual(
+            _cevaplayan_model({"model": "gemini/gemini-3.5-flash-lite"},
+                              "nvidia/yapilandirilmis"),
+            "gemini/gemini-3.5-flash-lite")
+
+    def test_sonuc_model_tasimiyorsa_YAPILANDIRILMISA_duser(self):
+        from jarvis.model_layer import _cevaplayan_model
+        self.assertEqual(_cevaplayan_model({}, "yerel/qwen3-4b"), "yerel/qwen3-4b")
+        self.assertEqual(_cevaplayan_model({"model": None}, "yerel/qwen3-4b"),
+                         "yerel/qwen3-4b")
+
+    def test_sonuc_sozluk_degilse_PATLAMAZ(self):
+        from jarvis.model_layer import _cevaplayan_model
+        for tuhaf in (None, "metin", 42, [1, 2]):
+            self.assertEqual(_cevaplayan_model(tuhaf, "yedek"), "yedek")
+
+    def test_cok_uzun_ad_kirpilir(self):
+        from jarvis.model_layer import _cevaplayan_model
+        uzun = "a" * 500
+        self.assertLessEqual(len(_cevaplayan_model({"model": uzun}, None)), 120)
+
+
 if __name__ == "__main__":
     unittest.main()

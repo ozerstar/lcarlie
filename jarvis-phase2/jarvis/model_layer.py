@@ -512,6 +512,32 @@ def butce_doldu_mu(is_anahtari: str | None) -> str | None:
     return None
 
 
+def _cevaplayan_model(sonuc: object, yedek: "str | None") -> "str | None":
+    """Cevabi GERCEKTEN veren modelin adi.
+
+    🔴 OLCULEN HATA (25.09.2026). Kayit `getattr(provider, "model")`
+    yaziyordu; bu, saglayici NESNESININ yapilandirilmis modelidir, cagri
+    YAPILMADAN once okunur. Dis saglayici kendi icinde bir zincir
+    isletiyor (gemini -> openrouter -> ucretli), dolayisiyla cevabi
+    genellikle baska bir model veriyor.
+
+    Uretimde olculdu: cevap `gemini/gemini-3.5-flash-lite`den geldi,
+    telemetriye `nvidia/nemotron-3-super-120b-a12b:free` yazildi.
+
+    Bu kozmetik degil: "hangi model calisiyor" ve "ne kadar ucretli
+    cagri gitti" analizlerinin tek kaynagi bu alan. Yanlis ad, yanlis
+    maliyet demektir.
+
+    Sonuc sozluk degilse ya da model tasimiyorsa yapilandirilmis ada
+    DONULUR -- bos birakmak, eski kayitlarla kiyasi imkansiz kilardi.
+    """
+    if isinstance(sonuc, dict):
+        ad = sonuc.get("model")
+        if ad:
+            return str(ad)[:120]
+    return yedek
+
+
 def _hata_gerekcesi(istisna: BaseException) -> str:
     """Istisnanin SINIFI + SEBEBI. Anahtar sizmaz.
 
@@ -633,7 +659,8 @@ class ModelRouter:
                 else:
                     result = provider.complete(messages, max_tokens)
                 kademe_kaydi.kaydet(
-                    uc=uc, kademe=kademe, model=model_adi,
+                    uc=uc, kademe=kademe,
+                    model=_cevaplayan_model(result, model_adi),
                     sonuc=kademe_kaydi.SONUC_BASARILI,
                     gecikme_ms=round((time.perf_counter() - basladi) * 1000, 1),
                     deneme=attempts, escalate=escalate,

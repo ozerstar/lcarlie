@@ -509,6 +509,27 @@ def _gosterge_tuneller() -> dict:
             "yakaladigi": "GPU kademesi sessizce dustugunde"}
 
 
+# MODEL KADEMESI esikleri. Oran bazli: tek bir gecici tukenme gostergeyi
+# kirmizilastirmaz, surekli tukenen bir hat kacmaz.
+TUKENME_ZAYIF = 0.02   # %2 ustu: hatta kalici bir sorun var
+TUKENME_BOZUK = 0.50   # yarisindan fazlasi cevapsiz: hat gercekten bozuk
+BAYAT_PENCERE_SAAT = 6.0
+
+
+def _kayit_yasi_saat(ts: "str | None") -> "float | None":
+    """Son kaydin kac saat once yazildigi. Cozulemezse None -- tahmin URETMEZ."""
+    if not ts:
+        return None
+    from datetime import datetime, timezone
+    try:
+        an = datetime.fromisoformat(str(ts))
+    except (ValueError, TypeError):
+        return None
+    if an.tzinfo is None:
+        an = an.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - an).total_seconds() / 3600.0
+
+
 def _gosterge_model_kademesi(state_dir: Path, pencere: int = 300) -> dict:
     """Son isteklerde hangi kademe cevap verdi. ZINCIR_TUKENDI = hicbiri."""
     yol = Path(state_dir) / KADEME_LOG
@@ -529,17 +550,39 @@ def _gosterge_model_kademesi(state_dir: Path, pencere: int = 300) -> dict:
     tukendi = sayac.get("ZINCIR_TUKENDI", 0)
     basarili = sayac.get("BASARILI", 0)
     toplam = tukendi + basarili
-    # Zincirin tukenmesi = istek cevapsiz kaldi. Birkac tanesi olabilir;
-    # yarisi tukeniyorsa saglayici hatti gercekten bozuktur.
-    if toplam and tukendi / toplam > 0.5:
+    oran = (tukendi / toplam) if toplam else 0.0
+    # 🔴 ESIK NEDEN ORAN, NEDEN "BIR TANE BILE" DEGIL.
+    # Ilk hali `elif tukendi:` idi -- 300 kayitlik pencerede TEK bir
+    # tukenme gostergeyi ZAYIF yapiyordu. Saglayici tarafinda gecici bir
+    # kesinti bu pencerede neredeyse her zaman bulunur; yani gosterge
+    # pratikte SUREKLI sari yanar ve bilgi tasimaz.
+    # Bu projede ayni hata `ticari.mutabakat`ta yasandi: her gun oten ve
+    # her gun yanlis olan alarm, gercek alarmi gorunmez kildi
+    # (bkz. 25.09 denetimi). Gecici olay ile bozuk hat ayrilmali.
+    if toplam and oran > TUKENME_BOZUK:
         durum = "BOZUK"
-    elif tukendi:
+    elif toplam and oran > TUKENME_ZAYIF:
         durum = "ZAYIF"
     else:
         durum = "IYI"
-    return {"durum": durum, "basarili": basarili, "zincir_tukendi": tukendi,
-            "son_kayit": son_ts, "pencere_satir": len(satirlar),
-            "yakaladigi": "model zinciri cevapsiz kaldiginda"}
+    sonuc = {"durum": durum, "basarili": basarili, "zincir_tukendi": tukendi,
+             "tukenme_orani": round(oran * 100, 1),
+             "esik": {"zayif_yuzde": TUKENME_ZAYIF * 100,
+                      "bozuk_yuzde": TUKENME_BOZUK * 100},
+             "son_kayit": son_ts, "pencere_satir": len(satirlar),
+             "yakaladigi": "model zinciri cevapsiz kaldiginda"}
+    # 🔴 "Saglikli" ile "kimse sormamis" ayri seylerdir. Pencere eskiyse
+    # gosterge yesil yanabilir ama o yesil BUGUNU anlatmaz. Durumu
+    # degistirmiyoruz (trafik yoklugu ariza degildir), yalnizca
+    # pencerenin ne kadar eski oldugunu SOYLUYORUZ.
+    yas = _kayit_yasi_saat(son_ts)
+    if yas is not None:
+        sonuc["son_kayit_saat_once"] = round(yas, 1)
+        if yas > BAYAT_PENCERE_SAAT:
+            sonuc["bayat_pencere"] = True
+            sonuc["not"] = ("son kayit %.1f saat once; bu sayilar o ana ait,"
+                            " su ana degil" % yas)
+    return sonuc
 
 
 def _gosterge_mutabakat() -> dict:
