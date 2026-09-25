@@ -1,3 +1,2 @@
 n8n surumu: 2.40.6
-Disa aktarim: 2026-09-25T11:03:06+03:00
 Workflow sayisi: 5
