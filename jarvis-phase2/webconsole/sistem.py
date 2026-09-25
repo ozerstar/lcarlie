@@ -429,7 +429,7 @@ def _gosterge_kuyruk(sql) -> dict:
     try:
         satir = sql("SELECT row_to_json(t) FROM (SELECT task_states,"
                     " stale_red_team_leases, stale_action_leases"
-                    " FROM mart.ai_orchestrator_status) t")
+                    " FROM mart.ai_orchestrator_status) t;")
     except Exception as hata:  # noqa: BLE001 - gosterge cagiranini bozamaz
         return {"durum": "SORULAMADI", "sebep": str(hata)[:160]}
     if not satir:
@@ -545,7 +545,7 @@ def _gosterge_siparis(sql) -> dict:
     try:
         satir = sql(
             "SELECT row_to_json(t) FROM (SELECT (current_date - max(gun))::int AS gun,"
-            " max(gun)::text AS son_gun FROM mart.siparis) t")
+            " max(gun)::text AS son_gun FROM mart.siparis) t;")
     except Exception as hata:  # noqa: BLE001
         return {"durum": "SORULAMADI", "sebep": str(hata)[:160]}
     if not satir or satir[0].get("gun") is None:

@@ -5526,12 +5526,73 @@ async function sistemAnahtarCevir(anahtar, acik, ozelIzin) {
   sistemCiz();
 }
 
+/* Saglik gostergeleri seridi.
+
+   NEDEN VAR: 25.09.2026'da bes ayri ariza bulundu ve BESI DE SESSIZDI --
+   servis "calisiyor" goruniyordu, panel bir sey demiyordu. Bu serit o
+   siniftan bir arizanin bir dahaki sefere EKRANDA gorunmesi icin.
+
+   Her kutu "yakaladigi" seyi de yazar: bir gostergenin neden orada
+   oldugunu bilmeyen kimse ona bakmaz. */
+function sistemGostergeTonu(durum) {
+  return durum === 'IYI' ? 'good'
+    : durum === 'ZAYIF' ? 'warn'
+    : durum === 'BOZUK' ? 'bad' : 'flat';
+}
+
+function sistemGostergeDeger(ad, g) {
+  /* Her gosterge icin TEK bakilacak sayi. SORULAMADI'da sayi YAZILMAZ --
+     olculemeyen seye rakam uydurmak bu projede tekrar eden kok hata. */
+  if (g.durum === 'SORULAMADI') return 'ölçülemedi';
+  if (ad === 'kuyruk') return `${g.askida_kira} askıda · ${g.bekleyen} bekleyen`;
+  if (ad === 'tuneller') {
+    const acik = (g.uclar || []).filter((u) => u.durum === 'ACIK').length;
+    return `${acik}/${(g.uclar || []).length} uç açık`;
+  }
+  if (ad === 'model_kademesi') return `${g.zincir_tukendi} tükendi · ${g.basarili} başarılı`;
+  if (ad === 'mutabakat') return g.ozet || '—';
+  if (ad === 'siparis') return `${g.gun} gün önce`;
+  return '—';
+}
+
+const SISTEM_GOSTERGE_ADI = {
+  kuyruk: 'KUYRUK', tuneller: 'TÜNELLER', model_kademesi: 'MODEL KADEMESİ',
+  mutabakat: 'MUTABAKAT', siparis: 'SİPARİŞ AKIŞI',
+};
+
+function sistemGostergeler(g) {
+  if (!g) return '';
+  const sira = ['kuyruk', 'tuneller', 'model_kademesi', 'mutabakat', 'siparis'];
+  const kutular = sira.filter((ad) => g[ad]).map((ad) => {
+    const v = g[ad];
+    const ton = sistemGostergeTonu(v.durum);
+    const detay = v.durum === 'SORULAMADI'
+      ? `<span class="gst-sebep">${escapeHtml(v.sebep || 'sebep yazılmamış')}</span>`
+      : `<span class="gst-yakala">${escapeHtml(v.yakaladigi || '')}</span>`;
+    const ek = [];
+    if (v.kapali && v.kapali.length) ek.push('kapalı: ' + v.kapali.join(', '));
+    if (v.goremedigi) ek.push('göremediği: ' + v.goremedigi);
+    if (v.kapsam) ek.push(v.kapsam);
+    return `<article class="gst-kutu t-${ton}">
+      <header class="gst-bas">
+        <span class="gst-ad">${escapeHtml(SISTEM_GOSTERGE_ADI[ad] || ad)}</span>
+        <span class="chip chip-${ton}">${escapeHtml(v.durum)}</span>
+      </header>
+      <div class="gst-deger">${escapeHtml(sistemGostergeDeger(ad, v))}</div>
+      ${detay}
+      ${ek.length ? `<p class="gst-ek">${escapeHtml(ek.join(' · '))}</p>` : ''}
+    </article>`;
+  }).join('');
+  return `<section class="gst-serit" aria-label="SAĞLIK GÖSTERGELERİ">${kutular}</section>`;
+}
+
 function sistemCiz() {
   const govde = qs('sistemGovde');
   const d = sistemState.veri;
   if (!govde || !d) return;
   const m = d.makineler || {};
   govde.innerHTML = [
+    sistemGostergeler(d.gostergeler),
     sistemPolitikaKart(d.politika || {}),
     sistemSunucuKart(m.sunucu || {}),
     sistemPcKart(m.pc1 || {}, 'PC-1  (gömme · RX 6600)'),

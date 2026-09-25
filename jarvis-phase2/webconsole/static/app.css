@@ -4246,3 +4246,24 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .kat-pdf-not { font-size: 10.5px; color: var(--ivory-4);
   font-family: var(--font-mono); }
 @media print { .kat-pdf { display: none !important; } }
+
+/* SAGLIK GOSTERGELERI */
+.gst-serit { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+             gap: 10px; margin: 0 0 16px; }
+.gst-kutu { border: 1px solid rgba(255, 255, 255, .09); border-radius: 6px;
+            padding: 10px 12px; display: flex; flex-direction: column; gap: 5px;
+            border-left-width: 3px; }
+.gst-kutu.t-good { border-left-color: #4ea87a; }
+.gst-kutu.t-warn { border-left-color: #c9a227; }
+.gst-kutu.t-bad  { border-left-color: #c0564b; }
+.gst-kutu.t-flat { border-left-color: rgba(255, 255, 255, .22); }
+.gst-bas { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.gst-ad { font-size: 11.5px; letter-spacing: .09em; opacity: .74; }
+.gst-deger { font-size: 15px; letter-spacing: .01em; }
+.gst-yakala { font-size: 11.5px; opacity: .6; line-height: 1.4; }
+.gst-sebep { font-size: 11.5px; color: #d8b551; line-height: 1.4; }
+.gst-ek { font-size: 11px; opacity: .52; line-height: 1.4; margin: 2px 0 0; }
+
+@media (max-width: 720px) {
+  .gst-serit { grid-template-columns: minmax(0, 1fr); }
+}

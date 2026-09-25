@@ -228,5 +228,137 @@ class Gorunum(unittest.TestCase):
             self.assertTrue(g["makineler"]["pc1"]["sebep"])
 
 
+class SaglikGostergeleri(unittest.TestCase):
+    """Gostergelerin tek isi: sessiz arizayi gorunur kilmak.
+
+    25.09.2026'da bes ariza bulundu ve besi de sessizdi. Bu testlerin
+    korudugu asil kural, gostergenin KENDISININ sessizce yalan
+    soylememesi: olculemeyen bir sey icin sifir YAZILMAZ.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.state = Path(self.tmp.name)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    # --- "soramadim" asla "sifir" olmaz -------------------------------
+    def test_sorgu_patlarsa_SORULAMADI_der_sifir_YAZMAZ(self):
+        def patlayan_sql(_q):
+            raise RuntimeError("permission denied for table ai_task")
+
+        g = sistem._gosterge_kuyruk(patlayan_sql)
+        self.assertEqual(g["durum"], "SORULAMADI")
+        self.assertIn("permission denied", g["sebep"])
+        # En onemli iddia: sayi alanlari HIC olusmamali.
+        for alan in ("askida_kira", "bekleyen"):
+            self.assertNotIn(alan, g, alan + " olculemedigi halde yazilmis")
+
+    def test_sql_verilmezse_SORULAMADI(self):
+        self.assertEqual(sistem._gosterge_kuyruk(None)["durum"], "SORULAMADI")
+        self.assertEqual(sistem._gosterge_siparis(None)["durum"], "SORULAMADI")
+
+    def test_kademe_dosyasi_yoksa_SORULAMADI(self):
+        g = sistem._gosterge_model_kademesi(self.state)
+        self.assertEqual(g["durum"], "SORULAMADI")
+        self.assertNotIn("basarili", g)
+
+    # --- kuyruk --------------------------------------------------------
+    def test_askida_kira_BOZUK_sayilir(self):
+        """Kirasi dolmus is = bir isci oldu, is sonsuza kadar kayboldu.
+
+        25.09'dan once ai_claim_task bunlari HIC geri almiyordu; bir is
+        4 gun LEASED kaldi ve hicbir yerde gorunmedi.
+        """
+        g = sistem._gosterge_kuyruk(lambda _q: [{
+            "task_states": {"OPEN": 1}, "stale_red_team_leases": 2,
+            "stale_action_leases": 0}])
+        self.assertEqual(g["durum"], "BOZUK")
+        self.assertEqual(g["askida_kira"], 2)
+
+    def test_kuyruk_GOREMEDIGINI_soyler(self):
+        """Eksik olcumu gizlemek, olcmemekten kotudur.
+
+        Panelin rolu core.ai_task'i goremiyor; gosterge bunu YAZMALI,
+        yoksa okuyan kisi kuyrugun tamamen denetlendigini sanir.
+        """
+        g = sistem._gosterge_kuyruk(lambda _q: [{
+            "task_states": {}, "stale_red_team_leases": 0,
+            "stale_action_leases": 0}])
+        self.assertTrue(g.get("goremedigi"), "olcum bosluu yazilmamis")
+        self.assertIn("ai_task", g["goremedigi"])
+
+    def test_task_states_metin_gelirse_cozulur(self):
+        """psql JSON'u bazen metin olarak doner; sayac bozulmamali."""
+        g = sistem._gosterge_kuyruk(lambda _q: [{
+            "task_states": '{"OPEN": 25}', "stale_red_team_leases": 0,
+            "stale_action_leases": 0}])
+        self.assertEqual(g["bekleyen"], 25)
+        self.assertEqual(g["durum"], "ZAYIF")
+
+    # --- siparis: esikler OLCULEN dagilimdan ---------------------------
+    def test_siparis_esikleri_olculen_dagilimdan(self):
+        """medyan 4 · 90. yuzdelik 18 · gecmisteki en uzun 32 (30 siparisli gun).
+
+        Esigi medyana koymak her ay oten, dolayisiyla kimsenin bakmadigi
+        bir alarm uretirdi.
+        """
+        def sql_gun(gun):
+            return lambda _q: [{"gun": gun, "son_gun": "2026-09-12"}]
+
+        self.assertEqual(sistem._gosterge_siparis(sql_gun(13))["durum"], "IYI")
+        self.assertEqual(sistem._gosterge_siparis(sql_gun(18))["durum"], "ZAYIF")
+        self.assertEqual(sistem._gosterge_siparis(sql_gun(33))["durum"], "BOZUK")
+
+    def test_siparis_KAPSAMINI_soyler(self):
+        """Bu sayi yalniz Wix. 'Hic satis yok' demek YANLIS olurdu."""
+        g = sistem._gosterge_siparis(lambda _q: [{"gun": 5, "son_gun": "2026-09-20"}])
+        self.assertIn("Wix", g["kapsam"])
+        self.assertIn("Trendyol", g["kapsam"])
+
+    # --- model kademesi ------------------------------------------------
+    def _kademe_yaz(self, kayitlar):
+        yol = self.state / "kademe.jsonl"
+        yol.write_text("\n".join(json.dumps(k) for k in kayitlar), encoding="utf-8")
+
+    def test_zincir_cogunlukla_tukeniyorsa_BOZUK(self):
+        self._kademe_yaz([{"sonuc": "ZINCIR_TUKENDI", "ts": "t"}] * 6
+                         + [{"sonuc": "BASARILI", "ts": "t"}] * 2)
+        self.assertEqual(sistem._gosterge_model_kademesi(self.state)["durum"], "BOZUK")
+
+    def test_zincir_bazen_tukeniyorsa_ZAYIF(self):
+        self._kademe_yaz([{"sonuc": "ZINCIR_TUKENDI", "ts": "t"}]
+                         + [{"sonuc": "BASARILI", "ts": "t"}] * 20)
+        self.assertEqual(sistem._gosterge_model_kademesi(self.state)["durum"], "ZAYIF")
+
+    def test_hic_tukenmiyorsa_IYI(self):
+        self._kademe_yaz([{"sonuc": "BASARILI", "ts": "t"}] * 5)
+        self.assertEqual(sistem._gosterge_model_kademesi(self.state)["durum"], "IYI")
+
+    def test_bozuk_satir_gostergeyi_cokertmez(self):
+        yol = self.state / "kademe.jsonl"
+        yol.write_text('{yarim\n{"sonuc": "BASARILI", "ts": "t"}', encoding="utf-8")
+        self.assertEqual(sistem._gosterge_model_kademesi(self.state)["durum"], "IYI")
+
+    # --- gorunum butunlugu ---------------------------------------------
+    def test_bes_gosterge_her_zaman_doner(self):
+        """Biri patlasa bile digerleri gorunmeli."""
+        g = sistem.saglik_gostergeleri(self.state, sql=None)
+        self.assertEqual(set(g), {"kuyruk", "tuneller", "model_kademesi",
+                                  "mutabakat", "siparis"})
+        for ad, v in g.items():
+            self.assertIn("durum", v, ad + " durum tasimiyor")
+
+    def test_her_gosterge_NEYI_yakaladigini_soyler(self):
+        """Neden orada oldugunu bilmeyen gostergeye kimse bakmaz."""
+        g = sistem.saglik_gostergeleri(self.state, sql=lambda _q: [])
+        for ad, v in g.items():
+            if v["durum"] == "SORULAMADI":
+                self.assertTrue(v.get("sebep"), ad + " sebebini yazmamis")
+            else:
+                self.assertTrue(v.get("yakaladigi"), ad + " ne yakaladigini yazmamis")
+
+
 if __name__ == "__main__":
     unittest.main()
