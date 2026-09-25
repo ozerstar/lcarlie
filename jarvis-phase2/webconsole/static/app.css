@@ -4267,3 +4267,17 @@ html, body { max-width: 100%; overflow-x: hidden; }
 @media (max-width: 720px) {
   .gst-serit { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* ------------------- INSTAGRAM: uretilen gorsel ------------------- */
+/* Gorsel kucuk durur ama TIKLANIR: karti doldurmasin, gizlenmesin de. */
+.ig-gorsel { margin: 0 0 10px; display: flex; gap: 10px; align-items: flex-end; }
+.ig-gorsel img { max-width: 132px; max-height: 210px; border-radius: 6px;
+  border: 1px solid var(--line); display: block; background: var(--glass); }
+.ig-gorsel figcaption { display: flex; flex-direction: column; gap: 4px;
+  font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+.ig-uyari-etiket { color: var(--warn); }
+.ig-hazir-etiket { color: var(--ok, var(--gold)); }
+.ig-taslak { color: var(--ivory-4); }
+.ig-indir { color: var(--gold); text-decoration: none; border-bottom: 1px solid var(--line); }
+.ig-gorsel-yok { font-size: 11px; color: var(--ivory-4); margin: 0 0 8px; }
+@media (max-width: 520px) { .ig-gorsel { flex-wrap: wrap; } }

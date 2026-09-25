@@ -872,6 +872,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._route_api_get(path, parse_qs(parsed.query))
             elif path.startswith("/kreatif/"):
                 self._route_kreatif(path)
+            elif path.startswith("/ig-foy/"):
+                self._route_ig_foy(path)
             elif path.startswith("/katalog-pdf/"):
                 self._route_katalog_pdf(path)
             elif path.startswith("/gonderi-gorsel/"):
@@ -1041,6 +1043,34 @@ class Handler(BaseHTTPRequestHandler):
                ".md": "text/markdown; charset=utf-8",
                }.get(hedef.suffix.lower(), "application/octet-stream")
         self._send_file(hedef, tur)
+
+    def _route_ig_foy(self, path: str) -> None:
+        """Cekim foyu: /ig-foy/<plan_id>
+
+        Foy paketten O AN uretilir, saklanmaz -- paket degisirse foy de
+        degisir. Metin dosyasi: telefonda da acilir, WhatsApp'tan da gider.
+        """
+        if self._current_session() is None:
+            self._send_json(401, {"error": "oturum gerekli"})
+            return
+        try:
+            metin, ad = katalog.ig_foy(path[len("/ig-foy/"):])
+        except katalog.KatalogHatasi as hata:
+            self._send_json(404, {"error": str(hata)})
+            return
+        except Exception as exc:  # noqa: BLE001
+            self._send_json(500, {"error": "foy uretilemedi",
+                                  "detail": str(exc)[:200]})
+            return
+        veri = metin.encode("utf-8")
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(veri)))
+        self.send_header("Content-Disposition",
+                         'attachment; filename="%s"' % ad)
+        self.send_header("Cache-Control", "private, no-cache")
+        self.end_headers()
+        self.wfile.write(veri)
 
     def _route_katalog_pdf(self, path: str) -> None:
         """Basili katalogu indirir: /katalog-pdf/<baski|gozden>

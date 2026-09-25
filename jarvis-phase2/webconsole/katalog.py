@@ -306,7 +306,11 @@ def ig_plan(durum: str = "", limit: int = 50) -> dict:
     sql = """SELECT row_to_json(t) FROM (
       SELECT plan_id, urun_slug, amac, bicim, kanca, caption, hashtagler,
              gorsel_brief, cta, cta_gerekce, dayanak, itiraz, itiraza_yanit,
-             denetim, denetim_notu, durum, uretim_at, karar_at, karar_veren
+             denetim, denetim_notu, durum, uretim_at, karar_at, karar_veren,
+             -- Uretilen gorsel PANELDE GORUNSUN. Once bu alanlar
+             -- SELECT'te yoktu: gorsel uretiliyor, diske yaziliyor,
+             -- ama hicbir ekranda cikmiyordu.
+             gorsel_dosya, gorsel_taslak_mi, gorsel_rapor
         FROM core.ig_gonderi_plani %s
        ORDER BY CASE durum WHEN 'ONERI' THEN 0 WHEN 'ONAYLANDI' THEN 1
                            WHEN 'YAYINLANDI' THEN 2 ELSE 3 END,
@@ -412,3 +416,42 @@ def gonderi_gorsel_yolu(dosya: str) -> Path:
     if hedef.parent != GONDERI_DIZIN.resolve() or not hedef.is_file():
         raise KatalogHatasi("gorsel bulunamadi")
     return hedef
+
+
+def ig_foy(plan_id) -> tuple:
+    """Paketin ÇEKİM FÖYÜ metni ve indirme adı.
+
+    Föy paketten üretilir, ayrı bir yerde saklanmaz: paket değişirse föy
+    de değişir. Saklanan bir föy, paketin eski hâlini ezberlerdi.
+    """
+    import ig_foy as _foy
+
+    try:
+        pid = int(plan_id)
+    except (TypeError, ValueError):
+        raise KatalogHatasi("gecersiz plan_id") from None
+
+    satir = _oku(
+        "SELECT row_to_json(t) FROM (SELECT plan_id, urun_slug, amac, bicim,"
+        " kanca, caption, hashtagler, cta, cta_gerekce, dayanak,"
+        " gorsel_dosya, gorsel_brief FROM core.ig_gonderi_plani"
+        " WHERE plan_id = %d) t;" % pid)
+    if not satir:
+        raise KatalogHatasi("plan bulunamadi: %d" % pid)
+    paket = satir[0]
+
+    # Urun bilgisi katalog dosyasindan; yoksa foy yine uretilir, yalniz
+    # zorunlu ibare bolumu bos kalir. Foyu hic vermemek daha kotu olurdu.
+    urun = {}
+    yol = _yol()
+    if yol.exists():
+        try:
+            veri = json.loads(yol.read_text(encoding="utf-8"))
+        except ValueError:
+            veri = {}
+        for u in (veri.get("urunler") or []):
+            if u.get("slug") == paket.get("urun_slug"):
+                urun = u
+                break
+    return (_foy.foy_metni(paket, urun),
+            "lcarlie-cekim-foyu-%d-%s.txt" % (pid, paket.get("urun_slug") or ""))

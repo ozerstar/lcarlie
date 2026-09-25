@@ -7028,6 +7028,7 @@ function igKart(p) {
     +   '<span class="ig-durum">' + escapeHtml(p.durum) + '</span>'
     +   (bulgulu ? '<span class="ig-bulgu">DENETİM: BULGULU</span>' : '')
     + '</header>'
+    + igGorsel(p)
     + '<pre class="ig-caption">' + escapeHtml(p.caption) + '</pre>'
     + '<p class="ig-etiket">' + escapeHtml(etiketler) + '</p>'
     + igSatir('CTA', escapeHtml(p.cta || '—') + ' — ' + escapeHtml(p.cta_gerekce || ''))
@@ -7049,6 +7050,8 @@ function igKart(p) {
     +   (p.durum === 'ONAYLANDI'
           ? '<button type="button" class="btn btn-ince ig-onay" data-id="'
             + p.plan_id + '" data-durum="YAYINLANDI">YAYINLANDI</button>' : '')
+    +   '<a class="btn btn-ince" href="/ig-foy/' + p.plan_id
+    +     '" download>\u2913 ÇEKİM FÖYÜ</a>'
     +   '<span class="is-sonuc ig-sonuc" data-id="' + p.plan_id + '"></span>'
     + '</div>'
     + '</article>';
@@ -7114,4 +7117,34 @@ function katPdfCiz() {
       + ' · ' + p.mb + ' MB · ' + escapeHtml(p.uretim) + '</span>'
       + '</div>';
   }).join('');
+}
+
+
+/* Üretilen görsel KARTTA görünür.
+ *
+ * 🔴 Daha önce hiç çizilmiyordu. Görsel üretiliyor, diske yazılıyor,
+ * veritabanına işleniyor, yolu bile açık -- ama panelde hiçbir yerde
+ * görünmüyordu. "Sürekli bir şeyler üretiliyor ama görünmüyor" şikâyeti
+ * ölçüldü ve haklı çıktı.
+ *
+ * Reels paketinde bu kare VİDEO DEĞİL, kapak/başlangıç karesidir; etiket
+ * bunu açıkça yazar, yoksa hazır video sanılır. */
+function igGorsel(p) {
+  if (!p.gorsel_dosya) {
+    return '<p class="ig-gorsel-yok">görsel henüz üretilmedi</p>';
+  }
+  const url = '/gonderi-gorsel/' + encodeURIComponent(p.gorsel_dosya);
+  const reels = p.bicim === 'REELS';
+  return '<figure class="ig-gorsel">'
+    + '<a href="' + url + '" target="_blank" rel="noopener">'
+    +   '<img src="' + url + '" alt="" loading="lazy">'
+    + '</a>'
+    + '<figcaption>'
+    +   (reels
+          ? '<span class="ig-uyari-etiket">KAPAK KARESİ — video değil</span>'
+          : '<span class="ig-hazir-etiket">yayına hazır kare</span>')
+    +   (p.gorsel_taslak_mi
+          ? '<span class="ig-taslak">taslak</span>' : '')
+    +   '<a class="ig-indir" href="' + url + '" download>indir</a>'
+    + '</figcaption></figure>';
 }
