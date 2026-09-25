@@ -124,7 +124,12 @@ class KademeKaydiTest(unittest.TestCase):
 
         gpu_kaydi = [k for k in self.oku() if k["uc"] == "gpu"][0]
         self.assertEqual(gpu_kaydi["sonuc"], kademe_kaydi.SONUC_HATA)
-        self.assertEqual(gpu_kaydi["gerekce"], "TimeoutError")
+        # 25.09.2026: gerekce artik SINIF + SEBEP tasiyor. Eski hali yalniz
+        # sinif adiydi ve uretimde 66 kez "OSError" yazip NE oldugunu hic
+        # soylemedi. Iddia gevsetilmedi, GUCLENDIRILDI: ikisi de aranir.
+        self.assertIn("TimeoutError", gpu_kaydi["gerekce"])
+        self.assertIn("zaman asimi", gpu_kaydi["gerekce"],
+                      "sebep yazilmamis -- sinif adi teshise yetmez")
 
     def test_zincir_tukenirse_yazilir(self):
         with self.assertRaises(ModelUnavailable):
@@ -336,6 +341,37 @@ class AktarimTest(unittest.TestCase):
         birinci = [kademe_kaydi.satir_hash(k) for k in kademe_kaydi.tum_kayitlar()]
         ikinci = [kademe_kaydi.satir_hash(k) for k in kademe_kaydi.tum_kayitlar()]
         self.assertEqual(birinci, ikinci)
+
+
+class HataGerekcesi(unittest.TestCase):
+    """Telemetri hatanin SINIFINI degil SEBEBINI de tasimali.
+
+    25.09.2026'da olculdu: dis kademede 66 kez `OSError` yazili kayit
+    vardi ve hicbiri NE oldugunu soylemiyordu. Teshis edilemeyen hata,
+    olculmemis hata kadar degersizdir.
+    """
+
+    def test_sebep_yazilir(self):
+        from jarvis.model_layer import _hata_gerekcesi
+        g = _hata_gerekcesi(OSError(101, "Network is unreachable"))
+        self.assertIn("OSError", g)
+        self.assertIn("unreachable", g, "sebep yazilmamis -- sinif adi yetmez")
+
+    def test_API_ANAHTARI_SIZMAZ(self):
+        """Telemetri dosyasi sifresizdir; hata metninde anahtar gorunebilir."""
+        from jarvis.model_layer import _hata_gerekcesi
+        g = _hata_gerekcesi(ValueError("rejected key sk-ABCD1234567890XYZ here"))
+        self.assertNotIn("sk-ABCD1234567890XYZ", g)
+        self.assertIn("sk-ABCD", g, "maskeleme fazla agresif, teshis kayboldu")
+
+    def test_sinir_200_karakter(self):
+        from jarvis.model_layer import _hata_gerekcesi
+        self.assertLessEqual(len(_hata_gerekcesi(ValueError("x" * 900))), 200)
+
+    def test_sinif_adi_tekrarlanmaz(self):
+        from jarvis.model_layer import _hata_gerekcesi
+        g = _hata_gerekcesi(ValueError("ValueError: zaten yazili"))
+        self.assertEqual(g.count("ValueError"), 1)
 
 
 if __name__ == "__main__":

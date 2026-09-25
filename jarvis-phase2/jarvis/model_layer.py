@@ -512,6 +512,35 @@ def butce_doldu_mu(is_anahtari: str | None) -> str | None:
     return None
 
 
+def _hata_gerekcesi(istisna: BaseException) -> str:
+    """Istisnanin SINIFI + SEBEBI. Anahtar sizmaz.
+
+    🔴 NEDEN VAR. Eski hali yalnizca `type(istisna).__name__` yaziyordu.
+    25.09.2026'da olculdu: dis kademede 66 kez `OSError` kaydi vardi ve
+    hicbiri NE oldugunu soylemiyordu -- DNS mi, baglanti reddi mi, zaman
+    asimi mi, sertifika mi? Teshis edilemeyen bir hata, olculmemis hata
+    kadar degersizdir.
+
+    Mesaj `providers.mask()` uzerinden gecer: hata metinlerinde API
+    anahtari gorunebilir ve telemetri dosyasi sifresizdir. Ikinci bir
+    maskeleyici YAZILMADI -- tek dogru yer zaten orasi.
+
+    Sinir 200 karakter: yigin izi degil, sebep isteniyor.
+    """
+    ad = type(istisna).__name__
+    try:
+        from .providers import mask
+        metin = mask(str(istisna) or "")
+    except Exception:  # noqa: BLE001 - maskeleyici yoksa metni HIC yazma
+        metin = ""
+    if not metin:
+        return ad
+    # Bazi istisnalar str()'inde sinif adini zaten tasir; tekrarlama.
+    if metin.startswith(ad):
+        return metin[:200]
+    return (ad + ": " + metin)[:200]
+
+
 class ModelRouter:
     """Local first, external only on failure or explicit escalation."""
 
@@ -616,7 +645,7 @@ class ModelRouter:
                     uc=uc, kademe=kademe, model=model_adi,
                     sonuc=kademe_kaydi.SONUC_HATA,
                     gecikme_ms=round((time.perf_counter() - basladi) * 1000, 1),
-                    gerekce=type(istisna).__name__,
+                    gerekce=_hata_gerekcesi(istisna),
                     deneme=attempts, escalate=escalate,
                     is_anahtari=is_anahtari)
                 continue
