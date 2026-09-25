@@ -74,19 +74,27 @@ Ekranda güzel yetmez: gerçek sayfa ölçüsü, bleed, safe area, görüntü
 çözünürlüğü, **efektif DPI**, font gömme, sıkıştırma, sayfa tutarlılığı.
 **Düşük çözünürlüklü AI görselini büyütüp "print-ready" sayma.**
 
+## 🔴 Fiyat basılmaz
+
+**Sahip kararı 25.09.2026: basılı katalogda fiyat GÖRÜNMEZ.** Basılı
+fiyat bir yıl sonra da aynı sözü vermeye devam eder. Fiyatı temsilci
+söyler, panelden okuyarak. Kademe fiyatları `mart.bayi_fiyat_gecerli`'de
+durur ve KATALOG sekmesinde görünür; **basıma giden sayfaya girmez.**
+Test kilitliyor: tasarım betikleri fiyat alanını okuyamaz.
+
 ## 🔴 BUGÜNKÜ DURUM (25.09.2026) — DÜRÜST ENVANTER
 
-Panelde duran KATALOG sekmesi bu boru hattının **yalnız üç halkasıdır**:
-ürün verisi doğrulama (36 ürün, kapsama ölçülü), metin taslağı (yayındaki
-metinden **ayıklama**, yazım değil) ve metin/mevzuat denetimi.
+**Kurulan:** ürün verisi doğrulama (36 ürün) · metin taslağı (yayındaki
+metinden **ayıklama**, yazım değil) · metin/mevzuat denetimi · bilgi
+mimarisi (6 bölüm) · grid (A4 + 3 mm taşma, 12 sütun, 4,8 mm baseline) ·
+tipografi ölçeği · sayfa sistemi · ürün kompoziti · prepress raporu ·
+33 sayfalık baskı PDF'i.
 
-**YOK:** marka stratejisi · bilgi mimarisi · editoryal hikâye · görsel
-araştırma · kreatif konseptler · art direction · sayfa sistemi · grid ·
-tipografi sistemi · görsel planı · retouch · red team · review board ·
-prepress QA.
+**HÂLÂ YOK:** marka stratejisi · editoryal hikâye · ritüel sayfaları ·
+içerik hikâyeleri · bölüm içi sıralama · görsel araştırma · red team ·
+creative review board. 36 üründen **27'sinin fotoğrafı yalnız 1254 px** —
+web çözünürlüğü; baskı için yeniden çekim gerekiyor.
 
-Yani elimizdeki şey bir **satış aracı ve veri katmanıdır**, editoryal
-katalog değildir. İkisini aynı kelimeyle anmak, olmayan bir işi yapılmış
-saymak olur.
+Elimizdeki şey hâlâ tam bir editoryal katalog değil.
 
 İlgili: `41-gorsel-yonetimi.md`, `10-iddia-kurallari.md`, `11-marka-dili.md`
