@@ -1,0 +1,17 @@
+{
+ "urun_adi": "dermarnica",
+ "urun_anahtari": "dermarnica",
+ "kaynak": "26-dermarnica.docx",
+ "kaynak_tur": "onayli_kutu_metni",
+ "bolumler": {
+  "raf_omru": "24 ay – Serin, kuru ve güneş ışığından uzak yerde muhafaza ediniz. 📄 ENGLISH LABEL TEXTS Description (EN)Special formula enriched with botanical oils and plant extracts helps maintain the skin’s natur",
+  "inci": "INCI (EN)Borago Officinalis Seed Oil, Calendula Officinalis Extract, Hypericum Perforatum Oil (ozonized), Arnica Montana Extract, Centella Asiatica Extract, Glycerin, Ferrum Phosphoricum, Calcium Fluoratum, Bromelain, Curcuma Longa Root Oil, Mentha Piperita Oil, Eugenia Caryophyllus Bud Oil, Boswellia Carterii Oil, Tocopherol, Cetearyl Olivate, Sorbitan Olivate, Aqua, Benzyl Alcohol, Salicylic Acid, Sorbic Acid INCI (TR)Hodan Yağı, Aynısefa Ekstresi, Ozonize Kantaron Yağı, Arnica Ekstresi, Centella Ekstresi, Gliserin, Ferrum Fosforicum, Kalsiyum Floratum, Bromelain, Zerdeçal Yağı, Nane Yağı, Karanfil Yağı, Akgünlük Yağı, E Vitamini, Bitkisel Emülgatör (Cetearyl Olivate, Sorbitan Olivate), Saf Su, Benzil Alkol, Salisilik Asit, Sorbik Asit",
+  "tanim": "Uyarılar (TR)Haricen kullanım içindir, çocukların ulaşamayacağı yerde saklayınız, göz ile temas ettirmeyiniz, açık yaraya uygulamayınız, serin ve kuru ortamda, doğrudan güneş ışığından uzak saklayınız, alerji riskine karşı kullanmadan önce küçük bir bölgede test ediniz, tahriş görülürse kullanımı bırakınız."
+ },
+ "eksik_bolumler": [
+  "kullanim",
+  "uyarilar"
+ ],
+ "kirli_bolumler": {},
+ "dayanak_metni": "INCI (EN)Borago Officinalis Seed Oil, Calendula Officinalis Extract, Hypericum Perforatum Oil (ozonized), Arnica Montana Extract, Centella Asiatica Extract, Glycerin, Ferrum Phosphoricum, Calcium Fluoratum, Bromelain, Curcuma Longa Root Oil, Mentha Piperita Oil, Eugenia Caryophyllus Bud Oil, Boswellia Carterii Oil, Tocopherol, Cetearyl Olivate, Sorbitan Olivate, Aqua, Benzyl Alcohol, Salicylic Acid, Sorbic Acid INCI (TR)Hodan Yağı, Aynısefa Ekstresi, Ozonize Kantaron Yağı, Arnica Ekstresi, Centella Ekstresi, Gliserin, Ferrum Fosforicum, Kalsiyum Floratum, Bromelain, Zerdeçal Yağı, Nane Yağı, Karanfil Yağı, Akgünlük Yağı, E Vitamini, Bitkisel Emülgatör (Cetearyl Olivate, Sorbitan Olivate), Saf Su, Benzil Alkol, Salisilik Asit, Sorbik Asit"
+}

@@ -27,6 +27,25 @@ class AdapterContractTests(unittest.TestCase):
             self.assertIn("state", health)
             self.assertIn(health["state"], {state.value for state in af.AdapterState})
 
+    def test_health_of_an_unreadable_binary_path_is_reported_not_raised(self):
+        """CI 25.09.2026'da yakaladi: is_file() PermissionError firlatiyordu.
+
+        Varsayilan ikili yolu /root altinda. Uretimde servis root olarak
+        kostugu icin hic tetiklenmedi -- kusur vardi, yalniz o makinede
+        gorunmuyordu. CI root degil ve ilk kosuda iki test dustu.
+
+        🔴 "Bakamadim" ile "yok" ayri raporlanmali: izin hatasini
+        UNAVAILABLE yazmak, var olan bir ikiliyi yok ilan etmek olurdu.
+        """
+        from unittest import mock
+        adapter = af.CodingExecutorAdapter()
+        with mock.patch("pathlib.Path.is_file",
+                        side_effect=PermissionError(13, "Permission denied")):
+            health = adapter.health()          # firlatmamali
+        self.assertEqual(health["state"], af.AdapterState.DEGRADED.value)
+        self.assertIsNone(health["binary_present"])
+        self.assertIn("PermissionError", health["reason"])
+
     def test_health_of_a_broken_upstream_is_reported_not_raised(self):
         class Broken(FakeMemory):
             def get_system_status(self):

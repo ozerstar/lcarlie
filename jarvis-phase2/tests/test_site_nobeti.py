@@ -20,7 +20,8 @@ import importlib.util
 import pathlib
 import unittest
 
-BETIK = pathlib.Path("/opt/lcarlie/jarvis-phase2/scripts/site-nobeti.py")
+# Yol __file__'dan turetilir; sabit uretim yolu testi kurulu surume baglar.
+BETIK = pathlib.Path(__file__).resolve().parent.parent / "scripts" / "site-nobeti.py"
 
 
 def _yukle():

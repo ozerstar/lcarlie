@@ -1,0 +1,2305 @@
+{
+ "uretildi": "2026-09-22",
+ "urun_madde": {
+  "aurolis": [
+   "cananga odorata flower oil",
+   "eucalyptus globulus leaf oil",
+   "gunluk yagi",
+   "lavandula angustifolia oil",
+   "mentha piperita oil",
+   "prunus amygdalus dulcis oil",
+   "rosmarinus officinalis leaf oil",
+   "tocopherol"
+  ],
+  "babydent": [
+   "althaea officinalis root extract",
+   "aqua etiket metni kullanim uyarilar",
+   "bebeklerin ilk dislerinden itibaren guvenle kullanabilecegi",
+   "benzyl alcohol salicylic acid sorbic acid",
+   "camellia sinensis leaf extract",
+   "carrageenan",
+   "chamomilla recutita flower oil",
+   "chamomilla recutita flower water",
+   "cocos nucifera oil",
+   "dis cikarma doneminde rahatlatici bakim saglar ksilitol",
+   "dogal koruyucu",
+   "dogal meyve aromasi",
+   "glycerin",
+   "hatmi koku ekstresi",
+   "karagenan",
+   "karanfil hidrosolu",
+   "l carlie babydent",
+   "lactobacillus ferment",
+   "mavi papatya yagi",
+   "natural fruit flavor",
+   "organik yesil cay ekstresi",
+   "papatya hidrosolu",
+   "probiyotik kompleks",
+   "saf su en aloe barbadensis gel",
+   "syzygium aromaticum flower water",
+   "tocopherol",
+   "vanilla planifolia extract",
+   "vanilya ekstrakti",
+   "xylitol"
+  ],
+  "babyrescue": [
+   "achillea millefolium oil",
+   "anthemis nobilis flower oil",
+   "arnica montana flower extract",
+   "borago officinalis seed oil",
+   "butyrospermum parkii butter",
+   "calendula officinalis flower oil",
+   "calophyllum inophyllum oil",
+   "cera alba",
+   "lavandula angustifolia oil",
+   "myrica cerifera fruit wax",
+   "olea europaea oil bilesen",
+   "ozonized hypericum perforatum oil",
+   "persea gratissima oil",
+   "tocopherol",
+   "zingiber officinale root extract"
+  ],
+  "babysoft": [
+   "aloe barbadensis gel",
+   "aqua",
+   "avena sativa kernel extract",
+   "benzyl alcohol",
+   "borago officinalis oil",
+   "butyrospermum parkii butter",
+   "ceramide np",
+   "chamomilla recutita flower water",
+   "cocos nucifera oil",
+   "glycerin",
+   "lavandula angustifolia flower water",
+   "panthenol",
+   "persea gratissima oil",
+   "salicylic acid",
+   "simmondsia chinensis oil",
+   "sodium hyaluronate",
+   "sorbic acid",
+   "tocopherol"
+  ],
+  "babysol": [
+   "acik renkli doku tamanu yagi 10 0 15 0 onarici",
+   "aloe barbadensis gel",
+   "aloe vera jeli",
+   "antioksidan",
+   "aqua",
+   "avena sativa kernel extract",
+   "balmumu",
+   "bariyer destegi mango yagi 3 0 4 5 yumusatici",
+   "benzyl alcohol",
+   "bisabolol",
+   "butyrospermum parkii butter",
+   "calophyllum inophyllum seed oil",
+   "cera alba",
+   "ceramide np",
+   "commiphora myrrha oil",
+   "glycerin",
+   "mangifera indica seed butter",
+   "mango yagi",
+   "mur yagi",
+   "nar cekirdegi yagi",
+   "punica granatum seed oil",
+   "salicylic acid",
+   "sandal agaci yagi",
+   "santalum album oil",
+   "seramid np",
+   "simmondsia chinensis seed oil",
+   "sodium ascorbyl phosphate",
+   "sodyum askorbil fosfat",
+   "sorbic acid",
+   "sorbic acid bilesen",
+   "spf 50 hedef uva uvb koruma shea yagi 6 0 9 0 besleyici",
+   "tamanu yagi",
+   "tocopherol",
+   "vitis vinifera seed oil",
+   "yulaf ozu",
+   "zinc oxide"
+  ],
+  "bebepur-probiobebeksampuanı": [
+   "aloe barbadensis leaf juice",
+   "aloe vera yapragi suyu",
+   "aynisefa ekstresi",
+   "benzyl alcohol",
+   "beta-glucan",
+   "beta-glukan",
+   "borago officinalis seed oil",
+   "calendula officinalis extract",
+   "chamomilla recutita flower water",
+   "coco glucoside",
+   "coco-glucoside",
+   "decyl glucoside",
+   "dekil glukozit",
+   "gliseril oleat",
+   "glycerin",
+   "glyceryl oleate",
+   "guar hidroksipropiltrimonyum klorur",
+   "guar hydroxypropyltrimonium chloride",
+   "hodan tohumu yagi",
+   "inulin",
+   "koko glukozit",
+   "koko-glukozit",
+   "lactobacillus ferment",
+   "lavandula angustifolia flower water",
+   "lavanta suyu",
+   "pantenol",
+   "panthenol",
+   "papatya suyu",
+   "persea gratissima oil",
+   "saccharide isomerate",
+   "sakkarit izomerati",
+   "salicylic acid",
+   "sodium lauroyl glutamate",
+   "sodyum lauroil glutamat",
+   "sorbic acid",
+   "sorbic acid tr saf su",
+   "tocopherol"
+  ],
+  "brightsmile": [
+   "aloe barbadensis leaf juice",
+   "aqua",
+   "bambu aktif karbon",
+   "bentonit kili",
+   "cay agaci yagi",
+   "cinko sitrat",
+   "cocos nucifera oil",
+   "decyl glucoside",
+   "diatom topragi",
+   "dogal koruyucu",
+   "eugenia caryophyllus flower oil",
+   "kalsiyum karbonat",
+   "karagenan",
+   "mentha piperita oil",
+   "probiyotik kompleks",
+   "sodyum bikarbonat",
+   "tocopherol",
+   "xylitol",
+   "yesil cay ekstresi",
+   "zeolit"
+  ],
+  "buguard": [
+   "aloe barbadensis leaf juice",
+   "aqua turkce karsiliklari lavanta cicegi suyu",
+   "azadirachta indica seed oil",
+   "benzyl alcohol",
+   "cay agaci yagi",
+   "citronella yagi",
+   "cymbopogon citratus leaf oil",
+   "cymbopogon winterianus oil",
+   "eucalyptus citriodora oil",
+   "eugenia caryophyllus flower oil",
+   "glycerin",
+   "glycine soja oil",
+   "hint limonotu yagi",
+   "latince ingilizce lavandula angustifolia flower water",
+   "lavandula angustifolia oil",
+   "limon okaliptus yagi",
+   "melaleuca alternifolia leaf oil",
+   "mentha piperita oil",
+   "neem yagi",
+   "paculi yagi",
+   "pogostemon cablin oil",
+   "saf su bilesen",
+   "salicylic acid",
+   "sorbic acid",
+   "soya yagi",
+   "syzygium aromaticum bud oil",
+   "tocopherol",
+   "vanilin",
+   "vanillin"
+  ],
+  "calmaros": [
+   "aloe vera yapragi suyu",
+   "aqua",
+   "aynisefa ekstresi",
+   "benzyl alcohol",
+   "bitkisel gliserin",
+   "eugenia caryophyllus flower oil",
+   "gul suyu",
+   "lavanta suyu",
+   "papatya suyu",
+   "salicylic acid",
+   "sorbic acid",
+   "tarcin kabugu yagi",
+   "yesil cay ekstresi"
+  ],
+  "calmjaw": [
+   "akgunluk yagi",
+   "benzyl alcohol",
+   "borago officinalis seed oil",
+   "cananga odorata flower oil",
+   "elemi yagi",
+   "fraksiyonize hindistan cevizi yagi",
+   "glycerin",
+   "lavandula angustifolia oil",
+   "mercankosk yagi",
+   "palmarosa yagi",
+   "salicylic acid",
+   "sedir agaci yagi",
+   "sorbic acid",
+   "tocopherol",
+   "vetiver yagi"
+  ],
+  "calmoris": [
+   "bergamot yagi",
+   "cananga odorata flower oil",
+   "elemi yagi",
+   "gunluk yagi",
+   "lavandula angustifolia oil",
+   "paculi yagi",
+   "prunus amygdalus dulcis oil",
+   "tocopherol",
+   "vetiver yagi"
+  ],
+  "dermabed": [
+   "aloe vera suyu",
+   "aqua",
+   "ardic meyvesi yagi",
+   "aynisefa ekstresi",
+   "benzyl alcohol",
+   "butyrospermum parkii butter",
+   "elemi yagi",
+   "eugenia caryophyllus flower oil",
+   "glycerin",
+   "gunluk yagi",
+   "hashas tohumu yagi",
+   "havuc ekstresi",
+   "hodan tohumu yagi",
+   "mur yagi",
+   "niaouli yapragi yagi",
+   "ozonize sari kantaron yagi",
+   "palmarosa yagi",
+   "salicylic acid",
+   "servi yagi",
+   "seteril olivat",
+   "sorbic acid",
+   "sorbitan olivat",
+   "tamanu yagi",
+   "tocopherol",
+   "yaban mersini ekstresi"
+  ],
+  "dermacorn": [
+   "ardic yagi",
+   "biberiye co2 ekstresi",
+   "boswellia carterii oil",
+   "butyrospermum parkii esters",
+   "caprylic capric triglyceride",
+   "cay agaci yagi",
+   "citrus limon peel oil",
+   "cymbopogon martinii oil",
+   "gunluk yagi",
+   "juniperus communis oil",
+   "kaprilik kaprik trigliserit",
+   "lavandula angustifolia oil",
+   "lavandula angustifolia oil inci",
+   "limon kabugu yagi",
+   "melaleuca alternifolia oil",
+   "melaleuca quinquenervia oil",
+   "nioli yagi",
+   "palmarosa yagi",
+   "rosmarinus officinalis leaf extract",
+   "salix alba bark extract",
+   "shea esterleri",
+   "simmondsia chinensis seed oil",
+   "sogut kabugu ekstresi",
+   "ure",
+   "urea"
+  ],
+  "dermaguard": [
+   "aci portakal yagi",
+   "aloe vera yapragi suyu",
+   "benzyl alcohol",
+   "butyrospermum parkii butter",
+   "cay agaci yagi",
+   "corek otu yagi",
+   "glycerin",
+   "kekik yagi",
+   "melisa yagi",
+   "mercankosk yagi",
+   "mersin yagi",
+   "paculi yagi",
+   "prunus amygdalus dulcis oil",
+   "salicylic acid",
+   "setearil olivat",
+   "sorbic acid",
+   "sorbitan olivat",
+   "tocopherol"
+  ],
+  "dermamovera": [
+   "aloe barbadensis leaf juice",
+   "aloe vera yapragi suyu",
+   "ardic meyvesi yagi",
+   "arnica montana flower extract",
+   "arnika cicegi ekstresi",
+   "benzyl alcohol",
+   "borago officinalis seed oil",
+   "boswellia serrata oil",
+   "butyrospermum parkii butter",
+   "cetearyl olivate",
+   "citrus limon peel oil",
+   "commiphora myrrha oil",
+   "cupressus sempervirens oil",
+   "curcuma longa root extract",
+   "daucus carota sativa root extract",
+   "eugenia caryophyllus bud oil",
+   "formatinda calophyllum inophyllum oil",
+   "glycerin",
+   "gunluk yagi",
+   "havuc koku ekstresi",
+   "hodan tohumu yagi",
+   "juniperus communis fruit oil",
+   "karanfil tomurcugu yagi",
+   "limon kabugu yagi",
+   "melaleuca quinquenervia leaf oil",
+   "mentha piperita oil",
+   "mur yagi",
+   "niaouli yapragi yagi",
+   "ozonize sari kantaron yagi",
+   "ozonized hypericum perforatum oil",
+   "persea gratissima oil",
+   "salicylic acid",
+   "servi yagi",
+   "seteril olivat",
+   "sorbic acid tr tamanu yagi",
+   "sorbitan olivat",
+   "sorbitan olivate",
+   "tocopherol",
+   "vaccinium myrtillus fruit extract",
+   "yaban mersini meyve ekstresi",
+   "zencefil koku ekstresi",
+   "zerdecal koku ekstresi",
+   "zingiber officinale root extract"
+  ],
+  "dermanova": [
+   "aloe vera suyu",
+   "aqua",
+   "aynisefa ekstresi",
+   "benzyl alcohol",
+   "butyrospermum parkii butter",
+   "elemi yagi",
+   "eugenia caryophyllus flower oil",
+   "glycerin",
+   "gunluk yagi",
+   "hashas tohumu yagi",
+   "havuc ekstresi",
+   "hodan tohumu yagi",
+   "mur yagi",
+   "ozonize sari kantaron yagi",
+   "palmarosa yagi",
+   "salicylic acid",
+   "seteril olivat",
+   "sorbic acid",
+   "sorbitan olivat",
+   "tamanu yagi",
+   "tarcin yagi",
+   "tocopherol",
+   "yaban mersini ekstresi"
+  ],
+  "dermarnica": [
+   "akgunluk yagi",
+   "aqua",
+   "arnica ekstresi",
+   "arnica montana extract",
+   "aynisefa ekstresi",
+   "benzyl alcohol",
+   "bitkisel emulgator cetearyl olivate",
+   "borago officinalis seed oil",
+   "boswellia carterii oil",
+   "bromelain",
+   "calcium fluoratum",
+   "calendula officinalis extract",
+   "centella asiatica extract",
+   "centella ekstresi",
+   "cetearyl olivate",
+   "curcuma longa root oil",
+   "eugenia caryophyllus bud oil",
+   "eugenia caryophyllus flower oil",
+   "ferrum fosforicum",
+   "ferrum phosphoricum",
+   "glycerin",
+   "hypericum perforatum oil",
+   "kalsiyum floratum",
+   "mentha piperita oil",
+   "ozonize kantaron yagi",
+   "salicylic acid",
+   "sorbic acid",
+   "sorbic acid inci",
+   "sorbitan olivate",
+   "tocopherol",
+   "zerdecal yagi"
+  ],
+  "dermastra": [
+   "aloe vera jeli",
+   "aqua",
+   "benzyl alcohol",
+   "butyrospermum parkii butter",
+   "calcium fluoratum",
+   "calcium phosphoricum",
+   "capsicum ekstresi",
+   "daucus carota sativa seed oil",
+   "glycerin",
+   "hodan tohumu yagi",
+   "liposomal c vitamini",
+   "magnezyum klorur cozeltisi",
+   "mur yagi",
+   "nar cekirdegi yagi",
+   "non-nano cinko oksit",
+   "ozonize sari kantaron yagi",
+   "rosmarinus officinalis leaf oil",
+   "salicylic acid",
+   "sandal agaci ekstresi",
+   "sorbic acid",
+   "tamanu yagi",
+   "tocopherol",
+   "zeytinden turetilmis emulgatorler"
+  ],
+  "dermavasc": [
+   "aesculus hippocastanum extract",
+   "aloe barbadensis leaf juice",
+   "aloe vera jeli",
+   "aqua",
+   "ardic yagi",
+   "at kestanesi ekstresi",
+   "benzyl alcohol",
+   "boswellia serrata oil",
+   "butyrospermum parkii butter",
+   "cadi findigi ekstresi",
+   "calophyllum inophyllum seed oil",
+   "cetearyl olivate",
+   "citrus limon peel oil",
+   "cupressus sempervirens oil",
+   "eugenia caryophyllus bud oil",
+   "eugenia caryophyllus flower oil",
+   "geogard ect",
+   "glycerin",
+   "gunluk yagi",
+   "hamamelis virginiana extract",
+   "juniperus communis oil",
+   "lavanta hidrosolu",
+   "limon yagi",
+   "olivem 1000 front label",
+   "paculi yagi",
+   "pogostemon cablin oil",
+   "salicylic acid",
+   "selvi yagi",
+   "sorbic acid",
+   "sorbitan ol",
+   "tamanu yagi",
+   "tocopherol",
+   "vaccinium myrtillus fruit extract",
+   "yaban mersini ekstresi"
+  ],
+  "dorsivia": [
+   "akgunluk yagi",
+   "arnica montana flower extract",
+   "benzyl alcohol",
+   "borago officinalis seed oil",
+   "butyrospermum parkii butter",
+   "cocos nucifera oil",
+   "eugenia caryophyllus flower oil",
+   "glycerin",
+   "kirmizi biber ekstresi",
+   "kis yesili yagi",
+   "magnezyum klorur cozeltisi",
+   "melisa suyu",
+   "salicylic acid",
+   "sedir agaci yagi",
+   "setearil olivat",
+   "sorbic acid",
+   "sorbitan olivat",
+   "tamanu yagi",
+   "tocopherol",
+   "vetiver yagi",
+   "zerdecal ekstresi"
+  ],
+  "earclia": [
+   "akgunluk yagi",
+   "cocos nucifera oil",
+   "elemi yagi",
+   "eugenia caryophyllus flower oil",
+   "mersin yagi",
+   "mur yagi",
+   "palmarosa yagi",
+   "sedir agaci yagi",
+   "tocopherol",
+   "vetiver yagi"
+  ],
+  "easycomb": [
+   "aqua",
+   "benzyl alcohol",
+   "bifida ferment lizati",
+   "bifida ferment lysate",
+   "borago officinalis seed oil",
+   "cetrimonium chloride",
+   "chamomilla recutita flower water",
+   "glycerin",
+   "hodan tohumu yagi",
+   "lactobacillus ferment lysate",
+   "laktobasil ferment lizati",
+   "lavandula angustifolia flower water",
+   "lavanta suyu",
+   "papatya suyu",
+   "persea gratissima oil",
+   "saccharomyces ferment filtrate",
+   "saccharomyces ferment filtrati",
+   "saf su en aloe barbadensis leaf juice",
+   "salicylic acid",
+   "simmondsia chinensis oil",
+   "simmondsia chinensis seed oil",
+   "sitrimonyum klorur",
+   "sorbic acid",
+   "tocopherol"
+  ],
+  "femisia": [
+   "aloe barbadensis leaf juice",
+   "aqua",
+   "benzyl alcohol",
+   "borago officinalis seed oil",
+   "boswellia carterii oil",
+   "butyrospermum parkii butter",
+   "cananga odorata flower oil",
+   "canarium luzonicum gum oil",
+   "cedrus atlantica bark oil",
+   "citrus bergamia peel oil expressed",
+   "cocos nucifera oil",
+   "cupressus sempervirens oil",
+   "curcuma longa root extract",
+   "cymbopogon martini oil",
+   "epimedium grandiflorum leaf extract",
+   "l-arginine",
+   "lactobacillus ferment",
+   "lepidium meyenii root extract",
+   "melaleuca quinquenervia leaf oil",
+   "salicylic acid",
+   "salvia sclarea oil",
+   "sorbic acid",
+   "tocopherol",
+   "turnera diffusa leaf extract",
+   "vaccinium macrocarpon seed oil"
+  ],
+  "hairnouriisher": [
+   "bacillus spp",
+   "benzyl alcohol",
+   "cananga odorata flower oil",
+   "centella asiatica ekstresi",
+   "cocos nucifera oil",
+   "daucus carota sativa seed oil",
+   "inulin",
+   "itir yagi",
+   "karanfil tomurcugu yagi",
+   "kenevir tohumu yagi",
+   "l acidophilus",
+   "l paracasei",
+   "l plantarum",
+   "l rhamnosus",
+   "laktik asit",
+   "lycopus lucidus ekstresi",
+   "mavi papatya yagi",
+   "mentha piperita oil",
+   "mersin yagi",
+   "niaouli yagi",
+   "okaliptus yagi",
+   "probiyotik kompleksi bacillus lactis",
+   "salicylic acid",
+   "sedir agaci yagi",
+   "selvi yagi",
+   "simmondsia chinensis seed oil",
+   "sorbic acid",
+   "tarcin kabugu yagi",
+   "tocopherol"
+  ],
+  "intimblanc": [
+   "achillea millefolium extract",
+   "alfa-arbutin",
+   "aloe barbadensis gel",
+   "aloe vera jeli",
+   "alpha-arbutin",
+   "aqua",
+   "benzyl alcohol",
+   "butyrospermum parkii butter",
+   "cay agaci hidrosolu",
+   "centella asiatica ekstresi",
+   "centella asiatica extract",
+   "ceramide np",
+   "civanpercemi ekstresi",
+   "glycerin",
+   "kojic acid dipalmitate",
+   "kojik asit dipalmitat",
+   "lactic acid",
+   "laktik asit",
+   "lavandula angustifolia hydrosol",
+   "lavanta hidrosolu",
+   "melaleuca alternifolia hydrosol",
+   "niacinamide",
+   "niasinamid",
+   "pantenol",
+   "panthenol",
+   "salicylic acid",
+   "seramid np",
+   "simmondsia chinensis oil",
+   "simmondsia chinensis seed oil",
+   "skualan",
+   "sorbic acid",
+   "sorbic acid bilesen",
+   "squalane",
+   "traneksamik asit",
+   "tranexamic acid"
+  ],
+  "luciderm": [
+   "aloe barbadensis leaf juice",
+   "aloe vera yapragi suyu",
+   "aqua",
+   "avena sativa kernel ceramide",
+   "benzyl alcohol",
+   "betain",
+   "betaine",
+   "beyaz sogut kabuk ekstresi",
+   "biberiye ekstresi",
+   "camellia sinensis leaf co2 extract",
+   "cay agaci yagi",
+   "chamomilla recutita co2 extract",
+   "cichorium intybus root extract",
+   "cocamidopropyl betaine",
+   "coco betain",
+   "decyl glucoside",
+   "decyl glukosit",
+   "fermente hindiba koku ozutu",
+   "glycerin",
+   "hamamelis ekstresi",
+   "hamamelis virginiana extract",
+   "hyaluronik asit",
+   "lactic acid",
+   "laktik asit",
+   "lavandula angustifolia flower water",
+   "lavandula angustifolia oil",
+   "lavanta suyu",
+   "melaleuca alternifolia oil",
+   "melaleuca quinquenervia oil",
+   "melisa suyu",
+   "melissa officinalis water",
+   "niaouli yagi",
+   "papatya co2 ekstresi",
+   "rosmarinus officinalis extract",
+   "salicylic acid",
+   "salix alba bark extract",
+   "sodium cocoyl glutamate",
+   "sodium hyaluronate",
+   "sorbic acid",
+   "yesil cay ekstresi",
+   "yulaf seramidi"
+  ],
+  "menthalis": [
+   "bergamot yagi",
+   "cananga odorata flower oil",
+   "mentha piperita oil",
+   "niaouli yagi",
+   "palmarosa yagi",
+   "prunus amygdalus dulcis oil",
+   "servi yapragi yagi",
+   "tocopherol"
+  ],
+  "nomore": [
+   "akgunluk yagi",
+   "atlas sediri kabugu yagi",
+   "bergamot kabugu yagi",
+   "elemi yagi",
+   "karanfil tomurcugu yagi",
+   "palmarosa yagi",
+   "prunus amygdalus dulcis oil",
+   "tarcin kabugu yagi",
+   "tocopherol",
+   "vetiver kok yagi"
+  ],
+  "oragarde": [
+   "aqua",
+   "benzyl alcohol",
+   "glycerin",
+   "karanfil tomurcugu yagi",
+   "limon kabugu yagi",
+   "mur ekstresi",
+   "niaouli yagi",
+   "palmarosa yagi",
+   "salicylic acid",
+   "sorbic acid",
+   "xylitol"
+  ],
+  "seralimbo": [
+   "adacayi yagi",
+   "akgunluk yagi",
+   "ardic yagi",
+   "arnica montana flower extract",
+   "benzyl alcohol",
+   "borago officinalis seed oil",
+   "butyrospermum parkii butter",
+   "cananga odorata flower oil",
+   "cocos nucifera oil",
+   "dogal emulgator",
+   "eugenia caryophyllus flower oil",
+   "glycerin",
+   "limon yagi",
+   "magnezyum klorur cozeltisi",
+   "melisa suyu",
+   "mentha piperita oil",
+   "niaouli yagi",
+   "ozonize sari kantaron yagi",
+   "salicylic acid",
+   "selvi yagi",
+   "sorbic acid",
+   "tamanu yagi",
+   "tocopherol",
+   "vetiver yagi"
+  ],
+  "softguard": [
+   "aqua",
+   "azadirachta indica seed oil",
+   "benzyl alcohol",
+   "biberiye cineol yagi",
+   "bitkisel gliserinli cozucu",
+   "cay agaci yagi",
+   "cedrus atlantica bark oil",
+   "cinnamomum zeylanicum bark oil",
+   "cymbopogon citratus leaf oil",
+   "etanol",
+   "ethanol",
+   "eucalyptus globulus leaf oil",
+   "eugenia caryophyllus bud oil",
+   "eugenia caryophyllus flower oil",
+   "glycerin",
+   "lavandula angustifolia flower water",
+   "lavandula angustifolia oil",
+   "lavanta suyu",
+   "limonotu yagi",
+   "melaleuca alternifolia leaf oil",
+   "melaleuca quinquenervia leaf oil",
+   "melisa suyu",
+   "melissa officinalis flower leaf water",
+   "neem yagi",
+   "niaouli yagi",
+   "okaliptus yagi",
+   "paculi yagi",
+   "pogostemon cablin leaf oil",
+   "rosmarinus officinalis leaf oil",
+   "salicylic acid",
+   "sedir agaci yagi",
+   "sorbic acid",
+   "tarcin kabugu yagi",
+   "vegetable glycerin solubilizer"
+  ],
+  "sunacnea": [
+   "aloe barbadensis leaf juice",
+   "aloe vera yapragi suyu",
+   "aronia melanocarpa fruit ferment filtrate",
+   "aronia meyvesi ferment filtrati",
+   "benzyl alcohol",
+   "butyrospermum parkii butter",
+   "calophyllum inophyllum seed oil",
+   "cetearyl olivate",
+   "cocos nucifera oil",
+   "commiphora myrrha oil",
+   "glycerin",
+   "mur yagi",
+   "nar cekirdegi yagi",
+   "punica granatum seed oil",
+   "salicylic acid",
+   "sandal agaci ekstresi",
+   "santalum album extract",
+   "sorbic acid",
+   "sorbitan olivate",
+   "tamanu yagi",
+   "tocopherol",
+   "vitis vinifera seed oil",
+   "zeytin bazli emulgatorler",
+   "zinc oxide"
+  ],
+  "vireon": [
+   "aqua",
+   "benzyl alcohol",
+   "borago officinalis seed oil",
+   "butyrospermum parkii butter",
+   "cananga odorata flower oil",
+   "cinnamomum zeylanicum bark oil",
+   "damiana ekstresi",
+   "daucus carota sativa seed oil",
+   "deniz kestanesi ekstresi",
+   "epimedium ekstresi",
+   "eugenia caryophyllus flower oil",
+   "glycerin",
+   "karabiber yagi",
+   "l-arginin",
+   "mavi papatya ekstresi",
+   "nioli yagi",
+   "papaver somniferum seed oil",
+   "salicylic acid",
+   "simmondsia chinensis seed oil",
+   "sorbic acid",
+   "tocopherol",
+   "tribulus ekstresi",
+   "vitis vinifera seed oil",
+   "zingiber officinale root oil"
+  ]
+ },
+ "madde_urun": {
+  "cananga odorata flower oil": [
+   "aurolis",
+   "calmjaw",
+   "calmoris",
+   "femisia",
+   "hairnouriisher",
+   "menthalis",
+   "seralimbo",
+   "vireon"
+  ],
+  "eucalyptus globulus leaf oil": [
+   "aurolis",
+   "softguard"
+  ],
+  "gunluk yagi": [
+   "aurolis",
+   "calmoris",
+   "dermabed",
+   "dermacorn",
+   "dermamovera",
+   "dermanova",
+   "dermavasc"
+  ],
+  "lavandula angustifolia oil": [
+   "aurolis",
+   "babyrescue",
+   "buguard",
+   "calmjaw",
+   "calmoris",
+   "dermacorn",
+   "luciderm",
+   "softguard"
+  ],
+  "mentha piperita oil": [
+   "aurolis",
+   "brightsmile",
+   "buguard",
+   "dermamovera",
+   "dermarnica",
+   "hairnouriisher",
+   "menthalis",
+   "seralimbo"
+  ],
+  "prunus amygdalus dulcis oil": [
+   "aurolis",
+   "calmoris",
+   "dermaguard",
+   "menthalis",
+   "nomore"
+  ],
+  "rosmarinus officinalis leaf oil": [
+   "aurolis",
+   "dermastra",
+   "softguard"
+  ],
+  "tocopherol": [
+   "aurolis",
+   "babydent",
+   "babyrescue",
+   "babysoft",
+   "babysol",
+   "bebepur-probiobebeksampuanı",
+   "brightsmile",
+   "buguard",
+   "calmjaw",
+   "calmoris",
+   "dermabed",
+   "dermaguard",
+   "dermamovera",
+   "dermanova",
+   "dermarnica",
+   "dermastra",
+   "dermavasc",
+   "dorsivia",
+   "earclia",
+   "easycomb",
+   "femisia",
+   "hairnouriisher",
+   "menthalis",
+   "nomore",
+   "seralimbo",
+   "sunacnea",
+   "vireon"
+  ],
+  "althaea officinalis root extract": [
+   "babydent"
+  ],
+  "aqua etiket metni kullanim uyarilar": [
+   "babydent"
+  ],
+  "bebeklerin ilk dislerinden itibaren guvenle kullanabilecegi": [
+   "babydent"
+  ],
+  "benzyl alcohol salicylic acid sorbic acid": [
+   "babydent"
+  ],
+  "camellia sinensis leaf extract": [
+   "babydent"
+  ],
+  "carrageenan": [
+   "babydent"
+  ],
+  "chamomilla recutita flower oil": [
+   "babydent"
+  ],
+  "chamomilla recutita flower water": [
+   "babydent",
+   "babysoft",
+   "bebepur-probiobebeksampuanı",
+   "easycomb"
+  ],
+  "cocos nucifera oil": [
+   "babydent",
+   "babysoft",
+   "brightsmile",
+   "dorsivia",
+   "earclia",
+   "femisia",
+   "hairnouriisher",
+   "seralimbo",
+   "sunacnea"
+  ],
+  "dis cikarma doneminde rahatlatici bakim saglar ksilitol": [
+   "babydent"
+  ],
+  "dogal koruyucu": [
+   "babydent",
+   "brightsmile"
+  ],
+  "dogal meyve aromasi": [
+   "babydent"
+  ],
+  "glycerin": [
+   "babydent",
+   "babysoft",
+   "babysol",
+   "bebepur-probiobebeksampuanı",
+   "buguard",
+   "calmjaw",
+   "dermabed",
+   "dermaguard",
+   "dermamovera",
+   "dermanova",
+   "dermarnica",
+   "dermastra",
+   "dermavasc",
+   "dorsivia",
+   "easycomb",
+   "intimblanc",
+   "luciderm",
+   "oragarde",
+   "seralimbo",
+   "softguard",
+   "sunacnea",
+   "vireon"
+  ],
+  "hatmi koku ekstresi": [
+   "babydent"
+  ],
+  "karagenan": [
+   "babydent",
+   "brightsmile"
+  ],
+  "karanfil hidrosolu": [
+   "babydent"
+  ],
+  "l carlie babydent": [
+   "babydent"
+  ],
+  "lactobacillus ferment": [
+   "babydent",
+   "bebepur-probiobebeksampuanı",
+   "femisia"
+  ],
+  "mavi papatya yagi": [
+   "babydent",
+   "hairnouriisher"
+  ],
+  "natural fruit flavor": [
+   "babydent"
+  ],
+  "organik yesil cay ekstresi": [
+   "babydent"
+  ],
+  "papatya hidrosolu": [
+   "babydent"
+  ],
+  "probiyotik kompleks": [
+   "babydent",
+   "brightsmile"
+  ],
+  "saf su en aloe barbadensis gel": [
+   "babydent"
+  ],
+  "syzygium aromaticum flower water": [
+   "babydent"
+  ],
+  "vanilla planifolia extract": [
+   "babydent"
+  ],
+  "vanilya ekstrakti": [
+   "babydent"
+  ],
+  "xylitol": [
+   "babydent",
+   "brightsmile",
+   "oragarde"
+  ],
+  "achillea millefolium oil": [
+   "babyrescue"
+  ],
+  "anthemis nobilis flower oil": [
+   "babyrescue"
+  ],
+  "arnica montana flower extract": [
+   "babyrescue",
+   "dermamovera",
+   "dorsivia",
+   "seralimbo"
+  ],
+  "borago officinalis seed oil": [
+   "babyrescue",
+   "bebepur-probiobebeksampuanı",
+   "calmjaw",
+   "dermamovera",
+   "dermarnica",
+   "dorsivia",
+   "easycomb",
+   "femisia",
+   "seralimbo",
+   "vireon"
+  ],
+  "butyrospermum parkii butter": [
+   "babyrescue",
+   "babysoft",
+   "babysol",
+   "dermabed",
+   "dermaguard",
+   "dermamovera",
+   "dermanova",
+   "dermastra",
+   "dermavasc",
+   "dorsivia",
+   "femisia",
+   "intimblanc",
+   "seralimbo",
+   "sunacnea",
+   "vireon"
+  ],
+  "calendula officinalis flower oil": [
+   "babyrescue"
+  ],
+  "calophyllum inophyllum oil": [
+   "babyrescue"
+  ],
+  "cera alba": [
+   "babyrescue",
+   "babysol"
+  ],
+  "myrica cerifera fruit wax": [
+   "babyrescue"
+  ],
+  "olea europaea oil bilesen": [
+   "babyrescue"
+  ],
+  "ozonized hypericum perforatum oil": [
+   "babyrescue",
+   "dermamovera"
+  ],
+  "persea gratissima oil": [
+   "babyrescue",
+   "babysoft",
+   "bebepur-probiobebeksampuanı",
+   "dermamovera",
+   "easycomb"
+  ],
+  "zingiber officinale root extract": [
+   "babyrescue",
+   "dermamovera"
+  ],
+  "aloe barbadensis gel": [
+   "babysoft",
+   "babysol",
+   "intimblanc"
+  ],
+  "aqua": [
+   "babysoft",
+   "babysol",
+   "brightsmile",
+   "calmaros",
+   "dermabed",
+   "dermanova",
+   "dermarnica",
+   "dermastra",
+   "dermavasc",
+   "easycomb",
+   "femisia",
+   "intimblanc",
+   "luciderm",
+   "oragarde",
+   "softguard",
+   "vireon"
+  ],
+  "avena sativa kernel extract": [
+   "babysoft",
+   "babysol"
+  ],
+  "benzyl alcohol": [
+   "babysoft",
+   "babysol",
+   "bebepur-probiobebeksampuanı",
+   "buguard",
+   "calmaros",
+   "calmjaw",
+   "dermabed",
+   "dermaguard",
+   "dermamovera",
+   "dermanova",
+   "dermarnica",
+   "dermastra",
+   "dermavasc",
+   "dorsivia",
+   "easycomb",
+   "femisia",
+   "hairnouriisher",
+   "intimblanc",
+   "luciderm",
+   "oragarde",
+   "seralimbo",
+   "softguard",
+   "sunacnea",
+   "vireon"
+  ],
+  "borago officinalis oil": [
+   "babysoft"
+  ],
+  "ceramide np": [
+   "babysoft",
+   "babysol",
+   "intimblanc"
+  ],
+  "lavandula angustifolia flower water": [
+   "babysoft",
+   "bebepur-probiobebeksampuanı",
+   "easycomb",
+   "luciderm",
+   "softguard"
+  ],
+  "panthenol": [
+   "babysoft",
+   "bebepur-probiobebeksampuanı",
+   "intimblanc"
+  ],
+  "salicylic acid": [
+   "babysoft",
+   "babysol",
+   "bebepur-probiobebeksampuanı",
+   "buguard",
+   "calmaros",
+   "calmjaw",
+   "dermabed",
+   "dermaguard",
+   "dermamovera",
+   "dermanova",
+   "dermarnica",
+   "dermastra",
+   "dermavasc",
+   "dorsivia",
+   "easycomb",
+   "femisia",
+   "hairnouriisher",
+   "intimblanc",
+   "luciderm",
+   "oragarde",
+   "seralimbo",
+   "softguard",
+   "sunacnea",
+   "vireon"
+  ],
+  "simmondsia chinensis oil": [
+   "babysoft",
+   "easycomb",
+   "intimblanc"
+  ],
+  "sodium hyaluronate": [
+   "babysoft",
+   "luciderm"
+  ],
+  "sorbic acid": [
+   "babysoft",
+   "babysol",
+   "bebepur-probiobebeksampuanı",
+   "buguard",
+   "calmaros",
+   "calmjaw",
+   "dermabed",
+   "dermaguard",
+   "dermanova",
+   "dermarnica",
+   "dermastra",
+   "dermavasc",
+   "dorsivia",
+   "easycomb",
+   "femisia",
+   "hairnouriisher",
+   "intimblanc",
+   "luciderm",
+   "oragarde",
+   "seralimbo",
+   "softguard",
+   "sunacnea",
+   "vireon"
+  ],
+  "acik renkli doku tamanu yagi 10 0 15 0 onarici": [
+   "babysol"
+  ],
+  "aloe vera jeli": [
+   "babysol",
+   "dermastra",
+   "dermavasc",
+   "intimblanc"
+  ],
+  "antioksidan": [
+   "babysol"
+  ],
+  "balmumu": [
+   "babysol"
+  ],
+  "bariyer destegi mango yagi 3 0 4 5 yumusatici": [
+   "babysol"
+  ],
+  "bisabolol": [
+   "babysol"
+  ],
+  "calophyllum inophyllum seed oil": [
+   "babysol",
+   "dermavasc",
+   "sunacnea"
+  ],
+  "commiphora myrrha oil": [
+   "babysol",
+   "dermamovera",
+   "sunacnea"
+  ],
+  "mangifera indica seed butter": [
+   "babysol"
+  ],
+  "mango yagi": [
+   "babysol"
+  ],
+  "mur yagi": [
+   "babysol",
+   "dermabed",
+   "dermamovera",
+   "dermanova",
+   "dermastra",
+   "earclia",
+   "sunacnea"
+  ],
+  "nar cekirdegi yagi": [
+   "babysol",
+   "dermastra",
+   "sunacnea"
+  ],
+  "punica granatum seed oil": [
+   "babysol",
+   "sunacnea"
+  ],
+  "sandal agaci yagi": [
+   "babysol"
+  ],
+  "santalum album oil": [
+   "babysol"
+  ],
+  "seramid np": [
+   "babysol",
+   "intimblanc"
+  ],
+  "simmondsia chinensis seed oil": [
+   "babysol",
+   "dermacorn",
+   "easycomb",
+   "hairnouriisher",
+   "intimblanc",
+   "vireon"
+  ],
+  "sodium ascorbyl phosphate": [
+   "babysol"
+  ],
+  "sodyum askorbil fosfat": [
+   "babysol"
+  ],
+  "sorbic acid bilesen": [
+   "babysol",
+   "intimblanc"
+  ],
+  "spf 50 hedef uva uvb koruma shea yagi 6 0 9 0 besleyici": [
+   "babysol"
+  ],
+  "tamanu yagi": [
+   "babysol",
+   "dermabed",
+   "dermanova",
+   "dermastra",
+   "dermavasc",
+   "dorsivia",
+   "seralimbo",
+   "sunacnea"
+  ],
+  "vitis vinifera seed oil": [
+   "babysol",
+   "sunacnea",
+   "vireon"
+  ],
+  "yulaf ozu": [
+   "babysol"
+  ],
+  "zinc oxide": [
+   "babysol",
+   "sunacnea"
+  ],
+  "aloe barbadensis leaf juice": [
+   "bebepur-probiobebeksampuanı",
+   "brightsmile",
+   "buguard",
+   "dermamovera",
+   "dermavasc",
+   "femisia",
+   "luciderm",
+   "sunacnea"
+  ],
+  "aloe vera yapragi suyu": [
+   "bebepur-probiobebeksampuanı",
+   "calmaros",
+   "dermaguard",
+   "dermamovera",
+   "luciderm",
+   "sunacnea"
+  ],
+  "aynisefa ekstresi": [
+   "bebepur-probiobebeksampuanı",
+   "calmaros",
+   "dermabed",
+   "dermanova",
+   "dermarnica"
+  ],
+  "beta-glucan": [
+   "bebepur-probiobebeksampuanı"
+  ],
+  "beta-glukan": [
+   "bebepur-probiobebeksampuanı"
+  ],
+  "calendula officinalis extract": [
+   "bebepur-probiobebeksampuanı",
+   "dermarnica"
+  ],
+  "coco glucoside": [
+   "bebepur-probiobebeksampuanı"
+  ],
+  "coco-glucoside": [
+   "bebepur-probiobebeksampuanı"
+  ],
+  "decyl glucoside": [
+   "bebepur-probiobebeksampuanı",
+   "brightsmile",
+   "luciderm"
+  ],
+  "dekil glukozit": [
+   "bebepur-probiobebeksampuanı"
+  ],
+  "gliseril oleat": [
+   "bebepur-probiobebeksampuanı"
+  ],
+  "glyceryl oleate": [
+   "bebepur-probiobebeksampuanı"
+  ],
+  "guar hidroksipropiltrimonyum klorur": [
+   "bebepur-probiobebeksampuanı"
+  ],
+  "guar hydroxypropyltrimonium chloride": [
+   "bebepur-probiobebeksampuanı"
+  ],
+  "hodan tohumu yagi": [
+   "bebepur-probiobebeksampuanı",
+   "dermabed",
+   "dermamovera",
+   "dermanova",
+   "dermastra",
+   "easycomb"
+  ],
+  "inulin": [
+   "bebepur-probiobebeksampuanı",
+   "hairnouriisher"
+  ],
+  "koko glukozit": [
+   "bebepur-probiobebeksampuanı"
+  ],
+  "koko-glukozit": [
+   "bebepur-probiobebeksampuanı"
+  ],
+  "lavanta suyu": [
+   "bebepur-probiobebeksampuanı",
+   "calmaros",
+   "easycomb",
+   "luciderm",
+   "softguard"
+  ],
+  "pantenol": [
+   "bebepur-probiobebeksampuanı",
+   "intimblanc"
+  ],
+  "papatya suyu": [
+   "bebepur-probiobebeksampuanı",
+   "calmaros",
+   "easycomb"
+  ],
+  "saccharide isomerate": [
+   "bebepur-probiobebeksampuanı"
+  ],
+  "sakkarit izomerati": [
+   "bebepur-probiobebeksampuanı"
+  ],
+  "sodium lauroyl glutamate": [
+   "bebepur-probiobebeksampuanı"
+  ],
+  "sodyum lauroil glutamat": [
+   "bebepur-probiobebeksampuanı"
+  ],
+  "sorbic acid tr saf su": [
+   "bebepur-probiobebeksampuanı"
+  ],
+  "bambu aktif karbon": [
+   "brightsmile"
+  ],
+  "bentonit kili": [
+   "brightsmile"
+  ],
+  "cay agaci yagi": [
+   "brightsmile",
+   "buguard",
+   "dermacorn",
+   "dermaguard",
+   "luciderm",
+   "softguard"
+  ],
+  "cinko sitrat": [
+   "brightsmile"
+  ],
+  "diatom topragi": [
+   "brightsmile"
+  ],
+  "eugenia caryophyllus flower oil": [
+   "brightsmile",
+   "buguard",
+   "calmaros",
+   "dermabed",
+   "dermanova",
+   "dermarnica",
+   "dermavasc",
+   "dorsivia",
+   "earclia",
+   "seralimbo",
+   "softguard",
+   "vireon"
+  ],
+  "kalsiyum karbonat": [
+   "brightsmile"
+  ],
+  "sodyum bikarbonat": [
+   "brightsmile"
+  ],
+  "yesil cay ekstresi": [
+   "brightsmile",
+   "calmaros",
+   "luciderm"
+  ],
+  "zeolit": [
+   "brightsmile"
+  ],
+  "aqua turkce karsiliklari lavanta cicegi suyu": [
+   "buguard"
+  ],
+  "azadirachta indica seed oil": [
+   "buguard",
+   "softguard"
+  ],
+  "citronella yagi": [
+   "buguard"
+  ],
+  "cymbopogon citratus leaf oil": [
+   "buguard",
+   "softguard"
+  ],
+  "cymbopogon winterianus oil": [
+   "buguard"
+  ],
+  "eucalyptus citriodora oil": [
+   "buguard"
+  ],
+  "glycine soja oil": [
+   "buguard"
+  ],
+  "hint limonotu yagi": [
+   "buguard"
+  ],
+  "latince ingilizce lavandula angustifolia flower water": [
+   "buguard"
+  ],
+  "limon okaliptus yagi": [
+   "buguard"
+  ],
+  "melaleuca alternifolia leaf oil": [
+   "buguard",
+   "softguard"
+  ],
+  "neem yagi": [
+   "buguard",
+   "softguard"
+  ],
+  "paculi yagi": [
+   "buguard",
+   "calmoris",
+   "dermaguard",
+   "dermavasc",
+   "softguard"
+  ],
+  "pogostemon cablin oil": [
+   "buguard",
+   "dermavasc"
+  ],
+  "saf su bilesen": [
+   "buguard"
+  ],
+  "soya yagi": [
+   "buguard"
+  ],
+  "syzygium aromaticum bud oil": [
+   "buguard"
+  ],
+  "vanilin": [
+   "buguard"
+  ],
+  "vanillin": [
+   "buguard"
+  ],
+  "bitkisel gliserin": [
+   "calmaros"
+  ],
+  "gul suyu": [
+   "calmaros"
+  ],
+  "tarcin kabugu yagi": [
+   "calmaros",
+   "hairnouriisher",
+   "nomore",
+   "softguard"
+  ],
+  "akgunluk yagi": [
+   "calmjaw",
+   "dermarnica",
+   "dorsivia",
+   "earclia",
+   "nomore",
+   "seralimbo"
+  ],
+  "elemi yagi": [
+   "calmjaw",
+   "calmoris",
+   "dermabed",
+   "dermanova",
+   "earclia",
+   "nomore"
+  ],
+  "fraksiyonize hindistan cevizi yagi": [
+   "calmjaw"
+  ],
+  "mercankosk yagi": [
+   "calmjaw",
+   "dermaguard"
+  ],
+  "palmarosa yagi": [
+   "calmjaw",
+   "dermabed",
+   "dermacorn",
+   "dermanova",
+   "earclia",
+   "menthalis",
+   "nomore",
+   "oragarde"
+  ],
+  "sedir agaci yagi": [
+   "calmjaw",
+   "dorsivia",
+   "earclia",
+   "hairnouriisher",
+   "softguard"
+  ],
+  "vetiver yagi": [
+   "calmjaw",
+   "calmoris",
+   "dorsivia",
+   "earclia",
+   "seralimbo"
+  ],
+  "bergamot yagi": [
+   "calmoris",
+   "menthalis"
+  ],
+  "aloe vera suyu": [
+   "dermabed",
+   "dermanova"
+  ],
+  "ardic meyvesi yagi": [
+   "dermabed",
+   "dermamovera"
+  ],
+  "hashas tohumu yagi": [
+   "dermabed",
+   "dermanova"
+  ],
+  "havuc ekstresi": [
+   "dermabed",
+   "dermanova"
+  ],
+  "niaouli yapragi yagi": [
+   "dermabed",
+   "dermamovera"
+  ],
+  "ozonize sari kantaron yagi": [
+   "dermabed",
+   "dermamovera",
+   "dermanova",
+   "dermastra",
+   "seralimbo"
+  ],
+  "servi yagi": [
+   "dermabed",
+   "dermamovera"
+  ],
+  "seteril olivat": [
+   "dermabed",
+   "dermamovera",
+   "dermanova"
+  ],
+  "sorbitan olivat": [
+   "dermabed",
+   "dermaguard",
+   "dermamovera",
+   "dermanova",
+   "dorsivia"
+  ],
+  "yaban mersini ekstresi": [
+   "dermabed",
+   "dermanova",
+   "dermavasc"
+  ],
+  "ardic yagi": [
+   "dermacorn",
+   "dermavasc",
+   "seralimbo"
+  ],
+  "biberiye co2 ekstresi": [
+   "dermacorn"
+  ],
+  "boswellia carterii oil": [
+   "dermacorn",
+   "dermarnica",
+   "femisia"
+  ],
+  "butyrospermum parkii esters": [
+   "dermacorn"
+  ],
+  "caprylic capric triglyceride": [
+   "dermacorn"
+  ],
+  "citrus limon peel oil": [
+   "dermacorn",
+   "dermamovera",
+   "dermavasc"
+  ],
+  "cymbopogon martinii oil": [
+   "dermacorn"
+  ],
+  "juniperus communis oil": [
+   "dermacorn",
+   "dermavasc"
+  ],
+  "kaprilik kaprik trigliserit": [
+   "dermacorn"
+  ],
+  "lavandula angustifolia oil inci": [
+   "dermacorn"
+  ],
+  "limon kabugu yagi": [
+   "dermacorn",
+   "dermamovera",
+   "oragarde"
+  ],
+  "melaleuca alternifolia oil": [
+   "dermacorn",
+   "luciderm"
+  ],
+  "melaleuca quinquenervia oil": [
+   "dermacorn",
+   "luciderm"
+  ],
+  "nioli yagi": [
+   "dermacorn",
+   "vireon"
+  ],
+  "rosmarinus officinalis leaf extract": [
+   "dermacorn"
+  ],
+  "salix alba bark extract": [
+   "dermacorn",
+   "luciderm"
+  ],
+  "shea esterleri": [
+   "dermacorn"
+  ],
+  "sogut kabugu ekstresi": [
+   "dermacorn"
+  ],
+  "ure": [
+   "dermacorn"
+  ],
+  "urea": [
+   "dermacorn"
+  ],
+  "aci portakal yagi": [
+   "dermaguard"
+  ],
+  "corek otu yagi": [
+   "dermaguard"
+  ],
+  "kekik yagi": [
+   "dermaguard"
+  ],
+  "melisa yagi": [
+   "dermaguard"
+  ],
+  "mersin yagi": [
+   "dermaguard",
+   "earclia",
+   "hairnouriisher"
+  ],
+  "setearil olivat": [
+   "dermaguard",
+   "dorsivia"
+  ],
+  "arnika cicegi ekstresi": [
+   "dermamovera"
+  ],
+  "boswellia serrata oil": [
+   "dermamovera",
+   "dermavasc"
+  ],
+  "cetearyl olivate": [
+   "dermamovera",
+   "dermarnica",
+   "dermavasc",
+   "sunacnea"
+  ],
+  "cupressus sempervirens oil": [
+   "dermamovera",
+   "dermavasc",
+   "femisia"
+  ],
+  "curcuma longa root extract": [
+   "dermamovera",
+   "femisia"
+  ],
+  "daucus carota sativa root extract": [
+   "dermamovera"
+  ],
+  "eugenia caryophyllus bud oil": [
+   "dermamovera",
+   "dermarnica",
+   "dermavasc",
+   "softguard"
+  ],
+  "formatinda calophyllum inophyllum oil": [
+   "dermamovera"
+  ],
+  "havuc koku ekstresi": [
+   "dermamovera"
+  ],
+  "juniperus communis fruit oil": [
+   "dermamovera"
+  ],
+  "karanfil tomurcugu yagi": [
+   "dermamovera",
+   "hairnouriisher",
+   "nomore",
+   "oragarde"
+  ],
+  "melaleuca quinquenervia leaf oil": [
+   "dermamovera",
+   "femisia",
+   "softguard"
+  ],
+  "sorbic acid tr tamanu yagi": [
+   "dermamovera"
+  ],
+  "sorbitan olivate": [
+   "dermamovera",
+   "dermarnica",
+   "sunacnea"
+  ],
+  "vaccinium myrtillus fruit extract": [
+   "dermamovera",
+   "dermavasc"
+  ],
+  "yaban mersini meyve ekstresi": [
+   "dermamovera"
+  ],
+  "zencefil koku ekstresi": [
+   "dermamovera"
+  ],
+  "zerdecal koku ekstresi": [
+   "dermamovera"
+  ],
+  "tarcin yagi": [
+   "dermanova"
+  ],
+  "arnica ekstresi": [
+   "dermarnica"
+  ],
+  "arnica montana extract": [
+   "dermarnica"
+  ],
+  "bitkisel emulgator cetearyl olivate": [
+   "dermarnica"
+  ],
+  "bromelain": [
+   "dermarnica"
+  ],
+  "calcium fluoratum": [
+   "dermarnica",
+   "dermastra"
+  ],
+  "centella asiatica extract": [
+   "dermarnica",
+   "intimblanc"
+  ],
+  "centella ekstresi": [
+   "dermarnica"
+  ],
+  "curcuma longa root oil": [
+   "dermarnica"
+  ],
+  "ferrum fosforicum": [
+   "dermarnica"
+  ],
+  "ferrum phosphoricum": [
+   "dermarnica"
+  ],
+  "hypericum perforatum oil": [
+   "dermarnica"
+  ],
+  "kalsiyum floratum": [
+   "dermarnica"
+  ],
+  "ozonize kantaron yagi": [
+   "dermarnica"
+  ],
+  "sorbic acid inci": [
+   "dermarnica"
+  ],
+  "zerdecal yagi": [
+   "dermarnica"
+  ],
+  "calcium phosphoricum": [
+   "dermastra"
+  ],
+  "capsicum ekstresi": [
+   "dermastra"
+  ],
+  "daucus carota sativa seed oil": [
+   "dermastra",
+   "hairnouriisher",
+   "vireon"
+  ],
+  "liposomal c vitamini": [
+   "dermastra"
+  ],
+  "magnezyum klorur cozeltisi": [
+   "dermastra",
+   "dorsivia",
+   "seralimbo"
+  ],
+  "non-nano cinko oksit": [
+   "dermastra"
+  ],
+  "sandal agaci ekstresi": [
+   "dermastra",
+   "sunacnea"
+  ],
+  "zeytinden turetilmis emulgatorler": [
+   "dermastra"
+  ],
+  "aesculus hippocastanum extract": [
+   "dermavasc"
+  ],
+  "at kestanesi ekstresi": [
+   "dermavasc"
+  ],
+  "cadi findigi ekstresi": [
+   "dermavasc"
+  ],
+  "geogard ect": [
+   "dermavasc"
+  ],
+  "hamamelis virginiana extract": [
+   "dermavasc",
+   "luciderm"
+  ],
+  "lavanta hidrosolu": [
+   "dermavasc",
+   "intimblanc"
+  ],
+  "limon yagi": [
+   "dermavasc",
+   "seralimbo"
+  ],
+  "olivem 1000 front label": [
+   "dermavasc"
+  ],
+  "selvi yagi": [
+   "dermavasc",
+   "hairnouriisher",
+   "seralimbo"
+  ],
+  "sorbitan ol": [
+   "dermavasc"
+  ],
+  "kirmizi biber ekstresi": [
+   "dorsivia"
+  ],
+  "kis yesili yagi": [
+   "dorsivia"
+  ],
+  "melisa suyu": [
+   "dorsivia",
+   "luciderm",
+   "seralimbo",
+   "softguard"
+  ],
+  "zerdecal ekstresi": [
+   "dorsivia"
+  ],
+  "bifida ferment lizati": [
+   "easycomb"
+  ],
+  "bifida ferment lysate": [
+   "easycomb"
+  ],
+  "cetrimonium chloride": [
+   "easycomb"
+  ],
+  "lactobacillus ferment lysate": [
+   "easycomb"
+  ],
+  "laktobasil ferment lizati": [
+   "easycomb"
+  ],
+  "saccharomyces ferment filtrate": [
+   "easycomb"
+  ],
+  "saccharomyces ferment filtrati": [
+   "easycomb"
+  ],
+  "saf su en aloe barbadensis leaf juice": [
+   "easycomb"
+  ],
+  "sitrimonyum klorur": [
+   "easycomb"
+  ],
+  "canarium luzonicum gum oil": [
+   "femisia"
+  ],
+  "cedrus atlantica bark oil": [
+   "femisia",
+   "softguard"
+  ],
+  "citrus bergamia peel oil expressed": [
+   "femisia"
+  ],
+  "cymbopogon martini oil": [
+   "femisia"
+  ],
+  "epimedium grandiflorum leaf extract": [
+   "femisia"
+  ],
+  "l-arginine": [
+   "femisia"
+  ],
+  "lepidium meyenii root extract": [
+   "femisia"
+  ],
+  "salvia sclarea oil": [
+   "femisia"
+  ],
+  "turnera diffusa leaf extract": [
+   "femisia"
+  ],
+  "vaccinium macrocarpon seed oil": [
+   "femisia"
+  ],
+  "bacillus spp": [
+   "hairnouriisher"
+  ],
+  "centella asiatica ekstresi": [
+   "hairnouriisher",
+   "intimblanc"
+  ],
+  "itir yagi": [
+   "hairnouriisher"
+  ],
+  "kenevir tohumu yagi": [
+   "hairnouriisher"
+  ],
+  "l acidophilus": [
+   "hairnouriisher"
+  ],
+  "l paracasei": [
+   "hairnouriisher"
+  ],
+  "l plantarum": [
+   "hairnouriisher"
+  ],
+  "l rhamnosus": [
+   "hairnouriisher"
+  ],
+  "laktik asit": [
+   "hairnouriisher",
+   "intimblanc",
+   "luciderm"
+  ],
+  "lycopus lucidus ekstresi": [
+   "hairnouriisher"
+  ],
+  "niaouli yagi": [
+   "hairnouriisher",
+   "luciderm",
+   "menthalis",
+   "oragarde",
+   "seralimbo",
+   "softguard"
+  ],
+  "okaliptus yagi": [
+   "hairnouriisher",
+   "softguard"
+  ],
+  "probiyotik kompleksi bacillus lactis": [
+   "hairnouriisher"
+  ],
+  "achillea millefolium extract": [
+   "intimblanc"
+  ],
+  "alfa-arbutin": [
+   "intimblanc"
+  ],
+  "alpha-arbutin": [
+   "intimblanc"
+  ],
+  "cay agaci hidrosolu": [
+   "intimblanc"
+  ],
+  "civanpercemi ekstresi": [
+   "intimblanc"
+  ],
+  "kojic acid dipalmitate": [
+   "intimblanc"
+  ],
+  "kojik asit dipalmitat": [
+   "intimblanc"
+  ],
+  "lactic acid": [
+   "intimblanc",
+   "luciderm"
+  ],
+  "lavandula angustifolia hydrosol": [
+   "intimblanc"
+  ],
+  "melaleuca alternifolia hydrosol": [
+   "intimblanc"
+  ],
+  "niacinamide": [
+   "intimblanc"
+  ],
+  "niasinamid": [
+   "intimblanc"
+  ],
+  "skualan": [
+   "intimblanc"
+  ],
+  "squalane": [
+   "intimblanc"
+  ],
+  "traneksamik asit": [
+   "intimblanc"
+  ],
+  "tranexamic acid": [
+   "intimblanc"
+  ],
+  "avena sativa kernel ceramide": [
+   "luciderm"
+  ],
+  "betain": [
+   "luciderm"
+  ],
+  "betaine": [
+   "luciderm"
+  ],
+  "beyaz sogut kabuk ekstresi": [
+   "luciderm"
+  ],
+  "biberiye ekstresi": [
+   "luciderm"
+  ],
+  "camellia sinensis leaf co2 extract": [
+   "luciderm"
+  ],
+  "chamomilla recutita co2 extract": [
+   "luciderm"
+  ],
+  "cichorium intybus root extract": [
+   "luciderm"
+  ],
+  "cocamidopropyl betaine": [
+   "luciderm"
+  ],
+  "coco betain": [
+   "luciderm"
+  ],
+  "decyl glukosit": [
+   "luciderm"
+  ],
+  "fermente hindiba koku ozutu": [
+   "luciderm"
+  ],
+  "hamamelis ekstresi": [
+   "luciderm"
+  ],
+  "hyaluronik asit": [
+   "luciderm"
+  ],
+  "melissa officinalis water": [
+   "luciderm"
+  ],
+  "papatya co2 ekstresi": [
+   "luciderm"
+  ],
+  "rosmarinus officinalis extract": [
+   "luciderm"
+  ],
+  "sodium cocoyl glutamate": [
+   "luciderm"
+  ],
+  "yulaf seramidi": [
+   "luciderm"
+  ],
+  "servi yapragi yagi": [
+   "menthalis"
+  ],
+  "atlas sediri kabugu yagi": [
+   "nomore"
+  ],
+  "bergamot kabugu yagi": [
+   "nomore"
+  ],
+  "vetiver kok yagi": [
+   "nomore"
+  ],
+  "mur ekstresi": [
+   "oragarde"
+  ],
+  "adacayi yagi": [
+   "seralimbo"
+  ],
+  "dogal emulgator": [
+   "seralimbo"
+  ],
+  "biberiye cineol yagi": [
+   "softguard"
+  ],
+  "bitkisel gliserinli cozucu": [
+   "softguard"
+  ],
+  "cinnamomum zeylanicum bark oil": [
+   "softguard",
+   "vireon"
+  ],
+  "etanol": [
+   "softguard"
+  ],
+  "ethanol": [
+   "softguard"
+  ],
+  "limonotu yagi": [
+   "softguard"
+  ],
+  "melissa officinalis flower leaf water": [
+   "softguard"
+  ],
+  "pogostemon cablin leaf oil": [
+   "softguard"
+  ],
+  "vegetable glycerin solubilizer": [
+   "softguard"
+  ],
+  "aronia melanocarpa fruit ferment filtrate": [
+   "sunacnea"
+  ],
+  "aronia meyvesi ferment filtrati": [
+   "sunacnea"
+  ],
+  "santalum album extract": [
+   "sunacnea"
+  ],
+  "zeytin bazli emulgatorler": [
+   "sunacnea"
+  ],
+  "damiana ekstresi": [
+   "vireon"
+  ],
+  "deniz kestanesi ekstresi": [
+   "vireon"
+  ],
+  "epimedium ekstresi": [
+   "vireon"
+  ],
+  "karabiber yagi": [
+   "vireon"
+  ],
+  "l-arginin": [
+   "vireon"
+  ],
+  "mavi papatya ekstresi": [
+   "vireon"
+  ],
+  "papaver somniferum seed oil": [
+   "vireon"
+  ],
+  "tribulus ekstresi": [
+   "vireon"
+  ],
+  "zingiber officinale root oil": [
+   "vireon"
+  ]
+ },
+ "inci_okunamayan": [
+  "hydravie",
+  "kinesis+",
+  "liftella",
+  "lipvora",
+  "minisooth",
+  "optywave"
+ ],
+ "kapsam_notu": "TR ve INCI adlari karisik yazilmis; eslestirme sozlugu 30 cifti kapsiyor. Kapsam disindaki ayni madde iki farkli adla iki ayri satir olarak gorunur. 'Ortak madde yok' sonucu bu kapsam eksikligiyle KARISTIRILMAMALI.",
+ "kullanim_uyarisi": "Bu tablo hangi maddenin nerede YAZDIGINI soyler; o maddenin ne ISE YARADIGINI soylemez. Oran ve formul elimizde yok, bu yuzden iki urun 'su maddede ayni' diye kiyaslanamaz."
+}

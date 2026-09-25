@@ -1,0 +1,17 @@
+{
+ "urun_adi": "hydravie",
+ "urun_anahtari": "hydravie",
+ "kaynak": "23-hydravie.docx",
+ "kaynak_tur": "onayli_kutu_metni",
+ "bolumler": {
+  "kullanim": "Sabah ve akşam temiz cilde ince bir tabaka halinde uygulanır. Nazik masajla emilmesi sağlanır.",
+  "uyarilar": "Haricen kullanılır. Göz ile temasından kaçınınız. Temas halinde bol su ile durulayınız. Çocukların ulaşamayacağı yerde muhafaza ediniz. Hassas cilt tipleri için ilk kullanımdan önce küçük bir alanda test edilmesi önerilir.",
+  "raf_omru": "24 ay – serin ve kuru yerde, doğrudan güneş ışığından uzakta saklayınız.İçindekiler (INCI):Su, Aloe Vera Yaprağı Suyu, Provitamin B5, Gliserin, Sodyum Hyalüronat, Niasinamid, Skualan, Shea Yağı, Hindi",
+  "tanim": "Hydravie, bitkisel özler ve doğal yağlarla formüle edilmiş, el ve yüz için günlük bakım kremidir.Cildin nem dengesini korumaya, beslemeye ve yumuşatmaya yardımcı olur. Shea yağı, jojoba ve zeytinden elde edilen skualen ile yoğun nem sağlar. Aloe vera ve panthenol, cildin tazelenmesine destek olurken, nar çekirdeği yağı ve bakuchiol doğal parlaklık kazandırabilir. Hafif dokusu sayesinde hızlı emilir ve ciltte yağlı his bırakmaz.Tüm cilt tipleri için uygundur."
+ },
+ "eksik_bolumler": [
+  "inci"
+ ],
+ "kirli_bolumler": {},
+ "dayanak_metni": "Sabah ve akşam temiz cilde ince bir tabaka halinde uygulanır. Nazik masajla emilmesi sağlanır. Haricen kullanılır. Göz ile temasından kaçınınız. Temas halinde bol su ile durulayınız. Çocukların ulaşamayacağı yerde muhafaza ediniz. Hassas cilt tipleri için ilk kullanımdan önce küçük bir alanda test edilmesi önerilir."
+}

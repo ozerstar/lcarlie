@@ -1,0 +1,798 @@
+{
+ "Kimse bundan bahsetmiyor ama...": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 1,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Meslek] camiasının sessiz kaldığı şeyi anlatacağım": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "OTORITE_ITIBARSIZLASTIRMA"
+  ],
+  "gerekce": "hekim/eczacı gibi meslek gruplarını gizleyici gösteren kurgu; sağlık çalışanı algısı ve haksız ticari uygulama riski",
+  "no": 2,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Herkes [gerçek] hakkında duymuştur ama kimse [acı] bilmez": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "DURUM_ADI"
+  ],
+  "gerekce": "[sorun]/[durum] yer tutucusu kozmetikte hastalık ya da belirti adıyla doldurulur; hastalık hedefleyen kanca yasak",
+  "no": 3,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Bunu tesadüfen öğrendik ama...": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 4,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Bunu] çok geç fark ettim, o yüzden şimdi sizinle paylaşıyorum": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 5,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Konu] hakkında sana söylenenler yalan": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 6,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Eylemi] yapmayı bırak": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 7,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[İnanç] aslında büyük bir hata": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 8,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Eylemi] yapmazsan [kaynağı] kaybediyorsun": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "HASAR_KORKU"
+  ],
+  "gerekce": "ürünün/durumun zarar verdiğini söylemek hasar iddiasıdır; korku kurgusu kozmetikte savunulamaz",
+  "no": 9,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "İşte bu yüzden senin [nesnen] [sonucu] vermiyor": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "SONUC_VAADI"
+  ],
+  "gerekce": "kozmetik ürün sonuç vaat edemez; [sonuç] yer tutucusu doldurulduğunda etkinlik iddiası doğar",
+  "no": 10,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Eylem] senin [nesneni] mahvediyor": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "HASAR_KORKU"
+  ],
+  "gerekce": "ürünün/durumun zarar verdiğini söylemek hasar iddiasıdır; korku kurgusu kozmetikte savunulamaz",
+  "no": 11,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Araç/yöntem] 2026'da artık işe yaramıyor": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "RAKIP_KOTULEME"
+  ],
+  "gerekce": "adlandırılmış marka/ürün üzerinden karşılaştırma ve kötüleme",
+  "no": 12,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Meslek mensupları] bunu müşterilerinden gizliyor": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "OTORITE_ITIBARSIZLASTIRMA"
+  ],
+  "gerekce": "hekim/eczacı gibi meslek gruplarını gizleyici gösteren kurgu; sağlık çalışanı algısı ve haksız ticari uygulama riski",
+  "no": 13,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Konu] hakkında sana yalan söylüyorlar": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "OTORITE_ITIBARSIZLASTIRMA"
+  ],
+  "gerekce": "hekim/eczacı gibi meslek gruplarını gizleyici gösteren kurgu; sağlık çalışanı algısı ve haksız ticari uygulama riski",
+  "no": 14,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Meslek mensupları] kimse görmediğinde ne yapıyor": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "OTORITE_ITIBARSIZLASTIRMA"
+  ],
+  "gerekce": "hekim/eczacı gibi meslek gruplarını gizleyici gösteren kurgu; sağlık çalışanı algısı ve haksız ticari uygulama riski",
+  "no": 15,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Popüler konu] hakkındaki ve senden saklanan gerçek": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "OTORITE_ITIBARSIZLASTIRMA"
+  ],
+  "gerekce": "hekim/eczacı gibi meslek gruplarını gizleyici gösteren kurgu; sağlık çalışanı algısı ve haksız ticari uygulama riski",
+  "no": 16,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Popüler şirket/araç] aslında [gerçek]": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "RAKIP_KOTULEME"
+  ],
+  "gerekce": "adlandırılmış marka/ürün üzerinden karşılaştırma ve kötüleme",
+  "no": 17,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Herkes [görüş] diyor. Aslında tam tersi.": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 18,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "10 içerik üreticisinden 9'u bu hatayı yapıyor": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "SAYI_IDDIASI"
+  ],
+  "gerekce": "rakam ispat külfeti doğurur (Ticari Reklam Yön. m.8); belgesi yoksa kullanılamaz",
+  "no": 19,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Bunu yüksek sesle söylemek ayıp sayılır ama...": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 20,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Çoğu insan hiç ulaşamaz": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 21,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Bunu görmezden gelince ne oluyor...": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 22,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Kimse buna dikkat etmiyor ama": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 23,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Bunu çok geç öğrendim": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 24,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Süre] içinde [müşteri sayısı] analiz ettim — en iyilerin ortak noktası şu": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "SURE_IDDIASI",
+   "SAYI_IDDIASI"
+  ],
+  "gerekce": "kozmetikte süre iddiası yasak (14 günde, 96 saatte…) — kalıp doldurulduğu anda ihlal olur",
+  "no": 25,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Sayı] müşteriyle çalıştım ve hepsinde aynı sorun vardı: [sorun]": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "DURUM_ADI",
+   "SAYI_IDDIASI"
+  ],
+  "gerekce": "[sorun]/[durum] yer tutucusu kozmetikte hastalık ya da belirti adıyla doldurulur; hastalık hedefleyen kanca yasak",
+  "no": 26,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Sektör]de [sayı] yılın ardından tek bir şeyi anladım": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "SAYI_IDDIASI"
+  ],
+  "gerekce": "rakam ispat külfeti doğurur (Ticari Reklam Yön. m.8); belgesi yoksa kullanılamaz",
+  "no": 27,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Durumun] her iki tarafında da bulundum — fark şurada": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "DURUM_ADI"
+  ],
+  "gerekce": "[sorun]/[durum] yer tutucusu kozmetikte hastalık ya da belirti adıyla doldurulur; hastalık hedefleyen kanca yasak",
+  "no": 28,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Konuda] [sayı] şey inceledim — gerçekten işe yarayan tek şey bu": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "SAYI_IDDIASI",
+   "MUCIZE_USTUNLUK"
+  ],
+  "gerekce": "rakam ispat külfeti doğurur (Ticari Reklam Yön. m.8); belgesi yoksa kullanılamaz",
+  "no": 29,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Durumun] içinden geçtim ve şunu çıkardım": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "DURUM_ADI"
+  ],
+  "gerekce": "[sorun]/[durum] yer tutucusu kozmetikte hastalık ya da belirti adıyla doldurulur; hastalık hedefleyen kanca yasak",
+  "no": 30,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Eylemi] değiştirdim ve [sonucu] elde ettim": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "SONUC_VAADI"
+  ],
+  "gerekce": "kozmetik ürün sonuç vaat edemez; [sonuç] yer tutucusu doldurulduğunda etkinlik iddiası doğar",
+  "no": 31,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "30 gün boyunca [eylemi] yaptım — sonuç: [sonuç]": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "SURE_IDDIASI",
+   "SONUC_VAADI"
+  ],
+  "gerekce": "kozmetikte süre iddiası yasak (14 günde, 96 saatte…) — kalıp doldurulduğu anda ihlal olur",
+  "no": 32,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Eylemden] vazgeçtim ve bu bana [sonucu] sağladı": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "SONUC_VAADI"
+  ],
+  "gerekce": "kozmetik ürün sonuç vaat edemez; [sonuç] yer tutucusu doldurulduğunda etkinlik iddiası doğar",
+  "no": 33,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[İnancım] vardı — bu beni [sonuca] götürdü": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "SONUC_VAADI"
+  ],
+  "gerekce": "kozmetik ürün sonuç vaat edemez; [sonuç] yer tutucusu doldurulduğunda etkinlik iddiası doğar",
+  "no": 34,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[İnancın] doğru olduğunu sanıyordum ama [eylemi] deneyene kadar": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 35,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Tesadüfen [eylemi] denedim — ve artık": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 36,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Alanda] nasıl özgün olunur...": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 37,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Konu] neden kolaydır — 5 neden": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "SAYI_IDDIASI"
+  ],
+  "gerekce": "rakam ispat külfeti doğurur (Ticari Reklam Yön. m.8); belgesi yoksa kullanılamaz",
+  "no": 38,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Konu] neden zordur — 5 neden": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "SAYI_IDDIASI"
+  ],
+  "gerekce": "rakam ispat külfeti doğurur (Ticari Reklam Yön. m.8); belgesi yoksa kullanılamaz",
+  "no": 39,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Şu tek hatayı yapmayı bırakın": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 40,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Hayatını değiştirecek tek tavsiye": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "MUCIZE_USTUNLUK"
+  ],
+  "gerekce": "gizli/benzersiz yöntem ve 'hayatını değiştirir' kurgusu mucize ve üstünlük iddiasıdır",
+  "no": 41,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Konu] hakkındaki yaygın yanlış inanışlar": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 42,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "İnsanların sana para ödemesini nasıl sağlarsın": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 43,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Konu] konusunda nicelik mi nitelik mi": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 44,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Alanda] daha akıllı çalışmak, daha çok değil": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 45,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Konu] konusunda başarıya ulaşmam ne kadar sürdü": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "SURE_IDDIASI"
+  ],
+  "gerekce": "kozmetikte süre iddiası yasak (14 günde, 96 saatte…) — kalıp doldurulduğu anda ihlal olur",
+  "no": 46,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Neden [bir şeyi] öğrenmek bu kadar uzun sürüyor": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "SURE_IDDIASI"
+  ],
+  "gerekce": "kozmetikte süre iddiası yasak (14 günde, 96 saatte…) — kalıp doldurulduğu anda ihlal olur",
+  "no": 47,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Alanda] başarılı olmak neden bu kadar zor": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 48,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Niş] için 5 yapılacak ve yapılmayacak": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 49,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Başlarken neleri beklemeli": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 50,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Niş] konusunda nefret ettiğim şey": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 51,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Niş] alanındaki en kötü deneyimim": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 52,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Niş] alanındaki en büyük hatam": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 53,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Konu] deneyimimden çıkardığım hayat dersleri": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 54,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "İşimde kullandığım araçlar": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 55,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Başlamak için paraya ihtiyacın yok": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 56,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Bir şeyde] başarı abartılıyor": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 57,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Neden [konu] konusunda bir türlü ilerleme kaydedemiyorsun": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 58,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Konu] ile başlamanın kolay yolu": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 59,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Başlamakta kararsızsan bunu oku": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 60,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Başlamak için neye ihtiyacın var": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 61,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Araç] ile tanınmanın 5 yolu": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "SAYI_IDDIASI"
+  ],
+  "gerekce": "rakam ispat külfeti doğurur (Ticari Reklam Yön. m.8); belgesi yoksa kullanılamaz",
+  "no": 62,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Konuya] nasıl başlanır: adım adım rehber": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 63,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Herkesin bilmesi gereken 10 gerçek": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "SAYI_IDDIASI"
+  ],
+  "gerekce": "rakam ispat külfeti doğurur (Ticari Reklam Yön. m.8); belgesi yoksa kullanılamaz",
+  "no": 64,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Başarıya ulaşmak için bu rehberi takip et": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "MUCIZE_USTUNLUK"
+  ],
+  "gerekce": "gizli/benzersiz yöntem ve 'hayatını değiştirir' kurgusu mucize ve üstünlük iddiasıdır",
+  "no": 65,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Konuyu] öğrenmeye nereden başlamalı...": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 66,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Bunun için kullandığım araçları nereden bulursun": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 67,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Neden sende [istenmeyen sonuç] var da [istenen sonuç] yok?": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "SONUC_VAADI"
+  ],
+  "gerekce": "kozmetik ürün sonuç vaat edemez; [sonuç] yer tutucusu doldurulduğunda etkinlik iddiası doğar",
+  "no": 68,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Sana [provokasyon] desem ne olur?": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 69,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Biri] [sonucu] nasıl elde ediyor da sen edemiyorsun?": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "SONUC_VAADI"
+  ],
+  "gerekce": "kozmetik ürün sonuç vaat edemez; [sonuç] yer tutucusu doldurulduğunda etkinlik iddiası doğar",
+  "no": 70,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Durumun] neden böyle olduğunu tahmin ediyor musun?": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "DURUM_ADI"
+  ],
+  "gerekce": "[sorun]/[durum] yer tutucusu kozmetikte hastalık ya da belirti adıyla doldurulur; hastalık hedefleyen kanca yasak",
+  "no": 71,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Sonucunu] neyin öldürdüğünü biliyor musun?": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "SONUC_VAADI",
+   "HASAR_KORKU"
+  ],
+  "gerekce": "kozmetik ürün sonuç vaat edemez; [sonuç] yer tutucusu doldurulduğunda etkinlik iddiası doğar",
+  "no": 72,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Her gün [eylemi] yapıyorsun — işte bu yüzden [sorun] yaşıyorsun": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "DURUM_ADI"
+  ],
+  "gerekce": "[sorun]/[durum] yer tutucusu kozmetikte hastalık ya da belirti adıyla doldurulur; hastalık hedefleyen kanca yasak",
+  "no": 73,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Sana 30 saniyede anlatacağım şeyi öğrenmek için [rakamı] kaybettim": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "SAYI_IDDIASI"
+  ],
+  "gerekce": "rakam ispat külfeti doğurur (Ticari Reklam Yön. m.8); belgesi yoksa kullanılamaz",
+  "no": 74,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Sen hâlâ [eylem] yaparken, diğerleri çoktan [sonucu] elde etti": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "SONUC_VAADI"
+  ],
+  "gerekce": "kozmetik ürün sonuç vaat edemez; [sonuç] yer tutucusu doldurulduğunda etkinlik iddiası doğar",
+  "no": 75,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Benim [süre] sürdü — peki sen bunu ne kadar sürede yaptın?": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "SURE_IDDIASI"
+  ],
+  "gerekce": "kozmetikte süre iddiası yasak (14 günde, 96 saatte…) — kalıp doldurulduğu anda ihlal olur",
+  "no": 76,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Nişte] yapılan en pahalı hata sana [rakam/kaynak] kaybettirir": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "HASAR_KORKU"
+  ],
+  "gerekce": "ürünün/durumun zarar verdiğini söylemek hasar iddiasıdır; korku kurgusu kozmetikte savunulamaz",
+  "no": 77,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Popüler tavsiyeye] inanmayı bırak — işte nedeni": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 78,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Utanıyorum ama hâlâ [eylemi] yapıyorum": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 79,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "İlk [sonucum] ancak [süre] sonra geldi": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "SURE_IDDIASI",
+   "SONUC_VAADI"
+  ],
+  "gerekce": "kozmetikte süre iddiası yasak (14 günde, 96 saatte…) — kalıp doldurulduğu anda ihlal olur",
+  "no": 80,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Bunu söylediğim için linç yiyeceğim": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 81,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Neden [tanınmış isim] tam olarak böyle yapıyor?": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "RAKIP_KOTULEME"
+  ],
+  "gerekce": "adlandırılmış marka/ürün üzerinden karşılaştırma ve kötüleme",
+  "no": 82,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Araç]ın sana karşı çalışıyor": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "HASAR_KORKU"
+  ],
+  "gerekce": "ürünün/durumun zarar verdiğini söylemek hasar iddiasıdır; korku kurgusu kozmetikte savunulamaz",
+  "no": 83,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Bunu] yapmadan önce bir dinle": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 84,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Neredeyse kimsenin bilmediği [sonuç] yöntemi var": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "SONUC_VAADI",
+   "MUCIZE_USTUNLUK"
+  ],
+  "gerekce": "kozmetik ürün sonuç vaat edemez; [sonuç] yer tutucusu doldurulduğunda etkinlik iddiası doğar",
+  "no": 85,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Her gün [eylem] yapılırsa [süre] sonra ne olur?": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "SURE_IDDIASI"
+  ],
+  "gerekce": "kozmetikte süre iddiası yasak (14 günde, 96 saatte…) — kalıp doldurulduğu anda ihlal olur",
+  "no": 86,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Bunu başlangıçta kimse anlatmadı bana": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 87,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Herkes [popüler tavsiye] der. Ben tam tersini yapıyorum": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 88,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Eğer sen [hedef kitle tanımı] isen, bu paylaşım senin için": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 89,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Koşul]a sahipsen [eyleme] gerek yok": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 90,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Tek bir sohbet [konu]ya bakışımı değiştirdi": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 91,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Beceri] için üç seviye var: hangisindeydin?": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "SAYI_IDDIASI"
+  ],
+  "gerekce": "rakam ispat külfeti doğurur (Ticari Reklam Yön. m.8); belgesi yoksa kullanılamaz",
+  "no": 92,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "DM'den soru geldi. Burada açıklıyorum": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 93,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Bir yıl önce [bu] oldu. Şimdi ise [değişim]": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "SONUC_VAADI"
+  ],
+  "gerekce": "kozmetik ürün sonuç vaat edemez; [sonuç] yer tutucusu doldurulduğunda etkinlik iddiası doğar",
+  "no": 94,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Bu, [sorun]dan bıkmış olanlar için": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "DURUM_ADI"
+  ],
+  "gerekce": "[sorun]/[durum] yer tutucusu kozmetikte hastalık ya da belirti adıyla doldurulur; hastalık hedefleyen kanca yasak",
+  "no": 95,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "[Özelliği] olan herkesin ortak noktası ne sence?": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 96,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Bu tavsiye her şeyini mahvedebilir": {
+  "kozmetik_uygun": false,
+  "riskler": [
+   "HASAR_KORKU"
+  ],
+  "gerekce": "ürünün/durumun zarar verdiğini söylemek hasar iddiasıdır; korku kurgusu kozmetikte savunulamaz",
+  "no": 97,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "İşte insanların [eylemi] sevmesinin nedeni": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 98,
+  "kaynak": "sahip listesi 21.09.2026"
+ },
+ "Hiç düşündün mü neden [ifade]?": {
+  "kozmetik_uygun": true,
+  "riskler": [],
+  "gerekce": "",
+  "no": 99,
+  "kaynak": "sahip listesi 21.09.2026"
+ }
+}

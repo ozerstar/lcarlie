@@ -16,7 +16,6 @@ venv-*/
 
 # --- calisma verisi: uretimde olusur, kaynak degildir ------------------------
 state/
-varliklar/
 nltk_data/
 evidence/out/
 *.log
@@ -65,3 +64,24 @@ desktop.ini
 # ki yarin baska bir ornek dosya da sessizce disarida kalmasin.
 !*.env.example
 !.env.example
+
+# --- varliklar/: KISMEN kaynaktir, tamami degil -------------------------------
+# 🔴 25.09.2026 DUZELTMESI. Bu dosya once `varliklar/` dizinini KOMPLE
+#    disliyordu ve gerekcesi "calisma verisi: uretimde olusur" idi. O
+#    siniflandirma dizinin 318 MB'lik urun fotografi kismi icin dogru, geri
+#    kalani icin YANLIS.
+#
+#    Kanit: ilk CI kosusunda iki test dustu. `varliklar/imla-ek-sozluk.txt`
+#    1.508 satirlik ELLE derlenmis bir Turkce ek sozluk ve kreatif-brief.py
+#    imla denetimini ondan besliyor. Uretilen veri bir testi dusurmez;
+#    dusuruyorsa o veri kaynaktir.
+#
+#    Ayrica dayaniklilik: bu 764 KB'lik varliklar git'te de degildi, gecelik
+#    yedekte de degildi (yedek yalniz n8n dokumu + compose + Caddyfile
+#    aliyor). Tek kopyasi sunucunun diskiydi -- kodu GitHub'a tasima
+#    sebebinin aynisi.
+#
+#    Disarida kalan tek sey urun fotograflari: 318 MB, 844 dosya. Depoyu
+#    KALICI olarak sisirir (git gecmisten silmez) ve GitHub sinirlarini
+#    zorlar. Onlarin dayanikliligi yedek tarafinda cozulmeli.
+jarvis-phase2/varliklar/urun/

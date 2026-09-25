@@ -1,0 +1,18 @@
+{
+ "urun_adi": "kinesis+",
+ "urun_anahtari": "kinesis+",
+ "kaynak": "25-kinesis+.docx",
+ "kaynak_tur": "onayli_kutu_metni",
+ "bolumler": {
+  "kullanim": "Temiz ve kuru cilde, sabah ve akşam olmak üzere günde 2 kez 5–10 pompa ürün alınarak dairesel hareketlerle uygulayınız."
+ },
+ "eksik_bolumler": [
+  "tanim",
+  "uyarilar",
+  "inci"
+ ],
+ "kirli_bolumler": {
+  "uyarilar": "antimikrobiyal"
+ },
+ "dayanak_metni": "Temiz ve kuru cilde, sabah ve akşam olmak üzere günde 2 kez 5–10 pompa ürün alınarak dairesel hareketlerle uygulayınız."
+}

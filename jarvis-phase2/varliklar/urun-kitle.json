@@ -1,0 +1,205 @@
+{
+ "_aciklama": "Ürün ADI kimin aldığını bilmez. Bu dosya ürünün ETİKETİNİ değil, GERÇEK ALICISINI ve araştırmada kullanılacak kategori kelimelerini taşır. Jarvis kategoriyi ürün adından türetiyordu; ad yanlış kitleyi işaret ettiğinde bütün araştırma, kanca araması ve senaryo yanlış pazara kuruluyor.",
+ "_kural": "Buraya YALNIZ sahibin ya da ölçümün söylediği girilir, tahmin girilmez. 'kaynak' alanı zorunludur.",
+ "_etiket_uyarisi": "Gerçek alıcı etiketten farklı olabilir ama ETİKET METNİ DEĞİŞMEZ. Kutuda 'bebek ve çocukların hassas saç yapısı için geliştirilmiştir' yazıyorsa o cümle yerinde kalır; değişen yalnız reklamın kime konuştuğudur.",
+ "easycomb": {
+  "etiket_kitlesi": "bebek ve cocuklar",
+  "gercek_kitle": "Urun YETISKINLERE pazarlanacak ve yetiskin KENDI SACINDA kullanir. Sahip karari 22.09.2026. Bu bir cocuk urunu DEGILDIR: reklamdaki kisi urunu kendi sacina sikan yetiskindir, cocuk kurgusu kullanilmaz.",
+  "kaynak": "Ozer Yildiz karari, 22.09.2026",
+  "arama_kategorileri": [
+   "durulanmayan sac bakim spreyi",
+   "sac bakim spreyi",
+   "sac acici sprey"
+  ],
+  "fiyat_konumu_notu": "OLCULDU 22.09.2026: yetiskin durulanmayan sac bakim spreyi kategorisinde rakipler 195-1.595 TL (MORFOSE 195 / URBAN CARE 215 / OGX 520 / SCHWARZKOPF 750 / LOREAL 890 / DAVINES 950 / KERASTASE 1.450 / AVEDA 1.595). Bizim 1.020 TL bu bandin ICINDE, DAVINES ile KERASTASE arasinda. Birim fiyatta 10,20 TL/ml ile en usttteyiz ama KERASTASE 9,67 TL/ml -- fark kucuk. BEBEK kategorisinde ayni fiyat sacmaydi (rakipler 70-560 TL). Konumlandirma degisimi fiyat sorununu buyuk olcude cozuyor.",
+  "acik_konu": "100 ml rakiplerden kucuk (150-400 ml). Premium konum bunu tasir ama ambalaj boyutu ayri bir karar.",
+  "not": "Reklam yetiskine, kendi sac bakimi uzerinden konusur. Kutu metni ve uyarilar AYNEN kalir -- etiket degismez, reklamin muhatabi degisir.",
+  "yasak_kurgu": [
+   "çocuk",
+   "cocuk",
+   "bebek",
+   "ebeveyn",
+   "anne",
+   "baba",
+   "okul",
+   "servis",
+   "yavru"
+  ]
+ },
+ "_yasak_kurgu_aciklama": "Bu urunun reklaminda GECMEMESI gereken kurgu sozcukleri. Kitle uestyazimi tek basina yetmedi: urun adi ve aciklamasi onlarca kez  bebek/cocuk dedigi icin model yine cocuk senaryosu yaziyordu. Istem TERCIH bildirir, kapi KURAL uygular.",
+ "vireon": {
+  "etiket_kitlesi": "erkek",
+  "gercek_kitle": "Ürünü KENDİ KULLANAN yetişkin erkek. Reklamdaki kişi ürünü kendi bakımında kullanan erkektir; 'eşine alan kadın' kurgusu bu ürünün kitlesi DEĞİLDİR.",
+  "kaynak": "Özer Yıldız onayı, 22.09.2026",
+  "arama_kategorileri": [
+   "erkek bakım kremi",
+   "erkek cilt bakımı",
+   "erkek vücut bakım kremi"
+  ],
+  "not": "Ölçülen cironun ~%41'i bu üründen (19 adet, %72,6 marj). Aynı zamanda en yüksek mevzuat riskli ürün: 'dolaşımı destekler' ihlali bu üründen çıkmıştı, kapılar özellikle burada çalışmalı."
+ },
+ "kinesis": {
+  "etiket_kitlesi": "spor",
+  "gercek_kitle": "Düzenli spor yapan kişi. Anlatı antrenman öncesi/sonrası bakım anı üzerine kurulur.",
+  "kaynak": "Özer Yıldız onayı, 22.09.2026",
+  "arama_kategorileri": [
+   "sporcu bakım kremi",
+   "kas ve eklem bakım kremi",
+   "masaj kremi sporcu"
+  ],
+  "not": "Etiket ile gerçek alıcı UYUŞUYOR. Yine de burada yazılı: sistem kitleyi ürün adından TÜRETMESİN."
+ },
+ "dermamovera": {
+  "etiket_kitlesi": "spor",
+  "gercek_kitle": "Düzenli spor yapan kişi. Anlatı antrenman öncesi/sonrası bakım anı üzerine kurulur.",
+  "kaynak": "Özer Yıldız onayı, 22.09.2026",
+  "arama_kategorileri": [
+   "sporcu bakım kremi",
+   "kas ve eklem bakım kremi",
+   "masaj kremi sporcu"
+  ],
+  "not": "Etiket ile gerçek alıcı UYUŞUYOR. Yine de burada yazılı: sistem kitleyi ürün adından TÜRETMESİN."
+ },
+ "seralimbo": {
+  "etiket_kitlesi": "spor",
+  "gercek_kitle": "Düzenli spor yapan kişi. Anlatı antrenman öncesi/sonrası bakım anı üzerine kurulur.",
+  "kaynak": "Özer Yıldız onayı, 22.09.2026",
+  "arama_kategorileri": [
+   "sporcu bakım kremi",
+   "kas ve eklem bakım kremi",
+   "masaj kremi sporcu"
+  ],
+  "not": "Etiket ile gerçek alıcı UYUŞUYOR. Yine de burada yazılı: sistem kitleyi ürün adından TÜRETMESİN."
+ },
+ "dermarnica": {
+  "etiket_kitlesi": "spor",
+  "gercek_kitle": "Düzenli spor yapan kişi. Anlatı antrenman öncesi/sonrası bakım anı üzerine kurulur.",
+  "kaynak": "Özer Yıldız onayı, 22.09.2026",
+  "arama_kategorileri": [
+   "sporcu bakım kremi",
+   "kas ve eklem bakım kremi",
+   "masaj kremi sporcu"
+  ],
+  "not": "Etiket ile gerçek alıcı UYUŞUYOR. Yine de burada yazılı: sistem kitleyi ürün adından TÜRETMESİN."
+ },
+ "dorsivia": {
+  "etiket_kitlesi": "spor",
+  "gercek_kitle": "Düzenli spor yapan kişi. Anlatı antrenman öncesi/sonrası bakım anı üzerine kurulur.",
+  "kaynak": "Özer Yıldız onayı, 22.09.2026",
+  "arama_kategorileri": [
+   "sporcu bakım kremi",
+   "kas ve eklem bakım kremi",
+   "masaj kremi sporcu"
+  ],
+  "not": "Etiket ile gerçek alıcı UYUŞUYOR. Yine de burada yazılı: sistem kitleyi ürün adından TÜRETMESİN."
+ },
+ "intimblanc": {
+  "etiket_kitlesi": "kadın",
+  "gercek_kitle": "Ürünü kendi kullanan yetişkin kadın. Alıcı ve kullanan aynı kişi.",
+  "kaynak": "Özer Yıldız onayı, 22.09.2026",
+  "arama_kategorileri": [
+   "hassas bölge bakım kremi",
+   "intim bakım kremi"
+  ],
+  "not": "Etiket ile gerçek alıcı UYUŞUYOR; ad üzerinden türetme yapılmasın."
+ },
+ "liftelle": {
+  "etiket_kitlesi": "kadın",
+  "gercek_kitle": "Ürünü kendi kullanan yetişkin kadın. Alıcı ve kullanan aynı kişi.",
+  "kaynak": "Özer Yıldız onayı, 22.09.2026",
+  "arama_kategorileri": [
+   "göğüs ve dekolte bakım kremi",
+   "sıkılaştırıcı bakım kremi"
+  ],
+  "not": "Etiket ile gerçek alıcı UYUŞUYOR; ad üzerinden türetme yapılmasın."
+ },
+ "femisia": {
+  "etiket_kitlesi": "kadın",
+  "gercek_kitle": "Ürünü kendi kullanan yetişkin kadın. Alıcı ve kullanan aynı kişi.",
+  "kaynak": "Özer Yıldız onayı, 22.09.2026",
+  "arama_kategorileri": [
+   "kadın bakım kremi",
+   "kadınlara özel bakım kremi"
+  ],
+  "not": "Etiket ile gerçek alıcı UYUŞUYOR; ad üzerinden türetme yapılmasın."
+ },
+ "babysol": {
+  "etiket_kitlesi": "bebek ve çocuklar",
+  "gercek_kitle": "ASIL kitle bebek/çocuk; alan ebeveyn, kullanan çocuk. Yetişkinler de satın alıp kendileri kullanabiliyor ama bu İKİNCİL kullanımdır. Reklam ebeveyne ve çocuk kullanımına konuşur; yetişkin kullanımı ancak ikincil olarak anılır, ana kurgu olmaz.",
+  "kaynak": "Özer Yıldız onayı, 22.09.2026",
+  "arama_kategorileri": [
+   "bebek güneş kremi",
+   "çocuk güneş koruyucu"
+  ],
+  "not": "🔴 EASYCOMB İLE KARIŞTIRMA. EASYCOMB'da etiket 'bebek' ama ASIL alıcı yetişkin olduğu için çocuk kurgusu YASAKLANDI. Burada tersi: çocuk kurgusu DOĞRU kurgudur. Bu yüzden bu ürünlere `yasak_kurgu` KONULMAZ."
+ },
+ "babyrescue": {
+  "etiket_kitlesi": "bebek ve çocuklar",
+  "gercek_kitle": "ASIL kitle bebek/çocuk; alan ebeveyn, kullanan çocuk. Yetişkinler de satın alıp kendileri kullanabiliyor ama bu İKİNCİL kullanımdır. Reklam ebeveyne ve çocuk kullanımına konuşur; yetişkin kullanımı ancak ikincil olarak anılır, ana kurgu olmaz.",
+  "kaynak": "Özer Yıldız onayı, 22.09.2026",
+  "arama_kategorileri": [
+   "bebek bakım kremi",
+   "bebek pişik kremi"
+  ],
+  "not": "🔴 EASYCOMB İLE KARIŞTIRMA. EASYCOMB'da etiket 'bebek' ama ASIL alıcı yetişkin olduğu için çocuk kurgusu YASAKLANDI. Burada tersi: çocuk kurgusu DOĞRU kurgudur. Bu yüzden bu ürünlere `yasak_kurgu` KONULMAZ."
+ },
+ "babydent": {
+  "etiket_kitlesi": "bebek ve çocuklar",
+  "gercek_kitle": "ASIL kitle bebek/çocuk; alan ebeveyn, kullanan çocuk. Yetişkinler de satın alıp kendileri kullanabiliyor ama bu İKİNCİL kullanımdır. Reklam ebeveyne ve çocuk kullanımına konuşur; yetişkin kullanımı ancak ikincil olarak anılır, ana kurgu olmaz.",
+  "kaynak": "Özer Yıldız onayı, 22.09.2026",
+  "arama_kategorileri": [
+   "bebek diş bakımı",
+   "çocuk diş macunu"
+  ],
+  "not": "🔴 EASYCOMB İLE KARIŞTIRMA. EASYCOMB'da etiket 'bebek' ama ASIL alıcı yetişkin olduğu için çocuk kurgusu YASAKLANDI. Burada tersi: çocuk kurgusu DOĞRU kurgudur. Bu yüzden bu ürünlere `yasak_kurgu` KONULMAZ."
+ },
+ "babysoft": {
+  "etiket_kitlesi": "bebek ve çocuklar",
+  "gercek_kitle": "ASIL kitle bebek/çocuk; alan ebeveyn, kullanan çocuk. Yetişkinler de satın alıp kendileri kullanabiliyor ama bu İKİNCİL kullanımdır. Reklam ebeveyne ve çocuk kullanımına konuşur; yetişkin kullanımı ancak ikincil olarak anılır, ana kurgu olmaz.",
+  "kaynak": "Özer Yıldız onayı, 22.09.2026",
+  "arama_kategorileri": [
+   "bebek vücut losyonu",
+   "bebek nemlendirici"
+  ],
+  "not": "🔴 EASYCOMB İLE KARIŞTIRMA. EASYCOMB'da etiket 'bebek' ama ASIL alıcı yetişkin olduğu için çocuk kurgusu YASAKLANDI. Burada tersi: çocuk kurgusu DOĞRU kurgudur. Bu yüzden bu ürünlere `yasak_kurgu` KONULMAZ."
+ },
+ "babyshower": {
+  "etiket_kitlesi": "bebek ve çocuklar",
+  "gercek_kitle": "ASIL kitle bebek/çocuk; alan ebeveyn, kullanan çocuk. Yetişkinler de satın alıp kendileri kullanabiliyor ama bu İKİNCİL kullanımdır. Reklam ebeveyne ve çocuk kullanımına konuşur; yetişkin kullanımı ancak ikincil olarak anılır, ana kurgu olmaz.",
+  "kaynak": "Özer Yıldız onayı, 22.09.2026",
+  "arama_kategorileri": [
+   "bebek şampuanı",
+   "bebek duş jeli"
+  ],
+  "not": "🔴 EASYCOMB İLE KARIŞTIRMA. EASYCOMB'da etiket 'bebek' ama ASIL alıcı yetişkin olduğu için çocuk kurgusu YASAKLANDI. Burada tersi: çocuk kurgusu DOĞRU kurgudur. Bu yüzden bu ürünlere `yasak_kurgu` KONULMAZ."
+ },
+ "minisooth": {
+  "etiket_kitlesi": "bebek ve çocuklar",
+  "gercek_kitle": "ASIL kitle bebek/çocuk; alan ebeveyn, kullanan çocuk. Yetişkinler de satın alıp kendileri kullanabiliyor ama bu İKİNCİL kullanımdır. Reklam ebeveyne ve çocuk kullanımına konuşur; yetişkin kullanımı ancak ikincil olarak anılır, ana kurgu olmaz.",
+  "kaynak": "Özer Yıldız onayı, 22.09.2026",
+  "arama_kategorileri": [
+   "bebek yatıştırıcı krem",
+   "çocuk bakım kremi"
+  ],
+  "not": "🔴 EASYCOMB İLE KARIŞTIRMA. EASYCOMB'da etiket 'bebek' ama ASIL alıcı yetişkin olduğu için çocuk kurgusu YASAKLANDI. Burada tersi: çocuk kurgusu DOĞRU kurgudur. Bu yüzden bu ürünlere `yasak_kurgu` KONULMAZ."
+ },
+ "sunacnea": {
+  "etiket_kitlesi": "genel",
+  "gercek_kitle": "Hassas ve akne egilimli cilde sahip YETISKIN. BABYSOL bebek urunudur, SUNACNEA ile karistirma: bu urunun reklaminda cocuk kurgusu kullanilmaz.",
+  "kaynak": "Pazaryeri urun basligi + kutu metni, 22.09.2026",
+  "arama_kategorileri": [
+   "cinko oksit gunes kremi",
+   "hassas cilt gunes kremi",
+   "akne egilimli cilt gunes koruyucu",
+   "mineral gunes kremi yuz"
+  ],
+  "belge_dayanagi": "TTS Laboratuvar, TURKAK akredite AB-1802-T, 15.09.2025, COLIPA In Vitro: olculen SPF 36,56 (etikette 30), UVA/UVB orani 0,434. Etiketten fazlasini veriyor ve bu BELGELI.",
+  "acik_konu": "Ayni urun kanallar arasinda 913-1.200 TL araliginda satiliyor (kendi sitemiz 990, Trendyol liste 1.080 / indirimli 918, ucuncu taraf satici 913).",
+  "yasak_kurgu": [
+   "bebek",
+   "cocuk",
+   "çocuk",
+   "yavru"
+  ]
+ }
+}

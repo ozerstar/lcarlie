@@ -1,9 +1,12 @@
 """Ozel isim istisnasi: etkinlik adini birakir, gercek iddiayi yakalar."""
 import importlib.util
+import pathlib
 import sys
 
-spec = importlib.util.spec_from_file_location(
-    "it", "/opt/lcarlie/jarvis-phase2/scripts/itibar-tara.py")
+# Yol __file__'dan turetilir; sabit uretim yolu testi kurulu surume baglar.
+_BETIK = pathlib.Path(__file__).resolve().parent.parent / "scripts" / "itibar-tara.py"
+
+spec = importlib.util.spec_from_file_location("it", _BETIK)
 it = importlib.util.module_from_spec(spec)
 sys.argv = ["it"]
 spec.loader.exec_module(it)

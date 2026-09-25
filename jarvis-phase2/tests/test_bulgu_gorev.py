@@ -19,7 +19,13 @@ import shutil
 import tempfile
 import unittest
 
-BETIK = pathlib.Path("/opt/lcarlie/jarvis-phase2/scripts/bulgu-gorev.py")
+# 🔴 YOL __file__'DAN TURETILIR, SABIT YAZILMAZ.
+# Onceki hali "/opt/lcarlie/jarvis-phase2/scripts/..." diyordu. Sunucuda
+# geciyordu cunku o yol orada var; CI'da ve baska her yerde dusuyordu
+# (25.09.2026'da ilk CI kosusunda 8 test bu yuzden dustu). Daha sinsi
+# sonucu sudur: test, uzerinde calistigin DEPOYU degil o an KURULU olan
+# surumu sinar -- yani daldaki degisikligi hic test etmemis olursun.
+BETIK = pathlib.Path(__file__).resolve().parent.parent / "scripts" / "bulgu-gorev.py"
 
 
 def _yukle():

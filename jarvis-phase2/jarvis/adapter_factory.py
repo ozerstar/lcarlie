@@ -488,7 +488,24 @@ class CodingExecutorAdapter(CapabilityAdapter):
         from pathlib import Path as _Path
         import os as _os
         binary = _os.environ.get("JARVIS_KIMI_BIN", "/root/kimi-sandbox/bin/kimi")
-        present = _Path(binary).is_file()
+        # 🔴 is_file() SESSIZCE FIRLATIR. Varsayilan yol /root altinda ve
+        # root olmayan bir kullanici stat() cagirinca PermissionError gelir.
+        # 25.09.2026'da CI bunu yakaladi: sozlesmesi "asla firlatmaz" olan
+        # health(), test_health_reports_and_never_raises testini DUSURDU.
+        # Uretimde gorunmemisti cunku servis root olarak kosuyor -- yani
+        # kusur vardi, yalnizca o makinede tetiklenmiyordu.
+        #
+        # 🔴 "BAKAMADIM" ILE "YOK" AYNI SEY DEGILDIR. Izin hatasini
+        # UNAVAILABLE yazmak, var olan bir ikiliyi yok ilan etmek olurdu.
+        # Bu ayrim bu projenin tekrar eden kok hatasidir; DEGRADED + acik
+        # sebep ile ayri tutuluyor.
+        try:
+            present = _Path(binary).is_file()
+        except OSError as hata:
+            return {"state": AdapterState.DEGRADED.value,
+                    "binary_present": None,
+                    "reason": f"{type(hata).__name__}: bakilamadi ({binary})",
+                    "boundary": "human-originated tasks only"}
         return {"state": (AdapterState.AVAILABLE if present
                           else AdapterState.UNAVAILABLE).value,
                 "binary_present": present,

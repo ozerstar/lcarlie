@@ -2,7 +2,11 @@
 import importlib.util
 import sys
 
-spec = importlib.util.spec_from_file_location("kb", "/opt/lcarlie/jarvis-phase2/scripts/kreatif-brief.py")
+import pathlib
+
+# Yol __file__'dan turetilir; sabit uretim yolu testi kurulu surume baglar.
+_BETIK = pathlib.Path(__file__).resolve().parent.parent / "scripts" / "kreatif-brief.py"
+spec = importlib.util.spec_from_file_location("kb", _BETIK)
 kb = importlib.util.module_from_spec(spec)
 sys.argv = ["kb"]
 spec.loader.exec_module(kb)
