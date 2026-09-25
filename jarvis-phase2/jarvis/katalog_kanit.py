@@ -21,7 +21,9 @@ from dataclasses import asdict, dataclass
 # Sayfa rolleri -- urun baskinligi profili bunlara gore degerlendirilir.
 SAYFA_ROLLERI = ("HERO", "ANLATI", "KATALOG", "DETAY", "SESSIZ")
 
-KARARLAR = ("KABUL", "REVIZE", "RET", "INSANA_TASI")
+# Yetki kademeleriyle AYNI dagarcik. Iki benzer ama farkli sozcuk
+# kumesi (REVIZE/REVISE) gercek bir hata kaynagidir -- birlestirildi.
+KARARLAR = ("APPROVE", "REVISE", "REJECT", "ESCALATE_TO_HUMAN")
 
 
 @dataclass(frozen=True)

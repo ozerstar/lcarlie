@@ -29,7 +29,7 @@ class KararKaydiSozlesmesi(unittest.TestCase):
                    "arka planla kontrasti dusuk.",
             kanit={"saliency_payi": 0.19, "konu_zemin_kontrasti": 0.08},
             gerekce="Baskinlik boyutla degil figur-zemin ayrimiyla kurulur.",
-            karar="REVIZE",
+            karar="REVISE",
             eylem="Faz 4'e gonderildi.",
             veren="C07",
         )
@@ -38,7 +38,7 @@ class KararKaydiSozlesmesi(unittest.TestCase):
 
     def test_gecerli_kayit_kurulur(self):
         k = self._gecerli()
-        self.assertEqual(k.karar, "REVIZE")
+        self.assertEqual(k.karar, "REVISE")
         self.assertIn("GOZLEM", k.metin())
         self.assertIn("GEREKCE", k.metin())
 
