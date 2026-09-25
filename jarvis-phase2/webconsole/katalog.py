@@ -107,19 +107,31 @@ def katalog() -> dict:
     except ValueError as hata:
         raise KatalogHatasi("katalog dosyasi okunamadi: %s" % hata) from None
 
+    # 🔴 TEK FIYAT DEGIL KADEMELI. Sahibin listesi PSF + %30 + %40 (KDV
+    # haric/dahil ayri) + Trendyol iceriyor. Sahada "hangi fiyat?" sorusu
+    # cevapsiz kalmasin diye hepsi gosteriliyor.
+    # mart.bayi_fiyat_gecerli CELISKILI satirda kademe fiyatini NULL
+    # dondurur -- yanlis fiyat vermek, fiyat verememekten pahalidir.
     bayi = {r["urun_slug"]: r for r in _oku(
-        "SELECT row_to_json(t) FROM (SELECT urun_slug, bayi_fiyat, para,"
-        " en_az_adet FROM core.urun_bayi_fiyat) t;")}
+        "SELECT row_to_json(t) FROM (SELECT urun_slug, barkod, psf,"
+        " isk30_haric, isk30_dahil, isk40_haric, isk40_dahil, trendyol,"
+        " celiskili, celiski_notu FROM mart.bayi_fiyat_gecerli) t;")}
+    kampanyalar = _oku(
+        "SELECT row_to_json(t) FROM (SELECT sira, baslik, kosul"
+        " FROM core.bayi_kampanya WHERE gecerli ORDER BY sira) t;")
     ilgi = {r["urun_slug"]: r for r in _oku(
         "SELECT row_to_json(t) FROM (SELECT * FROM mart.katalog_ilgi) t;")}
 
     for u in veri.get("urunler", []):
         b = bayi.get(u["slug"])
-        u["bayi_fiyat"] = b["bayi_fiyat"] if b else None
-        u["bayi_en_az_adet"] = b.get("en_az_adet") if b else None
+        u["bayi"] = b
+        # Geriye donuk alan: eski ekran kirilmasin.
+        u["bayi_fiyat"] = (b or {}).get("isk40_dahil")
         u["ilgi"] = ilgi.get(u["slug"])
 
     veri["bayi_fiyati_girilen"] = len(bayi)
+    veri["bayi_celiskili"] = sum(1 for b in bayi.values() if b.get("celiskili"))
+    veri["kampanyalar"] = kampanyalar
     veri["ilgi_degerleri"] = [{"deger": d, "etiket": ILGI_ETIKET[d]}
                               for d in ILGI_DEGERLERI]
     return veri

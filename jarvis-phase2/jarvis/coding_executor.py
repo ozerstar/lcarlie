@@ -228,7 +228,36 @@ def run_coding_task(spec: CodingTaskSpec, task_id: str) -> CodingTaskResult:
     started = perf_counter()
     clone_path: Path | None = None
     try:
-        if not Path(KIMI_BIN).is_file():
+        # 🔴 is_file() "yok" demek yerine ISTISNA FIRLATABILIR.
+        # Path.is_file() yalnizca dosya yoksa False doner; UST DIZIN
+        # okunamiyorsa PermissionError ATAR. Burada tam olarak o oluyor:
+        # KIMI_BIN varsayilani /root/kimi-sandbox/bin/kimi, ama
+        # jarvis-phase2.service `ProtectHome=true` ile kosuyor -- yani
+        # /root, servis root olarak calissa bile erisilemez.
+        #
+        # Eski hali bu istisnayi yakalamiyordu. PermissionError
+        # CodingExecutorError DEGIL, dolayisiyla loop.py'deki
+        # CodingTaskDenied cevrimine de girmiyor ve TUM DONGUYU cokertiyordu.
+        # Olculdu 25.09.2026: takilmis bir CODE_CHANGE_REVIEW isi yeniden
+        # denenebilir hale gelince jarvis-phase2 her 5 dakikada bir
+        # PermissionError ile duserek crash-loop'a girdi. Ayni cokme
+        # 21.09.2026'da isin kirasini da askida birakmisti (is 4 gun
+        # LEASED kaldi, kimse fark etmedi).
+        #
+        # Artik erisilemeyen ikili "yok" sayilir: is ZARIFCE reddedilir
+        # (CodingTaskDenied), dongu ayakta kalir. Sebep metninde erisim
+        # sorunu ayrica yazilir -- "yok" ile "bakamadim" ayri seylerdir.
+        try:
+            kimi_var = Path(KIMI_BIN).is_file()
+            erisim_hatasi = None
+        except OSError as exc:
+            kimi_var, erisim_hatasi = False, exc
+        if not kimi_var:
+            if erisim_hatasi is not None:
+                raise CodingExecutorError(
+                    f"kimi binary unreachable: {KIMI_BIN} ({erisim_hatasi.__class__.__name__}: "
+                    f"{erisim_hatasi}). ProtectHome=true ise /root servise kapalidir; "
+                    f"ikiliyi /root disina tasiyin ya da JARVIS_KIMI_BIN ile yolunu verin.")
             raise CodingExecutorError(f"kimi binary not found: {KIMI_BIN}")
 
         clone_path = _clone_canonical_source(task_id)

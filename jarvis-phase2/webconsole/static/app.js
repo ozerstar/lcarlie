@@ -6592,6 +6592,19 @@ function katCiz() {
 
   /* Eksikler ekranın tepesinde YAZAR. Gizlenseydi katalog tam görünür ve
    * eczacının sorduğu ilk soruda boşluk sahada ortaya çıkardı. */
+  /* Kampanya koşulları fiyatın yanında konuşulur: '70.000 TL üzeri
+   * stand desteği' demek, fiyat kırmadan değer katar. */
+  const kamp = qs('katKampanya');
+  if (kamp) {
+    const liste = KAT.veri.kampanyalar || [];
+    kamp.innerHTML = liste.length
+      ? '<h4>Kampanyalar</h4><ul>' + liste.map(function (x) {
+          return '<li>' + escapeHtml(x.baslik) + '</li>';
+        }).join('') + '</ul>'
+      : '';
+    kamp.hidden = !liste.length;
+  }
+
   const u = qs('katUyari');
   if (u) {
     const k = KAT.veri.kapsama || {};
@@ -6600,7 +6613,11 @@ function katCiz() {
     if (k.inci_var < n) eksik.push((n - k.inci_var) + ' üründe INCI (uluslararası ad) kaynakta yok');
     if (!KAT.veri.bayi_fiyati_girilen) eksik.push('bayi fiyatı hiçbir üründe girilmedi');
     else if (KAT.veri.bayi_fiyati_girilen < n) {
-      eksik.push((n - KAT.veri.bayi_fiyati_girilen) + ' üründe bayi fiyatı girilmedi');
+      eksik.push((n - KAT.veri.bayi_fiyati_girilen) + ' üründe bayi fiyatı yok');
+    }
+    if (KAT.veri.bayi_celiskili) {
+      eksik.push(KAT.veri.bayi_celiskili
+        + ' üründe fiyat listesi kendi hesabını tutmuyor — teyit gerekiyor');
     }
     const cakisan = Object.keys(KAT.veri.barkod_cakismasi || {});
     if (cakisan.length) {
@@ -6643,11 +6660,57 @@ function katKart(p) {
     +   '<span class="kat-fiyatlar">'
     +     '<span class="kat-fiyat">' + katPara(p.fiyat) + '</span>'
     +     '<span class="kat-fiyat-alt">tavsiye edilen satış</span>'
-    +     '<span class="kat-fiyat-bayi">bayi: ' + katPara(p.bayi_fiyat) + '</span>'
+    +     katBayiOzet(p)
     +   '</span>'
     + '</button>'
     + (acik ? katDetay(p) : '')
     + '</article>';
+}
+
+/* Bayi fiyatı kart üstünde ÖZET, detayda KADEMELİ.
+ *
+ * 🔴 ÇELİŞKİLİ SATIRDA FİYAT YAZILMAZ. Liste görsel olarak geldi (PDF'te
+ * metin yok) ve kendi iskonto mantığına göre dört hücre tutmadı; en
+ * büyüğü %18,2. Sahada yanlış fiyat vermek, fiyat verememekten
+ * pahalıdır: ilki verilmiş bir sözdür, ikincisi bir telefon görüşmesi. */
+function katBayiOzet(p) {
+  const b = p.bayi;
+  if (!b) {
+    return '<span class="kat-fiyat-bayi kat-fiyat-yok">bayi fiyatı yok</span>';
+  }
+  if (b.celiskili) {
+    return '<span class="kat-fiyat-bayi kat-fiyat-teyit">teyit gerekiyor</span>';
+  }
+  return '<span class="kat-fiyat-bayi">%40: ' + katPara(b.isk40_dahil) + '</span>';
+}
+
+function katBayiTablosu(p) {
+  const b = p.bayi;
+  if (!b) {
+    return '<div class="kat-bolum kat-bolum-uyari"><h4>Bayi fiyatı</h4>'
+      + '<p class="kat-yok">Fiyat listesinde yok — sahada fiyat verilemez.</p>'
+      + '</div>';
+  }
+  if (b.celiskili) {
+    return '<div class="kat-bolum kat-bolum-uyari">'
+      + '<h4>Bayi fiyatı — TEYİT GEREKİYOR</h4>'
+      + '<p>' + escapeHtml(b.celiski_notu || '') + '</p>'
+      + '<p class="kat-not-kucuk">Bu üründe iskontolu fiyat gösterilmiyor. '
+      + 'Liste düzeltilene kadar fiyatı merkeze sorarak ver.</p></div>';
+  }
+  const satir = function (etiket, deger) {
+    return '<tr><td>' + escapeHtml(etiket) + '</td><td>'
+      + katPara(deger) + '</td></tr>';
+  };
+  return '<div class="kat-bolum"><h4>Bayi fiyatı</h4>'
+    + '<table class="kat-fiyat-tablo"><tbody>'
+    + satir('Tavsiye edilen satış (PSF)', b.psf)
+    + satir('%30 iskonto · KDV hariç', b.isk30_haric)
+    + satir('%30 iskonto · KDV dahil', b.isk30_dahil)
+    + satir('%40 iskonto · KDV hariç', b.isk40_haric)
+    + satir('%40 iskonto · KDV dahil', b.isk40_dahil)
+    + satir('Trendyol satış', b.trendyol)
+    + '</tbody></table></div>';
 }
 
 function katBolum(baslik, govde, sinif) {
@@ -6695,6 +6758,7 @@ function katDetay(p) {
     + katBolum('Kullanım', p.kullanim)
     + inci
     + katBolum('İçindekiler (Türkçe)', p.icindekiler)
+    + katBayiTablosu(p)
     + katBolum('Raf ömrü', p.raf_omru)
     + katBolum('Saklama', p.saklama)
     + uyarilar
