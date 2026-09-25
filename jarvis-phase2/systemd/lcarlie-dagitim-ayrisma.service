@@ -1,0 +1,27 @@
+[Unit]
+# Canli calisma alani ile kaynak depo ayristi mi -- OLCER, duzeltmez.
+#
+# 🔴 SEBEBI OLCULMUS BIR OLAY: 25.09.2026'da katalog motorunun dort
+# dosyasi kaynak depoda islendi ama deploy.sh kosturulmadi; canlida hic
+# gorunmediler ve "motor calisiyor" diye raporlandi. "Depoda var" ile
+# "su an calisan sistemde var" ayni sey degildir.
+#
+# deploy.sh kendi dogrulamasini yapiyor -- ama yalniz KOSTURULURSA.
+# Kosturulmayan bir adimi hicbir dogrulama yakalamaz.
+#
+# OTOMATIK DAGITIM YAPMIYOR. Dagitim testlerden gecmeyi ve insan kararini
+# gerektirir; sessizce dagitan bir zamanlayici kapiyi kaldirmak olurdu.
+Description=LCARLIE canli/kaynak ayrisma denetimi
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+Environment=JARVIS_STATE_DIR=/opt/lcarlie/jarvis-phase2/state
+ExecStart=/opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/dagitim-ayrisma.py
+TimeoutStartSec=120
+Nice=15
+UMask=0077
+NoNewPrivileges=true
+# Ayrisma varsa cikis 2: servis BASARISIZ gorunur ve journalctl'de durur.
+SuccessExitStatus=0
