@@ -6682,6 +6682,11 @@ function katCiz() {
       eksik.push(KAT.veri.bayi_celiskili
         + ' üründe fiyat listesi kendi hesabını tutmuyor — teyit gerekiyor');
     }
+    /* Barkod şüphesi AYRI uyarı: fiyatı gizlemez, deposu ilgilendirir. */
+    if (KAT.veri.bayi_barkod_supheli) {
+      eksik.push(KAT.veri.bayi_barkod_supheli
+        + ' üründe barkod teyide muhtaç (fiyatlar geçerli)');
+    }
     const cakisan = Object.keys(KAT.veri.barkod_cakismasi || {});
     if (cakisan.length) {
       eksik.push('aynı barkodu taşıyan ürün: '
@@ -6732,10 +6737,13 @@ function katKart(p) {
 
 /* Bayi fiyatı kart üstünde ÖZET, detayda KADEMELİ.
  *
- * 🔴 ÇELİŞKİLİ SATIRDA FİYAT YAZILMAZ. Liste görsel olarak geldi (PDF'te
- * metin yok) ve kendi iskonto mantığına göre dört hücre tutmadı; en
- * büyüğü %18,2. Sahada yanlış fiyat vermek, fiyat verememekten
- * pahalıdır: ilki verilmiş bir sözdür, ikincisi bir telefon görüşmesi. */
+ * 🔴 FİYAT ÇELİŞKİSİ OLAN SATIRDA FİYAT YAZILMAZ. Sahada yanlış fiyat
+ * vermek, fiyat verememekten pahalıdır: ilki verilmiş bir sözdür,
+ * ikincisi bir telefon görüşmesi.
+ *
+ * Barkod şüphesi bundan AYRI tutulur ve fiyatı GİZLEMEZ. Önce tek
+ * bayrak iki işi birden görüyordu; OPTYWAVE'in fiyatları doğru olduğu
+ * hâlde barkod belirsizliği yüzünden sahada fiyat söylenemiyordu. */
 function katBayiOzet(p) {
   const b = p.bayi;
   if (!b) {
@@ -6773,7 +6781,26 @@ function katBayiTablosu(p) {
     + satir('%40 iskonto · KDV hariç', b.isk40_haric)
     + satir('%40 iskonto · KDV dahil', b.isk40_dahil)
     + satir('Trendyol satış', b.trendyol)
-    + '</tbody></table></div>';
+    + '</tbody></table>'
+    /* "Bu fiyat kesin mi?" sahada sorulan bir sorudur; cevabı olsun. */
+    + (b.psf_kaynagi
+        ? '<p class="kat-not-kucuk">PSF kaynağı: '
+          + escapeHtml(b.psf_kaynagi)
+          + ' · kademeler %30 / %40 iskonto ve KDV ile hesaplandı</p>'
+        : '')
+    + '</div>'
+    + katBarkodUyarisi(b);
+}
+
+/* Barkod şüphesi: fiyatın yanında değil, ALTINDA ve ayrı bir kutuda.
+ * Depoyu ve etiketi ilgilendirir; sahada söylenecek fiyatı değil. */
+function katBarkodUyarisi(b) {
+  if (!b || !b.barkod_celiskili) return '';
+  return '<div class="kat-bolum kat-bolum-uyari">'
+    + '<h4>Barkod teyide muhtaç</h4>'
+    + '<p>' + escapeHtml(b.barkod_notu || '') + '</p>'
+    + '<p class="kat-not-kucuk">Fiyatlar geçerlidir. Teyit, sevkiyat ve '
+    + 'etiket içindir.</p></div>';
 }
 
 function katBolum(baslik, govde, sinif) {

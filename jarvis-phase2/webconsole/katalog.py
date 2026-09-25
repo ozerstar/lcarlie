@@ -111,12 +111,20 @@ def katalog() -> dict:
     # 🔴 TEK FIYAT DEGIL KADEMELI. Sahibin listesi PSF + %30 + %40 (KDV
     # haric/dahil ayri) + Trendyol iceriyor. Sahada "hangi fiyat?" sorusu
     # cevapsiz kalmasin diye hepsi gosteriliyor.
-    # mart.bayi_fiyat_gecerli CELISKILI satirda kademe fiyatini NULL
-    # dondurur -- yanlis fiyat vermek, fiyat verememekten pahalidir.
+    # mart.bayi_fiyat_gecerli FIYAT celiskisi olan satirda kademe
+    # fiyatini NULL dondurur -- yanlis fiyat vermek, fiyat
+    # verememekten pahalidir.
+    #
+    # 🔴 BARKOD SUPHESI FIYATI GIZLEMEZ. Once tek bayrak iki isi
+    # birden goruyordu: OPTYWAVE'in fiyatlari dogruydu, yalniz barkodu
+    # supheliydi, ama kademe fiyatlari da NULL doniyordu. Barkod
+    # belirsizligi depoyu ilgilendirir, sahada soylenecek fiyati degil.
     bayi = {r["urun_slug"]: r for r in _oku(
         "SELECT row_to_json(t) FROM (SELECT urun_slug, barkod, psf,"
-        " isk30_haric, isk30_dahil, isk40_haric, isk40_dahil, trendyol,"
-        " celiskili, celiski_notu FROM mart.bayi_fiyat_gecerli) t;")}
+        " psf_kaynagi, isk30_haric, isk30_dahil, isk40_haric,"
+        " isk40_dahil, trendyol, celiskili, celiski_notu,"
+        " barkod_celiskili, barkod_notu"
+        " FROM mart.bayi_fiyat_gecerli) t;")}
     kampanyalar = _oku(
         "SELECT row_to_json(t) FROM (SELECT sira, baslik, kosul"
         " FROM core.bayi_kampanya WHERE gecerli ORDER BY sira) t;")
@@ -131,7 +139,10 @@ def katalog() -> dict:
         u["ilgi"] = ilgi.get(u["slug"])
 
     veri["bayi_fiyati_girilen"] = len(bayi)
-    veri["bayi_celiskili"] = sum(1 for b in bayi.values() if b.get("celiskili"))
+    veri["bayi_celiskili"] = sum(1 for b in bayi.values()
+                                 if b.get("celiskili"))
+    veri["bayi_barkod_supheli"] = sum(1 for b in bayi.values()
+                                      if b.get("barkod_celiskili"))
     veri["kampanyalar"] = kampanyalar
     veri["pdf"] = katalog_pdf_durumu()
     veri["ilgi_degerleri"] = [{"deger": d, "etiket": ILGI_ETIKET[d]}
