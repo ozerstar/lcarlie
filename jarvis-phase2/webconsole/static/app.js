@@ -178,7 +178,7 @@ function setView(name) {
   if (name === 'sistem') loadSistem();
   if (name === 'isler') loadIsler();
   if (name === 'saha') loadSaha();
-  if (name === 'katalog') loadKatalog();
+  if (name === 'katalog') { loadKatalog(); loadIgPlan(); }
   if (name === 'kreatifParti') loadKreatifParti();
   if (name === 'tasarim') tasarimYukle();
   if (name === 'asistan') asistanYukle();
@@ -6806,4 +6806,124 @@ document.addEventListener('submit', async function (e) {
    * okunur. Sayıyı yerelde artırsaydık sunucudaki gerçekle ayrışabilirdi. */
   KAT.veri = null;
   loadKatalog();
+});
+
+
+/* ==================== INSTAGRAM GÖNDERİ PLANI ===========================
+ *
+ * Paketler sunucuda üretilir (scripts/ig-gonderi-uret.py); panel okur ve
+ * sahibin kararını yazar.
+ *
+ * 🔴 ONAY KAPISI ŞEMADA. Denetimden bulgulu geçen ya da itirazı
+ * yanıtlanmamış paket veritabanı kısıtıyla reddedilir. Panelde ayrıca
+ * kontrol etmiyorum: iki yer ayrı karar verirse biri diğerini sessizce
+ * kabul eder. Kısıt hata döndürürse sebebi AYNEN gösterilir.
+ */
+function igDurumYaz(metin, kotu) {
+  const d = qs('igDurumMetni');
+  if (!d) return;
+  d.className = 'is-sonuc' + (kotu ? ' is-bad' : '');
+  d.textContent = metin || '';
+}
+
+async function loadIgPlan() {
+  const secim = (qs('igDurum') || {}).value || '';
+  const p = new URLSearchParams({ limit: 60 });
+  if (secim) p.set('durum', secim);
+  const cevap = await api('/api/ig-plan?' + p.toString());
+  if (!cevap.ok) {
+    igDurumYaz((cevap.body && cevap.body.error) || 'plan okunamadı', true);
+    return;
+  }
+  igDurumYaz('');
+  igPlanCiz(cevap.body);
+}
+
+function igPlanCiz(veri) {
+  const kap = qs('igPlanListe');
+  if (!kap) return;
+  const o = veri.ozet || {};
+  const c = qs('igCount');
+  if (c) {
+    c.textContent = (o.karar_bekleyen || 0) + ' karar bekliyor · '
+      + (o.onayli || 0) + ' onaylı · ' + (o.yayinda || 0) + ' yayında';
+  }
+  const paketler = veri.paketler || [];
+  if (!paketler.length) {
+    kap.innerHTML = '<p class="sect-empty">Bu durumda paket yok.</p>';
+    return;
+  }
+  kap.innerHTML = paketler.map(igKart).join('');
+}
+
+function igKart(p) {
+  const bulgulu = p.denetim !== 'TEMIZ';
+  const etiketler = (p.hashtagler || []).join(' ');
+  const kararli = p.durum !== 'ONERI';
+  return '<article class="ig-kart ig-' + escapeHtml(p.durum.toLowerCase()) + '">'
+    + '<header class="ig-bas">'
+    +   '<span class="ig-amac">' + escapeHtml(p.amac_etiket || p.amac) + '</span>'
+    +   '<span class="ig-bicim">' + escapeHtml(p.bicim) + '</span>'
+    +   '<span class="ig-urun">' + escapeHtml(p.urun_slug) + '</span>'
+    +   '<span class="ig-durum">' + escapeHtml(p.durum) + '</span>'
+    +   (bulgulu ? '<span class="ig-bulgu">DENETİM: BULGULU</span>' : '')
+    + '</header>'
+    + '<pre class="ig-caption">' + escapeHtml(p.caption) + '</pre>'
+    + '<p class="ig-etiket">' + escapeHtml(etiketler) + '</p>'
+    + igSatir('CTA', escapeHtml(p.cta || '—') + ' — ' + escapeHtml(p.cta_gerekce || ''))
+    + igSatir('GÖRSEL BRİEFİ', escapeHtml(p.gorsel_brief || ''))
+    + igSatir('DAYANAK', escapeHtml(p.dayanak || ''))
+    + igSatir('İTİRAZ', escapeHtml(p.itiraz || '—'), 'ig-itiraz')
+    + igSatir('YANIT', escapeHtml(p.itiraza_yanit || '—'), 'ig-yanit')
+    + (bulgulu
+        ? igSatir('DENETİM NOTU', escapeHtml(p.denetim_notu || ''), 'ig-bulgu-not')
+        : '')
+    + '<div class="ig-karar">'
+    +   (kararli
+          ? '<span class="ig-kararli">' + escapeHtml(p.durum) + ' · '
+            + escapeHtml(p.karar_veren || '') + '</span>'
+          : '<button type="button" class="btn ig-onay" data-id="' + p.plan_id
+            + '" data-durum="ONAYLANDI">ONAYLA</button>'
+            + '<button type="button" class="btn btn-ince ig-onay" data-id="'
+            + p.plan_id + '" data-durum="REDDEDILDI">REDDET</button>')
+    +   (p.durum === 'ONAYLANDI'
+          ? '<button type="button" class="btn btn-ince ig-onay" data-id="'
+            + p.plan_id + '" data-durum="YAYINLANDI">YAYINLANDI</button>' : '')
+    +   '<span class="is-sonuc ig-sonuc" data-id="' + p.plan_id + '"></span>'
+    + '</div>'
+    + '</article>';
+}
+
+function igSatir(baslik, govde, sinif) {
+  if (!govde) return '';
+  return '<div class="ig-satir' + (sinif ? ' ' + sinif : '') + '">'
+    + '<span class="ig-satir-bas">' + escapeHtml(baslik) + '</span>'
+    + '<span class="ig-satir-govde">' + govde + '</span></div>';
+}
+
+document.addEventListener('change', function (e) {
+  if (e.target.id === 'igDurum') loadIgPlan();
+});
+
+document.addEventListener('click', async function (e) {
+  const dugme = e.target.closest('.ig-onay');
+  if (!dugme) return;
+  const sonuc = document.querySelector('.ig-sonuc[data-id="' + dugme.dataset.id + '"]');
+  if (sonuc) { sonuc.className = 'is-sonuc ig-sonuc'; sonuc.textContent = '…'; }
+  const cevap = await api('/api/ig-plan/karar', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ plan_id: Number(dugme.dataset.id),
+                           durum: dugme.dataset.durum }),
+  });
+  if (!cevap.ok) {
+    /* Şema kısıtının hata metni AYNEN gösterilir: "bulgulu paket
+     * onaylanamaz" bilgisi kullanıcıya ulaşmalı, yoksa düğme bozuk
+     * görünür. */
+    if (sonuc) {
+      sonuc.className = 'is-sonuc is-bad';
+      sonuc.textContent = (cevap.body && cevap.body.error) || 'kaydedilemedi';
+    }
+    return;
+  }
+  loadIgPlan();
 });

@@ -4179,3 +4179,45 @@ html, body { max-width: 100%; overflow-x: hidden; }
     height: 24mm;
   }
 }
+
+/* ------------------ INSTAGRAM GÖNDERİ PLANI ------------------ */
+.ig-panel { margin-top: 14px; }
+.ig-liste { display: flex; flex-direction: column; gap: 10px; }
+.ig-kart { border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--glass); padding: 12px 14px; }
+.ig-onaylandi { border-left: 3px solid var(--ok); }
+.ig-reddedildi { border-left: 3px solid var(--crit); opacity: .6; }
+.ig-yayinlandi { border-left: 3px solid var(--gold); }
+.ig-bas { display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  margin-bottom: 8px; }
+.ig-amac { font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--gold); }
+.ig-bicim, .ig-durum { font-size: 9.5px; padding: 2px 6px;
+  border: 1px solid var(--line); border-radius: 2px; color: var(--ivory-3); }
+.ig-urun { font-family: var(--font-mono); font-size: 10.5px; color: var(--ivory-4); }
+.ig-bulgu { font-size: 9.5px; padding: 2px 6px; border: 1px solid var(--crit);
+  border-radius: 2px; color: var(--crit); }
+.ig-caption { margin: 0 0 6px; font-family: var(--font-ui); font-size: 12.5px;
+  line-height: 1.65; color: var(--ivory); white-space: pre-wrap;
+  background: var(--ink-1); border: 1px solid var(--line-soft);
+  border-radius: 2px; padding: 10px 12px; overflow-wrap: anywhere; }
+.ig-etiket { margin: 0 0 8px; font-family: var(--font-mono); font-size: 11px;
+  color: var(--info); }
+.ig-satir { display: flex; gap: 10px; padding: 3px 0; font-size: 11.5px;
+  line-height: 1.55; }
+.ig-satir-bas { flex: 0 0 108px; font-size: 9px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--gold-dim); padding-top: 2px; }
+.ig-satir-govde { flex: 1 1 auto; color: var(--ivory-2); overflow-wrap: anywhere; }
+.ig-itiraz .ig-satir-govde { color: var(--warn); }
+.ig-yanit .ig-satir-govde { color: var(--ivory); }
+.ig-bulgu-not .ig-satir-govde { color: var(--crit); font-family: var(--font-mono);
+  font-size: 10.5px; }
+.ig-karar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft); }
+.ig-kararli { font-size: 11px; color: var(--ivory-3); }
+
+@media (max-width: 720px) {
+  .ig-satir { flex-direction: column; gap: 2px; }
+  .ig-satir-bas { flex: none; }
+}
+@media print { .ig-panel { display: none !important; } }

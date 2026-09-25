@@ -1306,6 +1306,14 @@ class Handler(BaseHTTPRequestHandler):
                 # "Uretilmedi" ile "urun yok" ayri seyler; sebep aynen doner.
                 self._send_json(503, {"error": str(hata)})
             return
+        if path == "/api/ig-plan":
+            try:
+                self._send_json(200, katalog.ig_plan(
+                    durum=(query.get("durum") or [""])[0],
+                    limit=(query.get("limit") or [50])[0]))
+            except katalog.KatalogHatasi as hata:
+                self._send_json(400, {"error": str(hata)})
+            return
         if path == "/api/katalog/not":
             try:
                 self._send_json(200, katalog.notlar(
@@ -1621,6 +1629,17 @@ class Handler(BaseHTTPRequestHandler):
                     ilgi=body.get("ilgi"), not_metni=body.get("not", ""),
                     hedef_anahtari=body.get("hedef_anahtari", ""),
                     ziyaret_id=body.get("ziyaret_id")))
+            except katalog.KatalogHatasi as hata:
+                self._send_json(400, {"error": str(hata)})
+            return
+        if path == "/api/ig-plan/karar":
+            # Sahip karari. Onay kapisi SEMADA: bulgulu ya da tartisilmamis
+            # paket kisitla reddedilir ve sebebi aynen doner.
+            body = _read_json_body(self)
+            try:
+                self._send_json(200, katalog.ig_karar(
+                    body.get("plan_id"), body.get("durum", ""),
+                    karar_veren=session.username))
             except katalog.KatalogHatasi as hata:
                 self._send_json(400, {"error": str(hata)})
             return

@@ -24,7 +24,7 @@ def _blok_sonu(metin: str, acilis: int) -> int:
     """acilis konumundaki '{' ile eslesen '}' indeksini dondurur.
 
     Duz regex yerine parantez sayilir: tek satira yazilmis bloklarda
-    `(.*?)\n\}` dogru yerde durmuyor ve sonraki kurali da yutuyor.
+    `(.*?)\n\\}` dogru yerde durmuyor ve sonraki kurali da yutuyor.
     """
     derinlik = 0
     for i in range(acilis, len(metin)):
@@ -85,6 +85,8 @@ KNOWN_ROUTES = {
     "/api/katalog",
     "/api/katalog/not",
     "/api/katalog/bayi",
+    "/api/ig-plan",
+    "/api/ig-plan/karar",
     # Konum takibi: yazma (panelden periyodik), yonetici gorunumu, kisinin
     # kendi gecmisi. Ucu de app.py'de sunuluyor.
     "/api/saha/konum",

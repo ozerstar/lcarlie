@@ -1,0 +1,21 @@
+[Unit]
+# Urun gorsellerini Wix'ten cekip WebP olarak sunucumuza indirir.
+#
+# NEDEN AYLIK: gorsel Wix'te nadiren degisir, indirme 124 dosya / ~45 sn
+# ve yukari akisa yuk bindirir. Var olan dosya YENIDEN INDIRILMEZ; dosya
+# adi adresin karmasi oldugu icin degisen gorsel yeni ad alir ve iner.
+#
+# Eski dosya SILINMEZ: hangi gorselin ne zaman kullanildigi okunabilir
+# kalsin. Disk bedeli kucuk (6,4 MB toplam).
+Description=LCARLIE katalog gorselleri (aylik)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+ExecStart=/opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/katalog-gorsel-indir.py
+TimeoutStartSec=900
+Nice=15
+UMask=0077
+NoNewPrivileges=true

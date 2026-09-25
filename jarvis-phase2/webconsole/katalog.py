@@ -245,3 +245,84 @@ def bayi_fiyat_yaz(urun_slug: str, bayi_fiyat, giren: str,
     if not satir:
         raise KatalogHatasi("bayi fiyati yazilamadi")
     return satir[0]
+
+
+# --- INSTAGRAM GONDERI PLANI ----------------------------------------------
+#
+# Paketler `scripts/ig-gonderi-uret.py` tarafindan olculmus veriden
+# uretilir; bu modul yalniz okur ve SAHIBIN kararini yazar.
+#
+# 🔴 ONAY KAPISI SEMADA, BURADA DEGIL. core.ig_gonderi_plani'nda iki kisit
+# var: denetimden BULGULU gecen paket onaylanamaz, ve itirazi yanitlanmamis
+# paket onaylanamaz. Kurali burada tekrar yazsaydim iki yer ayri karar
+# verir ve biri digerini sessizce kabul ederdi.
+
+IG_DURUMLAR = ("ONERI", "ONAYLANDI", "REDDEDILDI", "YAYINLANDI")
+IG_AMAC_ETIKET = {
+    "SATIS": "satış", "TANITIM": "tanıtım", "B2B": "eczane / profesyonel",
+}
+
+
+def ig_plan(durum: str = "", limit: int = 50) -> dict:
+    """Gönderi paketleri. Varsayılan: karar bekleyenler önce."""
+    try:
+        limit = max(1, min(200, int(limit)))
+    except (TypeError, ValueError):
+        raise KatalogHatasi("limit sayi olmali") from None
+
+    kosul = ""
+    degiskenler = {}
+    if durum:
+        if durum not in IG_DURUMLAR:
+            raise KatalogHatasi("gecersiz durum: %s" % str(durum)[:30])
+        kosul = " WHERE durum = :'durum'"
+        degiskenler["durum"] = durum
+
+    sql = """SELECT row_to_json(t) FROM (
+      SELECT plan_id, urun_slug, amac, bicim, kanca, caption, hashtagler,
+             gorsel_brief, cta, cta_gerekce, dayanak, itiraz, itiraza_yanit,
+             denetim, denetim_notu, durum, uretim_at, karar_at, karar_veren
+        FROM core.ig_gonderi_plani %s
+       ORDER BY CASE durum WHEN 'ONERI' THEN 0 WHEN 'ONAYLANDI' THEN 1
+                           WHEN 'YAYINLANDI' THEN 2 ELSE 3 END,
+                uretim_at DESC
+       LIMIT %d) t;""" % (kosul, limit)
+    paketler = _yaz(sql, degiskenler) if degiskenler else _oku(sql)
+    for p in paketler:
+        p["amac_etiket"] = IG_AMAC_ETIKET.get(p.get("amac") or "", p.get("amac"))
+
+    ozet = _oku("""SELECT row_to_json(t) FROM (
+      SELECT count(*) AS toplam,
+             count(*) FILTER (WHERE durum = 'ONERI') AS karar_bekleyen,
+             count(*) FILTER (WHERE durum = 'ONAYLANDI') AS onayli,
+             count(*) FILTER (WHERE durum = 'YAYINLANDI') AS yayinda,
+             count(*) FILTER (WHERE denetim <> 'TEMIZ') AS bulgulu
+        FROM core.ig_gonderi_plani) t;""")
+    return {"sayi": len(paketler), "paketler": paketler,
+            "ozet": ozet[0] if ozet else {},
+            "durumlar": list(IG_DURUMLAR)}
+
+
+def ig_karar(plan_id, durum: str, karar_veren: str) -> dict:
+    """Sahip kararı: onayla / reddet / yayınlandı işaretle.
+
+    Şema kısıtı bulgulu ya da tartışılmamış paketi reddeder; hata mesajı
+    AYNEN döner, "kaydedildi" görünmez.
+    """
+    try:
+        pid = int(plan_id)
+    except (TypeError, ValueError):
+        raise KatalogHatasi("gecersiz plan_id") from None
+    if durum not in IG_DURUMLAR:
+        raise KatalogHatasi("gecersiz durum: %s" % str(durum)[:30])
+
+    sql = """WITH s AS (
+      UPDATE core.ig_gonderi_plani
+         SET durum = :'durum', karar_at = now(), karar_veren = :'kim'
+       WHERE plan_id = %d
+      RETURNING plan_id, urun_slug, durum, karar_at)
+      SELECT row_to_json(t) FROM s t;""" % pid
+    satir = _yaz(sql, {"durum": durum, "kim": (karar_veren or "")[:80]})
+    if not satir:
+        raise KatalogHatasi("plan bulunamadi: %d" % pid)
+    return satir[0]
