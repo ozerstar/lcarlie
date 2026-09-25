@@ -297,10 +297,17 @@ def generate(messages: list[dict[str, str]], max_tokens: int = 400,
                 detail = exc.read().decode("utf-8", "replace")[:120]
             except Exception:  # noqa: BLE001
                 pass
-            attempts.append({"provider": provider.name,
-                             "result": f"HTTP {exc.code}: {mask(detail)}"})
+            # 🔴 SEBEP DEFTERE DE YAZILIR. Onceki hali yalniz "HTTP 400"
+            # kaydediyordu; saglayicinin acikladigi sebep `attempts` icinde
+            # cagirana donuyor ve orada KAYBOLUYORDU. Olculdu 25.09.2026:
+            # 7 gunde 284 basarisiz Claude cagrisi (401 cagrinin %71'i,
+            # 283'u kreatif_brief) ve hicbirinin sebebi bilinmiyordu --
+            # defterdeki tek bilgi "HTTP 400" idi.
+            # `detail` zaten mask() ile anahtardan arindiriliyor.
+            gerekce = f"HTTP {exc.code}: {mask(detail)}" if detail else f"HTTP {exc.code}"
+            attempts.append({"provider": provider.name, "result": gerekce})
             _record_usage(provider, model, started, ok=False,
-                          error=f"HTTP {exc.code}",
+                          error=gerekce,
                           is_anahtari=is_anahtari, kademe=kademe)
             continue
         except Exception as exc:  # noqa: BLE001 - bir saglayici digerini engellemez
