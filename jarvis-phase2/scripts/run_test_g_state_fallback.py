@@ -259,11 +259,11 @@ def main() -> int:
     finally:
         try:
             session.run("RESET SESSION AUTHORIZATION")
-        except Exception:
+        except Exception:  # noqa: BLE001 - elle kosturulan betik; hata ekranda gorunur
             pass
         try:
             session.run("ROLLBACK")
-        except Exception:
+        except Exception:  # noqa: BLE001 - elle kosturulan betik; hata ekranda gorunur
             pass
 
         # ---- assert nothing survived the rollback ------------------------

@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from time import perf_counter
 from typing import Any
 
+from . import gunluk
 from .compliance import review as compliance_review
 from .memory import CompanyMemory
 from .specialist_pool import PROPOSED
@@ -196,7 +197,13 @@ def _load_snapshot(memory: Any, queries: tuple[str, ...]) -> EvidenceSnapshot:
             continue
         try:
             evidence = memory._fetch(query)
-        except Exception:
+        except Exception as exc:  # noqa: BLE001 - tek bir sorgu tum brifingi dusuremez
+            # 🔴 Bu satir olmadan "izin listesinde yok" ile "cekim dustu"
+            # ayni gaps[] icine dusuyor ve ekip "veri yok" diyor. Ikisi ayni
+            # sey degil: birincisi tanim eksigi, ikincisi ariza.
+            gunluk.yut("agency", "_gather", exc,
+                       neden="tek sorgunun dusmesi brifingi durduramaz",
+                       agirlik=gunluk.AGIRLIK_ARIZA, sorgu=query)
             gaps.append(query)
             continue
         records[query] = tuple(evidence.records)

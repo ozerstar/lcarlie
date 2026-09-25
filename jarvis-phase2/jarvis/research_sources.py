@@ -38,6 +38,7 @@ from typing import Any
 
 from concurrent.futures import ThreadPoolExecutor
 
+from . import gunluk
 from .adapter_factory import AdapterEvidence, AdapterState, CapabilityAdapter
 from .research_controller import RESEARCH_CAPABILITY, UnsafeUrl, canonicalize_url
 
@@ -986,7 +987,12 @@ class WebSearchCrawlAdapter(CapabilityAdapter):
                     urls = _searxng_search(self.searxng_url, query, self.max_results, self.resolver)
                 else:
                     urls = _duckduckgo_search(query, self.max_results, self.resolver)
-            except Exception:
+            except Exception as exc:  # noqa: BLE001 - bir motor dusunce digeri denenir
+                # 🔴 Iki motor da dusarse bu islev [] donuyor ve bu, "arama
+                # sonuc vermedi" ile AYIRT EDILEMEZ. Fark yalniz burada.
+                gunluk.yut("research_sources", "search", exc,
+                           neden="bir arama motorunun dusmesi digerini denemeyi engellemez",
+                           agirlik=gunluk.AGIRLIK_ARIZA, sorgu=query[:120])
                 continue
             if urls:
                 return urls
@@ -1002,7 +1008,10 @@ class WebSearchCrawlAdapter(CapabilityAdapter):
                 break
             try:
                 final_url, html = _open(url, self.resolver, self.timeout)
-            except Exception:
+            except Exception as exc:  # noqa: BLE001 - tek sayfa toplamayi durduramaz
+                gunluk.yut("research_sources", "_fetch_pages", exc,
+                           neden="tek sayfanin acilamamasi toplamayi durduramaz",
+                           url=str(url)[:200])
                 stats["failed"] += 1
                 continue
             stats["fetched"] += 1
@@ -1015,8 +1024,10 @@ class WebSearchCrawlAdapter(CapabilityAdapter):
             meta = _MetaParser()
             try:
                 meta.feed(html)
-            except Exception:
-                pass
+            except Exception as exc:  # noqa: BLE001 - baslik yoklugu sayfayi elemez
+                gunluk.yut("research_sources", "_meta_parse", exc,
+                           neden="basligin ayristirilamamasi sayfayi elemez",
+                           url=str(final_url)[:200])
             scores = score_source(meta.title, text, topic)
             if scores["relevance"] < self.min_relevance:
                 stats["off_topic"] += 1

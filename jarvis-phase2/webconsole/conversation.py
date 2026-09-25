@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from time import perf_counter
 from typing import Any
 
+from jarvis import gunluk
 from jarvis.execution_planner import STATUS_BLOCKED_EXTERNAL_ACTION, plan_request
 from jarvis.model_layer import (LOCAL_MODEL as LOCAL_MODEL_NAME, ModelRouter,
                                 ModelUnavailable, needs_escalation,
@@ -368,7 +369,10 @@ def _company(message: str, domain: str, memory: Any, started: float) -> dict[str
                       f"Güvensiz dış işlem sayısı {row.get('unsafe_external_actions', 0)}.")
         return _response(message, COMPANY_QUERY, "ANSWERED", answer, (evidence.source,),
                          started=started, model="deterministic-local")
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - sohbet cevapsiz kalmaz
+        gunluk.yut("conversation", "_company_answer", exc,
+                   neden="sohbet bir okuma hatasinda cevapsiz kalmaz",
+                   agirlik=gunluk.AGIRLIK_ARIZA, alan=str(domain))
         return _response(message, COMPANY_QUERY, "DATA_UNAVAILABLE",
                          "İlgili Company Memory verisi şu anda okunamıyor.",
                          missing_data=(domain,), started=started, error_type=type(exc).__name__)
@@ -1086,7 +1090,11 @@ def _gather(message: str, memory: Any) -> tuple[list[dict[str, Any]], list[str]]
             evidence.append({"ref": got.source, "summary": _summarize(name, got.records),
                              "rows": _detail_rows(name, got.records),
                              "total": len(got.records)})
-        except Exception:
+        except Exception as exc:  # noqa: BLE001 - bir alan eksik kalir, cevap yine doner
+            # missing[] "bu alan yok" der ama SEBEBINI tasimaz.
+            gunluk.yut("conversation", "_collect_evidence", exc,
+                       neden="bir alanin okunamamasi cevabi durduramaz",
+                       agirlik=gunluk.AGIRLIK_ARIZA, alan=name)
             missing.append(name)
 
     # No domain named, or none readable: fall back to the company-wide
@@ -1101,7 +1109,10 @@ def _gather(message: str, memory: Any) -> tuple[list[dict[str, Any]], list[str]]
                                  "summary": f"[{signal.severity}] {signal.summary}"})
             if not report.signals:
                 missing.append("business_signals")
-        except Exception:
+        except Exception as exc:  # noqa: BLE001 - sinyaller yoksa cevap yine doner
+            gunluk.yut("conversation", "_collect_evidence", exc,
+                       neden="is sinyallerinin okunamamasi cevabi durduramaz",
+                       agirlik=gunluk.AGIRLIK_ARIZA, alan="business_signals")
             missing.append("business_signals")
     return evidence, missing
 

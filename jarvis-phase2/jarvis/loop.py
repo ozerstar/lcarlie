@@ -48,6 +48,7 @@ from pathlib import Path
 from time import perf_counter, time
 from typing import Any
 
+from . import gunluk
 from . import business_signals
 from .action_contract import ContractCache
 from .coding_executor import CodingExecutorError, CodingTaskSpec, run_coding_task, summarize_for_proposal
@@ -396,7 +397,10 @@ def _business_signals(memory: Any, state: dict[str, Any]) -> dict[str, Any]:
                 "signals": len(state.get("business_signatures") or ())}
     try:
         report = business_signals.run(memory)
-    except Exception as exc:  # advisory layer must never break the cycle
+    except Exception as exc:  # noqa: BLE001 - danisma katmani dongoyu kiramaz
+        gunluk.yut("loop", "_business_signals", exc,
+                   neden="danisma katmani dongoyu kiramaz",
+                   agirlik=gunluk.AGIRLIK_ARIZA)
         return {"status": "ERROR", "error": str(exc)[:300], "new": 0}
 
     previous = set(state.get("business_signatures") or [])

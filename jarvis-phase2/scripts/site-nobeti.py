@@ -188,7 +188,7 @@ def _sertifika_gun(host: str) -> int | None:
                 bitis = s.getpeercert().get("notAfter")
         son = dt.datetime.strptime(bitis, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=dt.timezone.utc)
         return (son - dt.datetime.now(dt.timezone.utc)).days
-    except Exception:
+    except Exception:  # noqa: BLE001 - elle kosturulan betik; hata ekranda gorunur
         return None
 
 
@@ -211,7 +211,7 @@ def _sitemap_urlleri(taban: str) -> list[str]:
             istek = urllib.request.Request(_kodla(sm), headers={"User-Agent": AJAN})
             with urllib.request.urlopen(istek, timeout=ZAMAN_ASIMI) as cevap:
                 xml = cevap.read(2_000_000).decode("utf-8", errors="replace")
-        except Exception:
+        except Exception:  # noqa: BLE001 - elle kosturulan betik; hata ekranda gorunur
             continue
         loclar = re.findall(r"<loc>\s*([^<\s]+)\s*</loc>", xml)
         if "<sitemapindex" in xml:

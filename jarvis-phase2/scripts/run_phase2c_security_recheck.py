@@ -177,7 +177,7 @@ def main() -> int:
         try:
             session.run("RESET SESSION AUTHORIZATION")
             session.run("ROLLBACK")
-        except Exception:
+        except Exception:  # noqa: BLE001 - elle kosturulan betik; hata ekranda gorunur
             pass
         session.close()
 

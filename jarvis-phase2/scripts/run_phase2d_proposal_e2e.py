@@ -251,7 +251,7 @@ def main() -> int:
         for statement in ("RESET SESSION AUTHORIZATION", "ROLLBACK"):
             try:
                 session.run(statement)
-            except Exception:
+            except Exception:  # noqa: BLE001 - elle kosturulan betik; hata ekranda gorunur
                 pass
         try:
             left_proposals = session.scalar(

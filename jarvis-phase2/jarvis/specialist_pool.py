@@ -14,6 +14,7 @@ from dataclasses import asdict, dataclass
 from time import perf_counter
 from typing import Any
 
+from . import gunluk
 from .cache import QueryCache
 from .memory import CompanyMemory
 from .research import SourceRecord, fuse
@@ -135,7 +136,13 @@ class CompanyMemoryGateway:
             return None, (), DATA_UNAVAILABLE
         try:
             value = self.memory._fetch(query)
-        except Exception:
+        except Exception as exc:  # noqa: BLE001 - uzman susar, kadro ayakta kalir
+            # 🔴 DATA_UNAVAILABLE iki ayri sebepten donuyor: sorgu izinli
+            # degil (yukaridaki dal) ya da cekim dustu (burasi). Uye ikisinde
+            # de "veri yok" diyor; hangisi oldugu yalniz burada gorulur.
+            gunluk.yut("specialist_pool", "read", exc,
+                       neden="uzmanin susmasi kadroyu durduramaz",
+                       agirlik=gunluk.AGIRLIK_ARIZA, sorgu=query)
             return None, (), DATA_UNAVAILABLE
         refs = (str(getattr(value, "source", f"company_memory:{query}")),)
         return value, refs, "live"

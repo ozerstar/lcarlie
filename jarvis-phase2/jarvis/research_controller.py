@@ -20,6 +20,7 @@ from time import monotonic, perf_counter
 from typing import Any, Callable
 from urllib.parse import urlsplit, urlunsplit
 
+from . import gunluk
 from .adapter_factory import AdapterFactory, AdapterState, CapabilityAdapter
 from .cache import ResearchCache
 from .confidence import score as score_confidence
@@ -274,7 +275,10 @@ class ResearchController:
                     circuit = self._circuits.setdefault(adapter.name, CircuitState())
                     circuit.failures += 1
                     circuit.open = circuit.failures >= self.policy.circuit_breaker_failures
-                except Exception:
+                except Exception as exc:  # noqa: BLE001 - tek kaynak arastirmayi durduramaz
+                    gunluk.yut("research_controller", "_run_adapter", exc,
+                               neden="tek kaynagin dusmesi arastirmayi durduramaz",
+                               agirlik=gunluk.AGIRLIK_ARIZA, kaynak=adapter.name)
                     telemetry.failed_sources += 1
                     circuit = self._circuits.setdefault(adapter.name, CircuitState())
                     circuit.failures += 1
@@ -300,7 +304,12 @@ class ResearchController:
                 if not isinstance(rows, list):
                     raise ResearchError("adapter sources must be a list")
                 return [row for row in rows if isinstance(row, dict)]
-            except Exception as exc:  # adapter errors are contained
+            except Exception as exc:  # noqa: BLE001 - adaptor hatalari kapsanir
+                # Son deneme de dusense asagida ResearchError firlatiliyor;
+                # ARADAKI denemeler yalniz burada gorunur.
+                gunluk.yut("research_controller", "_call_adapter", exc,
+                           neden="deneme butcesi bitene kadar yeniden denenir",
+                           kaynak=adapter.name)
                 last_error = exc
                 if attempt < self.policy.retry_budget:
                     telemetry.retries += 1

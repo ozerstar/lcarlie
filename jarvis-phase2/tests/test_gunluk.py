@@ -6,7 +6,6 @@ olsa bile cagiran DUSMEZ, ve durum ayrimi (VERI_YOK / OKUNAMADI) korunur.
 """
 from __future__ import annotations
 
-import json
 import os
 import tempfile
 import unittest
@@ -20,14 +19,28 @@ os.environ["JARVIS_STATE_DIR"] = _GECICI
 from jarvis import gunluk  # noqa: E402 - ortam degiskeni once kurulmali
 
 
-class YazmaTests(unittest.TestCase):
+class _YalitilmisGunluk(unittest.TestCase):
+    """Her test KENDI dosyasina yazar.
+
+    🔴 JARVIS_STATE_DIR'i yonlendirmek TEK BASINA YETMEZ ve bu olculdu:
+    tum takim kosarken agency / specialist_pool / conversation modulleri
+    de artik gercek `gunluk.yut()` cagriyor ve ayni dosyaya yaziyorlar.
+    Bu testler o satirlari kendi satirlari sanip yanlis sayiyordu --
+    9 test bu yuzden dustu. `JARVIS_GUNLUK_LOG` acik gecersiz kilmasi
+    her testi kendi dosyasina baglar; komsu modulun yazmasi artik
+    bu olcumu kirletemez.
+    """
+
     def setUp(self):
-        self.yol = Path(_GECICI) / "gunluk.jsonl"
-        if self.yol.exists():
-            self.yol.unlink()
-        yedek = self.yol.with_suffix(self.yol.suffix + ".1")
-        if yedek.exists():
-            yedek.unlink()
+        self._dizin = tempfile.mkdtemp(prefix="gunluk-vaka-")
+        self.yol = Path(self._dizin) / "gunluk.jsonl"
+        os.environ["JARVIS_GUNLUK_LOG"] = str(self.yol)
+
+    def tearDown(self):
+        os.environ.pop("JARVIS_GUNLUK_LOG", None)
+
+
+class YazmaTests(_YalitilmisGunluk):
 
     def test_satir_yazilir_ve_alanlari_tam(self):
         gunluk.yut("test_modul", "test_islev", ValueError("bozuk deger"),
@@ -56,11 +69,12 @@ class YazmaTests(unittest.TestCase):
 
     def test_yazma_hatasi_cagirani_dusurmez(self):
         """Gunluk kaybi, cevabin kaybindan iyidir."""
+        onceki = os.environ["JARVIS_GUNLUK_LOG"]
         os.environ["JARVIS_GUNLUK_LOG"] = "/proc/olmayan/dizin/gunluk.jsonl"
         try:
             gunluk.yut("m", "i", ValueError("a"), neden="n")  # patlamamali
         finally:
-            del os.environ["JARVIS_GUNLUK_LOG"]
+            os.environ["JARVIS_GUNLUK_LOG"] = onceki
 
     def test_bozuk_satir_okumayi_durdurmaz(self):
         gunluk.yut("m", "i", ValueError("a"), neden="n")
@@ -69,13 +83,8 @@ class YazmaTests(unittest.TestCase):
         self.assertEqual(len(gunluk.son_kayitlar()), 1)
 
 
-class DurumAyrimiTests(unittest.TestCase):
+class DurumAyrimiTests(_YalitilmisGunluk):
     """Yoklugu sebebinden ayirmak bu projenin tekrar eden kok hatasi."""
-
-    def setUp(self):
-        self.yol = Path(_GECICI) / "gunluk.jsonl"
-        if self.yol.exists():
-            self.yol.unlink()
 
     def test_dosya_yoksa_veri_yok(self):
         self.assertEqual(gunluk.ozet()["durum"], "VERI_YOK")
@@ -92,11 +101,7 @@ class DurumAyrimiTests(unittest.TestCase):
         self.assertEqual(o["moduller"]["a.f"], 2)
 
 
-class IzleyiciTests(unittest.TestCase):
-    def setUp(self):
-        self.yol = Path(_GECICI) / "gunluk.jsonl"
-        if self.yol.exists():
-            self.yol.unlink()
+class IzleyiciTests(_YalitilmisGunluk):
 
     def test_istisnayi_yutar_ve_kaydeder(self):
         with gunluk.izle("m", "i", neden="sinama"):
@@ -122,10 +127,9 @@ class IzleyiciTests(unittest.TestCase):
         self.assertEqual(gunluk.son_kayitlar(), [])
 
 
-class DevirTests(unittest.TestCase):
+class DevirTests(_YalitilmisGunluk):
     def test_sinir_asilinca_devredilir(self):
-        yol = Path(_GECICI) / "devir.jsonl"
-        os.environ["JARVIS_GUNLUK_LOG"] = str(yol)
+        yol = self.yol
         eski = gunluk.AZAMI_BAYT
         gunluk.AZAMI_BAYT = 200
         try:
@@ -136,7 +140,6 @@ class DevirTests(unittest.TestCase):
             self.assertTrue(yol.exists() and yol.stat().st_size > 0)
         finally:
             gunluk.AZAMI_BAYT = eski
-            del os.environ["JARVIS_GUNLUK_LOG"]
 
 
 if __name__ == "__main__":

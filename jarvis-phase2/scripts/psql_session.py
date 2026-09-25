@@ -142,7 +142,7 @@ class PsqlSession:
         try:
             self.proc.stdin.write("\\q\n")
             self.proc.stdin.flush()
-        except Exception:
+        except Exception:  # noqa: BLE001 - elle kosturulan betik; hata ekranda gorunur
             pass
         try:
             self.proc.wait(timeout=10)
