@@ -426,6 +426,92 @@ def compile_context(evidence: Iterable[dict[str, Any]]) -> tuple[str, tuple[str,
     return "\n".join(lines), tuple(refs), used
 
 
+# ── DIS CAGRI BUTCESI ────────────────────────────────────────────────────
+#
+# 🔴 SEBEBI OLCULMUS BIR OLAY. 25.09.2026'da tek bir is (`kreatif_brief`)
+# gunun 521 basarili dis model cagrisinin 400'unu yapti; onceki gun
+# TOPLAM 55 cagri vardi. Yirmi kat. Is 5 saatlik zaman asimina ugrayip
+# olduruldu, yani bu cagrilarin buyuk kismindan CIKTI DA ALINMADI.
+#
+# Birim maliyet kucuk (olculdu: 7 gunde 4,46 TL); sorun HACIM ve
+# GORUNMEZLIK. Kacak bir dongu gece boyunca bütceyi yiyebilir ve kimse
+# sabaha kadar fark etmez.
+#
+# KAPI SAYMAYA DAYANIR, TAHMINE DEGIL: kademe telemetrisi zaten her
+# denemeyi yaziyor (state/kademe.jsonl). Butce o dosyadan okunur.
+#
+# BUTCE DOLUNCA NE OLUR: dis saglayici o istek icin ATLANIR ve telemetriye
+# `gerekce=BUTCE_DOLDU` yazilir. Sessizce bos cevap donmez -- "soramadim"
+# ile "cevap yok" bu projede ayri durumlardir.
+#
+# 0 = sinirsiz (varsayilan degil). Degisiklik icin JARVIS_DIS_CAGRI_BUTCESI.
+DIS_CAGRI_BUTCESI = int(os.environ.get("JARVIS_DIS_CAGRI_BUTCESI", "600"))
+
+# Tek bir isin gunluk payi. `kreatif_brief` 400 cagri yapti; hicbir tek is
+# gunluk butcenin yarisindan fazlasini tek basina yiyememeli.
+IS_BASINA_BUTCE = int(os.environ.get("JARVIS_IS_BASINA_BUTCE", "150"))
+
+_butce_onbellek: dict = {"gun": None, "toplam": 0, "isler": {}}
+
+
+def dis_cagri_sayaci(bugun: str | None = None) -> dict:
+    """Bugunku basarili dis model cagrilari -- telemetriden OKUNUR."""
+    import json as _json
+
+    gun = bugun or time.strftime("%Y-%m-%d")
+    if _butce_onbellek["gun"] == gun and _butce_onbellek.get("_taze", 0) > time.time():
+        return {"toplam": _butce_onbellek["toplam"],
+                "isler": dict(_butce_onbellek["isler"])}
+
+    toplam, isler = 0, {}
+    try:
+        yol = kademe_kaydi._yol()
+        if yol.is_file():
+            with open(yol, encoding="utf-8") as f:
+                for satir in f:
+                    satir = satir.strip()
+                    if not satir or gun not in satir:
+                        continue
+                    try:
+                        k = _json.loads(satir)
+                    except ValueError:
+                        continue
+                    if (k.get("ts") or "")[:10] != gun:
+                        continue
+                    if k.get("kademe") != "EXTERNAL_MODEL":
+                        continue
+                    if k.get("sonuc") != kademe_kaydi.SONUC_BASARILI:
+                        continue
+                    toplam += 1
+                    anahtar = k.get("is_anahtari") or "(yok)"
+                    isler[anahtar] = isler.get(anahtar, 0) + 1
+    except Exception:  # noqa: BLE001 - sayamamak butceyi kapatmaz
+        # Telemetri okunamiyorsa butce UYGULANMAZ. Okunamayan bir olcume
+        # dayanip istegi reddetmek, olcum hatasini hizmet kesintisine
+        # cevirmek olurdu.
+        return {"toplam": -1, "isler": {}}
+
+    _butce_onbellek.update({"gun": gun, "toplam": toplam, "isler": isler,
+                            "_taze": time.time() + 20})
+    return {"toplam": toplam, "isler": dict(isler)}
+
+
+def butce_doldu_mu(is_anahtari: str | None) -> str | None:
+    """Doluysa SEBEBI dondurur, degilse None."""
+    if DIS_CAGRI_BUTCESI <= 0:
+        return None
+    sayac = dis_cagri_sayaci()
+    if sayac["toplam"] < 0:
+        return None                     # sayilamadi -> engelleme
+    if sayac["toplam"] >= DIS_CAGRI_BUTCESI:
+        return "BUTCE_DOLDU gunluk %d" % DIS_CAGRI_BUTCESI
+    if is_anahtari and IS_BASINA_BUTCE > 0:
+        kendi = sayac["isler"].get(is_anahtari, 0)
+        if kendi >= IS_BASINA_BUTCE:
+            return "BUTCE_DOLDU is basina %d (%s)" % (IS_BASINA_BUTCE, is_anahtari)
+    return None
+
+
 class ModelRouter:
     """Local first, external only on failure or explicit escalation."""
 
@@ -478,6 +564,18 @@ class ModelRouter:
             kademe = getattr(provider, "tier", None)
             model_adi = getattr(provider, "model", None)
             durum = provider.state()
+            # 🔴 BUTCE KAPISI yalniz DIS saglayiciya uygulanir; yerel
+            # kademeler (CPU/GPU/RAM) serbest -- sahip karari 25.09.2026:
+            # "API butcesi yedirtme, CPU GPU RAM serbest".
+            if durum == AdapterState.AVAILABLE and kademe == "EXTERNAL_MODEL":
+                sebep = butce_doldu_mu(is_anahtari)
+                if sebep:
+                    kademe_kaydi.kaydet(
+                        uc=uc, kademe=kademe, model=model_adi,
+                        sonuc=kademe_kaydi.SONUC_ATLANDI, gerekce=sebep,
+                        deneme=attempts + 1, escalate=escalate,
+                        is_anahtari=is_anahtari)
+                    continue
             if durum != AdapterState.AVAILABLE:
                 # Atlanan kademe de bir olcumdur: makinenin kapali olmasi ile
                 # acikken cevap verememesi ayni sey degil.
