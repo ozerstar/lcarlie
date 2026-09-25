@@ -141,6 +141,34 @@ class Sayfa:
         hedef_oran = en_mm / boy_mm
         kullanilacak = yol
 
+        if maske:
+            # 🔴 SAYDAM KESIM DE OLCEKLENIR -- SADECE KUCULTULEREK.
+            #
+            # Olculdu: PDF 36,7 MB cikti ama zemin gorsellerinin TAMAMI
+            # 12 MB. Fark urun kesimlerindeydi: tam cozunurluklu PNG'ler
+            # (4306 piksele kadar) yerlestikleri 40-60 mm'den cok daha
+            # buyuk, ve reportlab alfa kanalli PNG'yi ham veri + yumusak
+            # maske olarak GOMUYOR. Yani dosyanin yarisi hicbir zaman
+            # basilmayacak piksel.
+            #
+            # Hedef 300 DPI; kaynak ondan buyukse indiriliyor, kucukse
+            # DOKUNULMUYOR (buyutme yok -- kaynak kisiti ayri bir konu ve
+            # yerlesim olcegi zaten ona gore sinirlaniyor).
+            gerekli_en = int(round(en_mm / 25.4 * 300))
+            gerekli_boy = int(round(boy_mm / 25.4 * 300))
+            with Image.open(yol) as im:
+                if im.width > gerekli_en * 1.08:
+                    imza = "%s-%dx%d" % (yol.stem, gerekli_en, gerekli_boy)
+                    onbellek = BASKI_ONBELLEK / (imza + ".png")
+                    if not onbellek.is_file():
+                        BASKI_ONBELLEK.mkdir(parents=True, exist_ok=True)
+                        kucuk = im.convert("RGBA").resize(
+                            (gerekli_en, gerekli_boy), Image.LANCZOS)
+                        gecici = onbellek.with_suffix(".png.tmp")
+                        kucuk.save(gecici, "PNG", optimize=True)
+                        gecici.replace(onbellek)
+                    kullanilacak = onbellek
+
         if not maske:
             with Image.open(yol) as im:
                 kaynak_oran = im.width / im.height
@@ -171,7 +199,12 @@ class Sayfa:
                             (gerekli_en, gerekli_boy), Image.LANCZOS)
                     BASKI_ONBELLEK.mkdir(parents=True, exist_ok=True)
                     gecici = onbellek.with_suffix(".jpg.tmp")
-                    calisma.save(gecici, "JPEG", quality=92, subsampling=0,
+                    # 4:2:0 renk ornekleme: surekli tonlu fotografta
+                    # ticari baskinin standardi ve gozle ayirt edilmez.
+                    # Olculdu: q92/4:4:4 3,54 MB -> q90/4:2:0 2,71 MB.
+                    # Bu, dusuk cozunurluklu gorseli buyutmekle AYNI SEY
+                    # DEGIL -- piksel sayisi ve DPI aynen duruyor.
+                    calisma.save(gecici, "JPEG", quality=90, subsampling=2,
                                  optimize=True, dpi=(300, 300))
                     gecici.replace(onbellek)
                 kullanilacak = onbellek
