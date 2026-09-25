@@ -24,6 +24,7 @@ from pathlib import Path
 
 KAP = "lcarlie-postgres"
 GORSEL_DIZIN = Path("/opt/lcarlie/katalog-gorsel")
+GONDERI_DIZIN = Path("/opt/lcarlie/gonderi-gorsel")
 
 ILGI_DEGERLERI = ("YOK", "SORDU", "ILGILENDI", "NUMUNE", "SIPARIS_SOZU")
 ILGI_ETIKET = {
@@ -132,6 +133,7 @@ def katalog() -> dict:
     veri["bayi_fiyati_girilen"] = len(bayi)
     veri["bayi_celiskili"] = sum(1 for b in bayi.values() if b.get("celiskili"))
     veri["kampanyalar"] = kampanyalar
+    veri["pdf"] = katalog_pdf_durumu()
     veri["ilgi_degerleri"] = [{"deger": d, "etiket": ILGI_ETIKET[d]}
                               for d in ILGI_DEGERLERI]
     return veri
@@ -338,3 +340,64 @@ def ig_karar(plan_id, durum: str, karar_veren: str) -> dict:
     if not satir:
         raise KatalogHatasi("plan bulunamadi: %d" % pid)
     return satir[0]
+
+
+# --- BASILI KATALOG ------------------------------------------------------
+BASKI_DIZIN = Path("/opt/lcarlie/katalog-baski")
+
+# İki dosya, iki AYRI iş. Karıştırmak, gözden geçirme kopyasını
+# basımevine göndermek demek olur.
+PDF_TURLERI = {
+    "baski": {
+        "dosya": "lcarlie-katalog.pdf",
+        "etiket": "baskı aslı",
+        "aciklama": "A4 + 3 mm taşma · fontlar gömülü · 300 DPI",
+    },
+    "gozden": {
+        "dosya": "lcarlie-katalog-gozden.pdf",
+        "etiket": "gözden geçirme",
+        "aciklama": "110 DPI · ekranda bakmak ve paylaşmak için",
+    },
+}
+
+
+def katalog_pdf(tur: str = "baski") -> tuple:
+    """(yol, indirme_adi). Yoksa SEBEBİYLE hata verir."""
+    bilgi = PDF_TURLERI.get(str(tur or "baski"))
+    if bilgi is None:
+        raise KatalogHatasi("gecersiz pdf turu: %s" % str(tur)[:20])
+    yol = BASKI_DIZIN / bilgi["dosya"]
+    if not yol.is_file():
+        raise KatalogHatasi(
+            "katalog PDF uretilmemis (%s) -- scripts/katalog-tasarim.py"
+            % bilgi["dosya"])
+    return yol, bilgi["dosya"]
+
+
+def katalog_pdf_durumu() -> list:
+    """Hangi PDF var, ne kadar büyük, ne zaman üretildi."""
+    import datetime
+
+    cikti = []
+    for tur, bilgi in PDF_TURLERI.items():
+        yol = BASKI_DIZIN / bilgi["dosya"]
+        varsa = yol.is_file()
+        cikti.append({
+            "tur": tur, "etiket": bilgi["etiket"],
+            "aciklama": bilgi["aciklama"], "var": varsa,
+            "mb": round(yol.stat().st_size / 1048576.0, 1) if varsa else None,
+            "uretim": (datetime.datetime.fromtimestamp(yol.stat().st_mtime)
+                       .strftime("%Y-%m-%d %H:%M") if varsa else None),
+        })
+    return cikti
+
+
+def gonderi_gorsel_yolu(dosya: str) -> Path:
+    """Üretilen gönderi görseli. Yol kaçışı reddedilir."""
+    ad = str(dosya or "")
+    if not ad or "/" in ad or "\\" in ad or ".." in ad:
+        raise KatalogHatasi("gecersiz gorsel adi")
+    hedef = (GONDERI_DIZIN / ad).resolve()
+    if hedef.parent != GONDERI_DIZIN.resolve() or not hedef.is_file():
+        raise KatalogHatasi("gorsel bulunamadi")
+    return hedef

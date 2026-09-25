@@ -370,12 +370,212 @@ def izinli_mi(state_dir: Path, anahtar: str) -> bool:
     return bool(tanim and tanim.get("acik"))
 
 
-def gorunum(state_dir: Path, sunucu_metrikleri: dict) -> dict:
+# ===================================================== SAGLIK GOSTERGELERI
+#
+# NEDEN VAR. 25.09.2026'da bes ayri ariza bulundu ve BESI DE SESSIZDI:
+#   * ai-worker 52 kez ust uste coktu     -> panelde hicbir iz yok
+#   * bir is 4 gundur kirada sizmis       -> panelde hicbir iz yok
+#   * PC-1 tuneli 2.686 kez bosa denedi   -> gomme calisiyordu, bozuk gorunmuyordu
+#   * mutabakat 3 gun ust uste basarisiz  -> yalniz e-postada
+#   * kreatif zamanlayicisi hic atesLEMEDI -> "enabled" yaziyordu
+#
+# Ortak ozellik: hepsi "calisiyor" gorunuyordu. Bu bolumun tek isi, ayni
+# sinif arizanin bir dahaki sefere EKRANDA gorunmesi.
+#
+# 🔴 HER GOSTERGE "KOTU" ILE "SORAMADIM"I AYIRIR. Bir sorgu calismazsa
+#    gosterge SORULAMADI der; sifir YAZMAZ. Olcum hatasini saglik raporuna
+#    cevirmek, bu projede tekrar eden kok hatadir.
+
+TICARI_LOG = "/opt/lcarlie/ticari-kontrol.log"
+KADEME_LOG = "kademe.jsonl"
+IZLENEN_PORTLAR = ((8096, "PC-1 gomme"), (8097, "PC-2 GPU"), (8099, "sunucu CPU"))
+
+
+def _port_dinliyor(port: int, zaman_asimi: float = 1.0) -> "bool | None":
+    """127.0.0.1:port acik mi. None = bakilamadi."""
+    import socket
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(zaman_asimi)
+            return s.connect_ex(("127.0.0.1", port)) == 0
+    except OSError:
+        return None
+
+
+def _log_son_satirlar(yol: str, kac: int = 200) -> "list[str] | None":
+    try:
+        with open(yol, encoding="utf-8", errors="replace") as h:
+            return h.read().splitlines()[-kac:]
+    except OSError:
+        return None
+
+
+def _gosterge_kuyruk(sql) -> dict:
+    """Kuyruk tikanmasi ve askida kalan kira.
+
+    🔴 KAYNAK SECIMI. Dogrudan core.ai_task okumak isterdim -- 25.09'da
+    sizan is orada gorunuyordu (bir is 4 gun LEASED kaldi). Ama panelin
+    kullandigi `ai_reader` rolunun o tabloda SELECT izni YOK ve bu
+    gosterge icin veritabani izni genisletmedim: okuma yetkisi acmak ayri
+    bir karardir, bir grafik ugruna alinmaz.
+    Bunun yerine rolun ZATEN gorebildigi mart.ai_orchestrator_status
+    kullaniliyor. Gordugu: is durumlari + askida kalan kiralar.
+    GOREMEDIGI ai_task'taki suresi dolmus kira -- bu yuzden asagida
+    `goremedigi` alani var ve panelde yazili duruyor. Eksik olcumu
+    gizlemek, olcmemekten kotudur.
+    """
+    if sql is None:
+        return {"durum": "SORULAMADI", "sebep": "veritabani okuyucusu verilmedi"}
+    try:
+        satir = sql("SELECT row_to_json(t) FROM (SELECT task_states,"
+                    " stale_red_team_leases, stale_action_leases"
+                    " FROM mart.ai_orchestrator_status) t")
+    except Exception as hata:  # noqa: BLE001 - gosterge cagiranini bozamaz
+        return {"durum": "SORULAMADI", "sebep": str(hata)[:160]}
+    if not satir:
+        return {"durum": "SORULAMADI", "sebep": "sorgu bos dondu"}
+    d = satir[0]
+    durumlar = d.get("task_states") or {}
+    if isinstance(durumlar, str):
+        try:
+            durumlar = json.loads(durumlar)
+        except ValueError:
+            durumlar = {}
+    askida = int(d.get("stale_red_team_leases") or 0) + int(d.get("stale_action_leases") or 0)
+    bekleyen = int(durumlar.get("OPEN") or 0)
+    # Askida kira = bir isci isi alip olmus, kimse geri almamis. 25.09'dan
+    # once ai_claim_task bunlari HIC geri almiyordu.
+    if askida:
+        durum = "BOZUK"
+    elif bekleyen > 20:
+        durum = "ZAYIF"
+    else:
+        durum = "IYI"
+    return {"durum": durum, "askida_kira": askida, "bekleyen": bekleyen,
+            "durumlar": durumlar,
+            "goremedigi": "core.ai_task'taki suresi dolmus kira (ai_reader'in SELECT izni yok)",
+            "yakaladigi": "kira sizintisi ve tikanan kuyruk"}
+
+
+def _gosterge_tuneller() -> dict:
+    """Model zincirinin ayaklari. 8097 dustugunde sistem 11 kat yavaslar."""
+    uclar, bakilamadi = [], False
+    for port, ad in IZLENEN_PORTLAR:
+        acik = _port_dinliyor(port)
+        if acik is None:
+            bakilamadi = True
+        uclar.append({"port": port, "ad": ad,
+                      "durum": "SORULAMADI" if acik is None else ("ACIK" if acik else "KAPALI")})
+    if bakilamadi and not any(u["durum"] == "ACIK" for u in uclar):
+        return {"durum": "SORULAMADI", "sebep": "hicbir porta bakilamadi", "uclar": uclar}
+    kapali = [u["ad"] for u in uclar if u["durum"] == "KAPALI"]
+    # Sunucu CPU ucu son caredir: o da kapaliysa hicbir model yok.
+    son_care = next((u for u in uclar if u["port"] == 8099), None)
+    if son_care and son_care["durum"] == "KAPALI":
+        durum = "BOZUK"
+    elif kapali:
+        durum = "ZAYIF"
+    else:
+        durum = "IYI"
+    return {"durum": durum, "uclar": uclar, "kapali": kapali,
+            "yakaladigi": "GPU kademesi sessizce dustugunde"}
+
+
+def _gosterge_model_kademesi(state_dir: Path, pencere: int = 300) -> dict:
+    """Son isteklerde hangi kademe cevap verdi. ZINCIR_TUKENDI = hicbiri."""
+    yol = Path(state_dir) / KADEME_LOG
+    satirlar = _log_son_satirlar(str(yol), pencere)
+    if satirlar is None:
+        return {"durum": "SORULAMADI", "sebep": KADEME_LOG + " okunamadi"}
+    sayac, son_ts = {}, None
+    for satir in satirlar:
+        try:
+            d = json.loads(satir)
+        except (ValueError, TypeError):
+            continue
+        sonuc = str(d.get("sonuc") or "?")
+        sayac[sonuc] = sayac.get(sonuc, 0) + 1
+        son_ts = d.get("ts") or son_ts
+    if not sayac:
+        return {"durum": "SORULAMADI", "sebep": "okunabilir kayit yok"}
+    tukendi = sayac.get("ZINCIR_TUKENDI", 0)
+    basarili = sayac.get("BASARILI", 0)
+    toplam = tukendi + basarili
+    # Zincirin tukenmesi = istek cevapsiz kaldi. Birkac tanesi olabilir;
+    # yarisi tukeniyorsa saglayici hatti gercekten bozuktur.
+    if toplam and tukendi / toplam > 0.5:
+        durum = "BOZUK"
+    elif tukendi:
+        durum = "ZAYIF"
+    else:
+        durum = "IYI"
+    return {"durum": durum, "basarili": basarili, "zincir_tukendi": tukendi,
+            "son_kayit": son_ts, "pencere_satir": len(satirlar),
+            "yakaladigi": "model zinciri cevapsiz kaldiginda"}
+
+
+def _gosterge_mutabakat() -> dict:
+    """Gunluk ticari mutabakat. 22-24 Eylul'de 3 gun ust uste basarisizdi."""
+    satirlar = _log_son_satirlar(TICARI_LOG, 400)
+    if satirlar is None:
+        return {"durum": "SORULAMADI", "sebep": TICARI_LOG + " okunamadi"}
+    son = None
+    for satir in reversed(satirlar):
+        if "MUTABAKAT_" in satir:
+            son = satir
+            break
+    if son is None:
+        return {"durum": "SORULAMADI", "sebep": "gunlukte MUTABAKAT kaydi yok"}
+    zaman = son.split("|")[0].strip()
+    if "MUTABAKAT_TAMAM" in son:
+        durum, ozet = "IYI", son.split("|")[-1].strip()
+    elif "MUTABAKAT_BOZUK" in son or "MUTABAKAT_EKSIK" in son:
+        durum, ozet = "BOZUK", son.split("|")[-1].strip()
+    else:
+        durum, ozet = "SORULAMADI", son.split("|")[-1].strip()
+    return {"durum": durum, "ozet": ozet, "zaman": zaman,
+            "yakaladigi": "olcum katmani kendi kendisiyle celistiginde"}
+
+
+def _gosterge_siparis(sql) -> dict:
+    """Wix siparis sessizligi. Esikler OLCULEN dagilimdan: medyan 4 gun,
+    90. yuzdelik 18, gecmisteki en uzun 32."""
+    if sql is None:
+        return {"durum": "SORULAMADI", "sebep": "veritabani okuyucusu verilmedi"}
+    try:
+        satir = sql(
+            "SELECT row_to_json(t) FROM (SELECT (current_date - max(gun))::int AS gun,"
+            " max(gun)::text AS son_gun FROM mart.siparis) t")
+    except Exception as hata:  # noqa: BLE001
+        return {"durum": "SORULAMADI", "sebep": str(hata)[:160]}
+    if not satir or satir[0].get("gun") is None:
+        return {"durum": "SORULAMADI", "sebep": "siparis kaydi okunamadi"}
+    gun = int(satir[0]["gun"])
+    durum = "BOZUK" if gun > 32 else ("ZAYIF" if gun >= 18 else "IYI")
+    return {"durum": durum, "gun": gun, "son_gun": satir[0].get("son_gun"),
+            "uyari_esigi": 18, "hata_esigi": 32,
+            "kapsam": "YALNIZ Wix. Trendyol ve WhatsApp/telefon satislari bu sayida YOK.",
+            "yakaladigi": "siparis akisi durdugunda"}
+
+
+def saglik_gostergeleri(state_dir: Path, sql=None) -> dict:
+    """Bes gosterge. Hicbiri cagirani bozamaz; her biri kendi hatasini tasir."""
+    return {
+        "kuyruk": _gosterge_kuyruk(sql),
+        "tuneller": _gosterge_tuneller(),
+        "model_kademesi": _gosterge_model_kademesi(state_dir),
+        "mutabakat": _gosterge_mutabakat(),
+        "siparis": _gosterge_siparis(sql),
+    }
+
+
+def gorunum(state_dir: Path, sunucu_metrikleri: dict, sql=None) -> dict:
     return {
         "olculdu": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "makineler": makineler(state_dir, sunucu_metrikleri),
         "politika": politika_oku(state_dir),
         "bayat_esigi_s": BAYAT_ESIGI_S,
+        "gostergeler": saglik_gostergeleri(state_dir, sql),
     }
 
 

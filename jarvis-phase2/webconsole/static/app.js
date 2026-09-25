@@ -6594,6 +6594,8 @@ function katCiz() {
    * eczacının sorduğu ilk soruda boşluk sahada ortaya çıkardı. */
   /* Kampanya koşulları fiyatın yanında konuşulur: '70.000 TL üzeri
    * stand desteği' demek, fiyat kırmadan değer katar. */
+  katPdfCiz();
+
   const kamp = qs('katKampanya');
   if (kamp) {
     const liste = KAT.veri.kampanyalar || [];
@@ -6997,3 +6999,31 @@ document.addEventListener('click', async function (e) {
   }
   loadIgPlan();
 });
+
+
+/* Basılı katalog indirme.
+ *
+ * 🔴 İKİ DOSYA, İKİ AYRI İŞ. Baskı aslı 26 MB, A4 + taşma, fontlar
+ * gömülü -- basımevine giden budur. Gözden geçirme kopyası 2 MB, 110 DPI
+ * -- ekranda bakmak ve paylaşmak için. Karıştırmak, gözden kopyasını
+ * matbaaya göndermek demek olur; o yüzden ikisi ayrı ayrı ve ne
+ * oldukları yazılı duruyor. */
+function katPdfCiz() {
+  const kap = qs('katPdf');
+  if (!kap || !KAT.veri) return;
+  const liste = KAT.veri.pdf || [];
+  if (!liste.length) { kap.hidden = true; return; }
+  kap.hidden = false;
+  kap.innerHTML = '<h4>Basılı katalog</h4>' + liste.map(function (p) {
+    if (!p.var) {
+      return '<div class="kat-pdf-satir"><span class="kat-yok">'
+        + escapeHtml(p.etiket) + ' — henüz üretilmedi</span></div>';
+    }
+    return '<div class="kat-pdf-satir">'
+      + '<a class="btn btn-ince" href="/katalog-pdf/' + escapeHtml(p.tur)
+      + '" download>⤓ ' + escapeHtml(p.etiket.toUpperCase()) + '</a>'
+      + '<span class="kat-pdf-not">' + escapeHtml(p.aciklama)
+      + ' · ' + p.mb + ' MB · ' + escapeHtml(p.uretim) + '</span>'
+      + '</div>';
+  }).join('');
+}

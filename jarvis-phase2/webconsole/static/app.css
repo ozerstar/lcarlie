@@ -4240,3 +4240,9 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .kat-kampanya ul { margin: 0; padding-left: 16px; }
 .kat-kampanya li { font-size: 11.5px; line-height: 1.6; color: var(--ivory-2); }
 @media print { .kat-kampanya { break-inside: avoid; } }
+
+.kat-pdf-satir { display: flex; align-items: center; gap: 10px;
+  flex-wrap: wrap; padding: 4px 0; }
+.kat-pdf-not { font-size: 10.5px; color: var(--ivory-4);
+  font-family: var(--font-mono); }
+@media print { .kat-pdf { display: none !important; } }

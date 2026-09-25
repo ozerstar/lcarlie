@@ -872,6 +872,10 @@ class Handler(BaseHTTPRequestHandler):
                 self._route_api_get(path, parse_qs(parsed.query))
             elif path.startswith("/kreatif/"):
                 self._route_kreatif(path)
+            elif path.startswith("/katalog-pdf/"):
+                self._route_katalog_pdf(path)
+            elif path.startswith("/gonderi-gorsel/"):
+                self._route_gonderi_gorsel(path)
             elif path.startswith("/katalog-gorsel/"):
                 self._route_katalog_gorsel(path)
             elif path.startswith("/karo/"):
@@ -1037,6 +1041,52 @@ class Handler(BaseHTTPRequestHandler):
                ".md": "text/markdown; charset=utf-8",
                }.get(hedef.suffix.lower(), "application/octet-stream")
         self._send_file(hedef, tur)
+
+    def _route_katalog_pdf(self, path: str) -> None:
+        """Basili katalogu indirir: /katalog-pdf/<baski|gozden>
+
+        🔴 OTURUM ZORUNLU. Katalog fiyat ve icerik bilgisi tasiyor; acik
+        internette durmasi gerekmiyor.
+
+        Content-Disposition attachment: tarayicida ACILMASIN, insin --
+        26 MB'lik baski aslini sekmede acmak kimsenin isine yaramaz.
+        """
+        if self._current_session() is None:
+            self._send_json(401, {"error": "oturum gerekli"})
+            return
+        try:
+            yol, ad = katalog.katalog_pdf(path[len("/katalog-pdf/"):])
+        except katalog.KatalogHatasi as hata:
+            self._send_json(404, {"error": str(hata)})
+            return
+        veri = yol.read_bytes()
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/pdf")
+        self.send_header("Content-Length", str(len(veri)))
+        self.send_header("Content-Disposition",
+                         'attachment; filename="%s"' % ad)
+        self.send_header("Cache-Control", "private, no-cache")
+        self.end_headers()
+        self.wfile.write(veri)
+
+    def _route_gonderi_gorsel(self, path: str) -> None:
+        """Uretilen gonderi gorseli. Oturum zorunlu -- onaylanmamis
+        kreatif acik internete dusmemeli."""
+        if self._current_session() is None:
+            self._send_json(401, {"error": "oturum gerekli"})
+            return
+        try:
+            hedef = katalog.gonderi_gorsel_yolu(path[len("/gonderi-gorsel/"):])
+        except katalog.KatalogHatasi as hata:
+            self._send_json(404, {"error": str(hata)})
+            return
+        veri = hedef.read_bytes()
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "image/jpeg")
+        self.send_header("Content-Length", str(len(veri)))
+        self.send_header("Cache-Control", "private, max-age=2592000")
+        self.end_headers()
+        self.wfile.write(veri)
 
     def _route_katalog_gorsel(self, path: str) -> None:
         """Urun gorseli: /katalog-gorsel/<dosya>
@@ -1273,7 +1323,7 @@ class Handler(BaseHTTPRequestHandler):
             # Uc makinenin kaynak kullanimi + kaynak politikasi.
             # Sunucu OLCULUR (anlik), PC'ler state/hosts/*.json'dan
             # OKUNUR -- onlar NAT arkasinda, kendileri iter.
-            self._send_json(200, sistem.gorunum(STATE_DIR, _host_metrics()))
+            self._send_json(200, sistem.gorunum(STATE_DIR, _host_metrics(), sql=_sql_oku))
             return
         if path == "/api/kademe":
             self._send_json(200, _kademe_gorunumu())
