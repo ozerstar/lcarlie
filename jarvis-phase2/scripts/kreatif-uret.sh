@@ -49,4 +49,3 @@ echo
 echo "== YAYIN ONAYI KUYRUGU ================================="
 "$KOK/bin/jarvis-operator" create-task KREATIF_INCELEME "$PARTI"
 echo "gorseller uretildi ve incelendi; yayin onayi kuyruga dustu."
-

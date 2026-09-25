@@ -6868,6 +6868,21 @@ function igKart(p) {
     +   '<span class="ig-durum">' + escapeHtml(p.durum) + '</span>'
     +   (bulgulu ? '<span class="ig-bulgu">DENETİM: BULGULU</span>' : '')
     + '</header>'
+    + (p.gorsel_dosya
+        ? '<div class="ig-gorsel-sar">'
+          + '<img class="ig-gorsel" src="/gonderi-gorsel/'
+          + escapeHtml(p.gorsel_dosya) + '" alt="" loading="lazy">'
+          /* Urun pikselinin korundugu OLCUM olarak yazar: "korudum" cumlesi
+           * kanit degil, bu sayi kanittir. */
+          + '<span class="ig-gorsel-not">'
+          +   'ürün pikseli birebir ' + escapeHtml(String(
+                (p.gorsel_rapor && p.gorsel_rapor.birebir_oran) || '—'))
+          +   ' · kontrast ' + escapeHtml(String(
+                (p.gorsel_rapor && p.gorsel_rapor.kontrast_orani) || '—'))
+          +   ((p.gorsel_rapor && p.gorsel_rapor.kapak_mi)
+                ? ' · REELS KAPAĞI (video değil)' : '')
+          + '</span></div>'
+        : '')
     + '<pre class="ig-caption">' + escapeHtml(p.caption) + '</pre>'
     + '<p class="ig-etiket">' + escapeHtml(etiketler) + '</p>'
     + igSatir('CTA', escapeHtml(p.cta || '—') + ' — ' + escapeHtml(p.cta_gerekce || ''))

@@ -68,4 +68,3 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON core.arastirma_plani TO human_approver;
 GRANT USAGE ON SEQUENCE core.arastirma_plani_plan_id_seq TO human_approver;
 
 COMMIT;
-

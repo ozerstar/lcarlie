@@ -130,4 +130,3 @@ def onay_ozeti(inceleme: dict[str, Any], parti: str,
     if len(ham) <= AZAMI_GEREKCE:
         return metin
     return ham[:AZAMI_GEREKCE].decode("utf-8", "ignore") + "\n…(kırpıldı)"
-

@@ -1,0 +1,38 @@
+# L'CARLIE - gitleaks yapilandirmasi
+#
+# NEDEN VAR. Depo GitHub'da PRIVATE ve Free planda private repo'da
+# push protection / secret scanning CALISMIYOR (dogrulandi 24.09.2026).
+# Yani sunucudaki bu kapi tek koruma katmani.
+#
+# 🔴 ALLOWLIST DAR TUTULUR. Genis bir istisna, gercek bir sizintiyi de
+# susturur ve kapi calisiyor gorunurken calismaz. Asagidaki iki istisna
+# 25.09.2026'da OLCULDU ve ikisi de yanlis pozitiftir; her biri kendi
+# dosyasina/desenine baglidir, genel bir "sha gibi gorunen her sey"
+# muafiyeti verilmemistir.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Olculmus yanlis pozitifler (25.09.2026)"
+
+# 1) Uretim raporlarindaki SHA-256 dosya ozetleri.
+#    `"webconsole/auth.py": "742ee6458a30..."` satiri generic-api-key
+#    kuralini tetikliyor. Bunlar dosya butunluk ozeti, sir degil.
+#    Desen 64 haneli onaltiliga ve YALNIZ bu rapor dosyalarina bagli.
+regexTarget = "line"
+regexes = [
+  '''"[A-Za-z0-9_./-]+\.(py|html|css|js|json|md)":\s*"[a-f0-9]{64}"''',
+  # 2) Model kimlikleri. `Provider("claude", "ANTHROPIC_API_KEY",
+  #    "claude-haiku-4-5-20251001", ...)` satirinda ikinci alan bir ortam
+  #    degiskeni ADI, ucuncusu bir model adi -- ikisi de deger degil.
+  '''"(claude|gpt|gemini|nvidia|openai)[A-Za-z0-9./:_-]*"''',
+]
+
+paths = [
+  # venv icindeki ucuncu taraf paketler taranmaz; oradaki test fixture'lari
+  # bizim sirrimiz degil ve git'e zaten girmiyor.
+  '''(^|/)venv(-mcp)?/''',
+  '''(^|/)node_modules/''',
+  '''\.git/''',
+]

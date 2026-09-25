@@ -1,0 +1,44 @@
+# L'CARLIE - commit oncesi kapilar
+#
+# Kurulum (bir kez):
+#     /opt/lcarlie/jarvis-phase2/venv/bin/pip install pre-commit
+#     cd /opt/lcarlie/source/lcarlie-jarvis-v1
+#     /opt/lcarlie/jarvis-phase2/venv/bin/pre-commit install
+#
+# 🔴 BU KAPI ATLANABILIR (`git commit --no-verify`). Bir nezaket
+# katmanidir, garanti degil. Gercek garanti CI'dadir (.github/workflows/
+# ci.yml) -- ayni kapilar orada da kosar ve orasi atlanamaz.
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.9
+    hooks:
+      - id: ruff
+        name: ruff (kusur kapisi)
+        args: [--config, ruff.toml]
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+        name: gitleaks (sir taramasi)
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      # Yarim yazilmis JSON/YAML, uretimde sessiz bir "varsayilana dus"
+      # davranisina yol aciyor -- bu projede olculmus bir sinif hata.
+      - id: check-json
+      - id: check-yaml
+      - id: check-toml
+      # Ayni dosyanin iki farkli adla (buyuk/kucuk harf) eklenmesi
+      # Linux'ta calisir, baska yerde calismaz.
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      # 🔴 500 KB ustu dosya commit'lenmesin. Depoda 345 MB'lik basvurusuz
+      # nesne birikmesi daha once yasandi; buyuk ikili dosya bu isin
+      # baslangicidir.
+      - id: check-added-large-files
+        args: [--maxkb=500]

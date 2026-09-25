@@ -62,4 +62,3 @@ Bunlar mevzuatın kendisinin istediği cümleler. Satış metni **değildir**, a
 - Hedef alıcı ve öneri durumu — **İNSAN DOLDURUR**
 - Sık gelen itirazlar ve cevapları — **İNSAN DOLDURUR**
 - Ürün bilgilendirme dosyası (ÖBF) bağlantısı — **İNSAN DOLDURUR**
-

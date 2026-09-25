@@ -116,6 +116,35 @@ def maskeyi_sertlestir(im: Image.Image) -> Image.Image:
     return Image.merge("RGBA", (r, g, b, a))
 
 
+def ana_gorsel(slug: str) -> Path:
+    """Ürünün ANA fotoğrafı. Alfabetik ilk dosya DEĞİL.
+
+    🔴 İlk sürümde `sorted(glob(...))[0]` yazıyordu, yani dosya adının
+    karmasına göre rastgele bir kare seçiliyordu. FEMISIA'da bu, ürünü
+    ELDE TUTAN bir kareyi seçti; kesim eli yarım aldı ve gönderi
+    görselinde şişenin arkasında kopuk bir parmak kaldı. Wix zaten hangi
+    karenin ana görsel olduğunu söylüyor (`media.mainMedia`) ve indirici
+    bunu `dizin.json`a `ana` alanı olarak yazıyor -- kullanmamak, elimizde
+    duran bilgiyi görmezden gelmekti.
+    """
+    dizin = GORSEL / "dizin.json"
+    if dizin.exists():
+        try:
+            kayitlar = json.loads(dizin.read_text(encoding="utf-8"))
+        except ValueError:
+            kayitlar = []
+        uygun = [k for k in kayitlar if k.get("slug") == slug]
+        uygun.sort(key=lambda k: (not k.get("ana"), k.get("sira", 99)))
+        for k in uygun:
+            yol = GORSEL / k["dosya"]
+            if yol.is_file():
+                return yol
+    adaylar = sorted(GORSEL.glob(slug + "-*.webp"))
+    if not adaylar:
+        raise GorselHatasi("urun gorseli yok: %s" % slug)
+    return adaylar[0]
+
+
 def kirp(im: Image.Image) -> Image.Image:
     """Saydam kenar boşluğunu atar; ölçek hesabı gövdeye göre yapılsın."""
     kutu = im.getbbox()
@@ -280,6 +309,98 @@ def dizgi_yerlesim(tuval: Image.Image, baslik: str, alt: str, bicim: str) -> dic
             "perde_tepe": max(0, tepe - round(y * 0.06))}
 
 
+def _isik(renk) -> float:
+    """WCAG bagil parlaklik."""
+    def k(c):
+        c = c / 255.0
+        return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+    return 0.2126 * k(renk[0]) + 0.7152 * k(renk[1]) + 0.0722 * k(renk[2])
+
+
+def kontrast(a, b) -> float:
+    ia, ib = _isik(a), _isik(b)
+    return (max(ia, ib) + 0.05) / (min(ia, ib) + 0.05)
+
+
+# Metin renkleri: acik zeminde koyu, koyu zeminde acik.
+ACIK_METIN = (242, 239, 233)
+KOYU_METIN = (18, 18, 20)
+ACIK_ALT = (201, 169, 97)
+KOYU_ALT = (120, 92, 30)
+EN_AZ_KONTRAST = 4.5          # WCAG AA (buyuk metin icin fazlasiyla yeterli)
+
+
+def okunurluk_ayarla(tuval: Image.Image, yerlesim: dict) -> tuple:
+    """Perdeyi ve metin rengini ÖLÇEREK seçer.
+
+    🔴 BU ISLEVIN SEBEBI GOZLE GORULDU, SAYIYLA DEGIL. Ilk surumde metin
+    her zaman acik renkti ve perde sabit sertlikteydi; acik bej zeminde
+    beyaz yazi neredeyse okunmuyordu. Urun pikseli dogru oldugu icin
+    birebir=1.0 diyordu ve kusur sayilarda GORUNMUYORDU.
+
+    🔴 IKINCI DENEME DE YETMEDI. Gradyan perde denendi, olculen kontrast
+    1,51-1,85 cikti (esik 4,5). Sebep: gradyan yazinin UST kenarinda hala
+    saydamdi -- perde metnin altinda degil, metne DOGRU koyulasıyordu.
+
+    Dogrusu iki parcali: perde `perde_tepe`den `tepe`ye ramp yapar, yazinin
+    ALTINDA duz kalir. Ve once PERDESIZ KOYU YAZI denenir: acik bir sahnede
+    koyu yazi hem okunur hem daha temiz durur; perde ancak gerekince gelir.
+    """
+    import numpy as _np
+    g, y = tuval.size
+    if not yerlesim["var"]:
+        return tuval, ACIK_METIN, ACIK_ALT, None
+
+    def olc(aday):
+        band = aday.crop((0, yerlesim["tepe"], g, y))
+        return tuple(int(v) for v in _np.array(band).reshape(-1, 3).mean(axis=0))
+
+    # Aday sirasi: once mudahalesiz, sonra artan perde.
+    adaylar = [(tuval, KOYU_METIN, KOYU_ALT), (tuval, ACIK_METIN, ACIK_ALT)]
+    for sertlik in (150, 190, 225, 250):
+        perdeli = _perde_ciz(tuval, yerlesim, sertlik)
+        adaylar.append((perdeli, ACIK_METIN, ACIK_ALT))
+
+    en_iyi = None
+    for aday, metin, alt in adaylar:
+        ort = olc(aday)
+        oran = min(kontrast(metin, ort), kontrast(alt, ort))
+        if en_iyi is None or oran > en_iyi[3]:
+            en_iyi = (aday, metin, alt, oran)
+        if oran >= EN_AZ_KONTRAST:
+            return aday, metin, alt, round(oran, 2)
+
+    # Esik tutmadiysa EN YUKSEK kontrastli secilir ve sayi rapora yazilir.
+    # Sessizce gecmek, okunmayan bir gonderi yayinlamak olurdu.
+    print("UYARI: kontrast esigi (%.1f) tutmadi, en iyisi %.2f"
+          % (EN_AZ_KONTRAST, en_iyi[3]))
+    return en_iyi[0], en_iyi[1], en_iyi[2], round(en_iyi[3], 2)
+
+
+def _perde_ciz(tuval: Image.Image, yerlesim: dict, sertlik: int) -> Image.Image:
+    """Perde: boslukta ramp, YAZININ ALTINDA duz.
+
+    Gradyanin yaziya kadar surmesi, yazinin ust satirini saydam zeminde
+    birakiyordu. Ramp yalnizca `perde_tepe` ile `tepe` arasinda; `tepe`den
+    asagisi sabit sertlikte.
+    """
+    if not yerlesim["var"]:
+        return tuval
+    g, y = tuval.size
+    tepe_perde, tepe_yazi = yerlesim["perde_tepe"], yerlesim["tepe"]
+    perde = Image.new("RGBA", (1, y), (0, 0, 0, 0))
+    gecis = max(1, tepe_yazi - tepe_perde)
+    for i in range(tepe_perde, y):
+        if i < tepe_yazi:
+            oran = (i - tepe_perde) / gecis
+            a = int(sertlik * (oran ** 1.4))
+        else:
+            a = sertlik
+        perde.putpixel((0, i), (10, 10, 12, a))
+    return Image.alpha_composite(
+        tuval.convert("RGBA"), perde.resize((g, y))).convert("RGB")
+
+
 def dizgi_perde(tuval: Image.Image, yerlesim: dict) -> Image.Image:
     """Metnin arkasındaki yumuşak koyu katman.
 
@@ -309,7 +430,8 @@ def dizgi_perde(tuval: Image.Image, yerlesim: dict) -> Image.Image:
         tuval.convert("RGBA"), perde.resize((g, y))).convert("RGB")
 
 
-def dizgi_yaz(tuval: Image.Image, yerlesim: dict) -> None:
+def dizgi_yaz(tuval: Image.Image, yerlesim: dict,
+              metin_renk=ACIK_METIN, alt_renk=ACIK_ALT) -> None:
     """Metni GERÇEK FONTLARLA dizer. Model marka fontunu yükleyemez."""
     if not yerlesim["var"]:
         return
@@ -317,13 +439,13 @@ def dizgi_yaz(tuval: Image.Image, yerlesim: dict) -> None:
     imlec = yerlesim["tepe"]
     for s in yerlesim["satirlar"]:
         cizici.text((yerlesim["kenar"], imlec), s,
-                    font=yerlesim["b_font"], fill=(242, 239, 233))
+                    font=yerlesim["b_font"], fill=metin_renk)
         imlec += yerlesim["b_yukseklik"]
     if yerlesim["alt_satirlar"]:
         imlec += round(yerlesim["a_punto"] * 0.9)
         for s in yerlesim["alt_satirlar"]:
             cizici.text((yerlesim["kenar"], imlec), s,
-                        font=yerlesim["a_font"], fill=(201, 169, 97))
+                        font=yerlesim["a_font"], fill=alt_renk)
             imlec += yerlesim["a_yukseklik"]
 
 
@@ -387,16 +509,28 @@ def uret(slug: str, bicim: str = "AKIS", baslik: str = "", alt: str = "",
          golge: bool = True, cikti_dizin: Path = CIKTI) -> dict:
     if bicim not in BICIMLER:
         raise GorselHatasi("gecersiz bicim: %s" % bicim)
-    adaylar = sorted(GORSEL.glob(slug + "-*.webp"))
-    if not adaylar:
-        raise GorselHatasi("urun gorseli yok: %s" % slug)
+    kaynak = ana_gorsel(slug)
 
     t0 = time.time()
-    urun = kirp(urun_kesimi(adaylar[0]))
+    urun = kirp(urun_kesimi(kaynak))
     tuval = sahne_kur(bicim, sahne, zemin).convert("RGB")
     g, y = tuval.size
 
-    hedef_y = round(y * URUN_YUKSEKLIK_ORANI[bicim])
+    # 🔴 YAZI ONCE OLCULUR, URUN SONRA OLCEKLENIR.
+    #
+    # Ilk surumde urun sabit oranla buyutuluyor, yazi da alta yaziliyordu.
+    # KARE bicimde iki satirlik baslikla ikisi CAKISTI: urun alt kenari
+    # 756, yazi perdesi 637. Piksel denetimi yakaladi (birebir 0,983) ve
+    # gorsel reddedildi -- ama dogru davranis reddetmek degil, cakismayi
+    # hic uretmemek. Yazi uzunlugu iceriktir ve degismez; degisebilen sey
+    # urunun boyudur.
+    yerlesim = dizgi_yerlesim(tuval, baslik, alt, bicim)
+    ust_bosluk = round(y * (0.16 if bicim == "REELS" else 0.10))
+    # Yazi perdesinin uzerinde nefes payi birakilir.
+    alt_sinir = (yerlesim["perde_tepe"] - round(y * 0.03)) if yerlesim["var"] else y
+    kullanilabilir = max(round(y * 0.25), alt_sinir - ust_bosluk)
+
+    hedef_y = min(round(y * URUN_YUKSEKLIK_ORANI[bicim]), kullanilabilir)
     oran = hedef_y / urun.height
     urun = urun.resize((max(1, round(urun.width * oran)), hedef_y), Image.LANCZOS)
     if urun.width > g * 0.86:                       # geniş ürün taşmasın
@@ -405,7 +539,8 @@ def uret(slug: str, bicim: str = "AKIS", baslik: str = "", alt: str = "",
                            Image.LANCZOS)
 
     x = (g - urun.width) // 2
-    yy = round(y * (0.16 if bicim == "REELS" else 0.12))
+    # Kalan alanda dikey ortala: urun kucultuldugunde tepeye yapismasin.
+    yy = ust_bosluk + max(0, (kullanilabilir - urun.height) // 2)
 
     # 🔴 KATMAN SIRASI ÜRÜN PİKSELİNİ KORUMAK İÇİN BÖYLE.
     #   sahne -> gölge -> yazı perdesi -> ÜRÜN -> yazı
@@ -421,19 +556,20 @@ def uret(slug: str, bicim: str = "AKIS", baslik: str = "", alt: str = "",
         tuval = Image.alpha_composite(
             tuval.convert("RGBA"), s.filter(ImageFilter.GaussianBlur(26))).convert("RGB")
 
-    yerlesim = dizgi_yerlesim(tuval, baslik, alt, bicim)
-    tuval = dizgi_perde(tuval, yerlesim)
+    tuval, metin_renk, alt_renk, kontrast_orani = okunurluk_ayarla(tuval, yerlesim)
 
     # Ürün, perde çizildikten SONRA yapıştırılır.
     tuval.paste(urun, (x, yy), urun)
 
     # Yazı ürünün altına düşmeli; düşmüyorsa ürün fazla büyük demektir ve
     # bu SESSİZCE geçilmez.
+    # Bu artik olmamali (urun yaziya gore olceklendi); olursa hesapta
+    # bir kusur var demektir ve sessizce gecilmez.
     if yerlesim["var"] and yerlesim["perde_tepe"] < yy + urun.height:
-        print("UYARI: yazi alani urunle cakisiyor -- urun kucultulmeli "
-              "(urun alt kenari %d, yazi perdesi %d)"
+        print("UYARI: yazi hala urunle cakisiyor -- yerlesim hesabinda kusur "
+              "(urun alt %d, yazi perdesi %d)"
               % (yy + urun.height, yerlesim["perde_tepe"]))
-    dizgi_yaz(tuval, yerlesim)
+    dizgi_yaz(tuval, yerlesim, metin_renk, alt_renk)
 
     rapor = dogrula(tuval, urun, (x, yy))
     cikti_dizin.mkdir(parents=True, exist_ok=True)
@@ -443,7 +579,10 @@ def uret(slug: str, bicim: str = "AKIS", baslik: str = "", alt: str = "",
 
     rapor.update({
         "urun": slug, "bicim": bicim, "boyut": [g, y],
-        "kaynak_fotograf": adaylar[0].name,
+        # Okunurluk OLCULDU: metin ile arkasindaki bandin kontrast orani.
+        "kontrast_orani": kontrast_orani,
+        "kontrast_esigi": EN_AZ_KONTRAST,
+        "kaynak_fotograf": kaynak.name,
         "sahne": sahne.name if sahne else "duz-zemin",
         "dosya": ad + ".jpg",
         "sure_sn": round(time.time() - t0, 2),

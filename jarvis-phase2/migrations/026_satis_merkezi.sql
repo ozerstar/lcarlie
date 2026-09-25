@@ -109,4 +109,3 @@ GRANT USAGE ON SEQUENCE core.gonderi_notu_not_id_seq,
                         core.stok_sayim_sayim_id_seq TO human_approver;
 
 COMMIT;
-

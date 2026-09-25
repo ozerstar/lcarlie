@@ -56,4 +56,3 @@ Yayındaki metinde denetim bulgusu yok.
 - Hedef alıcı ve öneri durumu — **İNSAN DOLDURUR**
 - Sık gelen itirazlar ve cevapları — **İNSAN DOLDURUR**
 - Ürün bilgilendirme dosyası (ÖBF) bağlantısı — **İNSAN DOLDURUR**
-

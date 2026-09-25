@@ -68,4 +68,3 @@ echo "  parti : $PARTI"
 echo "  brief : ${BRIEF%.json}.md"
 echo "  gorsel: state/kreatif-brief/${PARTI}-gorseller/"
 echo "  onay  : jarvis dongusu gorevi alinca panelde ONERILER'de gorunur"
-

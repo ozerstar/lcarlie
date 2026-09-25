@@ -39,4 +39,3 @@ echo "kreatif sirasi: $SIRADAKI (onceki: ${SON:-yok}, havuz: ${#URUNLER[@]})"
 printf '%s' "$SIRADAKI" > "$DURUM"
 
 exec bash "$KOK/scripts/kreatif-hat.sh" "$SIRADAKI" --gorsel 4
-

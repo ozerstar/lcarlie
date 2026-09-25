@@ -24,6 +24,7 @@ from pathlib import Path
 
 KAP = "lcarlie-postgres"
 GORSEL_DIZIN = Path("/opt/lcarlie/katalog-gorsel")
+GONDERI_DIZIN = Path("/opt/lcarlie/gonderi-gorsel")
 
 ILGI_DEGERLERI = ("YOK", "SORDU", "ILGILENDI", "NUMUNE", "SIPARIS_SOZU")
 ILGI_ETIKET = {
@@ -326,3 +327,14 @@ def ig_karar(plan_id, durum: str, karar_veren: str) -> dict:
     if not satir:
         raise KatalogHatasi("plan bulunamadi: %d" % pid)
     return satir[0]
+
+
+def gonderi_gorsel_yolu(dosya: str) -> Path:
+    """Uretilen gonderi gorseli. Yol kacisi reddedilir."""
+    ad = str(dosya or "")
+    if not ad or "/" in ad or "\\" in ad or ".." in ad:
+        raise KatalogHatasi("gecersiz gorsel adi")
+    hedef = (GONDERI_DIZIN / ad).resolve()
+    if hedef.parent != GONDERI_DIZIN.resolve() or not hedef.is_file():
+        raise KatalogHatasi("gorsel bulunamadi")
+    return hedef

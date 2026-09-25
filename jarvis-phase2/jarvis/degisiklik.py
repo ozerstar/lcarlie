@@ -245,4 +245,3 @@ def _yaz(niyet: str, slug_koku: str, konu: str, gerekce: str,
     os.replace(gecici, yol)   # yarım dosya okunmasın
     return {"slug": slug, "intent": niyet, "subject_ref": konu,
             "reason": kayit["payload"]["reason"]}
-

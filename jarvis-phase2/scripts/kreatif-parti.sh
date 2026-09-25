@@ -136,4 +136,3 @@ echo
 echo "=== PARTI BITTI: $BASARI brief onay kuyrugunda, $HATA hata ==="
 echo "    tam donanimla islenen: $DERIN_SAYAC urun"
 [ "$BASARI" -gt 0 ] || exit 1
-

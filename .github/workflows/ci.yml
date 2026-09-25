@@ -1,0 +1,86 @@
+# L'CARLIE Jarvis - surekli butunlesme
+#
+# NEDEN VAR. 25.09.2026'da olculdu: depoda 73 test dosyasi ve 1.246 test
+# var, hicbiri otomatik kosmuyordu. Ayni gun iki test, baska bir oturumun
+# commit'i yuzunden kirildi ve bunu kimse gormedi -- ta ki elle kosturana
+# kadar. GitHub Free plani ayda 2.000 dakika veriyor ve 0 kullanilmisti.
+#
+# 🔴 BAGIMLILIK KURULMAZ VE BU KASITLIDIR. requirements.txt'in bas
+# yazisi sunu soyluyor: cekirdek hicbir dis pakete bagli degildir ve
+# testler ciplak python'da gecmelidir. Burada pip install yapmak, o
+# sozlesmeyi sinanmadan birakmak olurdu. Olculdu (25.09.2026): ciplak
+# Python 3.12'de cekirdek 1.050 OK, webconsole 196 OK.
+
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # Ayni dal ustuste itilirse eskisini iptal et; 2.000 dakikalik butce
+  # bos kosularla harcanmasin.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  testler:
+    name: Testler (bagimliliksiz)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          # Uretim sunucusuyla AYNI surum. Farkli surumde gecen bir test,
+          # uretimde gectiginin kaniti degildir.
+          python-version: "3.12"
+
+      - name: Cekirdek testler
+        working-directory: jarvis-phase2
+        run: python -m unittest discover -s tests -p "test_*.py"
+
+      - name: Web konsolu testleri
+        working-directory: jarvis-phase2
+        run: python -m unittest discover -s webconsole/tests -p "test_*.py"
+
+  kusur-kapisi:
+    name: Ruff
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/ruff-action@v3
+        with:
+          version: "0.16.9"
+          args: "check ."
+
+  sir-taramasi:
+    name: Gitleaks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Tum gecmis taranir. Sir, silindikten sonra da gecmiste durur.
+          fetch-depth: 0
+
+      - name: Gitleaks kur
+        run: |
+          set -euo pipefail
+          SURUM=8.30.1
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${SURUM}/gitleaks_${SURUM}_linux_x64.tar.gz" \
+            | tar -xz gitleaks
+          sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
+
+      # 🔴 Resmi gitleaks-action private repo'da LISANS istiyor. Ikiliyi
+      # dogrudan kosturmak MIT kalir ve ucretsizdir; o yuzden action
+      # yerine bu yol secildi.
+      - name: Gecmisi tara
+        run: gitleaks git . --no-banner --redact --exit-code 1

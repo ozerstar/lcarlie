@@ -308,4 +308,3 @@ case "${1:-gun}" in
   gun)           firewall_test && event_scan && bus_consume && redteam_auto && md_cycle && brief ;;
   *) echo "kullanim: $0 {firewall-test|event|bus|redteam|md|brief|gun}"; exit 2 ;;
 esac
-

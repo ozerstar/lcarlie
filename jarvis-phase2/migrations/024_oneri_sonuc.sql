@@ -69,4 +69,3 @@ COMMENT ON VIEW mart.ai_oneri_sonuc IS
 GRANT SELECT ON mart.ai_oneri_sonuc TO ai_reader;
 
 COMMIT;
-

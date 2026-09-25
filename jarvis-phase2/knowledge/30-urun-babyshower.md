@@ -63,4 +63,3 @@ Bunlar mevzuatın kendisinin istediği cümleler. Satış metni **değildir**, a
 - Sık gelen itirazlar ve cevapları — **İNSAN DOLDURUR**
 - Ürün bilgilendirme dosyası (ÖBF) bağlantısı — **İNSAN DOLDURUR**
 - İçindekiler listesi yayındaki metinde bulunamadı — **İNSAN DOLDURUR**
-

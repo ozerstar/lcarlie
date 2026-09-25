@@ -201,4 +201,3 @@ def _icerik_coz(sonuc: dict) -> dict:
     if sonuc.get("isError"):
         cikti["hata"] = True
     return cikti or sonuc
-
