@@ -327,7 +327,8 @@ class ExternalProvider:
 
     def _key(self) -> str | None:
         try:
-            text = open(KIMI_CONFIG, encoding="utf-8").read()
+            with open(KIMI_CONFIG, encoding="utf-8") as dosya:
+                text = dosya.read()
         except OSError:
             return None
         block = re.search(r"\[providers\.openrouter\](.*?)(\n\[|\Z)", text, re.S)

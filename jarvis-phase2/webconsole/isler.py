@@ -204,7 +204,7 @@ def is_ekle(kuyruk_dir: str | Path | None, istem: str,
 
     # ATOMİK YAZMA: hakem bekleyen/ dizinini tarayip gordugu dosyayi hemen
     # okudugu icin yarim dosya = hata klasorune dusen is demektir.
-    gecici = tempfile.NamedTemporaryFile(
+    gecici = tempfile.NamedTemporaryFile(  # noqa: SIM115 - asagida `with` ile kapatiliyor
         mode="w", encoding="utf-8", dir=str(hedef_dizin),
         prefix=".yaziliyor-", suffix=".tmp", delete=False)
     try:

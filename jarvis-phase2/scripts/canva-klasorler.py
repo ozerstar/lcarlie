@@ -91,7 +91,7 @@ def main():
         klasorler = json.loads(kayit_yolu.read_text(encoding="utf-8"))
 
     print("=== KLASÖRLER")
-    for ad, aciklama in YAPI:
+    for ad, _aciklama in YAPI:
         if klasorler.get(ad):
             print(f"  · {ad:<28} {klasorler[ad]}  (zaten var)")
             continue

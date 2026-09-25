@@ -122,7 +122,11 @@ def _izgara_sabitle(tablo, genislikler) -> None:
     if izgara is None:
         return
     sutunlar = izgara.findall(qn("w:gridCol"))
-    for s, g in zip(sutunlar, genislikler):
+    # strict=False acikca yaziliyor: sutun sayisi XML'den, genislikler
+    # cagirandan geliyor ve esit olduklari DOGRULANMADI. strict=True burada
+    # canli bir kargo etiketi akisini dusurebilirdi; kirpma davranisi
+    # bilerek korunuyor.
+    for s, g in zip(sutunlar, genislikler, strict=False):
         # w:w yirmide bir punto (dxa) cinsindendir.
         s.set(qn("w:w"), str(int(g.twips)))
     # Tablo duzeni SABIT olsun; otomatik duzen icerige gore genislik

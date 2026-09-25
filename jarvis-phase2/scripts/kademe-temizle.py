@@ -52,7 +52,10 @@ def main() -> int:
 
     kirli = kirli_anlar([k for k in kayitlar if k])
     tutulan, ayiklanan = [], []
-    for satir, kayit in zip(ham, kayitlar):
+    # strict=True: kayitlar her ham satir icin bir kez append ediliyor,
+    # yani uzunluklar esit OLMAK ZORUNDA. Esit degilse sessizce kirpmak
+    # olcumun bir kismini kaybetmek demektir -- gurultulu dusmesi dogrusu.
+    for satir, kayit in zip(ham, kayitlar, strict=True):
         if kayit is None:
             tutulan.append(satir)          # bozuk satir da bir olcumdur
             continue
