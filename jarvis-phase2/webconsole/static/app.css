@@ -4061,3 +4061,121 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .sh-elendi { border-color: var(--crit); color: var(--crit);
   max-width: 190px; overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap; }
+
+/* ------------------------- KATALOG ------------------------- */
+.kat-arac { display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  margin: 12px 0 10px; }
+.kat-ara { flex: 1 1 200px; min-width: 150px; }
+.kat-onay { display: flex; align-items: center; gap: 6px; font-size: 12px;
+  color: var(--ivory-2); cursor: pointer; }
+.kat-onay input { accent-color: var(--gold); margin: 0; }
+.kat-hedef { font-size: 11.5px; color: var(--ivory-4); }
+.kat-hedef-var { color: var(--gold); }
+.kat-uyari { font-size: 11.5px; color: var(--warn); margin: 0 0 12px;
+  border-left: 2px solid var(--warn); padding: 6px 10px;
+  background: var(--glass); line-height: 1.5; }
+
+.kat-liste { display: flex; flex-direction: column; gap: 8px; }
+.kat-kart { border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--glass); overflow: hidden; }
+.kat-kart-acik { border-color: var(--line-strong); background: var(--glass-2); }
+.kat-bas { display: flex; gap: 12px; align-items: center; width: 100%;
+  padding: 10px 12px; background: none; border: 0; cursor: pointer;
+  text-align: left; font-family: var(--font-ui); color: var(--ivory); }
+.kat-bas:hover { background: var(--glass-2); }
+.kat-gorsel { flex: 0 0 62px; width: 62px; height: 62px; object-fit: contain;
+  background: var(--ink-1); border-radius: 2px; }
+.kat-gorsel-yok { display: flex; align-items: center; justify-content: center;
+  font-size: 9px; color: var(--ivory-4); text-align: center; }
+.kat-bas-orta { flex: 1 1 auto; min-width: 0; display: flex;
+  flex-direction: column; gap: 3px; }
+.kat-ad { font-size: 13.5px; letter-spacing: .01em; }
+.kat-ozet { font-size: 11.5px; color: var(--ivory-3); line-height: 1.45;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; }
+.kat-etiketler { display: flex; gap: 6px; flex-wrap: wrap; }
+.kat-rozet { font-size: 9.5px; padding: 2px 6px; border: 1px solid var(--line);
+  border-radius: 2px; color: var(--ivory-2); }
+.kat-rozet-iyi { border-color: var(--ok); color: var(--ok); }
+.kat-fiyatlar { flex: 0 0 auto; display: flex; flex-direction: column;
+  align-items: flex-end; gap: 1px; }
+.kat-fiyat { font-family: var(--font-mono); font-size: 13px; color: var(--gold); }
+.kat-fiyat-alt { font-size: 9px; color: var(--ivory-4); }
+.kat-fiyat-bayi { font-family: var(--font-mono); font-size: 10.5px;
+  color: var(--ivory-3); }
+
+.kat-detay { padding: 0 12px 14px; border-top: 1px solid var(--line-soft); }
+.kat-galeri { display: flex; gap: 6px; flex-wrap: wrap; padding: 12px 0 4px; }
+.kat-kucuk { width: 74px; height: 74px; object-fit: contain;
+  background: var(--ink-1); border: 1px solid var(--line-soft); border-radius: 2px; }
+.kat-tanitim { font-size: 13px; line-height: 1.6; color: var(--ivory);
+  margin: 10px 0; }
+.kat-bolum { margin: 12px 0; }
+.kat-bolum h4 { margin: 0 0 4px; font-size: 9.5px; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--gold-dim); font-weight: 600; }
+.kat-bolum p { margin: 0; font-size: 12px; line-height: 1.6; color: var(--ivory-2); }
+.kat-bolum-inci p { font-family: var(--font-mono); font-size: 10.5px;
+  line-height: 1.55; overflow-wrap: anywhere; }
+.kat-bolum-uyari { border-left: 2px solid var(--warn); padding-left: 10px; }
+.kat-bolum-teknik p { font-size: 11px; color: var(--ivory-3); }
+.kat-cumleler { margin: 0; padding-left: 18px; }
+.kat-cumleler li { font-size: 12.5px; line-height: 1.6; color: var(--ivory);
+  margin-bottom: 4px; }
+.kat-not-kucuk { font-size: 10.5px; color: var(--ivory-4); margin: 6px 0 0;
+  line-height: 1.5; }
+.kat-yok { font-size: 11.5px; color: var(--ivory-4); font-style: italic; }
+
+.kat-notform { margin-top: 14px; border-top: 1px dashed var(--line);
+  padding-top: 12px; }
+.kat-notform h4 { margin: 0 0 4px; font-size: 9.5px; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--gold-dim); }
+.kat-notsatir { display: flex; gap: 8px; align-items: center;
+  flex-wrap: wrap; margin: 8px 0; }
+.kat-notmetin { width: 100%; }
+.kat-notliste { list-style: none; margin: 10px 0 0; padding: 0; }
+.kat-notliste li { display: flex; gap: 8px; align-items: baseline;
+  font-size: 11.5px; padding: 4px 0;
+  border-bottom: 1px solid var(--line-soft); }
+.kat-notilgi { flex: 0 0 82px; color: var(--gold); font-size: 10px; }
+.kat-nottext { flex: 1 1 auto; color: var(--ivory-2); overflow-wrap: anywhere; }
+.kat-notkim { flex: 0 0 auto; color: var(--ivory-4); font-size: 10px; }
+
+@media (max-width: 720px) {
+  .kat-bas { flex-wrap: wrap; }
+  .kat-fiyatlar { align-items: flex-start; }
+}
+
+/* ---------------------- KATALOG: YAZDIRMA ----------------------
+   Sahip: "not alma kısmı olacak, biz insanlara bunları anlatacağız
+   onlar da not alacak." Ekranda not alanı veritabanına yazar; KÂĞITTA
+   eczacının kendi eliyle yazacağı satırlar olmalı. Bu yüzden yazdırma
+   düzeni ekrandan farklı: her ürün kendi bloğu, altında çizgili not
+   alanı, ve ekranın araçları hiç basılmaz. */
+@media print {
+  body { background: #fff; color: #111; }
+  .rail, .nav-item, .panel-head, .kat-arac, .kat-notform, .kat-etiketler,
+  .kat-galeri, .stage:not(#viewKatalog), .qa-bar, .globe-wrap { display: none !important; }
+  #viewKatalog { display: block !important; }
+  .kat-kart { border: 1px solid #bbb; background: #fff; break-inside: avoid;
+    page-break-inside: avoid; margin-bottom: 10mm; }
+  .kat-bas { padding: 4mm; }
+  .kat-ad { font-size: 13pt; color: #111; }
+  .kat-ozet { -webkit-line-clamp: unset; color: #333; font-size: 9pt; }
+  .kat-gorsel { flex: 0 0 26mm; width: 26mm; height: 26mm; }
+  .kat-fiyat, .kat-fiyat-bayi { color: #111; }
+  .kat-detay { display: block !important; padding: 0 4mm 4mm; }
+  .kat-bolum h4 { color: #555; }
+  .kat-bolum p, .kat-cumleler li { color: #222; }
+  /* Kâğıtta not satırları: ekranda YOK, burada var. */
+  .kat-detay::after {
+    content: "Notlar";
+    display: block; margin-top: 4mm; font-size: 8pt; letter-spacing: .14em;
+    text-transform: uppercase; color: #666;
+    border-top: 1px solid #ccc; padding-top: 2mm;
+    /* Üç çizgili satır: tekrar eden alt çizgi deseni */
+    background-image: repeating-linear-gradient(
+      to bottom, transparent 0 7mm, #ddd 7mm 7mm);
+    background-position: 0 4mm;
+    height: 24mm;
+  }
+}

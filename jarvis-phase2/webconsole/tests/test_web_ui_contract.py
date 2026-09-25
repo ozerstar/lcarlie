@@ -82,6 +82,9 @@ KNOWN_ROUTES = {
     "/api/saha/ziyaret",
     "/api/saha/nokta",
     "/api/saha/bilgi",
+    "/api/katalog",
+    "/api/katalog/not",
+    "/api/katalog/bayi",
     # Konum takibi: yazma (panelden periyodik), yonetici gorunumu, kisinin
     # kendi gecmisi. Ucu de app.py'de sunuluyor.
     "/api/saha/konum",
@@ -135,6 +138,7 @@ BACKED_VIEWS = {"home", "analiz", "gorevler", "veri", "ajanlar", "raporlar",
                 "tasarim",    # /api/tasarim
                 "isler",      # /api/isler
                 "saha",       # /api/saha
+                "katalog",    # /api/katalog
                 "asistan",   # /api/asistan
                 "sistem"}    # /api/sistem
 PANEL_VIEWS = {"veri", "ajanlar", "raporlar", "ayarlar"}

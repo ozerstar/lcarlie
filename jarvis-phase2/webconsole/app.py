@@ -60,6 +60,7 @@ from jarvis.transport import memory_host  # noqa: E402
 import auth  # noqa: E402
 import meta_webhook  # noqa: E402
 import isler  # noqa: E402
+import katalog  # noqa: E402
 import harita  # noqa: E402
 import saha  # noqa: E402
 import sistem  # noqa: E402
@@ -871,6 +872,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._route_api_get(path, parse_qs(parsed.query))
             elif path.startswith("/kreatif/"):
                 self._route_kreatif(path)
+            elif path.startswith("/katalog-gorsel/"):
+                self._route_katalog_gorsel(path)
             elif path.startswith("/karo/"):
                 self._route_karo(path)
             elif path.startswith("/etiket/"):
@@ -1034,6 +1037,33 @@ class Handler(BaseHTTPRequestHandler):
                ".md": "text/markdown; charset=utf-8",
                }.get(hedef.suffix.lower(), "application/octet-stream")
         self._send_file(hedef, tur)
+
+    def _route_katalog_gorsel(self, path: str) -> None:
+        """Urun gorseli: /katalog-gorsel/<dosya>
+
+        🔴 OTURUM ZORUNLU. Gorseller statik klasorde DEGIL; oraya konsaydi
+        kimlik kapisinin disinda kalir ve urun fotograflari acik internete
+        duserdi. Katalog eczaneye sunum icin; herkese acik bir dosya deposu
+        degil.
+
+        Onbellek uzun: dosya adi ADRESIN karmasi, icerik degisirse ad da
+        degisir -- bayat gorsel gosterme riski yok.
+        """
+        if self._current_session() is None:
+            self._send_json(401, {"error": "oturum gerekli"})
+            return
+        try:
+            hedef = katalog.gorsel_yolu(path[len("/katalog-gorsel/"):])
+        except katalog.KatalogHatasi as hata:
+            self._send_json(404, {"error": str(hata)})
+            return
+        veri = hedef.read_bytes()
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "image/webp")
+        self.send_header("Content-Length", str(len(veri)))
+        self.send_header("Cache-Control", "private, max-age=2592000")
+        self.end_headers()
+        self.wfile.write(veri)
 
     def _route_karo(self, path: str) -> None:
         """Harita karosu: /karo/{z}/{x}/{y}.png
@@ -1267,6 +1297,22 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(200, saha.konum_gecmisi(
                     kim, saat=(s2.get("saat") or [12])[0]))
             except saha.SahaHatasi as hata:
+                self._send_json(400, {"error": str(hata)})
+            return
+        if path == "/api/katalog":
+            try:
+                self._send_json(200, katalog.katalog())
+            except katalog.KatalogHatasi as hata:
+                # "Uretilmedi" ile "urun yok" ayri seyler; sebep aynen doner.
+                self._send_json(503, {"error": str(hata)})
+            return
+        if path == "/api/katalog/not":
+            try:
+                self._send_json(200, katalog.notlar(
+                    urun_slug=(query.get("urun") or [""])[0],
+                    hedef_anahtari=(query.get("hedef") or [""])[0],
+                    limit=(query.get("limit") or [50])[0]))
+            except katalog.KatalogHatasi as hata:
                 self._send_json(400, {"error": str(hata)})
             return
         if path == "/api/saha/filtreler":
@@ -1563,6 +1609,31 @@ class Handler(BaseHTTPRequestHandler):
                     foto_b64=body.get("foto", "")))
             except saha.SahaHatasi as hata:
                 # Gecersiz istek "tamam" gorunmez: sebebi AYNEN gosterilir.
+                self._send_json(400, {"error": str(hata)})
+            return
+        if path == "/api/katalog/not":
+            # Sunum notu ve ilgi isareti. ILGI SATIS DEGILDIR -- ayri
+            # tutulmazsa boru hatti oldugundan dolu gorunur.
+            body = _read_json_body(self)
+            try:
+                self._send_json(200, katalog.not_yaz(
+                    body.get("urun_slug", ""), giren=session.username,
+                    ilgi=body.get("ilgi"), not_metni=body.get("not", ""),
+                    hedef_anahtari=body.get("hedef_anahtari", ""),
+                    ziyaret_id=body.get("ziyaret_id")))
+            except katalog.KatalogHatasi as hata:
+                self._send_json(400, {"error": str(hata)})
+            return
+        if path == "/api/katalog/bayi":
+            # Bayi (toptan) fiyati SAHIP KARARIDIR. Katalog onu oldugu gibi
+            # gosterir; girilmeyen fiyat "—" kalir, uydurulmaz.
+            body = _read_json_body(self)
+            try:
+                self._send_json(200, katalog.bayi_fiyat_yaz(
+                    body.get("urun_slug", ""), body.get("bayi_fiyat"),
+                    giren=session.username,
+                    en_az_adet=body.get("en_az_adet")))
+            except katalog.KatalogHatasi as hata:
                 self._send_json(400, {"error": str(hata)})
             return
         if path == "/api/saha/bilgi":

@@ -92,6 +92,7 @@
           <button type="button" class="nav-item" data-view="ajanlar">AJANLAR</button>
           <button type="button" class="nav-item" data-view="hafiza">HAFIZA</button>
           <button type="button" class="nav-item" data-view="veri">VERİ</button>
+          <button type="button" class="nav-item" data-view="katalog">KATALOG</button>
           <button type="button" class="nav-item" data-view="saha">SAHA</button>
           <button type="button" class="nav-item" data-view="isler">İŞLER</button>
           <button type="button" class="nav-item" data-view="sistem">SİSTEM</button>
@@ -574,6 +575,41 @@
     </div>
     <div class="panel-body sect-body" id="ayarlarBody">
       <p class="sect-empty">Yükleniyor…</p>
+    </div>
+  </section>
+</main>
+
+<main class="stage stage-single view-panel" id="viewKatalog" hidden>
+  <section class="panel" aria-label="ECZANE VE PROFESYONEL KATALOĞU">
+    <div class="panel-head">
+      <h2 class="panel-title">KATALOG</h2>
+      <span class="panel-count" id="katCount">—</span>
+    </div>
+    <div class="panel-body sect-body">
+      <p class="fm-sub">
+        Eczane ve profesyonel sunumu için ürün kartları. Her satır
+        <strong>yayındaki ürün metninden</strong> alınır ve mevzuat
+        denetiminden geçmiş cümleler gösterilir — katalogda uydurulmuş
+        cümle yoktur. Sunum sırasında not alıp ilgi işaretleyebilirsin.
+      </p>
+
+      <div class="kat-arac">
+        <input id="katArama" class="is-input kat-ara" type="search"
+               maxlength="60" placeholder="ürün ara…">
+        <select id="katSirala" class="is-input">
+          <option value="ad">ada göre</option>
+          <option value="fiyat">fiyata göre (yüksek → düşük)</option>
+          <option value="ilgi">ilgiye göre</option>
+        </select>
+        <label class="kat-onay"><input type="checkbox" id="katEksik">
+          <span>yalnız eksik bilgisi olanlar</span></label>
+        <span id="katHedefEtiket" class="kat-hedef"></span>
+        <button type="button" class="btn btn-ince" id="katYazdir">🖨 YAZDIR</button>
+        <span id="katDurum" class="is-sonuc"></span>
+      </div>
+
+      <p class="kat-uyari" id="katUyari" hidden></p>
+      <div id="katListe" class="kat-liste"></div>
     </div>
   </section>
 </main>

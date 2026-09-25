@@ -158,7 +158,7 @@ const VIEWS = {
                 eticaret: 'viewEticaret', reklam: 'viewReklam',
                 hafiza: 'viewHafiza', ekip: 'viewEkip',
                 sistem: 'viewSistem', isler: 'viewIsler',
-                saha: 'viewSaha' };
+                saha: 'viewSaha', katalog: 'viewKatalog' };
 
 function setView(name) {
   if (!VIEWS[name]) return;
@@ -178,6 +178,7 @@ function setView(name) {
   if (name === 'sistem') loadSistem();
   if (name === 'isler') loadIsler();
   if (name === 'saha') loadSaha();
+  if (name === 'katalog') loadKatalog();
   if (name === 'kreatifParti') loadKreatifParti();
   if (name === 'tasarim') tasarimYukle();
   if (name === 'asistan') asistanYukle();
@@ -6496,3 +6497,313 @@ async function shDisla(dugme) {
   shFiltreYenile();
   shListele(SH.sonSorguKonum || null);
 }
+
+
+/* ==================== KATALOG — eczane/profesyonel sunumu ================
+ *
+ * Katalog metni BU DOSYADA YAZILMAZ. Sunucu `state/katalog.json`ı servis
+ * eder; o dosyayı `scripts/katalog-uret.py` yayındaki Wix metninden
+ * türetip mevzuat denetçisinden geçirir. Panelde gördüğün her cümle hem
+ * sitede duruyor hem denetimden temiz geçmiş.
+ *
+ * 🔴 İÇERİK LİSTESİ İKİ AYRI ŞEYDİR ve ayrı etiketlenir: INCI
+ * (uluslararası ad, Latince) ve Türkçe içindekiler. Kaynakta 29 üründe
+ * INCI, 26'sında Türkçe liste var; yedi üründe İngilizce INCI YOK ve
+ * katalog bunu "kaynakta yok" diye YAZAR. Eczacının ilk sorusu içeriktir;
+ * bilmediğimizi bilmek, bildiğimizi sanmaktan iyidir.
+ *
+ * 🔴 BAYİ FİYATI GİRİLMEDİYSE "—" GÖRÜNÜR. Uydurulmuş bir toptan fiyat,
+ * sahada verilmiş yanlış bir sözdür.
+ */
+const KAT = { veri: null, acik: null, hedef: null, hedefAd: '' };
+
+function katDurum(metin, kotu) {
+  const d = qs('katDurum');
+  if (!d) return;
+  d.className = 'is-sonuc' + (kotu ? ' is-bad' : '');
+  d.textContent = metin || '';
+}
+
+async function loadKatalog() {
+  if (KAT.veri) { katCiz(); return; }
+  katDurum('yükleniyor…');
+  const cevap = await api('/api/katalog');
+  if (!cevap.ok) {
+    katDurum((cevap.body && cevap.body.error)
+      || ('katalog okunamadı (HTTP ' + cevap.status + ')'), true);
+    return;
+  }
+  KAT.veri = cevap.body;
+  katDurum('');
+  katCiz();
+}
+
+/* SAHA ekranından bir hedef seçilmişse notlar o eczaneye bağlanır.
+ * Bağlanmazsa not "ürün hakkında genel not" olur -- ikisi ayrı şeydir ve
+ * karıştırılırsa hangi eczanenin ne dediği kaybolur. */
+function katHedefBagla(anahtar, ad) {
+  KAT.hedef = anahtar || null;
+  KAT.hedefAd = ad || '';
+  const e = qs('katHedefEtiket');
+  if (e) {
+    e.textContent = KAT.hedef ? ('notlar → ' + KAT.hedefAd) : '';
+    e.className = 'kat-hedef' + (KAT.hedef ? ' kat-hedef-var' : '');
+  }
+}
+
+function katSirali() {
+  const u = ((KAT.veri && KAT.veri.urunler) || []).slice();
+  const ara = ((qs('katArama') || {}).value || '').trim().toLocaleLowerCase('tr');
+  const yalnizEksik = (qs('katEksik') || {}).checked;
+  const sirala = (qs('katSirala') || {}).value || 'ad';
+  return u.filter(function (p) {
+    if (yalnizEksik && p.inci && p.icindekiler && p.bayi_fiyat) return false;
+    if (!ara) return true;
+    return (p.ad || '').toLocaleLowerCase('tr').indexOf(ara) >= 0
+        || (p.slug || '').indexOf(ara) >= 0;
+  }).sort(function (a, b) {
+    if (sirala === 'fiyat') return (b.fiyat || 0) - (a.fiyat || 0);
+    if (sirala === 'ilgi') {
+      return ((b.ilgi && b.ilgi.ilgili) || 0) - ((a.ilgi && a.ilgi.ilgili) || 0);
+    }
+    return (a.ad || '').localeCompare(b.ad || '', 'tr');
+  });
+}
+
+function katPara(n) {
+  if (n === null || n === undefined) return '—';
+  return Number(n).toLocaleString('tr-TR', { maximumFractionDigits: 0 }) + ' TL';
+}
+
+function katCiz() {
+  const kap = qs('katListe');
+  if (!kap || !KAT.veri) return;
+  const liste = katSirali();
+  const c = qs('katCount');
+  if (c) {
+    c.textContent = liste.length + ' / ' + KAT.veri.urun_sayisi + ' ürün';
+  }
+
+  /* Eksikler ekranın tepesinde YAZAR. Gizlenseydi katalog tam görünür ve
+   * eczacının sorduğu ilk soruda boşluk sahada ortaya çıkardı. */
+  const u = qs('katUyari');
+  if (u) {
+    const k = KAT.veri.kapsama || {};
+    const n = KAT.veri.urun_sayisi;
+    const eksik = [];
+    if (k.inci_var < n) eksik.push((n - k.inci_var) + ' üründe INCI (uluslararası ad) kaynakta yok');
+    if (!KAT.veri.bayi_fiyati_girilen) eksik.push('bayi fiyatı hiçbir üründe girilmedi');
+    else if (KAT.veri.bayi_fiyati_girilen < n) {
+      eksik.push((n - KAT.veri.bayi_fiyati_girilen) + ' üründe bayi fiyatı girilmedi');
+    }
+    const cakisan = Object.keys(KAT.veri.barkod_cakismasi || {});
+    if (cakisan.length) {
+      eksik.push('aynı barkodu taşıyan ürün: '
+        + cakisan.map(function (b) {
+            return KAT.veri.barkod_cakismasi[b].join(' + ');
+          }).join(' · '));
+    }
+    u.hidden = !eksik.length;
+    u.textContent = eksik.length ? ('⚠ ' + eksik.join(' · ')) : '';
+  }
+
+  if (!liste.length) {
+    kap.innerHTML = '<p class="sect-empty">Bu aramada ürün yok.</p>';
+    return;
+  }
+  kap.innerHTML = liste.map(katKart).join('');
+}
+
+function katKart(p) {
+  const acik = KAT.acik === p.slug;
+  const gorsel = p.gorseller && p.gorseller.length
+    ? '<img class="kat-gorsel" src="/katalog-gorsel/' + escapeHtml(p.gorseller[0])
+      + '" alt="' + escapeHtml(p.ad) + '" loading="lazy">'
+    : '<span class="kat-gorsel kat-gorsel-yok">görsel yok</span>';
+  const ilgi = p.ilgi && p.ilgi.ilgili
+    ? '<span class="kat-rozet">' + p.ilgi.ilgili + ' ilgi</span>' : '';
+  const siparis = p.ilgi && p.ilgi.siparis_sozu
+    ? '<span class="kat-rozet kat-rozet-iyi">' + p.ilgi.siparis_sozu + ' sipariş sözü</span>' : '';
+
+  return '<article class="kat-kart' + (acik ? ' kat-kart-acik' : '')
+    + '" data-slug="' + escapeHtml(p.slug) + '">'
+    + '<button type="button" class="kat-bas" data-slug="' + escapeHtml(p.slug) + '">'
+    +   gorsel
+    +   '<span class="kat-bas-orta">'
+    +     '<span class="kat-ad">' + escapeHtml(p.ad) + '</span>'
+    +     '<span class="kat-ozet">' + escapeHtml((p.ozet || '').slice(0, 150)) + '</span>'
+    +     '<span class="kat-etiketler">' + ilgi + siparis + '</span>'
+    +   '</span>'
+    +   '<span class="kat-fiyatlar">'
+    +     '<span class="kat-fiyat">' + katPara(p.fiyat) + '</span>'
+    +     '<span class="kat-fiyat-alt">tavsiye edilen satış</span>'
+    +     '<span class="kat-fiyat-bayi">bayi: ' + katPara(p.bayi_fiyat) + '</span>'
+    +   '</span>'
+    + '</button>'
+    + (acik ? katDetay(p) : '')
+    + '</article>';
+}
+
+function katBolum(baslik, govde, sinif) {
+  if (!govde) return '';
+  return '<div class="kat-bolum' + (sinif ? ' ' + sinif : '') + '">'
+    + '<h4>' + escapeHtml(baslik) + '</h4>'
+    + '<p>' + escapeHtml(govde) + '</p></div>';
+}
+
+function katDetay(p) {
+  const galeri = (p.gorseller || []).slice(0, 6).map(function (g) {
+    return '<img class="kat-kucuk" src="/katalog-gorsel/' + escapeHtml(g)
+      + '" alt="" loading="lazy">';
+  }).join('');
+
+  const cumleler = (p.satis_cumleleri || []).length
+    ? '<div class="kat-bolum"><h4>Sunumda söylenebilir</h4><ul class="kat-cumleler">'
+      + p.satis_cumleleri.map(function (c) {
+          return '<li>' + escapeHtml(c) + '</li>';
+        }).join('') + '</ul>'
+      + '<p class="kat-not-kucuk">Bu cümleler yayındaki ürün metninden alındı '
+      + 've mevzuat denetiminden temiz geçti — olduğu gibi söylenebilir.</p></div>'
+    : '<div class="kat-bolum"><h4>Sunumda söylenebilir</h4>'
+      + '<p class="kat-yok">Denetimden temiz geçen cümle çıkmadı.</p></div>';
+
+  const uyarilar = (p.zorunlu_uyarilar || []).length
+    ? '<div class="kat-bolum kat-bolum-uyari"><h4>Zorunlu uyarılar (silinmez)</h4>'
+      + '<ul class="kat-cumleler">'
+      + p.zorunlu_uyarilar.map(function (c) {
+          return '<li>' + escapeHtml(c) + '</li>';
+        }).join('') + '</ul></div>'
+    : '';
+
+  /* INCI yoksa "yok" YAZAR. Boş bırakılsaydı eczacı listeyi görmediğini
+   * değil, ürünün içeriğinin olmadığını sanabilirdi. */
+  const inci = p.inci
+    ? katBolum('INCI (uluslararası ad)', p.inci, 'kat-bolum-inci')
+    : '<div class="kat-bolum kat-bolum-inci"><h4>INCI (uluslararası ad)</h4>'
+      + '<p class="kat-yok">Kaynağımızda yok — etiketten doğrulanmalı.</p></div>';
+
+  return '<div class="kat-detay">'
+    + (galeri ? '<div class="kat-galeri">' + galeri + '</div>' : '')
+    + (p.ozet ? '<p class="kat-tanitim">' + escapeHtml(p.ozet) + '</p>' : '')
+    + cumleler
+    + katBolum('Kullanım', p.kullanim)
+    + inci
+    + katBolum('İçindekiler (Türkçe)', p.icindekiler)
+    + katBolum('Raf ömrü', p.raf_omru)
+    + katBolum('Saklama', p.saklama)
+    + uyarilar
+    + '<div class="kat-bolum kat-bolum-teknik">'
+    +   '<h4>Teknik</h4>'
+    +   '<p>Barkod: <code>' + escapeHtml(p.sku || '—') + '</code>'
+    +   ' · Stok: ' + (p.stok === null || p.stok === undefined ? '—' : p.stok)
+    +   ' · Tavsiye edilen satış: ' + katPara(p.fiyat)
+    +   ' · Bayi: ' + katPara(p.bayi_fiyat) + '</p>'
+    + '</div>'
+    + katNotFormu(p)
+    + '</div>';
+}
+
+function katNotFormu(p) {
+  const ilgiler = ((KAT.veri && KAT.veri.ilgi_degerleri) || []).map(function (i) {
+    return '<option value="' + escapeHtml(i.deger) + '">'
+      + escapeHtml(i.etiket) + '</option>';
+  }).join('');
+  return '<form class="kat-notform" data-slug="' + escapeHtml(p.slug) + '">'
+    + '<h4>Sunum notu</h4>'
+    + '<p class="kat-not-kucuk">'
+    + (KAT.hedef
+        ? 'Not şu hedefe bağlanacak: <strong>' + escapeHtml(KAT.hedefAd) + '</strong>'
+        : 'Hedef seçilmedi — not ürün hakkında <strong>genel</strong> kaydedilir.')
+    + '</p>'
+    + '<div class="kat-notsatir">'
+    +   '<select class="is-input kat-ilgi"><option value="">ilgi işaretlenmedi</option>'
+    +     ilgiler + '</select>'
+    +   '<button type="submit" class="btn">KAYDET</button>'
+    +   '<span class="is-sonuc kat-notsonuc"></span>'
+    + '</div>'
+    + '<textarea class="is-input kat-notmetin" rows="2" maxlength="4000"'
+    + ' placeholder="ne konuşuldu, ne sordu, ne istedi"></textarea>'
+    + '<div class="kat-notlar" data-slug="' + escapeHtml(p.slug) + '"></div>'
+    + '</form>';
+}
+
+async function katNotlariYukle(slug, kap) {
+  const p = new URLSearchParams({ urun: slug, limit: 20 });
+  if (KAT.hedef) p.set('hedef', KAT.hedef);
+  const cevap = await api('/api/katalog/not?' + p.toString());
+  if (!cevap.ok || !kap) return;
+  const n = (cevap.body && cevap.body.notlar) || [];
+  kap.innerHTML = n.length
+    ? '<ul class="kat-notliste">' + n.map(function (x) {
+        return '<li><span class="kat-notilgi">'
+          + escapeHtml(x.ilgi_etiket || '—') + '</span>'
+          + '<span class="kat-nottext">' + escapeHtml(x.not_metni || '') + '</span>'
+          + '<span class="kat-notkim">' + escapeHtml(x.giren) + ' · '
+          + escapeHtml(String(x.girildi).slice(0, 16).replace('T', ' ')) + '</span></li>';
+      }).join('') + '</ul>'
+    : '<p class="kat-yok">Bu ürün için henüz not yok.</p>';
+}
+
+document.addEventListener('click', function (e) {
+  const bas = e.target.closest('.kat-bas');
+  if (bas) {
+    const slug = bas.dataset.slug;
+    KAT.acik = (KAT.acik === slug) ? null : slug;
+    katCiz();
+    if (KAT.acik) {
+      const kap = document.querySelector('.kat-notlar[data-slug="' + KAT.acik + '"]');
+      katNotlariYukle(KAT.acik, kap);
+    }
+    return;
+  }
+  if (e.target.closest('#katYazdir')) {
+    /* Yazdırma düzeni AYRI: ekranda katlanmış kartlar, kâğıtta her ürün
+     * kendi bloğu ve altında not satırları. Eczacı kâğıda yazacak. */
+    window.print();
+  }
+});
+
+document.addEventListener('input', function (e) {
+  if (e.target.id === 'katArama') katCiz();
+});
+
+document.addEventListener('change', function (e) {
+  if (e.target.id === 'katSirala' || e.target.id === 'katEksik') katCiz();
+});
+
+document.addEventListener('submit', async function (e) {
+  const form = e.target.closest('.kat-notform');
+  if (!form) return;
+  e.preventDefault();
+  const sonuc = form.querySelector('.kat-notsonuc');
+  const ilgi = form.querySelector('.kat-ilgi').value;
+  const metin = form.querySelector('.kat-notmetin').value;
+  if (!ilgi && !metin.trim()) {
+    sonuc.className = 'is-sonuc is-bad';
+    sonuc.textContent = 'not ya da ilgi işareti gerekli';
+    return;
+  }
+  sonuc.className = 'is-sonuc';
+  sonuc.textContent = 'kaydediliyor…';
+  const cevap = await api('/api/katalog/not', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      urun_slug: form.dataset.slug, ilgi: ilgi || null, not: metin,
+      hedef_anahtari: KAT.hedef || '',
+    }),
+  });
+  if (!cevap.ok) {
+    sonuc.className = 'is-sonuc is-bad';
+    sonuc.textContent = (cevap.body && cevap.body.error) || 'kaydedilemedi';
+    return;
+  }
+  sonuc.className = 'is-sonuc is-ok';
+  sonuc.textContent = 'kaydedildi';
+  form.querySelector('.kat-notmetin').value = '';
+  form.querySelector('.kat-ilgi').value = '';
+  katNotlariYukle(form.dataset.slug, form.querySelector('.kat-notlar'));
+  /* İlgi sayacı kartın üstünde duruyor; tazelemek için katalog yeniden
+   * okunur. Sayıyı yerelde artırsaydık sunucudaki gerçekle ayrışabilirdi. */
+  KAT.veri = null;
+  loadKatalog();
+});
