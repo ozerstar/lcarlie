@@ -271,12 +271,17 @@ def _bellegi_al():
             if not _kurulum_hatasi:
                 _kurulum_hatasi = "yapilandirma eksik (IP / parola / GEMINI_API_KEY)"
             return None
+        # Telemetri kapisi mem0 ICE AKTARILMADAN ONCE calisir. Sonra
+        # calistirmak, kilidi kapiyi actiktan sonra kontrol etmektir: mem0
+        # ice aktarma aninda telemetri gonderirse gate hic devreye girmez.
+        # Ayrica mem0 kurulu degilken hata mesaji ModuleNotFoundError olur ve
+        # asil sebep (telemetri acik) gorunmez hale gelirdi.
+        if not _telemetri_kapali():
+            _kurulum_hatasi = "mem0 telemetrisi ACIK -- calismayi reddediyorum"
+            log.error(_kurulum_hatasi)
+            return None
         try:
             from mem0 import Memory
-            if not _telemetri_kapali():
-                _kurulum_hatasi = "mem0 telemetrisi ACIK -- calismayi reddediyorum"
-                log.error(_kurulum_hatasi)
-                return None
             _bellek = Memory.from_config(cfg)
             _kurulum_hatasi = None
             return _bellek

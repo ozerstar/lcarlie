@@ -2515,7 +2515,7 @@ def markdown_yaz(b: dict) -> str:
     ek(f"\n_{b['uretildi']} · L'CARLIÉ Kreatif Hattı_\n")
 
     ek("## 1. ÜRÜN GERÇEĞİ — şirket ölçümü\n")
-    ek(f"| Alan | Değer |\n|---|---|")
+    ek("| Alan | Değer |\n|---|---|")
     ek(f"| SKU | {u['sku']} |")
     ek(f"| Site fiyatı | {u['wix_fiyat_tl']} TL |")
     ek(f"| Trendyol fiyatı | {u['trendyol_fiyat_tl']} TL |")

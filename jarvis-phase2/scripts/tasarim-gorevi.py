@@ -33,7 +33,6 @@ KOK = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KOK))
 os.environ.setdefault("JARVIS_MEMORY_TRANSPORT", "local-docker")
 
-from jarvis.memory import CompanyMemory  # noqa: E402
 from jarvis.model_layer import ModelRouter  # noqa: E402
 
 CIKTI = Path(os.environ.get("TASARIM_DIR", str(KOK / "state" / "tasarim")))

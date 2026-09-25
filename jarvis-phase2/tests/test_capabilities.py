@@ -1,6 +1,5 @@
 """Phase 2D / F-2: capability registry and real capability-gap analysis,
 plus the cross-check that a gap cannot bypass the Action Firewall."""
-import os
 import unittest
 from unittest.mock import patch
 

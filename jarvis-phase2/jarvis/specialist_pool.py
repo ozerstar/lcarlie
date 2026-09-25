@@ -10,9 +10,9 @@ import hashlib
 import json
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from time import perf_counter
-from typing import Any, Callable
+from typing import Any
 
 from .cache import QueryCache
 from .memory import CompanyMemory

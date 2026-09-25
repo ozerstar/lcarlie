@@ -4,14 +4,12 @@ No real Kimi/OpenRouter calls here -- those are exercised exactly once, by a
 separate authorized live smoke test (scripts/run_coding_executor_smoke.py),
 per this integration's explicit "one smoke test only" instruction.
 """
-import json
-import os
 import shutil
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from jarvis import coding_executor as ce
 

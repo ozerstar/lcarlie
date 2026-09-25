@@ -1,0 +1,31 @@
+# L'CARLIE Jarvis - ruff yapilandirmasi
+#
+# ONCE BUNU OKU
+# Bu kapi BICIM denetlemez, KUSUR denetler. Kasitli olarak dar tutuldu:
+# 51.000 satirlik ve davranisi OLCULMUS bir kod tabanini satir uzunlugu veya
+# import sirasi icin yeniden duzenlemek, calisan bir seyi kozmetik ugruna
+# riske atmaktir. Olculdu (25.09.2026): E501 (satir uzunlugu) tek basina
+# 1.050 uyari uretiyor ve hicbiri bir kusur degil.
+#
+# Secilen kurallarin her biri CALISMA ZAMANINDA yanlis davranis uretebilir:
+#   E9     sozdizimi / girinti hatalari
+#   F      pyflakes: tanimsiz ad, kullanilmayan degisken, iki kez tanimlama
+#   B      bugbear: sessizce yanlis sonuc ureten desenler
+#   BLE    korumasiz `except Exception` -- yutulan hata gorunmez ariza demektir
+#   W605   gecersiz kacis dizisi (regex'i sessizce bozar)
+#   SIM115 kapatilmayan dosya tanitici
+#
+# Yeni kural eklemek serbest; ama eklenen kural ayni gun SIFIRA indirilmeli.
+# Uyari birikmesine izin verilen bir kapi, kapi degildir.
+
+target-version = "py312"
+line-length = 100          # yalniz bicimlendirici icin; E501 secili DEGIL
+exclude = [".git", "venv", "venv-mcp", "__pycache__", "node_modules"]
+
+[lint]
+select = ["E9", "F", "B", "BLE", "W605", "SIM115"]
+
+[lint.per-file-ignores]
+# Testler kasitli olarak genis istisna yakalar ve bilerek kullanilmayan
+# degiskenlerle kurulum yapar; kapi orada kusur degil gurultu uretir.
+"**/tests/**" = ["BLE001", "F841", "B017"]

@@ -3,8 +3,7 @@ adversarial cases that must fail closed."""
 import unittest
 
 from jarvis.action_contract import (
-    CONTRACT_MAP_VERSION, INTENT_TO_CANONICAL, ActionContract, ContractError,
-    build_contract,
+    CONTRACT_MAP_VERSION, INTENT_TO_CANONICAL, build_contract,
 )
 from jarvis.firewall import (
     ContractDriftError, FirewallError, known_internal_intents, validate_proposal,

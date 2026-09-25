@@ -14,7 +14,6 @@ ve üstündeki yazılar değişmeyecek. Bu betik yalnız ARKA PLANI siler;
 ürünün kendisine dokunmaz, yeniden çizmez, rötuşlamaz.
 """
 import json
-import sys
 from pathlib import Path
 
 import numpy as np

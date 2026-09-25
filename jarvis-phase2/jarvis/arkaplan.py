@@ -20,7 +20,6 @@ gerekmiyor ve şu ana kadar üretilen dört görselin dördü de sade zemindi.
 """
 from __future__ import annotations
 
-import math
 import random
 
 from PIL import Image, ImageDraw, ImageFilter

@@ -21,7 +21,6 @@ bir kısmını da siler. Üç ölçüt bakılıyor:
 Türkçe karakter ve boşluk yüzünden eşleşme kopar (bu tuzağa daha önce
 düşüldü). SKU varsa o, yoksa Wix ürün kimliği kullanılıyor.
 """
-import io
 import json
 import re
 import subprocess

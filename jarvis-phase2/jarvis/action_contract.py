@@ -19,7 +19,7 @@ Nothing is ever silently coerced -- not case, not whitespace, not a near miss.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from hashlib import sha256
 from typing import Any, Mapping

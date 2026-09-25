@@ -13,7 +13,7 @@ blocked. Every entry says which of the two it is, in `source`.
 from __future__ import annotations
 
 import os
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from typing import Any
 

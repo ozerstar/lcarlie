@@ -32,7 +32,6 @@ from __future__ import annotations
 import csv
 import io
 import subprocess
-import sys
 import time
 
 import duckdb

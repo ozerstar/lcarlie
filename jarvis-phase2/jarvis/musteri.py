@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import json
 import subprocess
-from typing import Any
 
 
 def _oku(sql: str, zaman: int = 25) -> list[dict]:

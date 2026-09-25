@@ -13,7 +13,7 @@ import json
 import os
 import socket
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from difflib import unified_diff
 from time import monotonic, perf_counter

@@ -30,11 +30,10 @@ Araştırma boş dönerse `durum='KAYNAK_YOK'` yazılır. Satırın hiç olmamas
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import sys
 import time
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))

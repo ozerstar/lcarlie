@@ -1,7 +1,7 @@
 """Parçalı güven skoru. Testler gerçek benchmark vakalarından türetildi."""
 import unittest
 
-from jarvis.confidence import DIMENSIONS, Confidence, score, summary_line
+from jarvis.confidence import DIMENSIONS, score, summary_line
 
 
 class FakeSource:

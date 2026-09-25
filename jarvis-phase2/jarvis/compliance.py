@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from typing import Any
 
 RULES_SOURCE = "03_MEVZUAT_KURALLARI.md (06.09.2026)"

@@ -11,13 +11,13 @@ import json
 import os
 import re
 import unicodedata
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from time import perf_counter
 from typing import Any
 
 from .compliance import review as compliance_review
 from .memory import CompanyMemory
-from .specialist_pool import DATA_UNAVAILABLE, PROPOSED
+from .specialist_pool import PROPOSED
 
 CREATIVE_DIRECTOR = "CREATIVE_DIRECTOR"
 META_PERFORMANCE = "META_PERFORMANCE"

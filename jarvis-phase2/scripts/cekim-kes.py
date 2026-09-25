@@ -13,7 +13,6 @@ tanima adimi calismasa bile elimizde kesilmis 385 gorsel kalir.
 silmemis demek. Supheliler "INCELE" ile ayriliyor.
 """
 import json
-import sys
 from pathlib import Path
 
 import numpy as np
