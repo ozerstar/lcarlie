@@ -1735,12 +1735,20 @@ class Handler(BaseHTTPRequestHandler):
             body = _read_json_body(self)
             anahtar = str(body.get("anahtar", ""))[:64]
             acik = body.get("acik")
+            # Kilitli bir anahtari ACMAK icin istegin bunu ACIKCA soylemesi
+            # gerekir; panel bunu yalnizca iki adimli onaydan sonra gonderir.
+            # Eksikse arka uc reddeder -- kilit artik sistem.py'de.
+            ozel_izin = body.get("ozel_izin") is True
             if not isinstance(acik, bool):
                 self._send_json(400, {"error": "acik alani true/false olmali"})
                 return
             try:
                 yeni = sistem.politika_yaz(STATE_DIR, anahtar, acik,
-                                           session.username)
+                                           session.username,
+                                           ozel_izin=ozel_izin)
+            except sistem.KilitliAnahtar as hata:
+                self._send_json(403, {"error": str(hata)})
+                return
             except ValueError as hata:
                 self._send_json(400, {"error": str(hata)})
                 return

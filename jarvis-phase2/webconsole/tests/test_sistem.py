@@ -105,12 +105,42 @@ class Politika(unittest.TestCase):
                          ["sunucu", "pc1", "pc2_gpu"])
 
     def test_cevirme_kalici_ve_kim_cevirdigi_yazili(self):
-        sistem.politika_yaz(self.state, "pc2_cpu_ram", True, "ozer")
+        sistem.politika_yaz(self.state, "pc2_cpu_ram", True, "ozer",
+                            ozel_izin=True)
         a = sistem.politika_oku(self.state)["anahtarlar"]["pc2_cpu_ram"]
         self.assertTrue(a["acik"])
         self.assertEqual(a["degistiren"], "ozer")
         self.assertTrue(a["degistirildi"])
         self.assertTrue(sistem.izinli_mi(self.state, "pc2_cpu_ram"))
+
+    def test_kilitli_anahtar_IZINSIZ_acilmaz(self):
+        """Kilit sunum katmaninda degil, ZORLAYAN katmanda olmali.
+
+        Ilk halinde 'ozel_izin' kilidi yalnizca panelin iki adimli onay
+        ekraninda vardi; politika_yaz() onu hic denetlemiyordu. Panel
+        disindaki her cagiran (PC-2 masaustu kisayollarini besleyen
+        politika-yaz.sh dahil) kilitli anahtari tek adimda acabiliyordu.
+        """
+        with self.assertRaises(sistem.KilitliAnahtar):
+            sistem.politika_yaz(self.state, "pc2_cpu_ram", True, "kisayol")
+        # Reddedilen yazim DOSYAYA DOKUNMAMALI.
+        self.assertFalse(sistem.izinli_mi(self.state, "pc2_cpu_ram"))
+
+    def test_kilitli_anahtar_ACIK_izinle_acilir(self):
+        sistem.politika_yaz(self.state, "pc2_cpu_ram", True, "ozer",
+                            ozel_izin=True)
+        self.assertTrue(sistem.izinli_mi(self.state, "pc2_cpu_ram"))
+
+    def test_kilitli_anahtari_KAPATMAK_izin_istemez(self):
+        """Yon onemli: guvenli yone giden hareket engellenmez."""
+        sistem.politika_yaz(self.state, "pc2_cpu_ram", True, "ozer",
+                            ozel_izin=True)
+        sistem.politika_yaz(self.state, "pc2_cpu_ram", False, "ozer")
+        self.assertFalse(sistem.izinli_mi(self.state, "pc2_cpu_ram"))
+
+    def test_kilitsiz_anahtar_izin_istemez(self):
+        sistem.politika_yaz(self.state, "pc1_cpu_ram", True, "kisayol")
+        self.assertTrue(sistem.izinli_mi(self.state, "pc1_cpu_ram"))
 
     def test_bilinmeyen_anahtar_SESSIZCE_yutulmaz(self):
         with self.assertRaises(ValueError):

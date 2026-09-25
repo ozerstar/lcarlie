@@ -81,6 +81,8 @@ class Sayfa:
         self.no = no
         self.tek = tek           # tek sayfa = sağ sayfa (iç kenar solda)
         self.gorsel_raporu: list = []
+        # Kaynak cozunurlugu yetmedigi icin KUCULTULEN urunler.
+        self.kisitli: list = []
 
     # -- geometri --
     @property
@@ -244,6 +246,56 @@ class Sayfa:
                 y += satir * 0.352778
         return y
 
+    def urun_zemini(self, x_mm: float, ust_mm: float, en_mm: float,
+                    boy_mm: float, vurgu) -> None:
+        """Ürünün oturacağı yumuşak renkli alan.
+
+        🔴 BEYAZ URUN BEYAZ KAGITTA KAYBOLUYORDU. LUCIDERM, HYDRAVIE,
+        INTIMBLANC gibi beyaz ambalajlar krem rengi kagit uzerinde
+        neredeyse gorunmuyordu -- gozle goruldu, DPI raporu bunu
+        soylemez. Urun bir zemine oturmali.
+
+        Zemin bolumun VURGU renginden turetilir ve cok dusuk yogunlukta
+        kullanilir: sayfalar farklidir ama ayni markaya ait olduklari
+        anlasilir (Color Director kurali). Sert bir kutu degil, yumusak
+        bir alan: kenarlarda yogunluk azalir.
+        """
+        self.c.saveState()
+        adim = 26
+        for i in range(adim):
+            oran = i / (adim - 1.0)
+            # Disa dogru soluyan katmanlar
+            pay = oran * 0.5
+            alfa = 0.085 * (1.0 - oran) ** 1.2
+            self.c.setFillColor(Color(vurgu[0], vurgu[1], vurgu[2], alpha=alfa))
+            self.c.rect((x_mm - en_mm * pay * 0.16) * mm,
+                        _y(ust_mm + boy_mm + boy_mm * pay * 0.10),
+                        (en_mm * (1 + pay * 0.32)) * mm,
+                        (boy_mm * (1 + pay * 0.20)) * mm,
+                        stroke=0, fill=1)
+        self.c.restoreState()
+
+    def temas_golgesi(self, x_mm: float, alt_mm: float, en_mm: float) -> None:
+        """Ürünün zemine değdiği yerde dar, koyu gölge.
+
+        Olmayinca urun havada duruyor -- Instagram motorunda ayni kusuru
+        olcup duzelttik, katalogda tekrarlamanin anlami yok.
+        """
+        self.c.saveState()
+        adim = 14
+        for i in range(adim):
+            oran = i / (adim - 1.0)
+            yayilma = 1.0 + oran * 1.8
+            self.c.setFillColor(Color(0.12, 0.11, 0.10,
+                                      alpha=0.16 * (1.0 - oran) ** 1.5))
+            g = en_mm * 0.62 * yayilma
+            self.c.ellipse((x_mm + en_mm / 2 - g / 2) * mm,
+                           _y(alt_mm + 1.4 + oran * 1.6),
+                           (x_mm + en_mm / 2 + g / 2) * mm,
+                           _y(alt_mm - 0.6 - oran * 1.2),
+                           stroke=0, fill=1)
+        self.c.restoreState()
+
     def cizgi(self, x_mm: float, ust_mm: float, en_mm: float,
               renk=KM.MUREKKEP_SOLUK, kalinlik: float = 0.25) -> None:
         self.c.setStrokeColor(Color(*renk))
@@ -306,8 +358,58 @@ def sahne_bul(onek: str, en_az_px: int = 0) -> pathlib.Path | None:
     return None
 
 
+KESIM_KIRPILMIS = pathlib.Path("/opt/lcarlie/katalog-kesim-kirpik")
+BASKI_GORSEL = pathlib.Path("/opt/lcarlie/katalog-baski-gorsel")
+
+# Baski esigi: bunun altina dusen yerlesim KUCULTULUR, buyutulmez.
+BASKI_DPI = 250.0
+
+
+def _baski_kaynagi(slug: str) -> pathlib.Path | None:
+    """Urunun tam cozunurluklu ana fotografi (varsa)."""
+    dizin = BASKI_GORSEL / "dizin.json"
+    if not dizin.is_file():
+        return None
+    try:
+        kayitlar = json.loads(dizin.read_text(encoding="utf-8"))
+    except ValueError:
+        return None
+    for k in kayitlar:
+        if k.get("slug") == slug:
+            yol = BASKI_GORSEL / k["dosya"]
+            if yol.is_file():
+                return yol
+    return None
+
+
+def en_fazla_yerlesim(kesim: pathlib.Path) -> tuple:
+    """Bu kesimin BASKI_DPI'yi tutturan en buyuk yerlesimi (mm).
+
+    🔴 SESSIZCE BUYUTMEK YERINE OLCEGI SINIRLAMAK. Kaynak fotograflarin
+    27'si 1254 piksel -- Wix'in kucultmesi degil, YUKLENEN ORIJINALIN
+    kendisi; fotograflar web icin cekilmis. Buyutup "print-ready" demek
+    kendi kuralimizi cignerdi. Bunun yerine urun o sayfada daha kucuk
+    yerlesir ve hangi urunlerin kaynaktan sinirli oldugu rapora yazilir.
+    """
+    from PIL import Image
+    with Image.open(kesim) as im:
+        return (im.width / BASKI_DPI * 25.4, im.height / BASKI_DPI * 25.4)
+
+
 def kesim_bul(urun: dict) -> pathlib.Path | None:
-    """Ürünün kesilmiş (saydam) fotoğrafı; yoksa kesimi ÜRETİR."""
+    """Ürünün kesilmiş VE SAYDAM KENARI ATILMIŞ fotoğrafı.
+
+    🔴 BU KATALOGUN EN BUYUK KUSURUYDU. rembg kesimi, kaynak karenin
+    tamamini korur: sise ortada kucuk bir nesne, etrafi saydam alfa.
+    Sayfaya oldugu gibi yerlesince urun sayfa yuksekliginin %52'sine
+    olceklenmis GORUNUYOR ama gercekte gorunur sise %15'ini kapliyordu --
+    A4'te kaybolmus bir kucuk resim.
+    Gozle goruldu, sayilarla degil: DPI raporu "her sey 250 ustunde" diyordu
+    ve teknik olarak dogruydu. Teknik basari yaratici basari degildir.
+
+    Kirpilmis surum ayri onbellekte tutulur; kesim maskesi degismedikce
+    yeniden hesaplanmaz.
+    """
     if not urun.get("gorseller"):
         return None
     import importlib.util
@@ -315,10 +417,61 @@ def kesim_bul(urun: dict) -> pathlib.Path | None:
         "gk", str(KOK / "scripts" / "gorsel-kompozit.py"))
     gk = importlib.util.module_from_spec(sp)
     sp.loader.exec_module(gk)
-    kaynak = gk.ana_gorsel(urun["slug"])
+    # 🔴 BASKI KAYNAGI AYRI. Panel/saha seti 1400 piksele kuculttugumuz
+    # WebP; kirpinca sise 230-400 piksel kaliyor ve 43-61 mm'ye yerlesince
+    # 130-170 DPI ediyor (olculdu). Baski seti Wix orijinalidir.
+    kaynak = _baski_kaynagi(urun["slug"]) or gk.ana_gorsel(urun["slug"])
     gk.urun_kesimi(kaynak)                      # onbellege yazar
-    yol = KESIM / (kaynak.stem + ".png")
-    return yol if yol.is_file() else None
+    ham = KESIM / (kaynak.stem + ".png")
+    if not ham.is_file():
+        return None
+
+    KESIM_KIRPILMIS.mkdir(parents=True, exist_ok=True)
+    kirpik = KESIM_KIRPILMIS / ham.name
+    if not kirpik.is_file():
+        from PIL import Image
+        with Image.open(ham) as im:
+            kutu = im.getbbox()
+            kesilmis = im.crop(kutu) if kutu else im.copy()
+            gecici = kirpik.with_suffix(".png.tmp")
+            kesilmis.save(gecici, "PNG")
+            gecici.replace(kirpik)
+    return kirpik
+
+
+def _yariya_bol(metin: str) -> tuple:
+    """Uzun içerik listesini iki sütuna böler (virgül sınırında)."""
+    parcalar = [p.strip() for p in metin.split(",") if p.strip()]
+    if len(parcalar) < 4:
+        return metin, ""
+    orta = len(parcalar) // 2
+    return ", ".join(parcalar[:orta]), ", ".join(parcalar[orta:])
+
+
+def _ad_sar(ad: str, stil: str, en_mm: float) -> str:
+    """Urun adini sutuna sigdirir; sigmiyorsa SATIRA BOLER.
+
+    🔴 "HYDRAVIE | YOGUN NEMLENDIRICI YUZ" iki'li sayfada metin sutununu
+    tasip sayfa kenarindan cikiyordu. Monument Extended cok genis bir yuz;
+    uzun urun adlari 7 sutunu rahatca asiyor. Kirpmak yerine boluyoruz --
+    urun adi kisaltilacak bir sey degil.
+    """
+    font, punto, _, _ = KM.TIP[stil]
+    sinir = en_mm * mm
+    if pdfmetrics.stringWidth(ad, font, punto) <= sinir:
+        return ad
+    parcalar, aktif = [], ""
+    for kelime in ad.replace("|", " ").split():
+        deneme = (aktif + " " + kelime).strip()
+        if pdfmetrics.stringWidth(deneme, font, punto) <= sinir:
+            aktif = deneme
+        else:
+            if aktif:
+                parcalar.append(aktif)
+            aktif = kelime
+    if aktif:
+        parcalar.append(aktif)
+    return chr(10).join(parcalar[:3])
 
 
 def _kisalt(metin: str, en_fazla: int) -> str:
@@ -368,46 +521,66 @@ def manifesto_ciz(s: Sayfa, metin: str) -> None:
     s.yazi("MANİFESTO", "ust_etiket", s.sol_kenar, KM.TASMA_MM + KM.UST_MM,
            renk=KM.MUREKKEP_SOLUK)
     s.cizgi(s.sol_kenar, KM.TASMA_MM + KM.UST_MM + 6, s.sutun_en(2))
-    s.paragraf(metin, "govde_hafif", s.sutun_x(0), TUVAL_BOY * 0.46,
-               s.sutun_en(7))
+    # 🔴 ILK SURUMDE metin sayfanin ortasinda kucuk bir blok olarak
+    # kaliyordu ve "asiri negatif alan" degil "bitmemis sayfa" gibi
+    # duruyordu. Bosluk aktif olmali: metin artik daha buyuk puntoda, daha
+    # genis sutunda ve sayfanin ust ucte birine CAPA atiyor.
+    s.yazi("Bir bitkiyi tanımak,", "sayfa_basli", s.sol_kenar, TUVAL_BOY * 0.20)
+    s.yazi("onu bir kremin içine", "sayfa_basli", s.sol_kenar, TUVAL_BOY * 0.20 + 9)
+    s.yazi("koymak demek değildir.", "sayfa_basli", s.sol_kenar, TUVAL_BOY * 0.20 + 18)
+    s.paragraf(metin.split("\n\n", 1)[1] if "\n\n" in metin else metin,
+               "govde", s.sutun_x(0), TUVAL_BOY * 0.46, s.sutun_en(6))
     s.sayfa_numarasi(KM.MUREKKEP_SOLUK)
 
 
 def bilim_ciz(s: Sayfa, urunler: dict) -> None:
-    """FORMÜLASYON -- teknik/bilimsel sayfa. Sayılar ÖLÇÜLMÜŞ olanlardır.
+    """FORMÜLASYON -- botanik yaklaşımın anlatısı.
 
-    🔴 Burada hiçbir etki iddiası yok; yalnız katalogun kendi envanteri.
-    Uydurulmuş bir "klinik test" satırı koymak en kolay şeydi ve en
-    yanlışı olurdu.
+    🔴 ILK SURUM BIR SUNUM DESTESIYDI: "36 / 29 / 26 / 24" diye dev
+    rakamlar ve yanlarinda kucuk etiketler. Red team hakli olarak reddetti:
+    o rakamlar bizim IC ENVANTERIMIZ ("29 uründe INCI listesi var") ve
+    musteriyi ilgilendirmiyor. Dogru ama ilgisiz bilgi, sayfada yerini hak
+    etmez.
+
+    Yerine: markanin botanik yaklasimini anlatan, iki sutunlu editoryal
+    metin. Tek sayi kaldi -- 36 urun -- ve o da bir baslik olarak, istatistik
+    olarak degil.
     """
     s.zemin(KM.KAGIT)
-    s.yazi("FORMÜLASYON", "ust_etiket", s.sol_kenar, KM.TASMA_MM + KM.UST_MM,
-           renk=KM.MUREKKEP_SOLUK)
-    s.yazi("Bitkisel içerik,\nölçülü formülasyon", "sayfa_basli",
-           s.sol_kenar, KM.TASMA_MM + KM.UST_MM + 14)
+    ust = KM.TASMA_MM + KM.UST_MM
+    s.yazi("YAKLAŞIM", "ust_etiket", s.sol_kenar, ust, renk=KM.MUREKKEP_SOLUK)
+    s.cizgi(s.sol_kenar, ust + 6, s.sutun_en(2))
 
-    inci_var = sum(1 for u in urunler.values() if u.get("inci"))
-    tr_var = sum(1 for u in urunler.values() if u.get("icindekiler"))
-    uyarili = sum(1 for u in urunler.values() if u.get("zorunlu_uyarilar"))
+    s.yazi("Bitki bir süs değil,\nbir karardır", "sayfa_basli",
+           s.sol_kenar, TUVAL_BOY * 0.22)
 
-    satirlar = [
-        ("36", "ürün", "Altı kullanım alanında, tek formülasyon dili."),
-        (str(inci_var), "üründe INCI listesi",
-         "Uluslararası içerik adlandırması; kaynağımızda bulunanlar."),
-        (str(tr_var), "üründe Türkçe içindekiler",
-         "Aynı listenin Türkçe karşılığı."),
-        (str(uyarili), "üründe zorunlu uyarı",
-         "Mevzuatın istediği uyarılar metinden çıkarılmaz."),
-    ]
-    ust = TUVAL_BOY * 0.40
-    for sayi, etiket, aciklama in satirlar:
-        s.yazi(sayi, "urun_ad", s.sutun_x(0), ust)
-        s.yazi(etiket, "ust_etiket", s.sutun_x(2), ust + 2,
+    sol = (
+        "Bir formülasyonda hangi bitkinin bulunacağı, o bitkinin güzel "
+        "kokmasıyla değil, uygulanacağı yerle ilgilidir.\n\n"
+        "Arnica montana morarmaya eğilimli bölgelerin bakımında yüzyıllardır "
+        "kullanılır. Tamanu (Calophyllum inophyllum) basınç ve sürtünmeye "
+        "maruz kalan cildin bakımında tercih edilir. Lavanta gece rutinine, "
+        "papatya bebeğin ilk banyosuna aittir."
+    )
+    sag = (
+        "L'CARLIÉ formülasyonları bu tercihleri bir araya getirir ve bir "
+        "yere uygular: belirli bir bölgeye, belirli bir ana, belirli bir "
+        "ihtiyaca.\n\n"
+        "Katalogdaki her ürün bu mantıkla okunabilir. Ürün adının yanındaki "
+        "kullanım açıklaması nereye, içindekiler listesi neyle sorusunu "
+        "yanıtlar.\n\n"
+        "İçerik listeleri uluslararası INCI adlandırmasıyla ve Türkçe "
+        "karşılıklarıyla birlikte verilir."
+    )
+    ust_metin = TUVAL_BOY * 0.40
+    s.paragraf(sol, "govde", s.sutun_x(0), ust_metin, s.sutun_en(5))
+    s.paragraf(sag, "govde_hafif", s.sutun_x(6), ust_metin, s.sutun_en(6),
                renk=KM.MUREKKEP_SOLUK)
-        s.paragraf(aciklama, "govde_hafif", s.sutun_x(2), ust + 8,
-                   s.sutun_en(7))
-        s.cizgi(s.sutun_x(0), ust + 22, s.sutun_en(10))
-        ust += 30
+
+    alt = TUVAL_BOY - KM.TASMA_MM - KM.ALT_MM - 18
+    s.cizgi(s.sol_kenar, alt, s.metin_en)
+    s.yazi("ALTI KULLANIM ALANI · 36 ÜRÜN", "ust_etiket", s.sol_kenar,
+           alt + 6, renk=KM.MUREKKEP_SOLUK)
     s.sayfa_numarasi(KM.MUREKKEP_SOLUK)
 
 
@@ -442,15 +615,31 @@ def _koyu_gecis(s: Sayfa, baslangic_orani: float, guc: float = 0.88) -> None:
 
 
 def _acilis_basliklar(s: Sayfa, bolum: dict, ust_orani: float,
-                      acik: bool = True) -> None:
+                      acik: bool = True, en_fazla_sutun: int = 9) -> None:
     beyaz = (0.96, 0.95, 0.93) if acik else KM.MUREKKEP
     soluk = (0.84, 0.82, 0.79) if acik else KM.MUREKKEP_SOLUK
     s.yazi(bolum["ustyazi"], "ust_etiket", s.sol_kenar,
            TUVAL_BOY * ust_orani, renk=bolum["vurgu"])
-    s.yazi(bolum["ad"], "bolum_dev", s.sol_kenar,
-           TUVAL_BOY * ust_orani + 4, renk=beyaz)
-    s.paragraf(bolum["acilis"], "govde_hafif", s.sol_kenar,
-               TUVAL_BOY * ust_orani + 22, s.sutun_en(7), renk=soluk)
+
+    # Uzun bolum adi kendi alanini asarsa SATIRA BOLUNUR, gorsele girmez.
+    font, punto, satir, _ = KM.TIP["bolum_dev"]
+    sinir = s.sutun_en(en_fazla_sutun) * mm
+    ad = bolum["ad"]
+    if pdfmetrics.stringWidth(ad, font, punto) > sinir and " " in ad:
+        parcalar, aktif = [], ""
+        for kelime in ad.split():
+            deneme = (aktif + " " + kelime).strip()
+            if pdfmetrics.stringWidth(deneme, font, punto) <= sinir:
+                aktif = deneme
+            else:
+                parcalar.append(aktif)
+                aktif = kelime
+        parcalar.append(aktif)
+        ad = "\n".join(p for p in parcalar if p)
+    y = s.yazi(ad, "bolum_dev", s.sol_kenar, TUVAL_BOY * ust_orani + 4,
+               renk=beyaz)
+    s.paragraf(bolum["acilis"], "govde_hafif", s.sol_kenar, y + 5,
+               s.sutun_en(min(7, en_fazla_sutun)), renk=soluk)
 
 
 def _acilis_tam(s: Sayfa, bolum: dict) -> None:
@@ -481,6 +670,10 @@ def _acilis_bant(s: Sayfa, bolum: dict) -> None:
 
 
 def _acilis_sutun(s: Sayfa, bolum: dict) -> None:
+    # 🔴 "CILT BARIYERI" basliginin son harfi gorsel sutununa giriyordu.
+    # Baslik alani gorsel sutununun SOLUNDA bitmeli; bolum_dev 40 punto ve
+    # uzun adlar 8 sutunu asiyor. Cozum: baslik alani 6 sutuna sabitlenir
+    # ve gerekirse ad iki satira boluner.
     """SÜTUN -- dar dikey görsel + AŞIRI negatif alan.
 
     Sayfanın üçte ikisi boş. Bu, katalogdaki en sessiz sayfa tipidir ve
@@ -494,7 +687,7 @@ def _acilis_sutun(s: Sayfa, bolum: dict) -> None:
     yol = sahne_bul(bolum["sahne"], en_az_px=max(1400, int(sutun_en / 25.4 * 300)))
     if yol:
         s.gorsel(yol, x, ust, sutun_en, boy)
-    _acilis_basliklar(s, bolum, 0.34, acik=False)
+    _acilis_basliklar(s, bolum, 0.34, acik=False, en_fazla_sutun=6)
     s.cizgi(s.sol_kenar, TUVAL_BOY * 0.32, s.sutun_en(2),
             renk=bolum["vurgu"], kalinlik=0.8)
     s.sayfa_numarasi(bolum["vurgu"])
@@ -512,20 +705,30 @@ def urun_tam_ciz(s: Sayfa, urun: dict, bolum: dict) -> None:
         from PIL import Image
         with Image.open(kesim) as im:
             oran = im.width / im.height
-        boy = TUVAL_BOY * 0.52
+        boy = TUVAL_BOY * 0.56
         en = boy * oran
         if en > s.sutun_en(6):
             en = s.sutun_en(6)
             boy = en / oran
-        s.gorsel(kesim, TUVAL_EN - s.sag_kenar - en, TUVAL_BOY * 0.16,
-                 en, boy, maske=True)
+        # Kaynak yetmiyorsa KUCULT, buyutme.
+        en_fazla_en, en_fazla_boy = en_fazla_yerlesim(kesim)
+        if en > en_fazla_en or boy > en_fazla_boy:
+            k = min(en_fazla_en / en, en_fazla_boy / boy)
+            en, boy = en * k, boy * k
+            s.kisitli.append(urun["slug"])
+        gx = TUVAL_EN - s.sag_kenar - en
+        gy = TUVAL_BOY * 0.16 + max(0, (TUVAL_BOY * 0.56 - boy) / 2)
+        s.urun_zemini(gx, gy, en, boy, bolum["vurgu"])
+        s.temas_golgesi(gx, gy + boy, en)
+        s.gorsel(kesim, gx, gy, en, boy, maske=True)
 
     ust = KM.TASMA_MM + KM.UST_MM
     s.yazi(bolum["ad"], "ust_etiket", s.sol_kenar, ust, renk=bolum["vurgu"])
     s.cizgi(s.sol_kenar, ust + 6, s.sutun_en(2), renk=bolum["vurgu"], kalinlik=0.6)
 
     ad = urun["ad"].split("(")[0].strip()
-    y = s.yazi(ad.upper(), "urun_ad", s.sol_kenar, TUVAL_BOY * 0.40)
+    y = s.yazi(_ad_sar(ad.upper(), "urun_ad", s.sutun_en(5)), "urun_ad",
+               s.sol_kenar, TUVAL_BOY * 0.40)
     alt_ad = urun["ad"][urun["ad"].find("(") + 1:].rstrip(")") if "(" in urun["ad"] else ""
     if alt_ad:
         y = s.yazi(_kisalt(alt_ad, 44), "alt_yazi", s.sol_kenar, y + 1,
@@ -539,13 +742,22 @@ def urun_tam_ciz(s: Sayfa, urun: dict, bolum: dict) -> None:
         y = s.paragraf(_kisalt(urun["kullanim"], 200), "govde_hafif",
                        s.sol_kenar, y + 6, s.sutun_en(5))
 
+    # 🔴 INCI BLOGU KIRLI BIR GRI LEKEYDI: tek genis sutunda, yapisiz,
+    # sayfanin ayaginda. Artik ustunde ince bir cizgi var ve IKI SUTUNA
+    # bolunuyor -- satir uzunlugu kisaliyor, blok okunur bir ayak notuna
+    # donuyor. Icerik listesi okunmak icin degil DOGRULANMAK icin orada;
+    # ama okunamaz olmasi ayri sey.
     icerik = urun.get("inci") or urun.get("icindekiler")
     if icerik:
         etiket = "INCI" if urun.get("inci") else "İÇİNDEKİLER"
-        alt = TUVAL_BOY - KM.TASMA_MM - KM.ALT_MM - 26
+        alt = TUVAL_BOY - KM.TASMA_MM - KM.ALT_MM - 30
+        s.cizgi(s.sol_kenar, alt - 3, s.metin_en, renk=(0.78, 0.77, 0.75))
         s.yazi(etiket, "ust_etiket", s.sol_kenar, alt, renk=KM.MUREKKEP_SOLUK)
-        s.paragraf(_kisalt(icerik, 340), "inci", s.sol_kenar, alt + 5,
-                   s.sutun_en(10), renk=KM.MUREKKEP_SOLUK)
+        yarim = _yariya_bol(_kisalt(icerik, 380))
+        s.paragraf(yarim[0], "inci", s.sutun_x(0), alt + 6, s.sutun_en(5),
+                   renk=KM.MUREKKEP_SOLUK)
+        s.paragraf(yarim[1], "inci", s.sutun_x(6), alt + 6, s.sutun_en(6),
+                   renk=KM.MUREKKEP_SOLUK)
     s.sayfa_numarasi(bolum["vurgu"])
 
 
@@ -565,18 +777,26 @@ def urun_ikili_ciz(s: Sayfa, urunler: list, bolum: dict) -> None:
             from PIL import Image
             with Image.open(kesim) as im:
                 oran = im.width / im.height
-            boy = yukseklik * 0.72
+            boy = yukseklik * 0.74
             en = boy * oran
             if en > s.sutun_en(4):
                 en = s.sutun_en(4)
                 boy = en / oran
-            s.gorsel(kesim, s.sutun_x(0) + (s.sutun_en(4) - en) / 2, y0, en, boy,
-                     maske=True)
+            en_fazla_en, en_fazla_boy = en_fazla_yerlesim(kesim)
+            if en > en_fazla_en or boy > en_fazla_boy:
+                k = min(en_fazla_en / en, en_fazla_boy / boy)
+                en, boy = en * k, boy * k
+                s.kisitli.append(urun["slug"])
+            gx = s.sutun_x(0) + (s.sutun_en(4) - en) / 2
+            gy = y0 + max(0, (yukseklik * 0.74 - boy) / 2)
+            s.urun_zemini(gx, gy, en, boy, bolum["vurgu"])
+            s.temas_golgesi(gx, gy + boy, en)
+            s.gorsel(kesim, gx, gy, en, boy, maske=True)
 
         mx = s.sutun_x(5)
         men = s.sutun_en(7)
         ad = urun["ad"].split("(")[0].strip()
-        y = s.yazi(ad.upper(), "urun_ad", mx, y0 + 2)
+        y = s.yazi(_ad_sar(ad.upper(), "urun_ad", men), "urun_ad", mx, y0 + 2)
         y = s.paragraf(_kisalt(urun.get("ozet") or "", 210), "govde",
                        mx, y + 4, men)
         icerik = urun.get("inci") or urun.get("icindekiler")
@@ -623,20 +843,32 @@ def uret(cikti: pathlib.Path) -> dict:
 
     # 1 kapak
     s = yeni(); kapak_ciz(s, KM.KAPAK); rapor["sayfalar"].append("kapak")
-    rapor["gorseller"] += s.gorsel_raporu; c.showPage()
+    rapor["gorseller"] += s.gorsel_raporu
+    rapor.setdefault("kaynaktan_kisitli", []).extend(
+        s.kisitli)
+    c.showPage()
 
     # 2 manifesto
     s = yeni(); manifesto_ciz(s, KM.MANIFESTO); rapor["sayfalar"].append("manifesto")
-    rapor["gorseller"] += s.gorsel_raporu; c.showPage()
+    rapor["gorseller"] += s.gorsel_raporu
+    rapor.setdefault("kaynaktan_kisitli", []).extend(
+        s.kisitli)
+    c.showPage()
 
     # 3 formulasyon
     s = yeni(); bilim_ciz(s, urunler); rapor["sayfalar"].append("formulasyon")
-    rapor["gorseller"] += s.gorsel_raporu; c.showPage()
+    rapor["gorseller"] += s.gorsel_raporu
+    rapor.setdefault("kaynaktan_kisitli", []).extend(
+        s.kisitli)
+    c.showPage()
 
     for bolum in KM.BOLUMLER:
         s = yeni(); bolum_acilisi_ciz(s, bolum)
         rapor["sayfalar"].append("acilis:" + bolum["kod"])
-        rapor["gorseller"] += s.gorsel_raporu; c.showPage()
+        rapor["gorseller"] += s.gorsel_raporu
+        rapor.setdefault("kaynaktan_kisitli", []).extend(
+            s.kisitli)
+        c.showPage()
 
         kayitlar = []
         for slug in bolum["urunler"]:
@@ -650,17 +882,26 @@ def uret(cikti: pathlib.Path) -> dict:
 
         s = yeni(); urun_tam_ciz(s, kayitlar[0], bolum)
         rapor["sayfalar"].append("urun:" + kayitlar[0]["slug"])
-        rapor["gorseller"] += s.gorsel_raporu; c.showPage()
+        rapor["gorseller"] += s.gorsel_raporu
+        rapor.setdefault("kaynaktan_kisitli", []).extend(
+            s.kisitli)
+        c.showPage()
 
         kalan = kayitlar[1:]
         for i in range(0, len(kalan), 2):
             s = yeni(); urun_ikili_ciz(s, kalan[i:i + 2], bolum)
             rapor["sayfalar"].append(
                 "ikili:" + ",".join(u["slug"] for u in kalan[i:i + 2]))
-            rapor["gorseller"] += s.gorsel_raporu; c.showPage()
+            rapor["gorseller"] += s.gorsel_raporu
+            rapor.setdefault("kaynaktan_kisitli", []).extend(
+                s.kisitli)
+            c.showPage()
 
     s = yeni(); kapanis_ciz(s); rapor["sayfalar"].append("kapanis")
-    rapor["gorseller"] += s.gorsel_raporu; c.showPage()
+    rapor["gorseller"] += s.gorsel_raporu
+    rapor.setdefault("kaynaktan_kisitli", []).extend(
+        s.kisitli)
+    c.showPage()
 
     c.save()
     rapor["sayfa_sayisi"] = no
@@ -692,6 +933,12 @@ def main() -> int:
     print("  yerlestirilen gorsel: %d" % len(r["gorseller"]))
     if r["eksik"]:
         print("  🔴 KATALOGDA BULUNAMAYAN URUN: %s" % ", ".join(r["eksik"]))
+    kisitli = sorted(set(r.get("kaynaktan_kisitli") or []))
+    if kisitli:
+        print("  ⚠ %d urun KAYNAK COZUNURLUGU yetmedigi icin kucultuldu "
+              "(buyutulmedi):" % len(kisitli))
+        print("     " + ", ".join(kisitli[:10])
+              + (" …" if len(kisitli) > 10 else ""))
     if r["dusuk_dpi"]:
         print("  🔴 %d GORSEL %d DPI ALTINDA (baski icin yetersiz):"
               % (len(r["dusuk_dpi"]), EN_AZ_DPI))

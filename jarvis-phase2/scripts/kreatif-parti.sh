@@ -17,6 +17,29 @@
 # Görsel üretimi `kreatif-uret.sh` işidir ve onaydan SONRA koşar.
 set -uo pipefail   # -e YOK: bir ürünün patlaması partiyi bitirmemeli
 
+# --- 4 GÜN KORUMASI (25.09.2026) --------------------------------------------
+# Zamanlayıcı artık GÜNLÜK uyandırıyor; gerçek 4 günlük arayı burası korur.
+#
+# 🔴 NEDEN ZAMANLAYICIDA DEĞİL BURADA. `OnUnitActiveSec=4d` tek başına hiç
+#    ateşlemiyordu (çapa noktası yok), `OnBootSec` yeniden başlatmada anında
+#    koşu tetikliyordu, `Persistent=true` ise kaçırılmış tetiği telafi edip
+#    yine anında başlatıyordu -- üçü de 25.09.2026'da ölçüldü. Günlük takvim
+#    tetiği + buradaki koruma, üç tuzağın da dışında kalan tek bileşim.
+#
+# 🔴 DAMGA YALNIZ PARTİ SONUNA KADAR GELİNDİĞİNDE yazılır (dosyanın sonuna
+#    bakın). Yarıda ölen bir koşu -- 25.09'da üç saatlik zaman aşımına iki
+#    kez takıldı -- damgayı tazelemez, ertesi gün tekrar denenir.
+KREATIF_ARALIK_GUN="${KREATIF_ARALIK_GUN:-4}"
+KREATIF_DAMGA="${KREATIF_DAMGA:-/opt/lcarlie/jarvis-phase2/state/kreatif-hat-son-kosu}"
+if [ "${KREATIF_ZORLA:-0}" != "1" ] && [ -f "$KREATIF_DAMGA" ]; then
+  _gecen=$(( ( $(date +%s) - $(stat -c %Y "$KREATIF_DAMGA") ) / 86400 ))
+  if [ "$_gecen" -lt "$KREATIF_ARALIK_GUN" ]; then
+    echo "$(date '+%F %T') ATLANDI: son tamamlanan partinin uzerinden $_gecen gun gecti (gereken $KREATIF_ARALIK_GUN). Zorlamak icin KREATIF_ZORLA=1."
+    exit 0
+  fi
+fi
+# ----------------------------------------------------------------------------
+
 KOK="/opt/lcarlie/jarvis-phase2"
 PY="$KOK/venv/bin/python"
 export JARVIS_MEMORY_TRANSPORT="${JARVIS_MEMORY_TRANSPORT:-local-docker}"
@@ -135,5 +158,11 @@ fi
 echo
 echo "=== PARTI BITTI: $BASARI brief onay kuyrugunda, $HATA hata ==="
 echo "    tam donanimla islenen: $DERIN_SAYAC urun"
+# Parti sonuna kadar gelindi: damgayı tazele. 4 gün koruması bunu okur.
+# 🔴 Bu satır bilerek EN SONDA: yarıda ölen bir koşu (sinyal, zaman aşımı)
+#    buraya hiç ulaşmaz ve damga eskimiş kalır -- yani ertesi gün tekrar
+#    denenir. "Başladı" ile "bitti" ayrı şeylerdir.
+touch "$KREATIF_DAMGA"
+
 [ "$BASARI" -gt 0 ] || exit 1
 

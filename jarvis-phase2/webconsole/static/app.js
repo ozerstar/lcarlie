@@ -5501,11 +5501,17 @@ function sistemPolitikaKart(pol) {
     </div>`, meta);
 }
 
-async function sistemAnahtarCevir(anahtar, acik) {
+async function sistemAnahtarCevir(anahtar, acik, ozelIzin) {
+  /* ozel_izin YALNIZCA iki adimli onaydan sonra gonderilir. Arka uc bunu
+     gormeden kilitli bir anahtari ACMAZ (403 doner) -- kilit 25.09.2026'da
+     arayuzden sistem.py'ye tasindi, cunku arayuzdeki kilit panel disindaki
+     cagiranlari (ornegin PC-2 kisayollarini besleyen politika-yaz.sh)
+     hic baglamiyordu. */
   const { ok, status, body } = await api('/api/sistem/anahtar', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ anahtar, acik }),
+    body: JSON.stringify(ozelIzin ? { anahtar, acik, ozel_izin: true }
+                                  : { anahtar, acik }),
   });
   if (!ok) {
     const govde = qs('sistemGovde');
@@ -5570,7 +5576,7 @@ document.addEventListener('click', (ev) => {
     sistemCiz();
     return;
   }
-  sistemAnahtarCevir(anahtar, acik);
+  sistemAnahtarCevir(anahtar, acik, btn.dataset.onay === '1');
 });
 
 

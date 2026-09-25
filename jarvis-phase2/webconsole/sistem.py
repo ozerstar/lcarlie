@@ -294,15 +294,38 @@ def politika_oku(state_dir: Path) -> dict:
     }
 
 
-def politika_yaz(state_dir: Path, anahtar: str, acik: bool, kim: str) -> dict:
+class KilitliAnahtar(PermissionError):
+    """Ozel izin isteyen bir anahtari izin verilmeden ACMA girisimi."""
+
+
+def politika_yaz(state_dir: Path, anahtar: str, acik: bool, kim: str,
+                 ozel_izin: bool = False) -> dict:
     """Tek bir anahtari cevirir ve yeni politikayi dondurur.
 
     Bilinmeyen anahtar sessizce yok sayilmaz, ValueError atar: panelde
     yanlis isimle gonderilen bir istegin "basarili" gorunmesi, bu
     projede daha once yasanmis bir hata sinifi.
+
+    🔴 KILIT ARTIK BURADA, ARAYUZDE DEGIL (25.09.2026).
+    Ilk halinde `kilit: "ozel_izin"` YALNIZCA panelin iki adimli onay
+    ekraninda vardi; bu islev kilidi hic denetlemiyordu. Yani panel
+    disindaki her cagiran -- ornegin PC-2 masaustu kisayollarini besleyen
+    /opt/lcarlie/politika-yaz.sh -- kilitli bir anahtari tek adimda
+    acabiliyordu. Kilit, ancak onu ZORLAYAN katmanda gercektir; sunum
+    katmanindaki kilit bir kilit degil, bir rica.
+
+    Yon onemli: KAPATMAK her zaman serbesttir, yalnizca ACMAK izin ister.
+    Guvenli yone giden bir hareketi engellemek, kaza aninda geri donusu
+    zorlastirmaktan baska ise yaramaz.
     """
     if anahtar not in VARSAYILAN_POLITIKA["anahtarlar"]:
         raise ValueError("bilinmeyen anahtar: " + str(anahtar))
+
+    tanim_kilit = VARSAYILAN_POLITIKA["anahtarlar"][anahtar].get("kilit")
+    if tanim_kilit == "ozel_izin" and bool(acik) and not ozel_izin:
+        raise KilitliAnahtar(
+            anahtar + " ozel izin ister: acmak icin ozel_izin=True verilmeli. "
+            "(Kapatmak her zaman serbesttir.)")
 
     mevcut = politika_oku(state_dir)
     tanim = mevcut["anahtarlar"][anahtar]
