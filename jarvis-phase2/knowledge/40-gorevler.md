@@ -2,86 +2,77 @@
 konu: Katalog, saha ve sosyal medya için günlük/haftalık/aylık görevler
 anahtar: [gorev, görev, gunluk, günlük, haftalik, haftalık, aylik, aylık, katalog, saha, instagram, zamanlayici, zamanlayıcı, takvim, rutin]
 gizlilik: ic-bilgi
-kaynak: /etc/systemd/system/lcarlie-*.timer (ölçülmüş, systemctl list-timers)
+kaynak: /etc/systemd/system/lcarlie-*.timer (systemctl list-timers)
 uretim: elle yazıldı 25.09.2026
 ---
 
 # Görev takvimi — katalog, saha, sosyal medya
 
-Bu dosya **ne zaman ne olduğunu** söyler. Her satırın karşılığı çalışan bir
-systemd zamanlayıcısıdır; "yapılacak" listesi değil, **yapılanın kaydı**.
+Her satırın karşılığı çalışan bir systemd zamanlayıcısıdır: yapılacak
+listesi değil, **yapılanın kaydı**.
 
 🔴 **ÜRETİLEN HİÇBİR ŞEY KENDİLİĞİNDEN YAYINLANMAZ.** Dış eylem kapalı
 (`EXTERNAL_ACTIONS=false`). Jarvis hazırlar, sahip panelden onaylar.
 
----
-
 ## GÜNLÜK
 
-| Saat | İş | Neden günlük | Zamanlayıcı |
-|---|---|---|---|
-| 05:20 | **Katalog üretimi** — 36 ürünün metni yayındaki Wix açıklamasından yeniden çıkarılır, her cümle mevzuat denetçisinden geçer | Wix metni elle düzeltilebiliyor (güneş kremlerindeki zorunlu ibare eksikliği gibi). Katalog o düzeltmeyi bir gün içinde almalı; haftalık olsaydı eczaneye eski metin götürülürdü | `lcarlie-katalog-uret` |
-| 07:45 | Güncel olaylar bülteni | mevcut | `lcarlie-guncel-olaylar` |
-| 08:17 | Yönetici brifingi | mevcut | `lcarlie-executive-brief` |
-| 08:30 | Tasarım nöbeti | mevcut | `lcarlie-tasarim-nobet` |
-| 06:20 | Sayfa ölçümü | mevcut | `lcarlie-sayfa-olcum` |
+**05:20 · `lcarlie-katalog-uret`** — 36 ürünün metni yayındaki Wix
+açıklamasından yeniden çıkarılır, her cümle mevzuat denetçisinden geçer.
+*Neden günlük:* Wix metni elle düzeltilebiliyor (güneş kremlerindeki
+zorunlu ibare eksikliği gibi). Haftalık olsaydı eczaneye eski metin
+götürülürdü.
 
-**Günlük, insan tarafı (zamanlayıcı yok — karar gerektirir):**
-1. `KATALOG` sekmesindeki uyarı satırını oku. Eksik INCI, eksik bayi
-   fiyatı ve barkod çakışması orada yazar.
-2. `INSTAGRAM PLANI` bölümünde karar bekleyen paket varsa onayla ya da
-   reddet. Karar verilmeyen paket yeni paket üretilmesini **engeller** —
-   bu bilerek böyle: yığılmış liste okunmaz.
-3. `SAHA` sekmesinde o gün gidilecek rotayı çıkar.
+Ayrıca mevcut: 06:20 sayfa ölçümü · 07:45 güncel olaylar · 08:17 yönetici
+brifingi · 08:30 tasarım nöbeti.
 
----
+**İnsan tarafı (karar gerektirir, zamanlayıcı yok):**
+1. `KATALOG` sekmesindeki uyarı satırı: eksik INCI, eksik bayi fiyatı,
+   barkod çakışması orada yazar.
+2. `INSTAGRAM PLANI`nda karar bekleyen paketi onayla ya da reddet. Karar
+   verilmeyen paket yeni paket üretilmesini **engeller** — yığılmış liste
+   okunmaz.
+3. `SAHA`da o gün gidilecek rotayı çıkar.
 
 ## HAFTALIK
 
-| Gün | İş | Neden haftalık | Zamanlayıcı |
-|---|---|---|---|
-| Pazartesi 06:10 | **Instagram gönderi paketleri** — ölçülmüş veriden (124 gönderi etkileşimi + 63 reklam kreatifi maliyeti + gerçek satış sinyali) yeni paketler | Paket üretmek bedava, **karar vermek** değil. Günlük koşsaydı sahip 7 günde 49 paketle karşılaşır ve hiçbirine bakmazdı | `lcarlie-ig-gonderi` |
-| Cumartesi 10:11 | Kreatif hattı | mevcut | `lcarlie-kreatif-hat` |
+**Pazartesi 06:10 · `lcarlie-ig-gonderi`** — gönderi paketleri ölçülmüş
+veriden üretilir: 124 gönderinin etkileşimi, 63 reklam kreatifinin
+maliyeti, gerçek satış sinyali. *Neden haftalık:* paket üretmek bedava,
+**karar vermek** değil; günlük koşsaydı sahip 7 günde 49 paketle
+karşılaşır ve hiçbirine bakmazdı.
 
-**Haftalık, insan tarafı:**
-1. Onaylanan gönderiyi çek/tasarla ve yayınla, sonra panelde
-   `YAYINLANDI` işaretle. İşaretlenmeyen paket "onaylandı ama yapılmadı"
-   olarak durur — bu ayrım kasten var.
-2. Saha ziyaretlerinde girilen notları gözden geçir
-   (`mart.katalog_ilgi`): hangi ürün ilgi görüyor, hangisi görmüyor.
-3. Bayi fiyatı girilmemiş ürün kaldıysa karar ver. Katalog o ürünü "—"
-   ile gösteriyor ve sahada fiyat sorulduğunda cevap veremiyorsun.
+Ayrıca mevcut: Cumartesi 10:11 kreatif hattı.
 
----
+**İnsan tarafı:**
+1. Onaylanan gönderiyi çek/tasarla, yayınla, panelde `YAYINLANDI`
+   işaretle. İşaretlenmeyen paket "onaylandı ama yapılmadı" olarak durur.
+2. `mart.katalog_ilgi`: hangi ürün ilgi görüyor, hangisi görmüyor.
+3. Bayi fiyatı girilmemiş ürün kaldıysa karar ver — katalog onu "—" ile
+   gösteriyor, sahada fiyat sorulduğunda cevap veremiyorsun.
 
 ## AYLIK
 
-| Gün | İş | Neden aylık | Zamanlayıcı |
-|---|---|---|---|
-| Ayın 1'i 04:30 | **Saha hedefleri — OSM taraması** | Eczane/klinik açılış-kapanış hızı bunu kaldırır; Overpass sunucuları paylaşımlı, sıklaştırmak başkasının kaynağını yakmak olur | `lcarlie-saha-tara` |
-| Ayın 2'si 04:10 | **Katalog görselleri** — 124 ürün görseli Wix'ten çekilip WebP olarak indirilir | Görsel Wix'te nadiren değişir; var olan dosya yeniden indirilmez | `lcarlie-katalog-gorsel` |
-| Haftalık (Cuma 05:26) | **Overture taraması** | Overture sürümü aylık çıkıyor ama sürüm tarihi sabit değil; haftalık bakmak yeni sürümü kaçırmamak için | `lcarlie-overture-tara` |
+**Ayın 1'i 04:30 · `lcarlie-saha-tara`** — OSM taraması. *Neden aylık:*
+eczane/klinik açılış hızı bunu kaldırır; Overpass sunucuları paylaşımlı.
 
-**Aylık, insan tarafı:**
-1. Tarama sonrası hedef sayısındaki değişimi oku. Düşüş varsa sebebi
-   kaynak mı, filtre mi — ikisi ayrı şey.
-2. Elenen kayıtları gözden geçir (`SAHA` → "yalnız elenenler"). Yanlış
-   elenmiş varsa `HEDEFTİR` ile geri al.
-3. Kapanmış P0 kararları ve açık mevzuat bulguları: Wix'teki güneş kremi
-   zorunlu ibare eksikliği hâlâ açık.
+**Ayın 2'si 04:10 · `lcarlie-katalog-gorsel`** — 124 ürün görseli WebP
+olarak indirilir. Var olan dosya yeniden indirilmez.
 
----
+**Cuma 05:26 · `lcarlie-overture-tara`** — sürüm tarihi sabit olmadığı
+için haftalık bakılır, aylık yenilenir.
 
-## ZAMANLAYICI OLMAYAN, AMA BEKLEYEN İŞLER
+**İnsan tarafı:** hedef sayısındaki değişimi oku (düşüş varsa sebebi
+kaynak mı filtre mi — ikisi ayrı şey) · `SAHA` → "yalnız elenenler"de
+yanlış elenmiş varsa `HEDEFTİR` ile geri al.
 
-Bunlar **sahip kararı** gerektiriyor; kod tarafı hazır:
+## ZAMANLAYICISI OLMAYAN, SAHİP KARARI BEKLEYEN
 
-| İş | Ne bekliyor | Etkisi |
-|---|---|---|
-| **Bayi (toptan) fiyatı** | Sahip kararı — 36/36 ürün boş | Katalog eczaneye götürülebilir ama fiyat konuşulamaz. Uydurulmuş toptan fiyat sahada verilmiş yanlış sözdür |
-| **Barkod çakışması** `8684869609301` | BUGUARD ve SOFTGUARD aynı barkodu taşıyor | Eczanede barkod okutulur; yanlış ürün satılabilir. Düzeltmek mevzuat/sahip kararı |
-| **Güneş kremi zorunlu ibareleri** | Wix'te metin düzeltmesi | 3 üründe (BABYSOL, SUNACNEA, OPTYWAVE) zorunlu ibare eksik — denetim bunu belge düzeyinde bulguluyor |
-| **7 üründe İngilizce INCI** | Etiketten doğrulama | Katalog "kaynağımızda yok" yazıyor; eczacının ilk sorusu içerik |
-| **İlk saha günü** | Sahip / saha elemanı | 18.824 hedef hazır, **0 ziyaret**. Ölçüm halkası ilk ziyaretle kapanmaya başlar |
+| İş | Etkisi |
+|---|---|
+| **Bayi (toptan) fiyatı** — 36/36 boş | Katalog götürülebilir ama fiyat konuşulamaz. Uydurulmuş toptan fiyat, sahada verilmiş yanlış sözdür |
+| **Barkod çakışması** `8684869609301` | BUGUARD ve SOFTGUARD aynı barkodda; eczanede yanlış ürün satılabilir |
+| **Güneş kremi zorunlu ibareleri** | BABYSOL, SUNACNEA, OPTYWAVE'de eksik — Wix'te düzeltilecek |
+| **7 üründe İngilizce INCI yok** | Katalog "kaynağımızda yok" yazıyor; eczacının ilk sorusu içerik |
+| **İlk saha günü** | 18.824 hedef hazır, **0 ziyaret**. Ölçüm halkası ilk ziyaretle kapanır |
 
 İlgili: `20-urunler.md`, `21-fiyat.md`, `10-iddia-kurallari.md`
