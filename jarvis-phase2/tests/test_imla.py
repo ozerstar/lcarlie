@@ -57,11 +57,23 @@ if __name__ == "__main__":
     sys.exit(1 if hata else 0)
 
 
+import shutil as _shutil  # noqa: E402
 import unittest as _unittest  # noqa: E402
+
+# 🔴 "HUNSPELL YOK" ILE "IMLA DOGRU" AYNI SEY DEGILDIR.
+# kreatif-brief.py hunspell bulamazsa sessizce bos liste donduruyor. O
+# durumda bu dosyadaki "yakalanmamali" vakalari gecer (yanlis guven) ve
+# "yakalanmali" vakalari duser. Sonucu bir kusur gibi raporlamak yanlis
+# teshise goturur: eksik olan kod degil, sistem araci.
+_HUNSPELL_VAR = bool(_shutil.which("hunspell"))
 
 
 class DenetimSonucu(_unittest.TestCase):
     """Bu dosyanin kendi denetimleri unittest'e de gorunur olsun."""
 
+    @_unittest.skipUnless(
+        _HUNSPELL_VAR,
+        "hunspell kurulu degil -- imla denetimi olculemez (kusur DEGIL). "
+        "Kurulum: apt-get install hunspell hunspell-tr")
     def test_butun_denetimler_gecti(self):
         self.assertEqual(hata, 0, f"{hata} denetim basarisiz")

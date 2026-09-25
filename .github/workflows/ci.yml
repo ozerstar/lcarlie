@@ -42,6 +42,14 @@ jobs:
           # uretimde gectiginin kaniti degildir.
           python-version: "3.12"
 
+      # 🔴 hunspell bir SISTEM araci, Python bagimliligi degil -- yukaridaki
+      # "bagimlilik kurulmaz" kurali Python paketleri icindir. Kurulmazsa
+      # kreatif-brief.py imla denetimi sessizce bos liste donduruyor ve
+      # test_imla ATLANIR. Yani kapi calisiyor gorunur ama imlayi hic
+      # denetlemez. Olculdu (CI #2, 25.09.2026).
+      - name: Turkce imla sozlugu (hunspell)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq hunspell hunspell-tr
+
       - name: Cekirdek testler
         working-directory: jarvis-phase2
         run: python -m unittest discover -s tests -p "test_*.py"
