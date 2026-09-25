@@ -143,5 +143,79 @@ class BicimlerInstagramOlculeriyle(unittest.TestCase):
             self.assertIn(b, gk.URUN_YUKSEKLIK_ORANI)
 
 
+class YerlesimSanatYonetimindenGelir(unittest.TestCase):
+    """Merkez kilidi bir sanat yonetimi kusuruydu: secilen konsept
+    'urun sag-altta, negatif alan sol-ustte' diyordu, motor ortaliyordu."""
+
+    def test_gecersiz_yerlesim_reddedilir(self):
+        with self.assertRaises(gk.GorselHatasi):
+            gk.uret("x", yerlesim_adi="ortalarda")
+
+    def test_gecersiz_isik_reddedilir(self):
+        with self.assertRaises(gk.GorselHatasi):
+            gk.uret("x", isik="arkadan")
+
+    def test_yerlesim_oranlari_tanimli(self):
+        self.assertEqual(gk.YERLESIMLER["merkez"], 0.50)
+        self.assertGreater(gk.YERLESIMLER["sag"], 0.5)
+        self.assertLess(gk.YERLESIMLER["sol"], 0.5)
+
+
+class IsikYonuOlculur(unittest.TestCase):
+    """Sabit yon varsaymak golgeyi sahnenin isigina ters dusurur ve
+    kompozit 'yapistirilmis' gorunur."""
+
+    def _sahne(self, sol_parlak: bool):
+        im = Image.new("RGB", (400, 400), (30, 30, 30))
+        parlak = Image.new("RGB", (150, 400), (220, 220, 220))
+        im.paste(parlak, (0, 0) if sol_parlak else (250, 0))
+        return im
+
+    def test_soldan_isik(self):
+        self.assertEqual(
+            gk.isik_yonu_olc(self._sahne(True), (160, 100, 240, 300)), "sol")
+
+    def test_sagdan_isik(self):
+        self.assertEqual(
+            gk.isik_yonu_olc(self._sahne(False), (160, 100, 240, 300)), "sag")
+
+    def test_fark_kucukse_ust_varsayilir(self):
+        duz = Image.new("RGB", (400, 400), (120, 120, 120))
+        self.assertEqual(gk.isik_yonu_olc(duz, (160, 100, 240, 300)), "ust")
+
+
+@unittest.skipUnless(_URUN_VAR and _FONT_VAR, "urun gorseli ya da font yok")
+class YerlesimVePikselBirlikteCalisir(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.dizin = Path(tempfile.mkdtemp(prefix="gorsel-yerlesim-"))
+        adaylar = sorted({p.name.rsplit("-", 1)[0]
+                          for p in gk.GORSEL.glob("*.webp")})
+        cls.slug = adaylar[0] if adaylar else None
+
+    def test_her_yerlesimde_urun_pikseli_korunur(self):
+        for yer in ("sol", "merkez", "sag", "sag_ucta"):
+            r = gk.uret(self.slug, bicim="AKIS", baslik="Baslik", alt="Alt",
+                        yerlesim_adi=yer, cikti_dizin=self.dizin)
+            self.assertEqual(r["birebir_oran"], 1.0, yer)
+            self.assertEqual(r["yerlesim"], yer)
+
+    def test_yerlesim_konumu_degistirir(self):
+        sol = gk.uret(self.slug, yerlesim_adi="sol", cikti_dizin=self.dizin)
+        sag = gk.uret(self.slug, yerlesim_adi="sag", cikti_dizin=self.dizin)
+        self.assertLess(sol["urun_kutusu"]["sol"], sag["urun_kutusu"]["sol"])
+
+    def test_urun_tuvalin_disina_tasmaz(self):
+        for yer in gk.YERLESIMLER:
+            r = gk.uret(self.slug, yerlesim_adi=yer, cikti_dizin=self.dizin)
+            self.assertGreaterEqual(r["urun_kutusu"]["sol"], 0)
+            self.assertLessEqual(r["urun_kutusu"]["sag"], r["boyut"][0])
+
+    def test_isik_yonu_raporlanir(self):
+        r = gk.uret(self.slug, cikti_dizin=self.dizin)
+        self.assertIn(r["isik_yonu"], ("sol", "sag", "ust"))
+        self.assertEqual(r["isik_kaynagi"], "olculdu")
+
+
 if __name__ == "__main__":
     unittest.main()

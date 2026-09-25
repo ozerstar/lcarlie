@@ -380,8 +380,6 @@ def decompose(request: str, max_queries: int = 5) -> tuple[str, ...]:
     # A word that signals a facet is not the subject. Without this the
     # length proxy picks the inflected "kampanyalarını" (14 chars) over
     # "dermokozmetik" (13) and every generated query searches the wrong noun.
-    cue_stems = _NON_SUBJECT_STEMS
-
     subject = " ".join(research_subject(normalized, count=2))
 
     chosen = [name for name, cues, _ in FACETS

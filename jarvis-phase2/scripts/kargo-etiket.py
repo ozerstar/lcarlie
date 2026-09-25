@@ -122,7 +122,9 @@ def _izgara_sabitle(tablo, genislikler) -> None:
     if izgara is None:
         return
     sutunlar = izgara.findall(qn("w:gridCol"))
-    for s, g in zip(sutunlar, genislikler):
+    # strict=False: belgedeki sutun sayisi ile verilen genislik sayisi
+    # tutmayabilir; fazlasi yok sayilir, etiket yine basilir.
+    for s, g in zip(sutunlar, genislikler, strict=False):
         # w:w yirmide bir punto (dxa) cinsindendir.
         s.set(qn("w:w"), str(int(g.twips)))
     # Tablo duzeni SABIT olsun; otomatik duzen icerige gore genislik

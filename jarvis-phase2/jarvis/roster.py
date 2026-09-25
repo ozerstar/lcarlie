@@ -1034,7 +1034,6 @@ def _say_brand_positioning(rows: dict[str, list]) -> str:
     f = rows.get("ecommerce_price", [])
     if not s:
         return "Konumlandırma için soru dağılımı okunamıyor."
-    toplam = sum(_num(r, "konusma_yuzde") for r in s) or 1.0
     fiyat = next((r for r in s if str(r.get("konu")) == "FIYAT"), None)
     icerik = next((r for r in s if str(r.get("konu")) == "ICERIK"), None)
     fayda = next((r for r in s if str(r.get("konu")) == "ETKI_FAYDA"), None)

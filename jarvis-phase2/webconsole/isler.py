@@ -204,7 +204,10 @@ def is_ekle(kuyruk_dir: str | Path | None, istem: str,
 
     # ATOMİK YAZMA: hakem bekleyen/ dizinini tarayip gordugu dosyayi hemen
     # okudugu icin yarim dosya = hata klasorune dusen is demektir.
-    gecici = tempfile.NamedTemporaryFile(
+    # noqa gerekcesi: atomik yazim kalibi. Dosya blok bitince DEGIL,
+    # fsync sonrasi os.replace ile kapanip yerine tasiniyor; asagidaki
+    # try/except onu kapatiyor ve hata halinde siliyor.
+    gecici = tempfile.NamedTemporaryFile(  # noqa: SIM115
         mode="w", encoding="utf-8", dir=str(hedef_dizin),
         prefix=".yaziliyor-", suffix=".tmp", delete=False)
     try:

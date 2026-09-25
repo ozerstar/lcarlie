@@ -320,16 +320,15 @@ def cumle_cumle_denetle(metin: str) -> list[dict]:
     # Kural: KISI adi tek basina yetmez; ayni cumlede SIRKET BAGLAMI da
     # gecmeli. Marka adi kendi basina ayirt edici oldugu icin ona bu sart
     # uygulanmaz.
-    SIRKET_BAGLAMI = ("lemos", "carlie", "carlié", "kozmetik",
-                      "dermokozmetik", "krem", "bakim", "bakım")
-    marka_adlar = [a.casefold() for a in MARKA_VARYANTLARI] + ["lemos"]
-    kisi_adlar = [a.casefold() for a in KISI_ADLARI]
+    # Kural burada DEGIL `bize_ait_mi()` icinde uygulaniyor; orasi modul
+    # duzeyindeki SIRKET_BAGLAMI / MARKA_VARYANTLARI / KISI_ADLARI'ni
+    # kullaniyor. Bir zamanlar burada duran yerel kopyalar silindi:
+    # duruyor olmalari, kuralin burada isledigi yanilgisini uretiyordu.
     bulgular = []
     for cumle in re.split(r"(?<=[.!?])\s+|\n", metin):
         cumle = cumle.strip(" -*•\t")
         if len(cumle) < 25 or anlatici_mi(cumle):
             continue
-        duz = cumle.casefold()
         if not bize_ait_mi(cumle):
             continue
         bayrak = mevzuat_bayraklari(cumle)

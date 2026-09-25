@@ -322,7 +322,8 @@ def politika_yaz(state_dir: Path, anahtar: str, acik: bool, kim: str) -> dict:
     }
     # Atomik yazim: yarim dosya okunursa politika "varsayilan"a duser ve
     # kapatilmis bir kaynak sessizce geri acilirdi.
-    gecici = tempfile.NamedTemporaryFile(
+    # noqa gerekcesi: atomik yazim kalibi (bkz. isler.py ayni desen).
+    gecici = tempfile.NamedTemporaryFile(  # noqa: SIM115
         "w", encoding="utf-8", dir=str(yol.parent), delete=False, suffix=".tmp")
     try:
         json.dump(govde, gecici, ensure_ascii=False, indent=2)

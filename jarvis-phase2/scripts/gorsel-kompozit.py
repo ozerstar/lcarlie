@@ -64,6 +64,26 @@ URUN_YUKSEKLIK_ORANI = {"REELS": 0.46, "KARE": 0.58, "AKIS": 0.56}
 # ayrica `·` ve `•` yok -- metin_guvenli() bunlari karsiliyor.
 MARKA_FONT_DIZIN = KOK / "varliklar" / "fontlar"
 
+# 🔴 MERKEZ KILIDI BIR SANAT YONETIMI KUSURUYDU. Ilk surum urunu her
+# zaman yatayda ortaliyordu; oysa secilen konsept "urun sag-altta, negatif
+# alan sol-ustte" diyordu. Kompozisyonu motor degil SANAT YONETIMI
+# belirler -- motor onu uygulayabilmeli.
+#
+# Oranlar tuvalin genisligine gore; 0.5 merkez.
+YERLESIMLER = {
+    "merkez":   0.50,
+    "sag":      0.66,
+    "sol":      0.34,
+    "sag_ucta": 0.74,
+    "sol_ucta": 0.26,
+}
+
+# Isik yonu golgenin hangi yana dusecegini belirler. "olc" = sahnenin
+# kendi parlaklik dagilimindan CIKAR -- sabit bir yon varsaymak, urunun
+# golgesini sahnenin isigina ters dusurur ve kompozit "yapistirilmis"
+# gorunur (retouch listesinde ilk madde).
+ISIK_YONLERI = ("olc", "sol", "sag", "ust")
+
 FONTLAR = {
     # Baslik ailesi
     "baslik": "MonumentExtended-Ultrabold.otf",
@@ -476,6 +496,72 @@ def dizgi_yaz(tuval: Image.Image, yerlesim: dict,
             imlec += yerlesim["a_yukseklik"]
 
 
+def isik_yonu_olc(sahne: Image.Image, kutu: tuple) -> str:
+    """Sahnenin ışığı hangi yandan geliyor -- ÖLÇÜLÜR, varsayılmaz.
+
+    Ürünün oturacağı bölgenin solundaki ve sağındaki ortalama parlaklık
+    karşılaştırılır; ışık parlak yandan gelir, gölge karşı yana düşer.
+
+    🔴 SEBEBI OLCULDU. Ilk kompozitte urun onden aydinlatilmis studyo
+    fotografiydi, sahnenin isigi ise sagdan geliyordu ve golgeyi sabit
+    olarak asagi dusurmustum. Yakin bakista tutarsizdi: urun arka plana
+    SONRADAN YAPISTIRILMIS gibi duruyordu.
+    """
+    import numpy as _np
+    g, y = sahne.size
+    x0, y0, x1, y1 = kutu
+    ust = max(0, y0 - (y1 - y0) // 4)
+    alt = min(y, y1 + (y1 - y0) // 4)
+    sol_band = sahne.crop((max(0, x0 - (x1 - x0)), ust, x0, alt)).convert("L")
+    sag_band = sahne.crop((x1, ust, min(g, x1 + (x1 - x0)), alt)).convert("L")
+    if not sol_band.width or not sag_band.width:
+        return "ust"
+    sol = float(_np.array(sol_band).mean())
+    sag = float(_np.array(sag_band).mean())
+    # Fark kucukse yon belirsizdir; tepeden isik varsayilir (golge asagi).
+    if abs(sol - sag) < 6.0:
+        return "ust"
+    return "sol" if sol > sag else "sag"
+
+
+def golge_ciz(tuval: Image.Image, urun: Image.Image, konum: tuple,
+              yon: str) -> Image.Image:
+    """İki katmanlı gölge: temas + düşen.
+
+    🔴 TEMAS GOLGESI EKSIKTI ve urun havada duruyordu. Tek bir bulanik
+    siluet "drop shadow" verir; gercek fotografta urunun ZEMINE DEGDIGI
+    yerde dar, koyu ve KESKIN bir golge vardir. Ikisi ayri katmandir:
+      temas  dar, koyu, az bulanik, urunun hemen altinda
+      dusen  genis, acik, cok bulanik, isigin TERS yonunde
+    """
+    x, yy = konum
+    g, y = tuval.size
+    kaydir = {"sol": (round(urun.width * 0.16), 0),
+              "sag": (-round(urun.width * 0.16), 0),
+              "ust": (0, round(urun.height * 0.03))}.get(yon, (0, 0))
+
+    # Dusen golge -- genis ve acik.
+    dusen = Image.new("RGBA", tuval.size, (0, 0, 0, 0))
+    siluet = Image.new("RGBA", urun.size, (0, 0, 0, 70))
+    dusen.paste(siluet, (x + kaydir[0], yy + kaydir[1] + round(urun.height * 0.02)),
+                urun)
+    tuval = Image.alpha_composite(
+        tuval.convert("RGBA"),
+        dusen.filter(ImageFilter.GaussianBlur(round(urun.width * 0.10) or 1))
+    ).convert("RGB")
+
+    # Temas golgesi -- urunun alt %8'lik dilimi, dar ve koyu.
+    alt_dilim = max(2, round(urun.height * 0.08))
+    kirpik = urun.crop((0, urun.height - alt_dilim, urun.width, urun.height))
+    temas = Image.new("RGBA", tuval.size, (0, 0, 0, 0))
+    koyu = Image.new("RGBA", kirpik.size, (0, 0, 0, 150))
+    temas.paste(koyu, (x, yy + urun.height - alt_dilim // 2), kirpik)
+    return Image.alpha_composite(
+        tuval.convert("RGBA"),
+        temas.filter(ImageFilter.GaussianBlur(max(2, round(urun.width * 0.015))))
+    ).convert("RGB")
+
+
 # --- dogrulama -------------------------------------------------------------
 def _ssim(a: np.ndarray, b: np.ndarray) -> float:
     """Gri tonda global SSIM. Kütüphane yok, formül açık."""
@@ -533,9 +619,14 @@ def dogrula(cikti: Image.Image, urun: Image.Image, konum: tuple) -> dict:
 # --- ana akis --------------------------------------------------------------
 def uret(slug: str, bicim: str = "AKIS", baslik: str = "", alt: str = "",
          sahne: Path | None = None, zemin: str = "#e9e6e0",
-         golge: bool = True, cikti_dizin: Path = CIKTI) -> dict:
+         golge: bool = True, yerlesim_adi: str = "merkez",
+         isik: str = "olc", cikti_dizin: Path = CIKTI) -> dict:
     if bicim not in BICIMLER:
         raise GorselHatasi("gecersiz bicim: %s" % bicim)
+    if yerlesim_adi not in YERLESIMLER:
+        raise GorselHatasi("gecersiz yerlesim: %s" % yerlesim_adi)
+    if isik not in ISIK_YONLERI:
+        raise GorselHatasi("gecersiz isik yonu: %s" % isik)
     kaynak = ana_gorsel(slug)
 
     t0 = time.time()
@@ -565,7 +656,10 @@ def uret(slug: str, bicim: str = "AKIS", baslik: str = "", alt: str = "",
         urun = urun.resize((round(urun.width * oran2), round(urun.height * oran2)),
                            Image.LANCZOS)
 
-    x = (g - urun.width) // 2
+    # Yatay konum SANAT YONETIMINDEN gelir. Kenardan tasmasi engellenir.
+    merkez_x = round(g * YERLESIMLER[yerlesim_adi])
+    x = max(round(g * 0.06),
+            min(g - urun.width - round(g * 0.06), merkez_x - urun.width // 2))
     # Kalan alanda dikey ortala: urun kucultuldugunde tepeye yapismasin.
     yy = ust_bosluk + max(0, (kullanilabilir - urun.height) // 2)
 
@@ -575,13 +669,12 @@ def uret(slug: str, bicim: str = "AKIS", baslik: str = "", alt: str = "",
     # çizilir ve harfler ürüne değmez (ürün üstte, yazı altta). İlk
     # sürümde perde üründen SONRA geliyordu ve bulanıklığı ürünü
     # kirletiyordu -- doğrulama yakaladı (birebir oran 0.371).
+    isik_yonu = isik
+    if isik == "olc":
+        isik_yonu = isik_yonu_olc(tuval, (x, yy, x + urun.width, yy + urun.height))
     if golge:
         # Gölge MASKEDEN türetilir, AI'dan değil: ürünün kendi silueti.
-        s = Image.new("RGBA", tuval.size, (0, 0, 0, 0))
-        siluet = Image.new("RGBA", urun.size, (0, 0, 0, 90))
-        s.paste(siluet, (x, yy + round(urun.height * 0.02)), urun)
-        tuval = Image.alpha_composite(
-            tuval.convert("RGBA"), s.filter(ImageFilter.GaussianBlur(26))).convert("RGB")
+        tuval = golge_ciz(tuval, urun, (x, yy), isik_yonu)
 
     tuval, metin_renk, alt_renk, kontrast_orani = okunurluk_ayarla(tuval, yerlesim)
 
@@ -608,6 +701,9 @@ def uret(slug: str, bicim: str = "AKIS", baslik: str = "", alt: str = "",
         "urun": slug, "bicim": bicim, "boyut": [g, y],
         # Okunurluk OLCULDU: metin ile arkasindaki bandin kontrast orani.
         "kontrast_orani": kontrast_orani,
+        "yerlesim": yerlesim_adi,
+        "isik_yonu": isik_yonu,
+        "isik_kaynagi": "olculdu" if isik == "olc" else "verildi",
         "kontrast_esigi": EN_AZ_KONTRAST,
         "kaynak_fotograf": kaynak.name,
         "sahne": sahne.name if sahne else "duz-zemin",
@@ -631,17 +727,20 @@ def main() -> int:
     a.add_argument("--sahne", type=Path, default=None)
     a.add_argument("--zemin", default="#e9e6e0")
     a.add_argument("--golgesiz", action="store_true")
+    a.add_argument("--yerlesim", default="merkez", choices=sorted(YERLESIMLER))
+    a.add_argument("--isik", default="olc", choices=sorted(ISIK_YONLERI))
     n = a.parse_args()
     try:
         r = uret(n.slug, n.bicim, n.baslik, n.alt, n.sahne, n.zemin,
-                 golge=not n.golgesiz)
+                 golge=not n.golgesiz, yerlesim_adi=n.yerlesim, isik=n.isik)
     except GorselHatasi as hata:
         print("HATA:", hata)
         return 1
     print("%s · %s · %.2f sn" % (r["dosya"], r["boyut"], r["sure_sn"]))
     print("  urun pikseli birebir: %s · SSIM %s · opak piksel %s"
           % (r["birebir_oran"], r["ssim"], r["opak_piksel"]))
-    print("  kutu: %s" % r["urun_kutusu"])
+    print("  kutu: %s · yerlesim %s · isik %s (%s)"
+          % (r["urun_kutusu"], r["yerlesim"], r["isik_yonu"], r["isik_kaynagi"]))
     if r["birebir_oran"] is not None and r["birebir_oran"] < 0.999:
         print("🔴 URUN PIKSELLERI DEGISMIS -- bu gorsel kullanilamaz")
         return 2

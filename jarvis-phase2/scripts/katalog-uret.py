@@ -269,13 +269,13 @@ def bolumle(ham: str):
 
     # --- siniflandirma ---
     bulunan = {}
-    for tur, baslik, govde in ciftler:
+    for tur, _baslik, govde in ciftler:
         if tur == "icerik":
             continue
         bulunan.setdefault(tur, govde)
 
     # Icerik listeleri: hangisi INCI, hangisi Turkce? GOVDEYE bakilir.
-    for _, baslik, govde in [c for c in ciftler if c[0] == "icerik"]:
+    for _, _baslik, govde in [c for c in ciftler if c[0] == "icerik"]:
         anahtar = "icindekiler" if _TURKCE_ICERIK.search(govde) else "inci"
         bulunan.setdefault(anahtar, govde)
 

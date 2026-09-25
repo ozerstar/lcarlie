@@ -52,7 +52,10 @@ def main() -> int:
 
     kirli = kirli_anlar([k for k in kayitlar if k])
     tutulan, ayiklanan = [], []
-    for satir, kayit in zip(ham, kayitlar):
+    # strict=False: mevcut davranis korunuyor -- ham ile kayitlar ayni
+    # uzunlukta olmali ama bunu burada DOGRULAMIYORUZ; dogrulasaydik
+    # bozuk tek satir butun temizligi durdururdu.
+    for satir, kayit in zip(ham, kayitlar, strict=False):
         if kayit is None:
             tutulan.append(satir)          # bozuk satir da bir olcumdur
             continue
