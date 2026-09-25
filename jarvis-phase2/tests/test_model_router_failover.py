@@ -15,6 +15,8 @@ Bu testler YENI sonucu civiler: API cevapliyorsa yerel kademeler hic
 yoklanmaz; API dustugunde is DURMAZ, masaustune ve sonra sunucuya iner.
 Yerel kademeler silinmedi -- bedava sigorta olarak duruyorlar.
 """
+import os
+import tempfile
 import unittest
 
 from jarvis.model_layer import (AdapterState, ModelRouter, ModelUnavailable,
@@ -57,7 +59,50 @@ def _router(gpu_state=AdapterState.AVAILABLE, gpu_fails=False,
 MSG = [{"role": "user", "content": "Intimblanc nedir?"}]
 
 
-class ApiFirstTest(unittest.TestCase):
+
+class _UretimiKoru(unittest.TestCase):
+    """🔴 Bu modul uretim telemetrisine YAZIYORDU.
+
+    Olculdu 25.09.2026: kademe.jsonl'de `OSError: provider down mid-request`
+    satirlari vardi -- kaynagi bu dosyanin 40. satirindaki test sahtesi.
+    Yani dagitim sirasinda kosan testler, uretim OLCUM dosyasina sahte hata
+    yaziyordu.
+
+    Bu zararsiz bir kozmetik sorun DEGIL: panelin SISTEM sekmesindeki
+    "model kademesi" gostergesi ve butun kademe analizi bu dosyadan
+    okunuyor. Sahte hata, gercek ariza oranini sisirir ve yanlis teshise
+    goturur -- nitekim 25.09'daki "66 OSError" sayimimin ne kadarinin
+    gercek oldugu geriye donuk AYIRT EDILEMIYOR, cunku eski kayitlar
+    sebep metni tasimiyordu.
+
+    Ayni sinif kirlenme daha once de yasanmis (19 satir) ve
+    test_kademe_kaydi.py'de bir koruma testi yazilmis; bu modul o
+    korumanin disinda kalmis.
+    """
+
+
+class TelemetriIzolasyonu:
+    """Her test sinifi icin: STATE_DIR gecici klasore alinir."""
+
+    def setUp(self):
+        self._eski_state = os.environ.get("JARVIS_STATE_DIR")
+        self._eski_log = os.environ.pop("JARVIS_KADEME_LOG", None)
+        self._tmp = tempfile.TemporaryDirectory()
+        os.environ["JARVIS_STATE_DIR"] = self._tmp.name
+        super().setUp()
+
+    def tearDown(self):
+        super().tearDown()
+        if self._eski_state is None:
+            os.environ.pop("JARVIS_STATE_DIR", None)
+        else:
+            os.environ["JARVIS_STATE_DIR"] = self._eski_state
+        if self._eski_log is not None:
+            os.environ["JARVIS_KADEME_LOG"] = self._eski_log
+        self._tmp.cleanup()
+
+
+class ApiFirstTest(TelemetriIzolasyonu, unittest.TestCase):
 
     def test_api_answers_and_local_rungs_are_never_touched(self):
         """Asil kazanc burada: masaustu ACIK olsa bile yoklanmaz."""
@@ -123,7 +168,7 @@ class ApiFirstTest(unittest.TestCase):
             router.generate(MSG, 64)
 
 
-class StreamingFollowsTheSameOrderTest(unittest.TestCase):
+class StreamingFollowsTheSameOrderTest(TelemetriIzolasyonu, unittest.TestCase):
 
     def test_streaming_prefers_the_gpu(self):
         router = _router()
@@ -137,7 +182,7 @@ class StreamingFollowsTheSameOrderTest(unittest.TestCase):
         self.assertEqual(out, "answer from local")
 
 
-class SuppliedProviderKeepsItsIdentityTest(unittest.TestCase):
+class SuppliedProviderKeepsItsIdentityTest(TelemetriIzolasyonu, unittest.TestCase):
 
     def test_injected_gpu_is_not_renamed(self):
         # The router labels the provider it builds itself; one handed in by a
