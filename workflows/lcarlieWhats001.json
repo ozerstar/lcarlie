@@ -1,0 +1,587 @@
+{
+  "updatedAt": "2026-09-20T13:17:02.735Z",
+  "createdAt": "2026-09-12T22:39:32.722Z",
+  "id": "lcarlieWhats001",
+  "name": "WHATSAPP KANALI - Meta Cloud API",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "whatsapp",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "cccccccc-0000-4000-8000-000000000001",
+      "name": "Meta dogrulama (GET)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        -220
+      ],
+      "webhookId": "cccccccc-0000-4000-8000-0000000000a1"
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Meta webhook dogrulama.\n// 🔴 ASAGIDAKI ANAHTARI Meta panelindeki \"Verify token\" ile AYNI YAP.\n// Sunucuda hazir bir anahtar uretildi; okumak icin:\n//     ssh lcarlie \"grep WHATSAPP_VERIFY_TOKEN /opt/lcarlie/n8n/.env\"\n// Kendi anahtarini da kullanabilirsin, yeter ki iki yerde ayni olsun.\nconst DOGRULAMA_ANAHTARI = 'BURAYA_META_DOGRULAMA_ANAHTARI';\n\nconst q = $input.first().json.query || {};\nconst mod  = q['hub.mode'];\nconst tok  = q['hub.verify_token'];\nconst chal = q['hub.challenge'];\n\nif (mod === 'subscribe' && tok === DOGRULAMA_ANAHTARI) {\n  // Meta sadece challenge degerini duz metin bekler\n  return [{ json: { dogrulandi: true, cevap: String(chal ?? '') } }];\n}\nreturn [{ json: { dogrulandi: false, cevap: 'dogrulama basarisiz' } }];\n"
+      },
+      "id": "cccccccc-0000-4000-8000-000000000002",
+      "name": "Dogrulama kontrolu",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.cevap }}",
+        "options": {}
+      },
+      "id": "cccccccc-0000-4000-8000-000000000003",
+      "name": "Challenge dondur",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        480,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "cccccccc-0000-4000-8000-000000000004",
+      "name": "Gelen mesaj (POST)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        60
+      ],
+      "webhookId": "cccccccc-0000-4000-8000-0000000000a2"
+    },
+    {
+      "parameters": {
+        "jsCode": "// =============================================================================\n// L'CARLIE - TRAFIK SINIFLANDIRMA (test / production / unknown)\n//\n// CR-002.5 madde A · 15.09.2026\n//\n// Bu dosya n8n dugumlerine AYNEN GOMULUR (build-*-workflow.js tarafindan\n// /tmp/kimlik.js olarak okunur). n8n Code node'unda require() yoktur;\n// module.exports en altta ve korumali - build betikleri onu kirpar.\n//\n// 🔴 NEDEN VAR:\n//    CR-002'de sinifllandirma bir REGEX RED LISTESI ile yapiliyordu\n//    (TEST_KIMLIK_DESENI). Red listeleri her zaman GERIDEN GELIR: 15.09\n//    23:37'de paralel bir oturum 'sinav-0-30197' kimlikleriyle 12 test\n//    mesaji gonderdi, desende 'sinav' olmadigi icin hepsi URETIM\n//    KONUSMASI sayildi ve panel bekleyen musteriyi 3 yerine 5 gosterdi.\n//    Yeni bir test adi bulan herkes gostergeyi kirletebiliyordu.\n//\n//    Yeni kural: TEST TRAFIGI KENDINI BEYAN ETMEK ZORUNDA.\n//    Zorunlu onek: 'test-'\n//\n// 🔴 UC SINIF - 'unknown' OTOMATIK URETIM SAYILMAZ:\n//    production : gercek musteri trafigi\n//    test       : sentetik / fixture / smoke / sinav / dogrulama\n//    unknown    : kimlik yok veya atfedilemiyor  -> METRIGE GIRMEZ,\n//                 ama KAYBEDILMEZ, ayri raporlanir\n// =============================================================================\n\nconst TEST_ONEK = 'test-';\n\n// -----------------------------------------------------------------------------\n// trafikSinifi(musteriId, acikSinif)\n//\n// Oncelik sirasi (CR-002.5 madde A):\n//   a) ACIK BEYAN  - yalnizca GUVENILIR cagiranlar verir (fixture, harness)\n//   b) 'test-' ONEKI\n//   c) kimliksiz   -> unknown\n//   d) digerleri   -> production\n//\n// 🔴 ACIK BEYAN WEBHOOK GOVDESINDEN OKUNMAZ.\n//    Instagram webhook'unun govdesi tamamen istemci kontrolunde. Eger\n//    govdedeki 'is_test' alanina guvenseydik, herkes kendi mesajini\n//    \"test\" isaretleyip panelden GIZLEYEBILIRDI - insana aktarilan\n//    gercek bir konusma gorunmez olurdu. Kanal kodu bu yuzden acik\n//    beyani HIC gecirmez; yalnizca onek belirleyicidir.\n//    Acik beyan, kodun kendi ic testleri/fixture'lari icindir.\n//\n// 🔴 ESKI REGEX BURADA YOK. Tarihsel kayitlar icin geriye donuk uyum\n//    yalnizca saglik.sh tarafinda, SON CARE olarak uygulanir.\n// -----------------------------------------------------------------------------\nfunction trafikSinifi(musteriId, acikSinif) {\n  if (acikSinif === 'test' || acikSinif === true)  return 'test';\n  if (acikSinif === 'production')                  return 'production';\n\n  const id = String(musteriId == null ? '' : musteriId).trim();\n  if (!id || id === '-')                           return 'unknown';\n  // 🔴 toLowerCase() Turkce yerel ayarda 'I' -> 'ı' yapabilir; onek ASCII\n  //    oldugu icin karsilastirma da ASCII kucuk harfle yapilir.\n  if (id.slice(0, TEST_ONEK.length).toLowerCase() === TEST_ONEK) return 'test';\n  return 'production';\n}\n\n// -----------------------------------------------------------------------------\n// testKimligiUret(ad) - fixture/test kimligi uretici\n//\n// Yeni bir fixture yazan herkesin dogru oneki elle hatirlamasini beklemeyiz;\n// uretici zaten dogrusunu verir (CR-002.5 madde A-4).\n//   testKimligiUret('smoke')     -> 'test-smoke-m3kq8p7f'\n//   testKimligiUret('test-x')    -> 'test-x-m3kq8p7f'   (cift onek eklenmez)\n// -----------------------------------------------------------------------------\nfunction testKimligiUret(ad) {\n  let temiz = String(ad == null ? 'fixture' : ad).trim().replace(/[^A-Za-z0-9_-]/g, '-');\n  if (!temiz) temiz = 'fixture';\n  if (temiz.slice(0, TEST_ONEK.length).toLowerCase() === TEST_ONEK) {\n    temiz = temiz.slice(TEST_ONEK.length);\n  }\n  const r = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);\n  return TEST_ONEK + temiz + '-' + r;\n}\n\nfunction testKimligiMi(id) {\n  return trafikSinifi(id) === 'test';\n}\n\n// -----------------------------------------------------------------------------\n// kimlikDogrula(id) - test harness kapisi (CR-002.5 madde A-3)\n//\n// 🔴 CANLI UC NOKTAYA istek gonderen her test bunu cagirmali.\n//    Onek yoksa TEST CALISMAZ - sessizce uretim metrigini kirletmek\n//    yerine gurultulu bicimde durur.\n// -----------------------------------------------------------------------------\nfunction kimlikDogrula(id, nerede) {\n  const s = trafikSinifi(id);\n  if (s !== 'test') {\n    throw new Error(\n      'TEST KIMLIK STANDARDI IHLALI' + (nerede ? ' (' + nerede + ')' : '') +\n      ': \"' + id + '\" kimligi \"' + TEST_ONEK + '\" ile baslamiyor. ' +\n      'Sentetik trafik uretim metrigine giremez - testKimligiUret() kullanin.'\n    );\n  }\n  return id;\n}\n\n// =============================================================================\n// L'CARLIE - ORTAK HATA KAYDI YARDIMCILARI\n//\n// CR-002 madde 2 · 15.09.2026\n//\n// Bu dosya bir n8n dugumune AYNEN GOMULUR (build-*-workflow.js tarafindan\n// /tmp/hata-kaydi.js olarak okunur ve kodun basina yapistirilir).\n// n8n Code node'unda require() yoktur; bu yuzden module.exports en altta\n// ve korumali - build betikleri onu kirpar.\n//\n// 🔴 NEDEN VAR:\n//    CR-001'de aktif Instagram ve WhatsApp workflow'larinda HICBIR hata\n//    yolu olmadigi bulundu. Ajan bir istisna firlattiginda musteri HTTP 500\n//    aliyor; kayit yazilmiyor, eskalasyon olusmuyor, sayac artmiyor -\n//    mesaj IZSIZ kayboluyordu. Bu yardimcilar, her kanalda AYNI sekilde\n//    calisan tek bir hata kaydi bicimi saglar.\n//\n// 🔴 PII YASAGI:\n//    Hata kaydina musteri mesaji, telefon, e-posta YAZILMAZ.\n//    Kimlik yerine 'correlation_id' tutulur; gercek musteri kimligi zaten\n//    eskalasyon/kayit listelerinde var. Hata kaydi operasyonel bir kayittir,\n//    konusma kaydi degildir.\n// =============================================================================\n\n// Kac hata kaydi saklanacak. Statik veri her calistirmada TAMAMEN yeniden\n// yazildigi icin bu liste sinirsiz buyuyemez.\nconst HATA_KAYIT_SINIRI = 200;\n\n// -----------------------------------------------------------------------------\n// PII temizleme\n//\n// 🔴 Hata metinleri bazen girdiyi yankilar (ornegin JSON ayristirma hatalari\n//    \"unexpected token ... at position\" ile birlikte govdeyi basabilir).\n//    Bu yuzden ozet kaydedilmeden ONCE temizlenir, sonra kirpilir.\n// -----------------------------------------------------------------------------\nfunction piiTemizle(metin) {\n  let t = String(metin == null ? '' : metin);\n  // e-posta\n  t = t.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/g, '<eposta>');\n  // 6+ haneli rakam dizileri (telefon, wamid, sipariş no, kart benzeri)\n  t = t.replace(/\\d{6,}/g, '<sayi>');\n  // Meta mesaj kimlikleri (wamid.*) - rakamsiz da olabiliyor\n  t = t.replace(/wamid\\.[A-Za-z0-9_=-]+/gi, '<mesajId>');\n  // Uzun base64/token benzeri diziler\n  t = t.replace(/\\b[A-Za-z0-9_-]{32,}\\b/g, '<uzun-deger>');\n  // Satir sonlarini tek satira indir\n  t = t.replace(/\\s+/g, ' ').trim();\n  return t.slice(0, 200);\n}\n\n// -----------------------------------------------------------------------------\n// Hata sinifi\n//\n// 'continueRegularOutput' ile gelen oge farkli bicimlerde olabilir:\n//   { error: 'metin' } · { error: { name, message } } · { error: { message } }\n// Hangisi gelirse gelsin kararli bir sinif adi uretilir.\n// -----------------------------------------------------------------------------\nfunction hataSinifi(hata) {\n  if (!hata) return 'BILINMEYEN';\n  if (typeof hata === 'string') {\n    if (/not found|bulunamad/i.test(hata))            return 'ALT_AKIS_BULUNAMADI';\n    if (/active version|not active|yayinda degil/i.test(hata)) return 'ALT_AKIS_YAYINDA_DEGIL';\n    if (/timeout|zaman asimi/i.test(hata))            return 'ZAMAN_ASIMI';\n    if (/birden fazla|multiple items/i.test(hata))    return 'COKLU_OGE';\n    return 'CALISMA_HATASI';\n  }\n  const ad = hata.name || hata.errorName || '';\n  const mesaj = hata.message || hata.description || '';\n  if (ad) return String(ad).replace(/[^A-Za-z0-9_]/g, '_').slice(0, 40).toUpperCase();\n  return hataSinifi(String(mesaj || 'BILINMEYEN'));\n}\n\nfunction hataOzeti(hata) {\n  if (!hata) return '';\n  if (typeof hata === 'string') return piiTemizle(hata);\n  return piiTemizle(hata.message || hata.description || JSON.stringify(hata));\n}\n\n// -----------------------------------------------------------------------------\n// Korelasyon kimligi\n//\n// 🔴 PII ICERMEZ. Musteri kimliginden TUREMEZ - yoksa telefon numarasi\n//    dolayli olarak hata kaydina sizardi.\n//    Bicim: <kanal>-<zaman36>-<rastgele4>   ornek: ig-m3kq8p-7f2a\n// -----------------------------------------------------------------------------\nfunction korelasyonUret(kanal) {\n  const k = String(kanal || 'x').slice(0, 4);\n  const z = Date.now().toString(36);\n  const r = Math.random().toString(36).slice(2, 6);\n  return k + '-' + z + '-' + r;\n}\n\n// -----------------------------------------------------------------------------\n// Hata kaydi yaz\n//\n// Zorunlu alanlar (CR-002 madde 2):\n//   timestamp · workflow_id · execution_id · channel · stage\n//   error_class · error_summary · correlation_id\n// -----------------------------------------------------------------------------\nfunction hataKaydet(sd, a) {\n  if (!sd) return null;\n  if (!Array.isArray(sd.hatalar)) sd.hatalar = [];\n  const kayit = {\n    ts: new Date().toISOString(),\n    workflow_id: String(a.workflow_id || '-'),\n    execution_id: String(a.execution_id || '-'),\n    channel: String(a.channel || '-'),\n    stage: String(a.stage || '-'),\n    error_class: String(a.error_class || 'BILINMEYEN').slice(0, 60),\n    error_summary: piiTemizle(a.error_summary || ''),\n    correlation_id: String(a.correlation_id || '-')\n  };\n  sd.hatalar.unshift(kayit);\n  if (sd.hatalar.length > HATA_KAYIT_SINIRI) sd.hatalar.length = HATA_KAYIT_SINIRI;\n  sd.hataToplam = (sd.hataToplam || 0) + 1;\n  return kayit;\n}\n\n// n8n'e gomulurken bu blok build betigi tarafindan kirpilir.\n\n// ===== n8n: Meta payload'ini ayikla =====\n\n// Meta WhatsApp Cloud API payload -> ajanin bekledigi sade yapi\nconst cikti = [];\n\n// 🔴 TEKRAR GONDERIM KORUMASI (idempotency).\n//\n// Meta, 200 alamazsa AYNI mesaji yeniden gonderir. 'mesajId' ayikla-\n// niyordu ama hicbir yerde saklanmiyor ve karsilastirilmiyordu. Gonderim\n// acildigi anda bir zaman asimi tekrari, ajani tekrar calistirip\n// MUSTERIYE AYNI CEVABI IKI KEZ gonderirdi.\n//\n// Her mesaj kimligi bir kez islenir. Webhook 'onReceived' oldugu icin\n// Meta'ya 200 zaten hemen doner; yani tekrar yalnizca agi kaybettigimizde\n// gelir ve o durumda mesaji bir kez islemis olmak dogru davranistir.\n//\n// Eszamanlilik 1 oldugu icin bu kontrol yarissizdir (bkz. docker-compose\n// icindeki N8N_CONCURRENCY_PRODUCTION_LIMIT aciklamasi).\nconst sd = $getWorkflowStaticData('global');\nif (!Array.isArray(sd.islenenMesajlar)) sd.islenenMesajlar = [];\nlet tekrarSayisi = 0;\n\nfor (const item of $input.all()) {\n  const govde = item.json.body ?? item.json;\n  for (const giris of (govde.entry ?? [])) {\n    for (const degisim of (giris.changes ?? [])) {\n      const d = degisim.value ?? {};\n      const rehber = {};\n      for (const k of (d.contacts ?? [])) rehber[k.wa_id] = k.profile?.name;\n\n      for (const m of (d.messages ?? [])) {\n        // Bu mesaj daha once islendiyse ATLA - musteriye ikinci kez cevap gitmez.\n        if (m.id && sd.islenenMesajlar.indexOf(m.id) !== -1) {\n          tekrarSayisi++;\n          continue;\n        }\n        if (m.id) {\n          sd.islenenMesajlar.unshift(m.id);\n          if (sd.islenenMesajlar.length > 2000) sd.islenenMesajlar.length = 2000;\n        }\n\n        // Sadece metin mesajlarini isle. Gorsel/ses/konum insana gider.\n        const metin = m.text?.body\n          ?? m.button?.text\n          ?? m.interactive?.button_reply?.title\n          ?? m.interactive?.list_reply?.title\n          ?? null;\n\n        cikti.push({\n          json: {\n            mesaj: metin ?? '',\n            musteriId: m.from,\n            musteriAdi: rehber[m.from] ?? null,\n            kanal: 'whatsapp',\n            // 🔴 KORELASYON KIMLIGI (CR-002 madde 2).\n            // Ajan cokerse 'continueRegularOutput' giris ogesini gecirmez;\n            // hata kaydinin hangi istege ait oldugunu bu kimlik soyler.\n            // 🔴 wamid KULLANILMAZ - o bir PII tasiyicisi sayilir ve hata\n            //    kaydina girmemelidir. Korelasyon kimligi bagimsiz uretilir.\n            korelasyon: korelasyonUret('wa'),\n            // 🔴 TRAFIK SINIFI GIRISTE BELIRLENIR (CR-002.5 madde A).\n            // Kaynakta bir kez karara baglanir; sonradan regex ile tahmin\n            // edilmez. Yeni bir test adi hicbir desen guncellemesi\n            // gerektirmez. 'm.from' Meta'nin verdigi gonderen kimligidir.\n            trafik: trafikSinifi(m.from),\n            mesajId: m.id,\n            mesajTipi: m.type,\n            metinMi: Boolean(metin),\n            telefonNoId: d.metadata?.phone_number_id ?? null,\n            zaman: m.timestamp\n          }\n        });\n      }\n    }\n  }\n}\n\n// Tekrar gelen mesajlari say - panelde gorunur, sessizce yutulmaz.\nif (tekrarSayisi > 0) {\n  sd.tekrarEdilenMesaj = (sd.tekrarEdilenMesaj || 0) + tekrarSayisi;\n}\n\n// Hic mesaj yoksa (durum bildirimi vb.) bos don - akis durur\nreturn cikti;\n"
+      },
+      "id": "cccccccc-0000-4000-8000-000000000005",
+      "name": "Mesajlari ayikla",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f1",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.metinMi }}",
+              "rightValue": ""
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "cccccccc-0000-4000-8000-000000000006",
+      "name": "Metin mi?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        480,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "lcarlieAkis0001",
+          "mode": "id"
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "cccccccc-0000-4000-8000-000000000007",
+      "name": "Satis ajanina sor",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        720,
+        -40
+      ],
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "jsCode": "// =============================================================================\n// L'CARLIE - TRAFIK SINIFLANDIRMA (test / production / unknown)\n//\n// CR-002.5 madde A · 15.09.2026\n//\n// Bu dosya n8n dugumlerine AYNEN GOMULUR (build-*-workflow.js tarafindan\n// /tmp/kimlik.js olarak okunur). n8n Code node'unda require() yoktur;\n// module.exports en altta ve korumali - build betikleri onu kirpar.\n//\n// 🔴 NEDEN VAR:\n//    CR-002'de sinifllandirma bir REGEX RED LISTESI ile yapiliyordu\n//    (TEST_KIMLIK_DESENI). Red listeleri her zaman GERIDEN GELIR: 15.09\n//    23:37'de paralel bir oturum 'sinav-0-30197' kimlikleriyle 12 test\n//    mesaji gonderdi, desende 'sinav' olmadigi icin hepsi URETIM\n//    KONUSMASI sayildi ve panel bekleyen musteriyi 3 yerine 5 gosterdi.\n//    Yeni bir test adi bulan herkes gostergeyi kirletebiliyordu.\n//\n//    Yeni kural: TEST TRAFIGI KENDINI BEYAN ETMEK ZORUNDA.\n//    Zorunlu onek: 'test-'\n//\n// 🔴 UC SINIF - 'unknown' OTOMATIK URETIM SAYILMAZ:\n//    production : gercek musteri trafigi\n//    test       : sentetik / fixture / smoke / sinav / dogrulama\n//    unknown    : kimlik yok veya atfedilemiyor  -> METRIGE GIRMEZ,\n//                 ama KAYBEDILMEZ, ayri raporlanir\n// =============================================================================\n\nconst TEST_ONEK = 'test-';\n\n// -----------------------------------------------------------------------------\n// trafikSinifi(musteriId, acikSinif)\n//\n// Oncelik sirasi (CR-002.5 madde A):\n//   a) ACIK BEYAN  - yalnizca GUVENILIR cagiranlar verir (fixture, harness)\n//   b) 'test-' ONEKI\n//   c) kimliksiz   -> unknown\n//   d) digerleri   -> production\n//\n// 🔴 ACIK BEYAN WEBHOOK GOVDESINDEN OKUNMAZ.\n//    Instagram webhook'unun govdesi tamamen istemci kontrolunde. Eger\n//    govdedeki 'is_test' alanina guvenseydik, herkes kendi mesajini\n//    \"test\" isaretleyip panelden GIZLEYEBILIRDI - insana aktarilan\n//    gercek bir konusma gorunmez olurdu. Kanal kodu bu yuzden acik\n//    beyani HIC gecirmez; yalnizca onek belirleyicidir.\n//    Acik beyan, kodun kendi ic testleri/fixture'lari icindir.\n//\n// 🔴 ESKI REGEX BURADA YOK. Tarihsel kayitlar icin geriye donuk uyum\n//    yalnizca saglik.sh tarafinda, SON CARE olarak uygulanir.\n// -----------------------------------------------------------------------------\nfunction trafikSinifi(musteriId, acikSinif) {\n  if (acikSinif === 'test' || acikSinif === true)  return 'test';\n  if (acikSinif === 'production')                  return 'production';\n\n  const id = String(musteriId == null ? '' : musteriId).trim();\n  if (!id || id === '-')                           return 'unknown';\n  // 🔴 toLowerCase() Turkce yerel ayarda 'I' -> 'ı' yapabilir; onek ASCII\n  //    oldugu icin karsilastirma da ASCII kucuk harfle yapilir.\n  if (id.slice(0, TEST_ONEK.length).toLowerCase() === TEST_ONEK) return 'test';\n  return 'production';\n}\n\n// -----------------------------------------------------------------------------\n// testKimligiUret(ad) - fixture/test kimligi uretici\n//\n// Yeni bir fixture yazan herkesin dogru oneki elle hatirlamasini beklemeyiz;\n// uretici zaten dogrusunu verir (CR-002.5 madde A-4).\n//   testKimligiUret('smoke')     -> 'test-smoke-m3kq8p7f'\n//   testKimligiUret('test-x')    -> 'test-x-m3kq8p7f'   (cift onek eklenmez)\n// -----------------------------------------------------------------------------\nfunction testKimligiUret(ad) {\n  let temiz = String(ad == null ? 'fixture' : ad).trim().replace(/[^A-Za-z0-9_-]/g, '-');\n  if (!temiz) temiz = 'fixture';\n  if (temiz.slice(0, TEST_ONEK.length).toLowerCase() === TEST_ONEK) {\n    temiz = temiz.slice(TEST_ONEK.length);\n  }\n  const r = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);\n  return TEST_ONEK + temiz + '-' + r;\n}\n\nfunction testKimligiMi(id) {\n  return trafikSinifi(id) === 'test';\n}\n\n// -----------------------------------------------------------------------------\n// kimlikDogrula(id) - test harness kapisi (CR-002.5 madde A-3)\n//\n// 🔴 CANLI UC NOKTAYA istek gonderen her test bunu cagirmali.\n//    Onek yoksa TEST CALISMAZ - sessizce uretim metrigini kirletmek\n//    yerine gurultulu bicimde durur.\n// -----------------------------------------------------------------------------\nfunction kimlikDogrula(id, nerede) {\n  const s = trafikSinifi(id);\n  if (s !== 'test') {\n    throw new Error(\n      'TEST KIMLIK STANDARDI IHLALI' + (nerede ? ' (' + nerede + ')' : '') +\n      ': \"' + id + '\" kimligi \"' + TEST_ONEK + '\" ile baslamiyor. ' +\n      'Sentetik trafik uretim metrigine giremez - testKimligiUret() kullanin.'\n    );\n  }\n  return id;\n}\n\n// =============================================================================\n// L'CARLIE - ORTAK HATA KAYDI YARDIMCILARI\n//\n// CR-002 madde 2 · 15.09.2026\n//\n// Bu dosya bir n8n dugumune AYNEN GOMULUR (build-*-workflow.js tarafindan\n// /tmp/hata-kaydi.js olarak okunur ve kodun basina yapistirilir).\n// n8n Code node'unda require() yoktur; bu yuzden module.exports en altta\n// ve korumali - build betikleri onu kirpar.\n//\n// 🔴 NEDEN VAR:\n//    CR-001'de aktif Instagram ve WhatsApp workflow'larinda HICBIR hata\n//    yolu olmadigi bulundu. Ajan bir istisna firlattiginda musteri HTTP 500\n//    aliyor; kayit yazilmiyor, eskalasyon olusmuyor, sayac artmiyor -\n//    mesaj IZSIZ kayboluyordu. Bu yardimcilar, her kanalda AYNI sekilde\n//    calisan tek bir hata kaydi bicimi saglar.\n//\n// 🔴 PII YASAGI:\n//    Hata kaydina musteri mesaji, telefon, e-posta YAZILMAZ.\n//    Kimlik yerine 'correlation_id' tutulur; gercek musteri kimligi zaten\n//    eskalasyon/kayit listelerinde var. Hata kaydi operasyonel bir kayittir,\n//    konusma kaydi degildir.\n// =============================================================================\n\n// Kac hata kaydi saklanacak. Statik veri her calistirmada TAMAMEN yeniden\n// yazildigi icin bu liste sinirsiz buyuyemez.\nconst HATA_KAYIT_SINIRI = 200;\n\n// -----------------------------------------------------------------------------\n// PII temizleme\n//\n// 🔴 Hata metinleri bazen girdiyi yankilar (ornegin JSON ayristirma hatalari\n//    \"unexpected token ... at position\" ile birlikte govdeyi basabilir).\n//    Bu yuzden ozet kaydedilmeden ONCE temizlenir, sonra kirpilir.\n// -----------------------------------------------------------------------------\nfunction piiTemizle(metin) {\n  let t = String(metin == null ? '' : metin);\n  // e-posta\n  t = t.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/g, '<eposta>');\n  // 6+ haneli rakam dizileri (telefon, wamid, sipariş no, kart benzeri)\n  t = t.replace(/\\d{6,}/g, '<sayi>');\n  // Meta mesaj kimlikleri (wamid.*) - rakamsiz da olabiliyor\n  t = t.replace(/wamid\\.[A-Za-z0-9_=-]+/gi, '<mesajId>');\n  // Uzun base64/token benzeri diziler\n  t = t.replace(/\\b[A-Za-z0-9_-]{32,}\\b/g, '<uzun-deger>');\n  // Satir sonlarini tek satira indir\n  t = t.replace(/\\s+/g, ' ').trim();\n  return t.slice(0, 200);\n}\n\n// -----------------------------------------------------------------------------\n// Hata sinifi\n//\n// 'continueRegularOutput' ile gelen oge farkli bicimlerde olabilir:\n//   { error: 'metin' } · { error: { name, message } } · { error: { message } }\n// Hangisi gelirse gelsin kararli bir sinif adi uretilir.\n// -----------------------------------------------------------------------------\nfunction hataSinifi(hata) {\n  if (!hata) return 'BILINMEYEN';\n  if (typeof hata === 'string') {\n    if (/not found|bulunamad/i.test(hata))            return 'ALT_AKIS_BULUNAMADI';\n    if (/active version|not active|yayinda degil/i.test(hata)) return 'ALT_AKIS_YAYINDA_DEGIL';\n    if (/timeout|zaman asimi/i.test(hata))            return 'ZAMAN_ASIMI';\n    if (/birden fazla|multiple items/i.test(hata))    return 'COKLU_OGE';\n    return 'CALISMA_HATASI';\n  }\n  const ad = hata.name || hata.errorName || '';\n  const mesaj = hata.message || hata.description || '';\n  if (ad) return String(ad).replace(/[^A-Za-z0-9_]/g, '_').slice(0, 40).toUpperCase();\n  return hataSinifi(String(mesaj || 'BILINMEYEN'));\n}\n\nfunction hataOzeti(hata) {\n  if (!hata) return '';\n  if (typeof hata === 'string') return piiTemizle(hata);\n  return piiTemizle(hata.message || hata.description || JSON.stringify(hata));\n}\n\n// -----------------------------------------------------------------------------\n// Korelasyon kimligi\n//\n// 🔴 PII ICERMEZ. Musteri kimliginden TUREMEZ - yoksa telefon numarasi\n//    dolayli olarak hata kaydina sizardi.\n//    Bicim: <kanal>-<zaman36>-<rastgele4>   ornek: ig-m3kq8p-7f2a\n// -----------------------------------------------------------------------------\nfunction korelasyonUret(kanal) {\n  const k = String(kanal || 'x').slice(0, 4);\n  const z = Date.now().toString(36);\n  const r = Math.random().toString(36).slice(2, 6);\n  return k + '-' + z + '-' + r;\n}\n\n// -----------------------------------------------------------------------------\n// Hata kaydi yaz\n//\n// Zorunlu alanlar (CR-002 madde 2):\n//   timestamp · workflow_id · execution_id · channel · stage\n//   error_class · error_summary · correlation_id\n// -----------------------------------------------------------------------------\nfunction hataKaydet(sd, a) {\n  if (!sd) return null;\n  if (!Array.isArray(sd.hatalar)) sd.hatalar = [];\n  const kayit = {\n    ts: new Date().toISOString(),\n    workflow_id: String(a.workflow_id || '-'),\n    execution_id: String(a.execution_id || '-'),\n    channel: String(a.channel || '-'),\n    stage: String(a.stage || '-'),\n    error_class: String(a.error_class || 'BILINMEYEN').slice(0, 60),\n    error_summary: piiTemizle(a.error_summary || ''),\n    correlation_id: String(a.correlation_id || '-')\n  };\n  sd.hatalar.unshift(kayit);\n  if (sd.hatalar.length > HATA_KAYIT_SINIRI) sd.hatalar.length = HATA_KAYIT_SINIRI;\n  sd.hataToplam = (sd.hataToplam || 0) + 1;\n  return kayit;\n}\n\n// n8n'e gomulurken bu blok build betigi tarafindan kirpilir.\n\n// ===== n8n: gonderilecek yaniti hazirla =====\n// 🔴 first() DEGIL all(): alt-workflow 'each' modunda calistigi icin buraya\n// BIRDEN COK karar gelir. first() kullanilirsa diger musterilerin cevaplari\n// sessizce duser (test ederken yakalandi).\n// Isletmenin WhatsApp numara kimligi - gelen payload'dan alinir, sabit degil.\nconst telefonNoId = $('Mesajlari ayikla').first().json.telefonNoId;\n\n// 🔴 AJAN COKERSE KIMLIK VE KORELASYON KAYBOLUR (CR-002 madde 2).\n// 'continueRegularOutput' giris ogesini gecirmez. Bir onceki dugumden\n// SIRA NUMARASIYLA geri aliyoruz - Instagram ve web sohbetiyle ayni desen.\nlet oncekiler = [];\ntry { oncekiler = $('Metin mi?').all(); } catch (e) { oncekiler = []; }\n\nconst hepsi = $input.all();\nreturn hepsi.map((item, i) => {\nconst karar = item.json;\nconst onceki = (oncekiler[i] && oncekiler[i].json) || {};\n\n// 🔴 AJAN COKTU MU? Coktuyse mesaj ASLA sessizce dusmez:\n//    gonderim yapilmaz, kayit yazilir, konusma insana aktarilir.\nconst ajanCokti = Boolean(karar && karar.error) ||\n                  (!karar.sinif && !karar.cevap && !karar.gonder);\n\nif (ajanCokti) {\n  return {\n    json: {\n      gonderilecek: false,\n      ajanCokti: true,\n      hataHam: karar.error || null,\n      sebep: 'AJAN-HATASI',\n      insanaAktar: true,\n      musteriId: onceki.musteriId || karar.musteriId || '-',\n      korelasyon: onceki.korelasyon || '-',\n      trafik: onceki.trafik || trafikSinifi(onceki.musteriId),\n      kayit: null\n    }\n  };\n}\n\n// Ajan gondermeyecekse veya metin yoksa: gonderme, insana birak\nif (!karar.gonder || !karar.cevap) {\n  return {\n    json: {\n      gonderilecek: false,\n      sebep: (karar.gerekceler || []).join(' | '),\n      insanaAktar: karar.insanaAktar,\n      musteriId: karar.musteriId || onceki.musteriId,\n      korelasyon: onceki.korelasyon || '-',\n      trafik: onceki.trafik || trafikSinifi(onceki.musteriId),\n      kayit: karar.kayit\n    }\n  };\n}\n\nreturn {\n  json: {\n    gonderilecek: true,\n    telefonNoId,\n    musteriId: karar.musteriId,\n    korelasyon: onceki.korelasyon || '-',\n    trafik: onceki.trafik || trafikSinifi(onceki.musteriId),\n    // Meta Graph API govdesi\n    govde: {\n      messaging_product: 'whatsapp',\n      recipient_type: 'individual',\n      to: karar.musteriId,\n      type: 'text',\n      text: { preview_url: true, body: karar.cevap }\n    },\n    insanaAktar: karar.insanaAktar,\n    kayit: karar.kayit\n  }\n};\n});\n"
+      },
+      "id": "cccccccc-0000-4000-8000-000000000008",
+      "name": "Yaniti hazirla",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "g1",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.gonderilecek }}",
+              "rightValue": ""
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "cccccccc-0000-4000-8000-00000000000a",
+      "name": "Gonderilecek mi?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{ $json.telefonNoId }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.govde) }}",
+        "options": {}
+      },
+      "id": "cccccccc-0000-4000-8000-00000000000b",
+      "name": "WhatsApp yaniti gonder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1440,
+        -140
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: {\n  gonderilmedi: true,\n  insanaAktar: true,\n  sebep: $json.sebep || 'Ajan otomatik cevap vermedi',\n  musteriId: $json.musteriId,\n  kayit: $json.kayit\n} }];"
+      },
+      "id": "cccccccc-0000-4000-8000-00000000000c",
+      "name": "Gonderilmedi -> insana",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// =============================================================================\n// L'CARLIE - TRAFIK SINIFLANDIRMA (test / production / unknown)\n//\n// CR-002.5 madde A · 15.09.2026\n//\n// Bu dosya n8n dugumlerine AYNEN GOMULUR (build-*-workflow.js tarafindan\n// /tmp/kimlik.js olarak okunur). n8n Code node'unda require() yoktur;\n// module.exports en altta ve korumali - build betikleri onu kirpar.\n//\n// 🔴 NEDEN VAR:\n//    CR-002'de sinifllandirma bir REGEX RED LISTESI ile yapiliyordu\n//    (TEST_KIMLIK_DESENI). Red listeleri her zaman GERIDEN GELIR: 15.09\n//    23:37'de paralel bir oturum 'sinav-0-30197' kimlikleriyle 12 test\n//    mesaji gonderdi, desende 'sinav' olmadigi icin hepsi URETIM\n//    KONUSMASI sayildi ve panel bekleyen musteriyi 3 yerine 5 gosterdi.\n//    Yeni bir test adi bulan herkes gostergeyi kirletebiliyordu.\n//\n//    Yeni kural: TEST TRAFIGI KENDINI BEYAN ETMEK ZORUNDA.\n//    Zorunlu onek: 'test-'\n//\n// 🔴 UC SINIF - 'unknown' OTOMATIK URETIM SAYILMAZ:\n//    production : gercek musteri trafigi\n//    test       : sentetik / fixture / smoke / sinav / dogrulama\n//    unknown    : kimlik yok veya atfedilemiyor  -> METRIGE GIRMEZ,\n//                 ama KAYBEDILMEZ, ayri raporlanir\n// =============================================================================\n\nconst TEST_ONEK = 'test-';\n\n// -----------------------------------------------------------------------------\n// trafikSinifi(musteriId, acikSinif)\n//\n// Oncelik sirasi (CR-002.5 madde A):\n//   a) ACIK BEYAN  - yalnizca GUVENILIR cagiranlar verir (fixture, harness)\n//   b) 'test-' ONEKI\n//   c) kimliksiz   -> unknown\n//   d) digerleri   -> production\n//\n// 🔴 ACIK BEYAN WEBHOOK GOVDESINDEN OKUNMAZ.\n//    Instagram webhook'unun govdesi tamamen istemci kontrolunde. Eger\n//    govdedeki 'is_test' alanina guvenseydik, herkes kendi mesajini\n//    \"test\" isaretleyip panelden GIZLEYEBILIRDI - insana aktarilan\n//    gercek bir konusma gorunmez olurdu. Kanal kodu bu yuzden acik\n//    beyani HIC gecirmez; yalnizca onek belirleyicidir.\n//    Acik beyan, kodun kendi ic testleri/fixture'lari icindir.\n//\n// 🔴 ESKI REGEX BURADA YOK. Tarihsel kayitlar icin geriye donuk uyum\n//    yalnizca saglik.sh tarafinda, SON CARE olarak uygulanir.\n// -----------------------------------------------------------------------------\nfunction trafikSinifi(musteriId, acikSinif) {\n  if (acikSinif === 'test' || acikSinif === true)  return 'test';\n  if (acikSinif === 'production')                  return 'production';\n\n  const id = String(musteriId == null ? '' : musteriId).trim();\n  if (!id || id === '-')                           return 'unknown';\n  // 🔴 toLowerCase() Turkce yerel ayarda 'I' -> 'ı' yapabilir; onek ASCII\n  //    oldugu icin karsilastirma da ASCII kucuk harfle yapilir.\n  if (id.slice(0, TEST_ONEK.length).toLowerCase() === TEST_ONEK) return 'test';\n  return 'production';\n}\n\n// -----------------------------------------------------------------------------\n// testKimligiUret(ad) - fixture/test kimligi uretici\n//\n// Yeni bir fixture yazan herkesin dogru oneki elle hatirlamasini beklemeyiz;\n// uretici zaten dogrusunu verir (CR-002.5 madde A-4).\n//   testKimligiUret('smoke')     -> 'test-smoke-m3kq8p7f'\n//   testKimligiUret('test-x')    -> 'test-x-m3kq8p7f'   (cift onek eklenmez)\n// -----------------------------------------------------------------------------\nfunction testKimligiUret(ad) {\n  let temiz = String(ad == null ? 'fixture' : ad).trim().replace(/[^A-Za-z0-9_-]/g, '-');\n  if (!temiz) temiz = 'fixture';\n  if (temiz.slice(0, TEST_ONEK.length).toLowerCase() === TEST_ONEK) {\n    temiz = temiz.slice(TEST_ONEK.length);\n  }\n  const r = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);\n  return TEST_ONEK + temiz + '-' + r;\n}\n\nfunction testKimligiMi(id) {\n  return trafikSinifi(id) === 'test';\n}\n\n// -----------------------------------------------------------------------------\n// kimlikDogrula(id) - test harness kapisi (CR-002.5 madde A-3)\n//\n// 🔴 CANLI UC NOKTAYA istek gonderen her test bunu cagirmali.\n//    Onek yoksa TEST CALISMAZ - sessizce uretim metrigini kirletmek\n//    yerine gurultulu bicimde durur.\n// -----------------------------------------------------------------------------\nfunction kimlikDogrula(id, nerede) {\n  const s = trafikSinifi(id);\n  if (s !== 'test') {\n    throw new Error(\n      'TEST KIMLIK STANDARDI IHLALI' + (nerede ? ' (' + nerede + ')' : '') +\n      ': \"' + id + '\" kimligi \"' + TEST_ONEK + '\" ile baslamiyor. ' +\n      'Sentetik trafik uretim metrigine giremez - testKimligiUret() kullanin.'\n    );\n  }\n  return id;\n}\n\n// =============================================================================\n// L'CARLIE - ORTAK HATA KAYDI YARDIMCILARI\n//\n// CR-002 madde 2 · 15.09.2026\n//\n// Bu dosya bir n8n dugumune AYNEN GOMULUR (build-*-workflow.js tarafindan\n// /tmp/hata-kaydi.js olarak okunur ve kodun basina yapistirilir).\n// n8n Code node'unda require() yoktur; bu yuzden module.exports en altta\n// ve korumali - build betikleri onu kirpar.\n//\n// 🔴 NEDEN VAR:\n//    CR-001'de aktif Instagram ve WhatsApp workflow'larinda HICBIR hata\n//    yolu olmadigi bulundu. Ajan bir istisna firlattiginda musteri HTTP 500\n//    aliyor; kayit yazilmiyor, eskalasyon olusmuyor, sayac artmiyor -\n//    mesaj IZSIZ kayboluyordu. Bu yardimcilar, her kanalda AYNI sekilde\n//    calisan tek bir hata kaydi bicimi saglar.\n//\n// 🔴 PII YASAGI:\n//    Hata kaydina musteri mesaji, telefon, e-posta YAZILMAZ.\n//    Kimlik yerine 'correlation_id' tutulur; gercek musteri kimligi zaten\n//    eskalasyon/kayit listelerinde var. Hata kaydi operasyonel bir kayittir,\n//    konusma kaydi degildir.\n// =============================================================================\n\n// Kac hata kaydi saklanacak. Statik veri her calistirmada TAMAMEN yeniden\n// yazildigi icin bu liste sinirsiz buyuyemez.\nconst HATA_KAYIT_SINIRI = 200;\n\n// -----------------------------------------------------------------------------\n// PII temizleme\n//\n// 🔴 Hata metinleri bazen girdiyi yankilar (ornegin JSON ayristirma hatalari\n//    \"unexpected token ... at position\" ile birlikte govdeyi basabilir).\n//    Bu yuzden ozet kaydedilmeden ONCE temizlenir, sonra kirpilir.\n// -----------------------------------------------------------------------------\nfunction piiTemizle(metin) {\n  let t = String(metin == null ? '' : metin);\n  // e-posta\n  t = t.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/g, '<eposta>');\n  // 6+ haneli rakam dizileri (telefon, wamid, sipariş no, kart benzeri)\n  t = t.replace(/\\d{6,}/g, '<sayi>');\n  // Meta mesaj kimlikleri (wamid.*) - rakamsiz da olabiliyor\n  t = t.replace(/wamid\\.[A-Za-z0-9_=-]+/gi, '<mesajId>');\n  // Uzun base64/token benzeri diziler\n  t = t.replace(/\\b[A-Za-z0-9_-]{32,}\\b/g, '<uzun-deger>');\n  // Satir sonlarini tek satira indir\n  t = t.replace(/\\s+/g, ' ').trim();\n  return t.slice(0, 200);\n}\n\n// -----------------------------------------------------------------------------\n// Hata sinifi\n//\n// 'continueRegularOutput' ile gelen oge farkli bicimlerde olabilir:\n//   { error: 'metin' } · { error: { name, message } } · { error: { message } }\n// Hangisi gelirse gelsin kararli bir sinif adi uretilir.\n// -----------------------------------------------------------------------------\nfunction hataSinifi(hata) {\n  if (!hata) return 'BILINMEYEN';\n  if (typeof hata === 'string') {\n    if (/not found|bulunamad/i.test(hata))            return 'ALT_AKIS_BULUNAMADI';\n    if (/active version|not active|yayinda degil/i.test(hata)) return 'ALT_AKIS_YAYINDA_DEGIL';\n    if (/timeout|zaman asimi/i.test(hata))            return 'ZAMAN_ASIMI';\n    if (/birden fazla|multiple items/i.test(hata))    return 'COKLU_OGE';\n    return 'CALISMA_HATASI';\n  }\n  const ad = hata.name || hata.errorName || '';\n  const mesaj = hata.message || hata.description || '';\n  if (ad) return String(ad).replace(/[^A-Za-z0-9_]/g, '_').slice(0, 40).toUpperCase();\n  return hataSinifi(String(mesaj || 'BILINMEYEN'));\n}\n\nfunction hataOzeti(hata) {\n  if (!hata) return '';\n  if (typeof hata === 'string') return piiTemizle(hata);\n  return piiTemizle(hata.message || hata.description || JSON.stringify(hata));\n}\n\n// -----------------------------------------------------------------------------\n// Korelasyon kimligi\n//\n// 🔴 PII ICERMEZ. Musteri kimliginden TUREMEZ - yoksa telefon numarasi\n//    dolayli olarak hata kaydina sizardi.\n//    Bicim: <kanal>-<zaman36>-<rastgele4>   ornek: ig-m3kq8p-7f2a\n// -----------------------------------------------------------------------------\nfunction korelasyonUret(kanal) {\n  const k = String(kanal || 'x').slice(0, 4);\n  const z = Date.now().toString(36);\n  const r = Math.random().toString(36).slice(2, 6);\n  return k + '-' + z + '-' + r;\n}\n\n// -----------------------------------------------------------------------------\n// Hata kaydi yaz\n//\n// Zorunlu alanlar (CR-002 madde 2):\n//   timestamp · workflow_id · execution_id · channel · stage\n//   error_class · error_summary · correlation_id\n// -----------------------------------------------------------------------------\nfunction hataKaydet(sd, a) {\n  if (!sd) return null;\n  if (!Array.isArray(sd.hatalar)) sd.hatalar = [];\n  const kayit = {\n    ts: new Date().toISOString(),\n    workflow_id: String(a.workflow_id || '-'),\n    execution_id: String(a.execution_id || '-'),\n    channel: String(a.channel || '-'),\n    stage: String(a.stage || '-'),\n    error_class: String(a.error_class || 'BILINMEYEN').slice(0, 60),\n    error_summary: piiTemizle(a.error_summary || ''),\n    correlation_id: String(a.correlation_id || '-')\n  };\n  sd.hatalar.unshift(kayit);\n  if (sd.hatalar.length > HATA_KAYIT_SINIRI) sd.hatalar.length = HATA_KAYIT_SINIRI;\n  sd.hataToplam = (sd.hataToplam || 0) + 1;\n  return kayit;\n}\n\n// n8n'e gomulurken bu blok build betigi tarafindan kirpilir.\n\n// ===== n8n: pilot kaydi =====\nconst sd = $getWorkflowStaticData('global');\nif (!Array.isArray(sd.pilot)) sd.pilot = [];\n\nfor (const item of $input.all()) {\n  const j = item.json;\n  const k = j.kayit || {};\n\n  // 🔴 AJAN HATASI OPERASYONEL KAYDA GECER (CR-002 madde 2).\n  // PII yazilmaz: musteri kimligi ve mesaj metni hata kaydina GIRMEZ,\n  // yalnizca korelasyon kimligi tutulur. Konusma kaydi ayri (sd.pilot).\n  if (j.ajanCokti) {\n    hataKaydet(sd, {\n      workflow_id: $workflow.id,\n      execution_id: $execution.id,\n      channel: 'whatsapp',\n      stage: 'ajan',\n      error_class: hataSinifi(j.hataHam),\n      error_summary: hataOzeti(j.hataHam),\n      correlation_id: j.korelasyon || '-'\n    });\n  }\n\n  const kayit = {\n    zaman: k.zaman || new Date().toISOString(),\n    musteri: k.musteriId || j.musteriId || '-',\n    gelen: k.gelenMesaj || '-',\n    sinif: j.ajanCokti ? 'AJAN-HATASI' : (k.sinif || '-'),\n    gonderildi: Boolean(j.gonderilecek),\n    cevap: j.govde?.text?.body || k.gonderilenCevap || null,\n    // 🔴 Ajan coktuyse HER ZAMAN insana aktarilir.\n    insanaAktar: j.ajanCokti ? true : Boolean(j.insanaAktar),\n    sebep: j.sebep || (k.gerekceler || []).join(' | '),\n    korelasyon: j.korelasyon || '-',\n    // 🔴 Sinif giristen tasinir, burada yeniden hesaplanmaz (CR-002.5).\n    traffic_class: j.trafik || trafikSinifi(k.musteriId || j.musteriId)\n  };\n  sd.pilot.unshift(kayit);\n\n  // 🔴 ESKALASYONLAR AYRI TUTULUR VE BUDANMAZ.\n  // Bu duzeltme once yalnizca web sohbetine, sonra Instagram'a uygulandi;\n  // WhatsApp farkli bir yapi (sd.pilot, 60 kayit) kullandigi icin\n  // atlanmisti. Insana aktarilan bir WhatsApp mesaji 60 mesaj sonra\n  // listeden dusup KALICI OLARAK kayboluyordu - ve WhatsApp gonderimi\n  // acildiginda hacim web sohbetinden yuksek olacak.\n  if (kayit.insanaAktar) {\n    if (!Array.isArray(sd.eskalasyonlar)) sd.eskalasyonlar = [];\n    sd.eskalasyonlar.unshift({ ...kayit, kapatildi: false });\n    sd.eskalasyonToplam = (sd.eskalasyonToplam || 0) + 1;\n    if (sd.eskalasyonlar.length > 500) sd.eskalasyonlar.length = 500;\n  }\n}\nsd.pilot = sd.pilot.slice(0, 60);   // sinirsiz buyumesin\nreturn $input.all();\n"
+      },
+      "id": "cccccccc-0000-4000-8000-00000000000d",
+      "name": "Pilot kaydi",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        -260
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "pilot",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "cccccccc-0000-4000-8000-00000000000e",
+      "name": "Pilot paneli (GET)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        420
+      ],
+      "webhookId": "cccccccc-0000-4000-8000-0000000000a3"
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// 🔴 Erisim anahtari. .env icindeki PILOT_TOKEN ile ayni olmali.\nconst ANAHTAR = 'ea18d4c9b60e843e09cc42c35084bbe1';\n\nconst q = $input.first().json.query || {};\nif (q.k !== ANAHTAR) {\n  return [{ json: { html: '<!doctype html><meta charset=\"utf-8\">' +\n    '<body style=\"font-family:system-ui;padding:2rem\">Erişim anahtarı geçersiz.</body>' } }];\n}\n\nconst sd = $getWorkflowStaticData('global');\n\n// 🔴 ESKALASYON KAPATMA - web sohbet paneliyle ayni mantik.\nconst q2 = $input.first().json.query || {};\nif (q2.kapat) {\n  const hedef2 = String(q2.kapat);\n  (sd.eskalasyonlar || []).forEach(e => {\n    if (e && e.zaman === hedef2) { e.kapatildi = true; e.kapanma = new Date().toISOString(); }\n  });\n}\n\nconst kayitlar = Array.isArray(sd.pilot) ? sd.pilot : [];\nconst tumEsk = Array.isArray(sd.eskalasyonlar) ? sd.eskalasyonlar : [];\nconst acikEsk = tumEsk.filter(e => !e.kapatildi);\nconst eskKapali = tumEsk.length - acikEsk.length;\nconst eskToplam = sd.eskalasyonToplam || 0;\nconst tekrarEdilen = sd.tekrarEdilenMesaj || 0;\n\nconst kacis = (s) => String(s ?? '')\n  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');\n\nconst saat = (iso) => {\n  try {\n    return new Date(iso).toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' });\n  } catch (e) { return iso; }\n};\n\nconst satirlar = kayitlar.map(function (r) {\n  const durum = r.gonderildi\n    ? '<span style=\"color:#16a34a;font-weight:600\">GÖNDERİLECEK</span>'\n    : '<span style=\"color:#dc2626;font-weight:600\">GÖNDERİLMEZ</span>';\n  const insan = r.insanaAktar\n    ? ' <span style=\"color:#d97706\">· insana aktarıldı</span>' : '';\n  const cevap = r.cevap\n    ? '<div style=\"background:#f1f5f9;padding:.6rem .8rem;border-radius:6px;margin-top:.5rem;white-space:pre-wrap\">' + kacis(r.cevap) + '</div>'\n    : '<div style=\"color:#64748b;margin-top:.5rem\">(cevap üretilmedi)</div>';\n  return '<div style=\"border:1px solid #e2e8f0;border-radius:10px;padding:1rem;margin-bottom:1rem;background:#fff\">' +\n    '<div style=\"font-size:.8rem;color:#64748b\">' + kacis(saat(r.zaman)) + ' · ' + kacis(r.musteri) + ' · ' + kacis(r.sinif) + '</div>' +\n    '<div style=\"font-weight:600;margin-top:.4rem\">' + kacis(r.gelen) + '</div>' +\n    cevap +\n    '<div style=\"font-size:.8rem;margin-top:.6rem\">' + durum + insan + '</div>' +\n    (r.sebep ? '<div style=\"font-size:.75rem;color:#64748b;margin-top:.3rem\">' + kacis(r.sebep) + '</div>' : '') +\n    '</div>';\n}).join('');\n\nconst html = '<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\">' +\n  '<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">' +\n  '<title>L\\'CARLIÉ · Pilot Paneli</title></head>' +\n  '<body style=\"font-family:system-ui,-apple-system,sans-serif;background:#f8fafc;margin:0;padding:1rem;color:#0f172a\">' +\n  '<h1 style=\"font-size:1.1rem;margin:.5rem 0\">L\\'CARLIÉ · Pilot Paneli</h1>' +\n  '<p style=\"font-size:.85rem;color:#64748b;margin:0 0 1rem\">' +\n  'Gönderim kapalı. Ajanın <b>ne cevap vereceği</b> burada görünür. Son ' + kayitlar.length + ' karar.</p>' +\n  // 🔴 EN USTE: donus bekleyen konusmalar. Kayit listesi 60 ile sinirli,\n  // bunlar ayri ve budanmayan listede tutuluyor.\n  (acikEsk.length\n    ? '<div style=\"background:#fef3c7;border:1px solid #fbbf24;border-radius:10px;padding:.9rem;margin-bottom:1rem\">' +\n      '<div style=\"font-weight:700;color:#92400e\">⚠ Dönüş bekleyen ' + acikEsk.length +\n      ' konuşma <span style=\"font-weight:400\">(kapatılan ' + eskKapali +\n      ' · toplam ' + eskToplam + ')</span></div>' +\n      acikEsk.slice(0, 40).map(function (r) {\n        return '<div style=\"background:#fff;border-radius:8px;padding:.6rem;margin-top:.6rem\">' +\n          '<div style=\"font-size:.76rem;color:#64748b\">' + kacis(saat(r.zaman)) + ' · ' +\n          kacis(r.musteri) + ' · ' + kacis(r.sinif) + '</div>' +\n          '<div style=\"margin-top:.3rem;font-weight:600\">' + kacis(r.gelen) + '</div>' +\n          '<div style=\"margin-top:.5rem\"><a href=\"?k=' + encodeURIComponent(q2.k || '') +\n          '&kapat=' + encodeURIComponent(r.zaman || '') + '\" ' +\n          'style=\"display:inline-block;background:#0f172a;color:#fff;text-decoration:none;' +\n          'padding:.3rem .7rem;border-radius:6px;font-size:.78rem\">Kapat</a></div>' +\n          '</div>';\n      }).join('') +\n      '</div>'\n    : '') +\n  // Tekrar gelen (Meta'nin yeniden gonderdigi) mesaj sayisi - sessiz kalmasin\n  (tekrarEdilen\n    ? '<p style=\"font-size:.8rem;color:#64748b\">Meta tarafından tekrar gönderilip ' +\n      '<b>yeniden cevaplanmayan</b> mesaj: ' + tekrarEdilen + '</p>'\n    : '') +\n  (kayitlar.length ? satirlar : '<p style=\"color:#64748b\">Henüz kayıt yok.</p>') +\n  '</body></html>';\n\nreturn [{ json: { html } }];\n"
+      },
+      "id": "cccccccc-0000-4000-8000-00000000000f",
+      "name": "Paneli olustur",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.html }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "id": "cccccccc-0000-4000-8000-000000000010",
+      "name": "Paneli dondur",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        480,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: {\n  gonderilecek: false,\n  insanaAktar: true,\n  sebep: 'Metin olmayan mesaj (' + ($json.mesajTipi || 'bilinmiyor') + ') - insan bakmali',\n  musteriId: $json.musteriId, mesajId: $json.mesajId\n} }];"
+      },
+      "id": "cccccccc-0000-4000-8000-000000000009",
+      "name": "Metin disi -> insana",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        180
+      ]
+    }
+  ],
+  "connections": {
+    "Meta dogrulama (GET)": {
+      "main": [
+        [
+          {
+            "node": "Dogrulama kontrolu",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dogrulama kontrolu": {
+      "main": [
+        [
+          {
+            "node": "Challenge dondur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gelen mesaj (POST)": {
+      "main": [
+        [
+          {
+            "node": "Mesajlari ayikla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mesajlari ayikla": {
+      "main": [
+        [
+          {
+            "node": "Metin mi?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Metin mi?": {
+      "main": [
+        [
+          {
+            "node": "Satis ajanina sor",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Metin disi -> insana",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Satis ajanina sor": {
+      "main": [
+        [
+          {
+            "node": "Yaniti hazirla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Yaniti hazirla": {
+      "main": [
+        [
+          {
+            "node": "Pilot kaydi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pilot kaydi": {
+      "main": [
+        [
+          {
+            "node": "Gonderilecek mi?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pilot paneli (GET)": {
+      "main": [
+        [
+          {
+            "node": "Paneli olustur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Paneli olustur": {
+      "main": [
+        [
+          {
+            "node": "Paneli dondur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gonderilecek mi?": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp yaniti gonder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gonderilmedi -> insana",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": {
+    "global": {
+      "pilot": [
+        {
+          "zaman": "2026-09-15T21:06:09.933Z",
+          "musteri": "test-cr0025-wa",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "gonderildi": true,
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "insanaAktar": false,
+          "sebep": "Temiz - otomatik gonderilebilir",
+          "korelasyon": "wa-mu35w00t-zdqb",
+          "traffic_class": "test"
+        },
+        {
+          "zaman": "2026-09-15T19:54:55.834Z",
+          "musteri": "cr002-test-905550000000",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "gonderildi": true,
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "insanaAktar": false,
+          "sebep": "Temiz - otomatik gonderilebilir",
+          "korelasyon": "wa-mu33ce1w-2zmj"
+        },
+        {
+          "zaman": "2026-09-14T21:29:39.930Z",
+          "musteri": "905551112233",
+          "gelen": "kargom nerede",
+          "sinif": "KARGO",
+          "gonderildi": false,
+          "cevap": null,
+          "insanaAktar": true,
+          "sebep": "Kargo suresi konusunda sitede ve sozlesmede celiski var (bkz. 03_MEVZUAT §14). Teyit edilene kadar otomatik sure vaadi verilmez."
+        },
+        {
+          "zaman": "2026-09-14T21:29:10.981Z",
+          "musteri": "905550000000",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "gonderildi": true,
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "insanaAktar": false,
+          "sebep": "Temiz - otomatik gonderilebilir"
+        },
+        {
+          "zaman": "2026-09-12T23:13:03.439Z",
+          "musteri": "905557778899",
+          "gelen": "egzamam var iyi gelir mi",
+          "sinif": "SAGLIK",
+          "gonderildi": true,
+          "cevap": "L'CARLIÉ ürünleri kozmetik bakım ürünleridir. Cildinizle ilgili bir durum için hekiminize danışmanızı öneririz. Ürünlerimizin tam içerik listesini ürün sayfalarımızda bulabilirsiniz: https://lcarlie.shop",
+          "insanaAktar": true,
+          "sebep": "Gelen mesajda riskli icerik: hastalik-adi, tibbi-onay | Saglik sorusu - standart cevap gonderildi, insan bilgilendirildi"
+        },
+        {
+          "zaman": "2026-09-12T23:13:03.114Z",
+          "musteri": "905554445566",
+          "gelen": "calmaros ne kadar",
+          "sinif": "FIYAT",
+          "gonderildi": true,
+          "cevap": "CALMAROS Ferahlatıcı Tonik Sprey fiyatı 1.850 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/calmaros Üç adımlı günlük bakım rutinimizi (temizle · nemlendir · koru) tek seferde almak için: https://www.wixapis.com/ecom/v1/checkout-templates/d0ace880-ac41-4cc1-ae31-1cd6a275fe0f/create-and-redirect-to-checkout?siteId=20b24639-9d03-4307-8b5d-2a525af26151",
+          "insanaAktar": false,
+          "sebep": "Temiz - otomatik gonderilebilir"
+        },
+        {
+          "zaman": "2026-09-12T23:13:02.856Z",
+          "musteri": "905551112233",
+          "gelen": "merhaba",
+          "sinif": "SELAMLAMA",
+          "gonderildi": true,
+          "cevap": "Merhaba, L'CARLIÉ'ye hoş geldiniz. Günlük bakım rutinimiz üç adımdan oluşuyor:\n1) Temizle — LUCIDERM Yüz Temizleme Köpüğü · 1.200 TL\n2) Nemlendir — HYDRAVIE El & Yüz Nemlendirici Krem, 50 ml · 1.200 TL\n3) Koru — güneş koruma adımı\nÜç adımı tek seferde almak için: https://www.wixapis.com/ecom/v1/checkout-templates/d0ace880-ac41-4cc1-ae31-1cd6a275fe0f/create-and-redirect-to-checkout?siteId=20b24639-9d03-4307-8b5d-2a525af26151\nTüm ürünleri incelemek için: https://lcarlie.shop",
+          "insanaAktar": false,
+          "sebep": "Temiz - otomatik gonderilebilir"
+        },
+        {
+          "zaman": "2026-09-12T23:11:00.978Z",
+          "musteri": "905551112233",
+          "gelen": "merhaba",
+          "sinif": "SELAMLAMA",
+          "gonderildi": true,
+          "cevap": "Merhaba, L'CARLIÉ'ye hoş geldiniz. Günlük bakım rutinimiz üç adımdan oluşuyor:\n1) Temizle — LUCIDERM Yüz Temizleme Köpüğü · 1.200 TL\n2) Nemlendir — HYDRAVIE El & Yüz Nemlendirici Krem, 50 ml · 1.200 TL\n3) Koru — güneş koruma adımı\nÜç adımı tek seferde almak için: https://www.wixapis.com/ecom/v1/checkout-templates/d0ace880-ac41-4cc1-ae31-1cd6a275fe0f/create-and-redirect-to-checkout?siteId=20b24639-9d03-4307-8b5d-2a525af26151\nTüm ürünleri incelemek için: https://lcarlie.shop",
+          "insanaAktar": false,
+          "sebep": "Temiz - otomatik gonderilebilir"
+        }
+      ],
+      "islenenMesajlar": [
+        "wamid.CR0025PREFIX01",
+        "wamid.CR002TEST0001",
+        "wamid.ESK1789421379",
+        "wamid.TEST1789421350"
+      ],
+      "tekrarEdilenMesaj": 3,
+      "eskalasyonlar": [
+        {
+          "zaman": "2026-09-14T21:29:39.930Z",
+          "musteri": "905551112233",
+          "gelen": "kargom nerede",
+          "sinif": "KARGO",
+          "gonderildi": false,
+          "cevap": null,
+          "insanaAktar": true,
+          "sebep": "Kargo suresi konusunda sitede ve sozlesmede celiski var (bkz. 03_MEVZUAT §14). Teyit edilene kadar otomatik sure vaadi verilmez.",
+          "kapatildi": false
+        }
+      ],
+      "eskalasyonToplam": 1
+    }
+  },
+  "meta": null,
+  "nodeGroups": [],
+  "pinData": null,
+  "versionId": "61213614-4b08-4970-b80e-27ac3daaa1f0",
+  "activeVersionId": "61213614-4b08-4970-b80e-27ac3daaa1f0",
+  "versionCounter": 11,
+  "triggerCount": 3,
+  "sourceWorkflowId": null,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2026-09-12T22:39:32.722Z",
+      "createdAt": "2026-09-12T22:39:32.722Z",
+      "role": "workflow:owner",
+      "workflowId": "lcarlieWhats001",
+      "projectId": "M1v7hmqhykEAq9Dd",
+      "project": {
+        "updatedAt": "2026-09-12T14:50:13.906Z",
+        "createdAt": "2026-09-12T14:39:40.699Z",
+        "id": "M1v7hmqhykEAq9Dd",
+        "name": "Murat ozer Yildiz <moy.ozeryildiz@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "158bbe9d-2c83-4df7-82d1-bae3a8c5f436"
+      }
+    }
+  ],
+  "versionMetadata": {
+    "name": null,
+    "description": null
+  }
+}

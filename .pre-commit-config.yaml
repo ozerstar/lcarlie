@@ -1,0 +1,12 @@
+# n8n-workflows dali -- yalniz URETILMIS JSON tasir.
+#
+# Kod kapilari (ruff) burada anlamsiz: Python yok. Anlamli olan tek sey,
+# disa aktarilan JSON'un gercekten gecerli olmasi -- yarim bir export
+# sessizce commit'lenirse geri yukleme gunu fark edilir.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-json
+      - id: check-added-large-files
+        args: [--maxkb=2048]

@@ -1,0 +1,1468 @@
+{
+  "updatedAt": "2026-09-20T13:17:13.037Z",
+  "createdAt": "2026-09-13T10:26:52.574Z",
+  "id": "lcarlieSohbet01",
+  "name": "WEB SOHBET - site canli destek",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sohbet",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "dddddddd-0000-4000-8000-000000000001",
+      "name": "Site mesaji (POST)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "dddddddd-0000-4000-8000-0000000000a1"
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// 🔴 HIZ SINIRI - UC KATMAN\n//\n// Uc nokta herkese acik ve CORS '*'.\n//\n// Onceki hali SADECE musteriId'ye bakiyordu; musteriId tamamen\n// ISTEMCIDEN geliyor, yani her istekte rastgele bir kimlik uretip\n// sinir SONSUZA KADAR asilabiliyordu. Ustelik tek bir saldirgan\n// saniyeler icinde global sayaci doldurup GERCEK MUSTERILERE bir saat\n// boyunca \"cok mesaj aldik\" dedirtebiliyordu - satis kanalini kapatmak\n// bir kabuk dongusune bakiyordu.\n//\n// Simdi:\n//   1) Kisi (musteriId) : 10 dakikada 20  - normal kullanim siniri\n//   2) IP               : 10 dakikada 60  - rastgele kimlik uretmeyi keser\n//   3) Toplam           : saatte 1000     - son care emniyet supabi\n//      (yuksek tutuldu: saldirgan once KENDI IP sinirina takilsin,\n//       global sinir digerlerini kapatan bir silaha donusmesin)\nconst KISI_LIMIT = 20,  KISI_PENCERE  = 10 * 60 * 1000;\nconst IP_LIMIT   = 60,  IP_PENCERE    = 10 * 60 * 1000;\nconst TOPLAM_LIMIT = 1000, TOPLAM_PENCERE = 60 * 60 * 1000;\n\nconst stat = $getWorkflowStaticData('global');\nstat.hiz = stat.hiz || {};\nstat.ipHiz = stat.ipHiz || {};\nstat.toplam = stat.toplam || [];\nconst simdi = Date.now();\n\n// Eski kayitlari temizle - sinirsiz buyumesin\nstat.toplam = stat.toplam.filter(t => simdi - t < TOPLAM_PENCERE);\nfor (const k of Object.keys(stat.hiz)) {\n  stat.hiz[k] = stat.hiz[k].filter(t => simdi - t < KISI_PENCERE);\n  if (!stat.hiz[k].length) delete stat.hiz[k];\n}\nfor (const k of Object.keys(stat.ipHiz)) {\n  stat.ipHiz[k] = stat.ipHiz[k].filter(t => simdi - t < IP_PENCERE);\n  if (!stat.ipHiz[k].length) delete stat.ipHiz[k];\n}\n\n// 🔴 IP'yi X-Forwarded-For'un BASINDAN OKUMAYIN.\n//\n// Caddy bu basliga EKLEME yapar. Musteri kendi istegine\n// \"X-Forwarded-For: 1.2.3.4\" koyarsa listenin basinda O durur; her\n// istekte farkli bir sahte deger yazip IP sinirini sonsuza kadar asar.\n// Yani ilk degeri okumak, siniri saldirganin denetimine birakir.\n//\n// Caddy 'header_up X-Gercek-IP {client_ip}' ile kendi gordugu baglanti\n// adresini yaziyor; header_up SET eder, musterinin gonderdigi ayni isimli\n// baglik EZILIR. Bu deger taklit edilemez.\n//\n// Yedek yol olarak X-Forwarded-For'un SON degeri kullanilir: zinciri\n// Caddy olusturdugu icin sondaki daima gercek baglanti adresidir.\nconst ipBul = (item) => {\n  const h = (item.json && item.json.headers) || {};\n  const gercek = String(h['x-gercek-ip'] || h['X-Gercek-IP'] || '').trim();\n  if (gercek) return gercek;\n  const xff = String(h['x-forwarded-for'] || h['X-Forwarded-For'] || '').trim();\n  if (xff) {\n    const parcalar = xff.split(',').map(s => s.trim()).filter(Boolean);\n    if (parcalar.length) return parcalar[parcalar.length - 1];\n  }\n  return 'bilinmeyen';\n};\n\nconst cikti = [];\n// 🔴 all() - first() DEGIL. Bu projede uc kez mesaj dusuruldu.\nfor (const item of $input.all()) {\n  const b = item.json.body || item.json || {};\n  const mesaj = String(b.mesaj ?? '').trim();\n  // Oturum kimligi: tarayici uretir, kisisel veri degil.\n  const musteriId = String(b.musteriId ?? '').trim() || 'web-anonim';\n\n  if (!mesaj) {\n    cikti.push({ json: { gecerli: false, hata: 'mesaj bos', musteriId } });\n    continue;\n  }\n  if (mesaj.length > 1000) {\n    cikti.push({ json: { gecerli: false, hata: 'mesaj cok uzun', musteriId } });\n    continue;\n  }\n\n  const ip = ipBul(item);\n\n  stat.hiz[musteriId] = stat.hiz[musteriId] || [];\n  stat.ipHiz[ip] = stat.ipHiz[ip] || [];\n\n  if (stat.hiz[musteriId].length >= KISI_LIMIT) {\n    cikti.push({ json: { gecerli: false, hata: 'kisi hiz siniri', musteriId, hizSiniri: true } });\n    continue;\n  }\n  // 🔴 IP siniri: rastgele musteriId uretip siniri asmayi keser\n  if (stat.ipHiz[ip].length >= IP_LIMIT) {\n    cikti.push({ json: { gecerli: false, hata: 'ip hiz siniri', musteriId, hizSiniri: true } });\n    continue;\n  }\n  if (stat.toplam.length >= TOPLAM_LIMIT) {\n    cikti.push({ json: { gecerli: false, hata: 'toplam hiz siniri', musteriId, hizSiniri: true } });\n    continue;\n  }\n\n  stat.hiz[musteriId].push(simdi);\n  stat.ipHiz[ip].push(simdi);\n  stat.toplam.push(simdi);\n  cikti.push({ json: { gecerli: true, mesaj, musteriId, kanal: 'web' } });\n}\nreturn cikti;\n"
+      },
+      "id": "dddddddd-0000-4000-8000-000000000002",
+      "name": "Girisi dogrula",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "g1",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.gecerli }}",
+              "rightValue": ""
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "dddddddd-0000-4000-8000-000000000003",
+      "name": "Gecerli mi?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "lcarlieAkis0001",
+          "mode": "id"
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "dddddddd-0000-4000-8000-000000000004",
+      "name": "Satis ajanina sor",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        720,
+        -100
+      ],
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst stat = $getWorkflowStaticData('global');\nstat.kayitlar = stat.kayitlar || [];\n\nconst VARSAYILAN =\n  'Mesajınız için teşekkür ederiz. Bu konuda size en doğru bilgiyi ' +\n  'ekip arkadaşımız verecek, en kısa sürede dönüş yapacağız. ' +\n  'Bu arada tüm ürünlerimizi inceleyebilirsiniz: https://lcarlie.shop';\n\n// 🔴 AJAN COKERSE MUSTERI KIMLIGI KAYBOLUYOR.\n// 'continueRegularOutput' giris ogesini GECIRMIYOR - yalnizca hata bilgisi\n// iceren bir oge uretiyor. Canli testte kayit 'musteri=-  gelen=-' olarak\n// yazildi: konusma insana aktarildi ama KIMIN yazdigi kayitta yok, yani\n// donus yapilamaz. Kimligi bir onceki dugumden, sira numarasiyla aliyoruz.\nlet oncekiler = [];\ntry { oncekiler = $('Gecerli mi?').all(); } catch (e) { oncekiler = []; }\n\nconst cikti = [];\nconst hepsi = $input.all();\nfor (let i = 0; i < hepsi.length; i++) {\n  const item = hepsi[i];\n  const k = item.json || {};\n  const onceki = (oncekiler[i] && oncekiler[i].json) || {};\n\n  // 🔴 AJAN COKTU MU?\n  // 'Satis ajanina sor' dugumu onError:'continueRegularOutput' ile\n  // yapilandirildi; coktugunde oge 'error' alaniyla buraya gelir.\n  // Bu durumda musteri yine notr bir cevap alir AMA konusma mutlaka\n  // INSANA AKTARILIR - yoksa mesaj sessizce kaybolur (13.09.2026'da oldu).\n  const ajanCokti = Boolean(k.error) || (!k.sinif && !k.cevap && !k.gonder);\n\n  // Ajan cevap uretmediyse (eskalasyon) musteri bosluga bakmaz -\n  // notr bir karsilik doner, konusma kopmaz.\n  const govde = (k.gonder && k.cevap && !ajanCokti) ? k.cevap : VARSAYILAN;\n\n  const kayit = {\n    zaman: new Date().toISOString(),\n    // Ajan coktuyse kimlik ve mesaj bir onceki dugumden alinir.\n    musteri: k.musteriId || onceki.musteriId || '-',\n    sinif: ajanCokti ? 'AJAN-HATASI' : (k.sinif || '-'),\n    gelen: k.gelenMesaj || k.mesaj || onceki.mesaj || '-',\n    cevap: govde,\n    otomatik: Boolean(k.gonder && k.cevap && !ajanCokti),\n    // Coktuyse HER ZAMAN insana aktarilir.\n    insanaAktar: ajanCokti ? true : Boolean(k.insanaAktar)\n  };\n  stat.kayitlar.unshift(kayit);\n\n  // 🔴 ESKALASYONLAR AYRI TUTULUR VE BUDANMAZ.\n  // Genel kayit listesi son 100 ile sinirli; yogun bir gunde \"bana bir\n  // insan yazsin\" diyen musteri listeden dusup KALICI OLARAK kayboluyordu.\n  // Insana aktarilan her konusma ayri listede, cok daha genis tutulur ve\n  // bekleyen sayaci panelde gorunur.\n  if (kayit.insanaAktar) {\n    stat.eskalasyonlar = stat.eskalasyonlar || [];\n    stat.eskalasyonlar.unshift({ ...kayit, kapatildi: false });\n    stat.eskalasyonToplam = (stat.eskalasyonToplam || 0) + 1;\n    if (stat.eskalasyonlar.length > 500) stat.eskalasyonlar.length = 500;\n  }\n\n  // 🔴 KAYITTAKI DEGERLER ESAS ALINIR.\n  // Onceki hali dogrudan k.insanaAktar okuyordu; ajan coktugunde bu alan\n  // hic gelmedigi icin musteriye \"insanaAktar:false\" donuyordu - oysa\n  // konusma gercekte insana aktarilmisti. Iki yer arasindaki bu fark,\n  // widget'in \"ekip donus yapacak\" bilgisini gostermemesine yol aciyordu.\n  cikti.push({ json: {\n    cevap: govde,\n    insanaAktar: kayit.insanaAktar,\n    otomatik: kayit.otomatik\n  }});\n}\n\n// Statik veri Postgres'te workflow satirinda durur ve gece yedegine girer.\n// Sinirsiz buyumesin diye son 100 kayit tutulur.\nif (stat.kayitlar.length > 100) stat.kayitlar.length = 100;\nreturn cikti;\n"
+      },
+      "id": "dddddddd-0000-4000-8000-000000000005",
+      "name": "Cevabi hazirla",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "dddddddd-0000-4000-8000-000000000006",
+      "name": "Cevabi dondur",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ cevap: $json.hizSiniri ? \"Çok sayıda mesaj aldık, birkaç dakika sonra tekrar yazabilirsiniz. Bu arada ürünlerimiz: https://lcarlie.shop\" : \"Mesajınızı alamadık, tekrar yazar mısınız?\", insanaAktar: false }) }}",
+        "options": {}
+      },
+      "id": "dddddddd-0000-4000-8000-000000000007",
+      "name": "Gecersiz istek",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        720,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "sohbet-panel",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "dddddddd-0000-4000-8000-000000000008",
+      "name": "Panel (GET)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        420
+      ],
+      "webhookId": "dddddddd-0000-4000-8000-0000000000a2"
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// 🔴 $env KULLANILMAZ - n8n \"access to env vars denied\" hatasi veriyor.\n// Anahtar sunucuda, iceri aktarma sirasinda bu yer tutucunun yerine konur:\n//   TOK=$(grep ^PILOT_TOKEN= .env | cut -d= -f2)\n//   sed -i \"s/ea18d4c9b60e843e09cc42c35084bbe1/$TOK/\" sohbet-workflow.json\nconst ANAHTAR = 'ea18d4c9b60e843e09cc42c35084bbe1';\n\nconst q = $input.first().json.query || {};\nconst beklenen = ANAHTAR;\nif (!beklenen || beklenen === 'BURAYA_PILOT' + '_ANAHTARI' || q.k !== beklenen) {\n  return [{ json: { html: '<!doctype html><meta charset=utf-8><body style=\"font-family:system-ui;padding:2rem\">' +\n    '<h3>Erişim reddedildi</h3><p>Geçerli anahtar gerekli.</p></body>' } }];\n}\n\nconst stat = $getWorkflowStaticData('global');\n\n// 🔴 ESKALASYON KAPATMA.\n// Once hicbir yerde 'kapatildi' true yapilmiyordu: donus yapilan musteri\n// listede sonsuza kadar kaliyor, 40 satir dolduktan sonra GERCEKTEN\n// bekleyen musteri altta kaliyor ve cozulmuslerden ayirt edilemiyordu.\n// Panelde her satirin yanindaki baglanti buraya '?k=...&kapat=<zaman>'\n// olarak geliyor; zaman damgasi ISO ve milisaniyeli oldugu icin tekil.\nif (q.kapat) {\n  const hedef = String(q.kapat);\n  (stat.eskalasyonlar || []).forEach(e => {\n    if (e && e.zaman === hedef) { e.kapatildi = true; e.kapanma = new Date().toISOString(); }\n  });\n}\n\nconst kayitlar = (stat.kayitlar || []).slice(0, 60);\n// Insana aktarilanlar ayri, budanmayan listede - panelin EN USTUNDE gosterilir.\n// Kapatilanlar listeden DUSER; sayilar ayri tutulur.\nconst tumEsk = stat.eskalasyonlar || [];\nconst eskalasyonlar = tumEsk.filter(e => !e.kapatildi).slice(0, 40);\nconst eskAcik = tumEsk.filter(e => !e.kapatildi).length;\nconst eskKapali = tumEsk.filter(e => e.kapatildi).length;\nconst eskToplam = stat.eskalasyonToplam || 0;\nconst kacis = (s) => String(s ?? '').replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]));\nconst saat = (t) => { try { return new Date(t).toLocaleString('tr-TR'); } catch(e) { return t; } };\n\nconst satirlar = kayitlar.map(r => {\n  const rozet = r.otomatik\n    ? '<span style=\"background:#dcfce7;color:#166534;padding:.1rem .45rem;border-radius:4px;font-size:.72rem\">otomatik</span>'\n    : '<span style=\"background:#fef3c7;color:#92400e;padding:.1rem .45rem;border-radius:4px;font-size:.72rem\">insana</span>';\n  return '<div style=\"background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:.8rem;margin-bottom:.7rem\">' +\n    '<div style=\"font-size:.78rem;color:#64748b\">' + kacis(saat(r.zaman)) + ' · ' + kacis(r.musteri) + ' · ' + kacis(r.sinif) + ' ' + rozet + '</div>' +\n    '<div style=\"margin-top:.4rem;font-weight:600\">' + kacis(r.gelen) + '</div>' +\n    '<div style=\"background:#f1f5f9;padding:.6rem .8rem;border-radius:6px;margin-top:.5rem;white-space:pre-wrap\">' + kacis(r.cevap) + '</div>' +\n    '</div>';\n}).join('');\n\nconst html = '<!doctype html><html lang=tr><head><meta charset=utf-8>' +\n  '<meta name=viewport content=\"width=device-width,initial-scale=1\">' +\n  '<meta http-equiv=refresh content=60>' +\n  '<title>L\\'CARLIÉ · Web Sohbet</title></head>' +\n  '<body style=\"font-family:system-ui,-apple-system,sans-serif;background:#f8fafc;color:#0f172a;margin:0;padding:1rem\">' +\n  '<div style=\"background:#0f172a;color:#fff;padding:.9rem 1rem;border-radius:10px;margin-bottom:1rem\">' +\n  '<div style=\"font-size:.75rem;opacity:.8\">L\\'CARLIÉ</div>' +\n  '<div style=\"font-size:1.15rem;font-weight:700\">Web Sohbet Kayıtları</div></div>' +\n  // 🔴 EN USTE: insana aktarilan konusmalar. Bunlar cevap BEKLIYOR.\n  (eskalasyonlar.length\n    ? '<div style=\"background:#fef3c7;border:1px solid #fbbf24;border-radius:10px;padding:.9rem;margin-bottom:1rem\">' +\n      '<div style=\"font-weight:700;color:#92400e\">⚠ Dönüş bekleyen ' + eskAcik +\n      ' konuşma <span style=\"font-weight:400\">(kapatılan ' + eskKapali +\n      ' · toplam ' + eskToplam + ')</span></div>' +\n      '<div style=\"font-size:.8rem;color:#92400e;margin-top:.2rem\">' +\n      'Dönüş yaptığınız konuşmayı <b>Kapat</b> ile listeden düşürün.</div>' +\n      eskalasyonlar.map(r =>\n        '<div style=\"background:#fff;border-radius:8px;padding:.6rem;margin-top:.6rem\">' +\n        '<div style=\"font-size:.76rem;color:#64748b\">' + kacis(saat(r.zaman)) + ' · ' +\n        kacis(r.musteri) + ' · ' + kacis(r.sinif) + '</div>' +\n        '<div style=\"margin-top:.3rem;font-weight:600\">' + kacis(r.gelen) + '</div>' +\n        // 🔴 KAPAT baglantisi: anahtari da tasimali, yoksa panel erisimi reddeder.\n        '<div style=\"margin-top:.5rem\"><a href=\"?k=' + encodeURIComponent(q.k || '') +\n        '&kapat=' + encodeURIComponent(r.zaman || '') + '\" ' +\n        'style=\"display:inline-block;background:#0f172a;color:#fff;text-decoration:none;' +\n        'padding:.3rem .7rem;border-radius:6px;font-size:.78rem\">Kapat</a></div>' +\n        '</div>').join('') +\n      '</div>'\n    : (eskKapali\n        ? '<div style=\"background:#dcfce7;border:1px solid #86efac;border-radius:10px;padding:.8rem;margin-bottom:1rem;color:#166534\">' +\n          '<b>Bekleyen konuşma yok.</b> ' + eskKapali + ' konuşma kapatıldı, toplam ' + eskToplam + '.</div>'\n        : '')) +\n  '<p style=\"font-size:.85rem;color:#475569\">Son ' + kayitlar.length + ' konuşma. 60 saniyede bir yenilenir.</p>' +\n  (kayitlar.length ? satirlar : '<p style=\"color:#64748b\">Henüz kayıt yok.</p>') +\n  '</body></html>';\n\nreturn [{ json: { html } }];\n"
+      },
+      "id": "dddddddd-0000-4000-8000-000000000009",
+      "name": "Panel HTML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.html }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "id": "dddddddd-0000-4000-8000-00000000000a",
+      "name": "Paneli dondur",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        480,
+        420
+      ]
+    }
+  ],
+  "connections": {
+    "Site mesaji (POST)": {
+      "main": [
+        [
+          {
+            "node": "Girisi dogrula",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Girisi dogrula": {
+      "main": [
+        [
+          {
+            "node": "Gecerli mi?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gecerli mi?": {
+      "main": [
+        [
+          {
+            "node": "Satis ajanina sor",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gecersiz istek",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Satis ajanina sor": {
+      "main": [
+        [
+          {
+            "node": "Cevabi hazirla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cevabi hazirla": {
+      "main": [
+        [
+          {
+            "node": "Cevabi dondur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Panel (GET)": {
+      "main": [
+        [
+          {
+            "node": "Panel HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Panel HTML": {
+      "main": [
+        [
+          {
+            "node": "Paneli dondur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": {
+    "global": {
+      "hiz": {
+        "sinav-0-30197": [
+          1789504637702
+        ],
+        "sinav-1-26440": [
+          1789504640445
+        ],
+        "sinav-2-7976": [
+          1789504642956
+        ],
+        "sinav-3-25944": [
+          1789504645511
+        ],
+        "sinav-4-18807": [
+          1789504648002
+        ],
+        "sinav-5-1084": [
+          1789504650614
+        ],
+        "sinav-6-32381": [
+          1789504653196
+        ],
+        "sinav-7-12642": [
+          1789504655747
+        ],
+        "sinav-8-14384": [
+          1789504658282
+        ],
+        "sinav-9-3533": [
+          1789504660884
+        ],
+        "sinav-10-18059": [
+          1789504663421
+        ],
+        "sinav-11-31474": [
+          1789504665976
+        ]
+      },
+      "ipHiz": {
+        "185.169.180.68": [
+          1789504637702,
+          1789504640445,
+          1789504642956,
+          1789504645511,
+          1789504648002,
+          1789504650614,
+          1789504653196,
+          1789504655747,
+          1789504658282,
+          1789504660884,
+          1789504663421,
+          1789504665976
+        ]
+      },
+      "toplam": [
+        1789504637702,
+        1789504640445,
+        1789504642956,
+        1789504645511,
+        1789504648002,
+        1789504650614,
+        1789504653196,
+        1789504655747,
+        1789504658282,
+        1789504660884,
+        1789504663421,
+        1789504665976
+      ],
+      "kayitlar": [
+        {
+          "zaman": "2026-09-15T20:37:46.377Z",
+          "musteri": "sinav-11-31474",
+          "sinif": "FIYAT",
+          "gelen": "hydravie fiyatı nedir",
+          "cevap": "HYDRAVIE El & Yüz Nemlendirici Krem (50 ml) fiyatı 1.200 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/hydravie Üç adımlı günlük bakım rutinimizi (temizle · nemlendir · koru) tek seferde almak için: https://www.wixapis.com/ecom/v1/checkout-templates/d0ace880-ac41-4cc1-ae31-1cd6a275fe0f/create-and-redirect-to-checkout?siteId=20b24639-9d03-4307-8b5d-2a525af26151",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "zaman": "2026-09-15T20:37:43.848Z",
+          "musteri": "sinav-10-18059",
+          "sinif": "ICERIK",
+          "gelen": "luciderm içindekiler nelerdir",
+          "cevap": "LUCIDERM Yüz Temizleme Köpüğü öne çıkan içerikleri: Lavanta & Melisa Suyu, Aloe Vera, Çay Ağacı & Niaouli Yağı, Beyaz Söğüt Kabuğu Ekstresi, Yulaf Seramidi, Yeşil Çay & Biberiye Ekstresi. Tam INCI listesi: Aqua, Lavandula Angustifolia Flower Water, Melissa Officinalis Water, Aloe Barbadensis Leaf Juice, Decyl Glucoside, Cocamidopropyl Betaine, Sodium Cocoyl Glutamate, Melaleuca Alternifolia Oil, Melaleuca Quinquenervia Oil, Lavandula Angustifolia Oil, Chamomilla Recutita CO2 Extract, Hamamelis Virginiana Extract, Salix Alba Bark Extract, Rosmarinus Officinalis Extract, Avena Sativa (Oat) Kernel Ceramide, Betaine, Sodium Hyaluronate, Camellia Sinensis Leaf CO2 Extract, Cichorium Intybus Root Extract, Glycerin, Lactic Acid, Benzyl Alcohol, Salicylic Acid, Sorbic Acid. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/luciderm",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "zaman": "2026-09-15T20:37:41.303Z",
+          "musteri": "sinav-9-3533",
+          "sinif": "ANLASILMADI",
+          "gelen": "Ben 19 sene önce trafik kazası geçirdim Beyin kanaması oldum sağ tarafta kasılma var",
+          "cevap": "Ürünlerimizi, içerik ve kullanım bilgilerini sitemizden inceleyebilirsiniz: https://lcarlie.shop",
+          "otomatik": true,
+          "insanaAktar": true
+        },
+        {
+          "zaman": "2026-09-15T20:37:38.739Z",
+          "musteri": "sinav-8-14384",
+          "sinif": "SAGLIK",
+          "gelen": "Alerjik veya yan Etkisi olur mu",
+          "cevap": "L'CARLIÉ ürünleri kozmetik bakım ürünleridir. Cildinizle ilgili bir durum için hekiminize danışmanızı öneririz. Ürünlerimizin tam içerik listesini ürün sayfalarımızda bulabilirsiniz: https://lcarlie.shop",
+          "otomatik": true,
+          "insanaAktar": true
+        },
+        {
+          "zaman": "2026-09-15T20:37:36.163Z",
+          "musteri": "sinav-7-12642",
+          "sinif": "ANLASILMADI",
+          "gelen": "Kaç dk sonra etkisini gösterir",
+          "cevap": "Ürünlerimizi, içerik ve kullanım bilgilerini sitemizden inceleyebilirsiniz: https://lcarlie.shop",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "zaman": "2026-09-15T20:37:33.626Z",
+          "musteri": "sinav-6-32381",
+          "sinif": "ANLASILMADI",
+          "gelen": "Anlamadım uzamaya yardımcı oluyor mu",
+          "cevap": "Ürünlerimizi, içerik ve kullanım bilgilerini sitemizden inceleyebilirsiniz: https://lcarlie.shop",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "zaman": "2026-09-15T20:37:31.081Z",
+          "musteri": "sinav-5-1084",
+          "sinif": "ANLASILMADI",
+          "gelen": "Bu buyutme mi",
+          "cevap": "Ürünlerimizi, içerik ve kullanım bilgilerini sitemizden inceleyebilirsiniz: https://lcarlie.shop",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "zaman": "2026-09-15T20:37:28.469Z",
+          "musteri": "sinav-4-18807",
+          "sinif": "ANLASILMADI",
+          "gelen": "Cınsel. Guc. Artırıcımı",
+          "cevap": "Ürünlerimizi, içerik ve kullanım bilgilerini sitemizden inceleyebilirsiniz: https://lcarlie.shop",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "zaman": "2026-09-15T20:37:25.877Z",
+          "musteri": "sinav-3-25944",
+          "sinif": "ANLASILMADI",
+          "gelen": "Bana güç lazım",
+          "cevap": "Ürünlerimizi, içerik ve kullanım bilgilerini sitemizden inceleyebilirsiniz: https://lcarlie.shop",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "zaman": "2026-09-15T20:37:23.388Z",
+          "musteri": "sinav-2-7976",
+          "sinif": "SIPARIS",
+          "gelen": "Sipariş nasıl verilir?",
+          "cevap": "Siparişinizi doğrudan sitemizden verebilirsiniz. Hemen sipariş vermek için: https://lcarlie.shop",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "zaman": "2026-09-15T20:37:20.833Z",
+          "musteri": "sinav-1-26440",
+          "sinif": "FIYAT",
+          "gelen": "Fiyatı nedir?",
+          "cevap": "Tüm ürünlerimizin güncel fiyatları ürün sayfalarımızda yer alıyor. Hemen sipariş vermek için: https://lcarlie.shop",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "zaman": "2026-09-15T20:37:18.167Z",
+          "musteri": "sinav-0-30197",
+          "sinif": "ICERIK",
+          "gelen": "İçindekiler nelerdir?",
+          "cevap": "Ürünlerimizin tam içerik listesi (INCI) ilgili ürün sayfasında yer alıyor. Ürün sayfasına buradan ulaşabilirsiniz: https://lcarlie.shop",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "zaman": "2026-09-15T13:36:42.202Z",
+          "musteri": "web-tpccg5hi",
+          "sinif": "KATEGORI",
+          "gelen": "Dudak bakımı",
+          "cevap": "Dudak bakımı için ürünlerimiz:\n• LIPVORA Dudak Nemlendirici Balm · 900 TL\n  https://www.lcarlie.shop/product-page/lipvora\nTüm ürünleri incelemek için: https://lcarlie.shop",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "zaman": "2026-09-15T13:36:41.089Z",
+          "musteri": "web-tpccg5hi",
+          "sinif": "KATEGORI_LISTESI",
+          "gelen": "İhtiyacıma göre ürün öner",
+          "cevap": "Hangi alanda yardımcı olabiliriz?\n▸ Ayak ve tırnak bakımı\n▸ Bebek ve çocuk bakımı\n▸ Ağız ve diş bakımı\n▸ Saç bakımı\n▸ Yüz bakımı\n▸ Güneş koruma\n▸ Masaj ve spor sonrası bakım\n▸ Ferahlatıcı roll-on\n▸ Dudak bakımı\n▸ Göz çevresi bakımı\n▸ İz ve bariyer bakımı\nTüm ürünleri incelemek için: https://lcarlie.shop",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "zaman": "2026-09-14T21:36:43.120Z",
+          "musteri": "yayinla-duman",
+          "sinif": "FIYAT",
+          "gelen": "lipvora fiyat",
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "zaman": "2026-09-14T21:28:54.396Z",
+          "musteri": "yayinla-duman",
+          "sinif": "FIYAT",
+          "gelen": "lipvora fiyat",
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "zaman": "2026-09-14T21:24:25.776Z",
+          "musteri": "geri-alma-36d2b3",
+          "sinif": "FIYAT",
+          "gelen": "softguard kac para",
+          "cevap": "SOFTGUARD ürününün tüm bilgileri ve siparişi ürün sayfamızda yer alıyor: https://www.lcarlie.shop/product-page/softguard\nDiğer sorularınız için ekip arkadaşımız da en kısa sürede dönüş yapacak.",
+          "otomatik": true,
+          "insanaAktar": true
+        },
+        {
+          "zaman": "2026-09-14T21:24:25.149Z",
+          "musteri": "geri-alma-b16e3d",
+          "sinif": "ANLASILMADI",
+          "gelen": "vireon hakkinda bilgi",
+          "cevap": "VIREON ürününün tüm bilgileri ve siparişi ürün sayfamızda yer alıyor: https://www.lcarlie.shop/vireon\nDiğer sorularınız için ekip arkadaşımız da en kısa sürede dönüş yapacak.",
+          "otomatik": true,
+          "insanaAktar": true
+        },
+        {
+          "zaman": "2026-09-14T21:24:13.256Z",
+          "musteri": "yayinla-duman",
+          "sinif": "FIYAT",
+          "gelen": "lipvora fiyat",
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "zaman": "2026-09-14T21:20:52.846Z",
+          "musteri": "filtre-dogrulama-0f8ec5",
+          "sinif": "SATISTA_ANLATILMAYAN",
+          "gelen": "femisia fiyati nedir",
+          "cevap": "Mesajınız için teşekkür ederiz. Bu konuda size en doğru bilgiyi ekip arkadaşımız verecek, en kısa sürede dönüş yapacağız. Bu arada tüm ürünlerimizi inceleyebilirsiniz: https://lcarlie.shop",
+          "otomatik": false,
+          "insanaAktar": true
+        },
+        {
+          "zaman": "2026-09-14T21:20:52.314Z",
+          "musteri": "filtre-dogrulama-16ffce",
+          "sinif": "SATISTA_ANLATILMAYAN",
+          "gelen": "softguard kac para",
+          "cevap": "Mesajınız için teşekkür ederiz. Bu konuda size en doğru bilgiyi ekip arkadaşımız verecek, en kısa sürede dönüş yapacağız. Bu arada tüm ürünlerimizi inceleyebilirsiniz: https://lcarlie.shop",
+          "otomatik": false,
+          "insanaAktar": true
+        },
+        {
+          "zaman": "2026-09-14T21:20:51.651Z",
+          "musteri": "filtre-dogrulama-292092",
+          "sinif": "SATISTA_ANLATILMAYAN",
+          "gelen": "vireon hakkinda bilgi",
+          "cevap": "Mesajınız için teşekkür ederiz. Bu konuda size en doğru bilgiyi ekip arkadaşımız verecek, en kısa sürede dönüş yapacağız. Bu arada tüm ürünlerimizi inceleyebilirsiniz: https://lcarlie.shop",
+          "otomatik": false,
+          "insanaAktar": true
+        },
+        {
+          "zaman": "2026-09-14T21:20:43.211Z",
+          "musteri": "yayinla-duman",
+          "sinif": "FIYAT",
+          "gelen": "lipvora fiyat",
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "zaman": "2026-09-14T21:16:59.086Z",
+          "musteri": "hata-yolu-testi",
+          "sinif": "AJAN-HATASI",
+          "gelen": "luciderm fiyat",
+          "cevap": "Mesajınız için teşekkür ederiz. Bu konuda size en doğru bilgiyi ekip arkadaşımız verecek, en kısa sürede dönüş yapacağız. Bu arada tüm ürünlerimizi inceleyebilirsiniz: https://lcarlie.shop",
+          "otomatik": false,
+          "insanaAktar": true
+        },
+        {
+          "zaman": "2026-09-14T21:16:16.457Z",
+          "musteri": "yayinla-duman",
+          "sinif": "FIYAT",
+          "gelen": "lipvora fiyat",
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "zaman": "2026-09-14T21:12:24.784Z",
+          "musteri": "-",
+          "sinif": "AJAN-HATASI",
+          "gelen": "-",
+          "cevap": "Mesajınız için teşekkür ederiz. Bu konuda size en doğru bilgiyi ekip arkadaşımız verecek, en kısa sürede dönüş yapacağız. Bu arada tüm ürünlerimizi inceleyebilirsiniz: https://lcarlie.shop",
+          "otomatik": false,
+          "insanaAktar": true
+        },
+        {
+          "zaman": "2026-09-14T21:11:25.140Z",
+          "musteri": "yayinla-duman",
+          "sinif": "FIYAT",
+          "gelen": "lipvora fiyat",
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "zaman": "2026-09-14T21:04:00.869Z",
+          "musteri": "yayinla-duman",
+          "sinif": "FIYAT",
+          "gelen": "lipvora fiyat",
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:19.271Z",
+          "musteri": "paralel-59-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:18.837Z",
+          "musteri": "paralel-58-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:18.357Z",
+          "musteri": "paralel-57-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:17.918Z",
+          "musteri": "paralel-56-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:17.493Z",
+          "musteri": "paralel-55-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:17.074Z",
+          "musteri": "paralel-54-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:16.653Z",
+          "musteri": "paralel-53-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:16.231Z",
+          "musteri": "paralel-52-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:15.782Z",
+          "musteri": "paralel-51-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:15.347Z",
+          "musteri": "paralel-46-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:14.915Z",
+          "musteri": "paralel-49-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:14.470Z",
+          "musteri": "paralel-47-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:14.041Z",
+          "musteri": "paralel-44-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:13.576Z",
+          "musteri": "paralel-48-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:13.154Z",
+          "musteri": "paralel-40-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:12.693Z",
+          "musteri": "paralel-42-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:12.255Z",
+          "musteri": "paralel-33-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:11.815Z",
+          "musteri": "paralel-50-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:11.373Z",
+          "musteri": "paralel-45-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:10.949Z",
+          "musteri": "paralel-41-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:10.462Z",
+          "musteri": "paralel-43-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:10.029Z",
+          "musteri": "paralel-39-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:09.597Z",
+          "musteri": "paralel-37-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:09.099Z",
+          "musteri": "paralel-38-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:08.660Z",
+          "musteri": "paralel-35-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:08.203Z",
+          "musteri": "paralel-36-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:07.753Z",
+          "musteri": "paralel-34-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:07.316Z",
+          "musteri": "paralel-29-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:06.860Z",
+          "musteri": "paralel-25-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:06.414Z",
+          "musteri": "paralel-30-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:05.969Z",
+          "musteri": "paralel-31-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:05.515Z",
+          "musteri": "paralel-28-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:05.079Z",
+          "musteri": "paralel-32-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:04.629Z",
+          "musteri": "paralel-24-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:04.181Z",
+          "musteri": "paralel-23-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:03.728Z",
+          "musteri": "paralel-22-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:03.286Z",
+          "musteri": "paralel-19-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:02.851Z",
+          "musteri": "paralel-20-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:02.402Z",
+          "musteri": "paralel-26-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:01.918Z",
+          "musteri": "paralel-27-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:01.418Z",
+          "musteri": "paralel-16-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:00.929Z",
+          "musteri": "paralel-18-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:57:00.395Z",
+          "musteri": "paralel-14-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:56:59.902Z",
+          "musteri": "paralel-9-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:56:59.456Z",
+          "musteri": "paralel-21-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:56:58.992Z",
+          "musteri": "paralel-15-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:56:58.538Z",
+          "musteri": "paralel-7-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:56:58.090Z",
+          "musteri": "paralel-13-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:56:57.631Z",
+          "musteri": "paralel-11-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:56:57.183Z",
+          "musteri": "paralel-12-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:56:56.713Z",
+          "musteri": "paralel-17-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:56:56.268Z",
+          "musteri": "paralel-6-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:56:55.802Z",
+          "musteri": "paralel-3-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:56:55.342Z",
+          "musteri": "paralel-8-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:56:54.896Z",
+          "musteri": "paralel-1-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:56:54.438Z",
+          "musteri": "paralel-10-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:56:54.005Z",
+          "musteri": "paralel-4-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:56:53.529Z",
+          "musteri": "paralel-2-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:56:53.111Z",
+          "musteri": "paralel-5-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:56:48.347Z",
+          "musteri": "hiz-sifirla-kontrol",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:56:04.659Z",
+          "musteri": "eszamanlilik-kontrol",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:55:06.622Z",
+          "musteri": "paralel-97-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:54:55.467Z",
+          "musteri": "paralel-41-",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:54:31.911Z",
+          "musteri": "hiz-sifirla-kontrol",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:47:45.543Z",
+          "musteri": "yayinla-duman",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "Günlük bakım rutinimiz üç adımdan oluşuyor: temizleme, nemlendirme ve koruma. Ürünlerimizi inceleyip size uygun olanı seçebilirsiniz: https://lcarlie.shop",
+          "gelen": "Kuru cilt için hangi ürünü önerirsiniz?",
+          "sinif": "ONERI",
+          "zaman": "2026-09-14T20:28:44.936Z",
+          "musteri": "web-cb97nziw",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "VIREON ürününün tüm bilgileri ve siparişi ürün sayfamızda yer alıyor: https://www.lcarlie.shop/vireon\nDiğer sorularınız için ekip arkadaşımız da en kısa sürede dönüş yapacak.",
+          "gelen": "Vireon kaç günde teslim edilir ve iade şartları nedir?",
+          "sinif": "IADE",
+          "zaman": "2026-09-14T20:28:23.069Z",
+          "musteri": "web-cb97nziw",
+          "otomatik": true,
+          "insanaAktar": true
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:19:11.730Z",
+          "musteri": "yayinla-duman",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "LUCIDERM Yüz Temizleme Köpüğü ile birlikte yüz bakımı rutinini tamamlayan ürünlerimiz:\n• HYDRAVIE El & Yüz Nemlendirici Krem · 1.200 TL\n  https://www.lcarlie.shop/product-page/hydravie\n• SUNACNEA · SPF 30 Günlük Güneş Koruyucu · 1.200 TL\n  https://www.lcarlie.shop/product-page/sunacnea-30-spf\n• CALMAROS Ferahlatıcı Tonik Sprey · 1.850 TL\n  https://www.lcarlie.shop/product-page/calmaros\nYeterli miktarda uygulanmaması korumayı önemli ölçüde düşürür. Aşırı güneş maruziyeti sağlık tehdididir. Bebek ve küçük çocuklar doğrudan güneşe maruz bırakılmamalıdır. Hiçbir ürün %100 koruma sağlamaz.\nTüm ürünler: https://lcarlie.shop",
+          "gelen": "luciderm aldim yanina ne alayim",
+          "sinif": "CAPRAZ_SATIS",
+          "zaman": "2026-09-14T20:15:26.180Z",
+          "musteri": "kapi-test-7646d40e",
+          "otomatik": true,
+          "insanaAktar": false
+        },
+        {
+          "cevap": "L'CARLIÉ ürünleri kozmetik bakım ürünleridir. Cildinizle ilgili bir durum için hekiminize danışmanızı öneririz. Ürünlerimizin tam içerik listesini ürün sayfalarımızda bulabilirsiniz: https://lcarlie.shop",
+          "gelen": "hydravie yaninda ne alayim cildimde kuruluk var",
+          "sinif": "BELIRTI_ANLATIMI",
+          "zaman": "2026-09-14T20:15:25.654Z",
+          "musteri": "kapi-test-ed7ee4b3",
+          "otomatik": true,
+          "insanaAktar": true
+        },
+        {
+          "cevap": "L'CARLIÉ ürünleri kozmetik bakım ürünleridir. Cildinizle ilgili bir durum için hekiminize danışmanızı öneririz. Ürünlerimizin tam içerik listesini ürün sayfalarımızda bulabilirsiniz: https://lcarlie.shop",
+          "gelen": "luciderm aldim yanina ne alayim sacim dokuluyor",
+          "sinif": "BELIRTI_ANLATIMI",
+          "zaman": "2026-09-14T20:15:25.070Z",
+          "musteri": "kapi-test-199fbff0",
+          "otomatik": true,
+          "insanaAktar": true
+        },
+        {
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "gelen": "lipvora fiyat",
+          "sinif": "FIYAT",
+          "zaman": "2026-09-14T20:15:12.386Z",
+          "musteri": "yayinla-duman",
+          "otomatik": true,
+          "insanaAktar": false
+        }
+      ],
+      "eskalasyonlar": [
+        {
+          "zaman": "2026-09-15T20:37:41.303Z",
+          "musteri": "sinav-9-3533",
+          "sinif": "ANLASILMADI",
+          "gelen": "Ben 19 sene önce trafik kazası geçirdim Beyin kanaması oldum sağ tarafta kasılma var",
+          "cevap": "Ürünlerimizi, içerik ve kullanım bilgilerini sitemizden inceleyebilirsiniz: https://lcarlie.shop",
+          "otomatik": true,
+          "insanaAktar": true,
+          "kapatildi": false
+        },
+        {
+          "zaman": "2026-09-15T20:37:38.739Z",
+          "musteri": "sinav-8-14384",
+          "sinif": "SAGLIK",
+          "gelen": "Alerjik veya yan Etkisi olur mu",
+          "cevap": "L'CARLIÉ ürünleri kozmetik bakım ürünleridir. Cildinizle ilgili bir durum için hekiminize danışmanızı öneririz. Ürünlerimizin tam içerik listesini ürün sayfalarımızda bulabilirsiniz: https://lcarlie.shop",
+          "otomatik": true,
+          "insanaAktar": true,
+          "kapatildi": false
+        },
+        {
+          "zaman": "2026-09-14T21:24:25.776Z",
+          "musteri": "geri-alma-36d2b3",
+          "sinif": "FIYAT",
+          "gelen": "softguard kac para",
+          "cevap": "SOFTGUARD ürününün tüm bilgileri ve siparişi ürün sayfamızda yer alıyor: https://www.lcarlie.shop/product-page/softguard\nDiğer sorularınız için ekip arkadaşımız da en kısa sürede dönüş yapacak.",
+          "otomatik": true,
+          "insanaAktar": true,
+          "kapatildi": false
+        },
+        {
+          "zaman": "2026-09-14T21:24:25.149Z",
+          "musteri": "geri-alma-b16e3d",
+          "sinif": "ANLASILMADI",
+          "gelen": "vireon hakkinda bilgi",
+          "cevap": "VIREON ürününün tüm bilgileri ve siparişi ürün sayfamızda yer alıyor: https://www.lcarlie.shop/vireon\nDiğer sorularınız için ekip arkadaşımız da en kısa sürede dönüş yapacak.",
+          "otomatik": true,
+          "insanaAktar": true,
+          "kapatildi": false
+        },
+        {
+          "zaman": "2026-09-14T21:20:52.846Z",
+          "musteri": "filtre-dogrulama-0f8ec5",
+          "sinif": "SATISTA_ANLATILMAYAN",
+          "gelen": "femisia fiyati nedir",
+          "cevap": "Mesajınız için teşekkür ederiz. Bu konuda size en doğru bilgiyi ekip arkadaşımız verecek, en kısa sürede dönüş yapacağız. Bu arada tüm ürünlerimizi inceleyebilirsiniz: https://lcarlie.shop",
+          "otomatik": false,
+          "insanaAktar": true,
+          "kapatildi": false
+        },
+        {
+          "zaman": "2026-09-14T21:20:52.314Z",
+          "musteri": "filtre-dogrulama-16ffce",
+          "sinif": "SATISTA_ANLATILMAYAN",
+          "gelen": "softguard kac para",
+          "cevap": "Mesajınız için teşekkür ederiz. Bu konuda size en doğru bilgiyi ekip arkadaşımız verecek, en kısa sürede dönüş yapacağız. Bu arada tüm ürünlerimizi inceleyebilirsiniz: https://lcarlie.shop",
+          "otomatik": false,
+          "insanaAktar": true,
+          "kapatildi": false
+        },
+        {
+          "zaman": "2026-09-14T21:20:51.651Z",
+          "musteri": "filtre-dogrulama-292092",
+          "sinif": "SATISTA_ANLATILMAYAN",
+          "gelen": "vireon hakkinda bilgi",
+          "cevap": "Mesajınız için teşekkür ederiz. Bu konuda size en doğru bilgiyi ekip arkadaşımız verecek, en kısa sürede dönüş yapacağız. Bu arada tüm ürünlerimizi inceleyebilirsiniz: https://lcarlie.shop",
+          "otomatik": false,
+          "insanaAktar": true,
+          "kapatildi": false
+        },
+        {
+          "zaman": "2026-09-14T21:16:59.086Z",
+          "musteri": "hata-yolu-testi",
+          "sinif": "AJAN-HATASI",
+          "gelen": "luciderm fiyat",
+          "cevap": "Mesajınız için teşekkür ederiz. Bu konuda size en doğru bilgiyi ekip arkadaşımız verecek, en kısa sürede dönüş yapacağız. Bu arada tüm ürünlerimizi inceleyebilirsiniz: https://lcarlie.shop",
+          "otomatik": false,
+          "insanaAktar": true,
+          "kapatildi": true,
+          "kapanma": "2026-09-14T21:17:58.001Z"
+        },
+        {
+          "zaman": "2026-09-14T21:12:24.784Z",
+          "musteri": "-",
+          "sinif": "AJAN-HATASI",
+          "gelen": "-",
+          "cevap": "Mesajınız için teşekkür ederiz. Bu konuda size en doğru bilgiyi ekip arkadaşımız verecek, en kısa sürede dönüş yapacağız. Bu arada tüm ürünlerimizi inceleyebilirsiniz: https://lcarlie.shop",
+          "otomatik": false,
+          "insanaAktar": true,
+          "kapatildi": false
+        },
+        {
+          "cevap": "VIREON ürününün tüm bilgileri ve siparişi ürün sayfamızda yer alıyor: https://www.lcarlie.shop/vireon\nDiğer sorularınız için ekip arkadaşımız da en kısa sürede dönüş yapacak.",
+          "gelen": "Vireon kaç günde teslim edilir ve iade şartları nedir?",
+          "sinif": "IADE",
+          "zaman": "2026-09-14T20:28:23.069Z",
+          "musteri": "web-cb97nziw",
+          "otomatik": true,
+          "kapatildi": false,
+          "insanaAktar": true
+        },
+        {
+          "cevap": "L'CARLIÉ ürünleri kozmetik bakım ürünleridir. Cildinizle ilgili bir durum için hekiminize danışmanızı öneririz. Ürünlerimizin tam içerik listesini ürün sayfalarımızda bulabilirsiniz: https://lcarlie.shop",
+          "gelen": "hydravie yaninda ne alayim cildimde kuruluk var",
+          "sinif": "BELIRTI_ANLATIMI",
+          "zaman": "2026-09-14T20:15:25.654Z",
+          "musteri": "kapi-test-ed7ee4b3",
+          "otomatik": true,
+          "kapatildi": false,
+          "insanaAktar": true
+        },
+        {
+          "cevap": "L'CARLIÉ ürünleri kozmetik bakım ürünleridir. Cildinizle ilgili bir durum için hekiminize danışmanızı öneririz. Ürünlerimizin tam içerik listesini ürün sayfalarımızda bulabilirsiniz: https://lcarlie.shop",
+          "gelen": "luciderm aldim yanina ne alayim sacim dokuluyor",
+          "sinif": "BELIRTI_ANLATIMI",
+          "zaman": "2026-09-14T20:15:25.070Z",
+          "musteri": "kapi-test-199fbff0",
+          "otomatik": true,
+          "kapatildi": false,
+          "insanaAktar": true
+        },
+        {
+          "cevap": "L'CARLIÉ ürünleri kozmetik bakım ürünleridir. Cildinizle ilgili bir durum için hekiminize danışmanızı öneririz. Ürünlerimizin tam içerik listesini ürün sayfalarımızda bulabilirsiniz: https://lcarlie.shop",
+          "gelen": "sacim dokuluyor",
+          "sinif": "BELIRTI_ANLATIMI",
+          "zaman": "2026-09-14T20:11:44.151Z",
+          "musteri": "uzman-dogrulama-85e97a67",
+          "otomatik": true,
+          "kapatildi": false,
+          "insanaAktar": true
+        },
+        {
+          "cevap": "Mesajınız için teşekkür ederiz. Bu konuda size en doğru bilgiyi ekip arkadaşımız verecek, en kısa sürede dönüş yapacağız. Bu arada tüm ürünlerimizi inceleyebilirsiniz: https://lcarlie.shop",
+          "gelen": "Sipariş ve kargo",
+          "sinif": "KARGO",
+          "zaman": "2026-09-14T20:07:55.525Z",
+          "musteri": "web-cb97nziw",
+          "otomatik": false,
+          "kapatildi": false,
+          "insanaAktar": true
+        },
+        {
+          "cevap": "L'CARLIÉ ürünleri kozmetik bakım ürünleridir. Cildinizle ilgili bir durum için hekiminize danışmanızı öneririz. Ürünlerimizin tam içerik listesini ürün sayfalarımızda bulabilirsiniz: https://lcarlie.shop",
+          "gelen": "egzamam var",
+          "sinif": "SAGLIK",
+          "zaman": "2026-09-14T18:17:08.437Z",
+          "musteri": "esk-egza",
+          "otomatik": true,
+          "kapatildi": false,
+          "insanaAktar": true
+        },
+        {
+          "cevap": "Mesajınız için teşekkür ederiz. Bu konuda size en doğru bilgiyi ekip arkadaşımız verecek, en kısa sürede dönüş yapacağız. Bu arada tüm ürünlerimizi inceleyebilirsiniz: https://lcarlie.shop",
+          "gelen": "iade etmek istiyorum",
+          "sinif": "IADE",
+          "zaman": "2026-09-14T18:17:07.988Z",
+          "musteri": "esk-iade",
+          "otomatik": false,
+          "kapatildi": false,
+          "insanaAktar": true
+        },
+        {
+          "cevap": "Mesajınız için teşekkür ederiz. Bu konuda size en doğru bilgiyi ekip arkadaşımız verecek, en kısa sürede dönüş yapacağız. Bu arada tüm ürünlerimizi inceleyebilirsiniz: https://lcarlie.shop",
+          "gelen": "kargom nerede",
+          "sinif": "KARGO",
+          "zaman": "2026-09-14T18:17:07.440Z",
+          "musteri": "esk-karg",
+          "otomatik": false,
+          "kapatildi": false,
+          "insanaAktar": true
+        }
+      ],
+      "eskalasyonToplam": 17
+    }
+  },
+  "meta": null,
+  "nodeGroups": [],
+  "pinData": null,
+  "versionId": "6f621052-bba5-45c2-9a9a-23dbb43414e9",
+  "activeVersionId": null,
+  "versionCounter": 10,
+  "triggerCount": 2,
+  "sourceWorkflowId": null,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2026-09-13T10:26:52.574Z",
+      "createdAt": "2026-09-13T10:26:52.574Z",
+      "role": "workflow:owner",
+      "workflowId": "lcarlieSohbet01",
+      "projectId": "M1v7hmqhykEAq9Dd",
+      "project": {
+        "updatedAt": "2026-09-12T14:50:13.906Z",
+        "createdAt": "2026-09-12T14:39:40.699Z",
+        "id": "M1v7hmqhykEAq9Dd",
+        "name": "Murat ozer Yildiz <moy.ozeryildiz@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "158bbe9d-2c83-4df7-82d1-bae3a8c5f436"
+      }
+    }
+  ],
+  "versionMetadata": {
+    "name": null,
+    "description": null
+  }
+}
