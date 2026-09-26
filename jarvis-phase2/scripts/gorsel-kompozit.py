@@ -38,6 +38,9 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 KOK = Path(__file__).resolve().parents[1]
 GORSEL = Path("/opt/lcarlie/katalog-gorsel")
+# Stüdyo çekiminin orijinali: 3072x4608 (14,2 MP). Web kopyası
+# 1254x1254 (1,6 MP) -- dokuz kat fark. Varsa HAM kullanılır.
+HAM = Path("/opt/lcarlie/urun-ham")
 KESIM = Path("/opt/lcarlie/katalog-kesim")
 FONT_DIZIN = KOK / "webconsole" / "static" / "fonts"
 CIKTI = Path("/opt/lcarlie/gorsel-kuyruk/cikti")
@@ -184,6 +187,19 @@ def ana_gorsel(slug: str) -> Path:
     if not adaylar:
         raise GorselHatasi("urun gorseli yok: %s" % slug)
     return adaylar[0]
+
+
+def urun_kaynagi(slug: str) -> tuple:
+    """(yol, kaynak_adi). Ham çekim varsa o, yoksa web kopyası.
+
+    🔴 HANGİSİNİN KULLANILDIĞI RAPORA YAZILIR. Sessizce web kopyasına
+    düşmek, o ürünün baskıda bulanık çıkacağını kimseye söylemezdi.
+    Ham çekimi olmayan iki ürün var: babydent, bright-smile.
+    """
+    ham = HAM / ("%s.jpg" % slug)
+    if ham.is_file():
+        return ham, "ham-cekim"
+    return ana_gorsel(slug), "web-kopyasi"
 
 
 def kirp(im: Image.Image) -> Image.Image:
@@ -627,7 +643,7 @@ def uret(slug: str, bicim: str = "AKIS", baslik: str = "", alt: str = "",
         raise GorselHatasi("gecersiz yerlesim: %s" % yerlesim_adi)
     if isik not in ISIK_YONLERI:
         raise GorselHatasi("gecersiz isik yonu: %s" % isik)
-    kaynak = ana_gorsel(slug)
+    kaynak, kaynak_turu = urun_kaynagi(slug)
 
     t0 = time.time()
     urun = kirp(urun_kesimi(kaynak))
@@ -706,6 +722,11 @@ def uret(slug: str, bicim: str = "AKIS", baslik: str = "", alt: str = "",
         "isik_kaynagi": "olculdu" if isik == "olc" else "verildi",
         "kontrast_esigi": EN_AZ_KONTRAST,
         "kaynak_fotograf": kaynak.name,
+        # 🔴 Hangi cozunurlukten kesildigi RAPORA yazilir: ham cekim
+        # 14,2 MP, web kopyasi 1,6 MP. Sessizce web kopyasina dusmek,
+        # o urunun baskida bulanik cikacagini kimseye soylemezdi.
+        "kaynak_turu": kaynak_turu,
+        "kaynak_cozunurluk": list(Image.open(kaynak).size),
         "sahne": sahne.name if sahne else "duz-zemin",
         "dosya": ad + ".jpg",
         "sure_sn": round(time.time() - t0, 2),
