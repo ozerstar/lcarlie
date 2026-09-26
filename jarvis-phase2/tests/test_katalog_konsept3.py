@@ -76,9 +76,25 @@ class DpiTabani(unittest.TestCase):
             k3._dpi_kur(y, 216.0, 144.0, 0.30)
 
     def test_azami_dpi_formulu(self):
+        """1 PIKSEL GUVENLIK PAYI beklenen degeri dusurur.
+
+        Kadraj kutusu normalize edilip tam sayiya yuvarlandigi icin
+        gercek kirpma nominalden 1 px kucuk cikabiliyor; pay olmadan
+        tam sinirda render motoru yukari ornekleme reddi veriyordu.
+        Beklenen degerler (w-1)/(h-1) ile hesaplanir.
+        """
         y = _foto(1800, 1200)
-        self.assertAlmostEqual(k3.azami_dpi(y, 216.0, 144.0), 211.66, places=1)
-        self.assertAlmostEqual(k3.azami_dpi(y, 216.0, 216.0), 141.11, places=1)
+        # Sinirlayan eksen min() ile belirlenir; 216x144'te sinirlayan
+        # YUKSEKLIK (1199 px / 144 mm), genislik degil.
+        self.assertAlmostEqual(
+            k3.azami_dpi(y, 216.0, 144.0),
+            min(1799 * 25.4 / 216.0, 1199 * 25.4 / 144.0), places=3)
+        self.assertAlmostEqual(
+            k3.azami_dpi(y, 216.0, 216.0),
+            min(1799 * 25.4 / 216.0, 1199 * 25.4 / 216.0), places=3)
+        # pay gercekten 1 px: pay olmasaydi deger daha yuksek olurdu
+        self.assertLess(k3.azami_dpi(y, 216.0, 144.0),
+                        min(1800 * 25.4 / 216.0, 1200 * 25.4 / 144.0))
 
 
 class DiziSozlesmesi(unittest.TestCase):

@@ -55,9 +55,15 @@ def _olcu(yol: str) -> tuple[int, int]:
 
 
 def azami_dpi(yol: str, en_mm: float, boy_mm: float) -> float:
-    """Yukari ornekleme yapmadan ulasilabilen azami yerlesim DPI'i."""
+    """Yukari ornekleme yapmadan ulasilabilen azami yerlesim DPI'i.
+
+    1 PIKSEL GUVENLIK PAYI: kadraj kutusu normalize edilip tam sayiya
+    yuvarlandigi icin gercek kirpma nominalden 1 px kucuk cikabiliyor.
+    Pay olmadan tam sinirda (orn. 150.15 DPI) hedef 1277 px, kaynak
+    1276 px oluyor ve render motoru -- hakli olarak -- reddediyor.
+    """
     w, h = _olcu(yol)
-    return min(w * 25.4 / en_mm, h * 25.4 / boy_mm)
+    return min((w - 1) * 25.4 / en_mm, (h - 1) * 25.4 / boy_mm)
 
 
 def kadraj(yol: str, en_mm: float, boy_mm: float,
