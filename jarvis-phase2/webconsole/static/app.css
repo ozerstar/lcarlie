@@ -4338,3 +4338,10 @@ html, body { max-width: 100%; overflow-x: hidden; }
   .ur-satir { grid-template-columns: 1fr; gap: 0; }
   .ur-kart-dosya { flex-wrap: wrap; }
 }
+
+/* Messenger pilot paneli baglantisi (SISTEM sekmesi).
+   🔴 Satir ici stil YOK: CSP style-src 'self'. */
+.sistem-baglanti { margin: .2rem 0 .9rem; }
+.sistem-baglanti a { font-weight: 700; letter-spacing: .04em; text-decoration: none; }
+.sistem-baglanti a:hover { text-decoration: underline; }
+.sistem-baglanti-not { display: block; font-size: .78rem; opacity: .7; margin-top: .15rem; }

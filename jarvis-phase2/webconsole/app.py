@@ -708,6 +708,36 @@ def _kreatif_partiler(limit: int = 12) -> dict:
 
 
 
+def _messenger_panel_anahtari() -> str:
+    """Messenger pilot paneli erisim anahtari.
+
+    🔴 NEDEN DOSYADAN. jarvis-web'in ortami systemd unit'indeki
+    `Environment=` satirlarindan geliyor; oraya bir sir yazmak onu
+    `systemctl show` ciktisina ve unit dosyasina tasir. Bunun yerine
+    anahtar, servisin zaten okudugu durum klasorunde duruyor.
+
+    Ortam degiskeni yine de once bakilir: gelistirme sirasinda
+    disaridan vermek kolay olsun.
+
+    Okunamazsa BOS doner -- cagiran taraf 503 ile acikca sikayet eder.
+    Sessizce kirik bir baglanti vermek bu projede tekrar eden hata.
+    """
+    import os as _os
+    deger = (_os.environ.get("MESSENGER_PANEL_TOKEN") or "").strip()
+    if deger:
+        return deger
+    kok = _os.environ.get("JARVIS_WEB_STATE_DIR") or _os.environ.get("JARVIS_STATE_DIR") or ""
+    if not kok:
+        return ""
+    for aday in (Path(kok) / "messenger_panel_token",
+                 Path(kok).parent / "messenger_panel_token"):
+        try:
+            return aday.read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+    return ""
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "JarvisWebConsole/1.0"
     protocol_version = "HTTP/1.1"
@@ -1208,6 +1238,38 @@ class Handler(BaseHTTPRequestHandler):
     def _route_canva(self, path: str, query: dict) -> None:
         """Canva OAuth: baslatma (oturumlu) ve geri donus (state korumali)."""
         from jarvis import canva
+
+        if path == "/messenger-pilot":
+            # Messenger pilot panelini ac. Panel n8n tarafindan servis
+            # ediliyor (WhatsApp'in /webhook/pilot deseniyle ayni).
+            #
+            # 🔴 ANAHTAR SAYFAYA GOMULMEZ. Baglantiyi index.html'e erisim
+            #    anahtariyla birlikte yazsaydik, konsolu goren herkes
+            #    anahtari kopyalayip paneli konsol OTURUMU OLMADAN
+            #    acabilirdi. Burada anahtar sunucu tarafinda kaliyor ve
+            #    yalniz oturumu olan kullanici yonlendiriliyor.
+            #
+            # 🔴 EKSIK AYAR SESSIZ KALMAZ. Anahtar yoksa 503 doner ve
+            #    nerede tanimlanacagini soyler; kirik bir baglanti
+            #    vermektense acikca sikayet etmek daha iyidir.
+            if self._current_session() is None:
+                self._send_json(401, {"error": "oturum gerekli"})
+                return
+            anahtar = _messenger_panel_anahtari()
+            if not anahtar:
+                self._send_json(503, {
+                    "error": "Messenger panel anahtari bulunamadi",
+                    "cozum": "state/messenger_panel_token dosyasina yaz; "
+                             "asil kopya /opt/lcarlie/n8n/.env icinde"})
+                return
+            from urllib.parse import quote
+            self.send_response(302)
+            self.send_header(
+                "Location",
+                "https://n8n.lcarlie.shop/webhook/messenger-panel?k=" + quote(anahtar))
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
 
         if path == "/canva/baslat":
             # 🔴 Oturum ZORUNLU: yetkilendirmeyi yalniz sahip baslatir.
