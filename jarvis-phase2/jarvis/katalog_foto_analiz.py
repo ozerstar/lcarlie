@@ -116,33 +116,113 @@ def _dizi(yol, azami=900):
     return np, np.asarray(im, dtype="float32") / 255.0, tam
 
 
-def _konu_maskesi(np, rgb):
-    """Kesintisiz fondan konuyu ayirir.
+def _zemin_yuzeyi(np, rgb):
+    """Kenar bandindan ikinci derece yuzey uydurur -- vinyet/gradyan modeli.
 
-    Fon kenarlardan orneklenir; konu, fondan algisal olarak uzaklasan
-    piksellerdir. Kesintisiz stüdyo fonu icin guvenilirdir."""
+    NEDEN: Bu fotograflarin fonu duz DEGIL; yumusak bir vinyet ve
+    zemin-duvar gecisi var. Medyan renk cikarmak yetmiyor -- OLCULDU,
+    bes urunun dordunde maske fonun koyu tarafini konu sandi."""
     boy, en = rgb.shape[:2]
-    bant = max(3, int(min(en, boy) * 0.05))
-    kenar = np.concatenate([
-        rgb[:bant].reshape(-1, 3), rgb[:, :bant].reshape(-1, 3),
-        rgb[:, -bant:].reshape(-1, 3),
-    ])
-    zemin = np.median(kenar, axis=0)
-    fark = np.sqrt(((rgb - zemin) ** 2).sum(axis=2))
-    esik = max(0.055, float(np.percentile(fark, 88)) * 0.55)
-    ham = fark > esik
+    yy, xx = np.mgrid[0:boy, 0:en].astype("float32")
+    x = (xx / en) - 0.5
+    y = (yy / boy) - 0.5
+    T = np.stack([np.ones_like(x), x, y, x * x, y * y, x * y], axis=-1)
 
-    # Golge zeminle birlesir; en buyuk bitisik bileseni al
+    bant = max(4, int(min(en, boy) * 0.07))
+    kenar = np.zeros((boy, en), dtype=bool)
+    kenar[:bant] = True; kenar[-bant:] = True
+    kenar[:, :bant] = True; kenar[:, -bant:] = True
+
+    A = T[kenar].reshape(-1, 6)
+    yuzey = np.empty_like(rgb)
+    for c in range(3):
+        b = rgb[..., c][kenar].reshape(-1)
+        kat, *_ = np.linalg.lstsq(A, b, rcond=None)
+        yuzey[..., c] = (T @ kat)
+    return np.clip(yuzey, 0.0, 1.0)
+
+
+def _konu_maskesi(np, rgb):
+    """Konuyu fondan ayirir. Iki sinyal birlikte: RENK KALINTISI + KENAR.
+
+    Tek basina renk kalintisi beyaz urunu beyaz fonda bulamaz
+    (HYDRAVIE olculdu). Tek basina kenar golgeyi ve dokuyu yakalar."""
     from scipy import ndimage
+    boy, en = rgb.shape[:2]
+    yuzey = _zemin_yuzeyi(np, rgb)
+    kalinti = ndimage.median_filter(
+        np.sqrt(((rgb - yuzey) ** 2).sum(axis=2)), 3)
+
+    gri = rgb.mean(axis=2)
+    gx = np.zeros_like(gri); gy = np.zeros_like(gri)
+    gx[:, 1:-1] = np.abs(gri[:, 2:] - gri[:, :-2])
+    gy[1:-1] = np.abs(gri[2:] - gri[:-2])
+    kenar = ndimage.gaussian_filter(gx + gy, 2)
+
+    def olcekle(a):
+        return np.clip(a / (float(np.percentile(a, 99.5)) + 1e-6), 0, 1)
+
+    skor = 0.60 * olcekle(kalinti) + 0.40 * olcekle(kenar)
+    ham = ndimage.binary_closing(
+        skor > max(0.085, float(np.percentile(skor, 90)) * 0.60), np.ones((7, 7)))
+
     etiket, adet = ndimage.label(ham)
     if adet == 0:
-        return ham, zemin
-    boyutlar = ndimage.sum(ham, etiket, range(1, adet + 1))
-    en_buyuk = int(np.argmax(boyutlar)) + 1
-    maske = etiket == en_buyuk
-    maske = ndimage.binary_closing(maske, np.ones((5, 5)))
-    maske = ndimage.binary_fill_holes(maske)
-    return maske, zemin
+        return ham, np.median(rgb.reshape(-1, 3), axis=0)
+
+    # Urun zemine basar ve kareye yakin ortadadir: bilesen puani
+    en_iyi, en_iyi_puan = None, -1.0
+    for i in range(1, adet + 1):
+        m = etiket == i
+        alan = float(m.sum()) / (boy * en)
+        if alan < 0.004 or alan > 0.80:
+            continue
+        ys, xs = np.nonzero(m)
+        merkezilik = 1.0 - min(1.0, abs((xs.mean() / en) - 0.5) * 2.4)
+        yayilim = (ys.max() - ys.min() + 1) / boy
+        puan = alan * 0.5 + merkezilik * 0.35 + yayilim * 0.15
+        if puan > en_iyi_puan:
+            en_iyi_puan, en_iyi = puan, i
+    if en_iyi is None:
+        return np.zeros_like(ham), np.median(rgb.reshape(-1, 3), axis=0)
+
+    maske = ndimage.binary_fill_holes(etiket == en_iyi)
+
+    # YUMUSAK DUVAR GOLGESI maskeye karisiyor (OLCULDU: HYDRAVIE ve
+    # BABYSOL'de kutu bos alana tasiyordu). Golge satir/sutun basina
+    # cok daha az piksel katar: tepe noktasindan bitisik kosuyu al.
+    def tepe_kosusu(profil, oran):
+        if profil.max() <= 0:
+            return 0, len(profil) - 1
+        esik = profil.max() * oran
+        tepe = int(np.argmax(profil))
+        bas, sonn = tepe, tepe
+        while bas > 0 and profil[bas - 1] >= esik:
+            bas -= 1
+        while sonn < len(profil) - 1 and profil[sonn + 1] >= esik:
+            sonn += 1
+        return bas, sonn
+
+    y0, y1 = tepe_kosusu(maske.sum(axis=1), 0.14)
+    x0, x1 = tepe_kosusu(maske.sum(axis=0), 0.22)
+    kirpik = np.zeros_like(maske)
+    kirpik[y0:y1 + 1, x0:x1 + 1] = maske[y0:y1 + 1, x0:x1 + 1]
+
+    # Tepe kosusu iki parcali urunde COK SIKI olabilir: sise sutun
+    # profilinde tepe yapar, kutu disarida kalir (OLCULDU: KINESIS).
+    # Golgeyi nesneden ayiran sinyal KENAR ENERJISIDIR: golge
+    # yumusaktir, nesne keskindir. Geri alma icin IKISI DE gerekir.
+    kenar_guclu = kenar > max(0.010, float(np.percentile(kenar, 97)) * 0.35)
+    saglam = ((kalinti > max(0.055, float(np.percentile(kalinti, 97)) * 0.42))
+              & ndimage.binary_dilation(kenar_guclu, np.ones((9, 9)))
+              & maske)
+    if saglam.any() and kirpik.any():
+        et2, _ = ndimage.label(ndimage.binary_closing(kirpik | saglam,
+                                                      np.ones((5, 5))))
+        tutulan = set(np.unique(et2[kirpik])) - {0}
+        if tutulan:
+            kirpik = np.isin(et2, list(tutulan)) & (kirpik | saglam)
+    return kirpik, np.median(yuzey.reshape(-1, 3), axis=0)
 
 
 def _saliency(np, rgb, maske):
@@ -256,7 +336,19 @@ def analiz(yol: str | pathlib.Path) -> FotoAnaliz:
     sal = _saliency(np, rgb, maske)
 
     # --- urun sinir kutusu
-    if maske.any():
+    zorla = gecersiz_kilma_bul(yol)
+    if zorla is not None:
+        kutu = Bolge(*zorla)
+        yb0, yb1 = int(kutu.y * boy), int((kutu.y + kutu.boy) * boy)
+        xb0, xb1 = int(kutu.x * en), int((kutu.x + kutu.en) * en)
+        kirp = np.zeros_like(maske)
+        kirp[yb0:yb1, xb0:xb1] = maske[yb0:yb1, xb0:xb1]
+        if not kirp.any():
+            kirp[yb0:yb1, xb0:xb1] = True
+        maske = kirp
+        sal = _saliency(np, rgb, maske)
+        urun_alan = round(float(maske.mean()), 4)
+    elif maske.any():
         ys, xs = np.nonzero(maske)
         kutu = Bolge(round(float(xs.min()) / en, 4), round(float(ys.min()) / boy, 4),
                      round(float(xs.max() - xs.min() + 1) / en, 4),
@@ -401,3 +493,19 @@ def _kadraj_firsatlari(kutu: Bolge, zemin: ZeminModeli,
 
 def toplu_analiz(yollar) -> dict:
     return {str(y): analiz(y).sozluk() for y in yollar}
+
+
+# --- insan dogrulamali sinir kutusu gecersiz kilmalari -------------------
+# Otomatik ayrim 5 urunun 4'unde dogru. HYDRAVIE'de duvara dusen SERT
+# golgenin kenari urun kenari kadar keskin; kalinti+kenar kapisi ikisini
+# ayiramiyor. OLCULDU ve gozle dogrulandi.
+#
+# Bu bir yenilgi degil, mimarinin geregi: olculebilen olculur,
+# olculemeyen uzman yargisina birakilir ve KAYDA GECER.
+KUTU_GECERSIZ_KILMA: dict[str, tuple[float, float, float, float]] = {
+    "hydravie-86a59a5fb8": (0.39, 0.16, 0.21, 0.72),
+}
+
+
+def gecersiz_kilma_bul(yol):
+    return KUTU_GECERSIZ_KILMA.get(pathlib.Path(yol).stem)
