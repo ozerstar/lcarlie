@@ -78,6 +78,7 @@
           <span>KREATİF</span><i class="nav-caret" aria-hidden="true"></i>
         </button>
         <div class="nav-body">
+          <button type="button" class="nav-item" data-view="uretilenler">ÜRETİLENLER</button>
           <button type="button" class="nav-item" data-view="kreatifParti">KREATİF</button>
           <button type="button" class="nav-item" data-view="reklam">REKLAM</button>
           <button type="button" class="nav-item" data-view="tasarim">TASARIM</button>
@@ -575,6 +576,23 @@
     </div>
     <div class="panel-body sect-body" id="ayarlarBody">
       <p class="sect-empty">Yükleniyor…</p>
+    </div>
+  </section>
+</main>
+
+<main class="stage stage-single view-panel" id="viewUretilenler" hidden>
+  <section class="panel" aria-label="URETILEN HER SEY">
+    <div class="panel-head">
+      <h2 class="panel-title">ÜRETİLENLER</h2>
+      <span class="panel-count" id="urSayi">—</span>
+    </div>
+    <div class="panel-body sect-body">
+      <p class="fm-sub">
+        Üretilen her şey burada: kreatif konseptler, gönderi görselleri,
+        basılı katalog, çekim föyleri. Hangi sekmede olduğunu aramak
+        gerekmiyor.
+      </p>
+      <div id="urListe" class="ur-liste"></div>
     </div>
   </section>
 </main>

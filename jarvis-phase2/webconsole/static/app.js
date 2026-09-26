@@ -158,7 +158,8 @@ const VIEWS = {
                 eticaret: 'viewEticaret', reklam: 'viewReklam',
                 hafiza: 'viewHafiza', ekip: 'viewEkip',
                 sistem: 'viewSistem', isler: 'viewIsler',
-                saha: 'viewSaha', katalog: 'viewKatalog' };
+                saha: 'viewSaha', katalog: 'viewKatalog',
+                uretilenler: 'viewUretilenler' };
 
 function setView(name) {
   if (!VIEWS[name]) return;
@@ -179,6 +180,7 @@ function setView(name) {
   if (name === 'isler') loadIsler();
   if (name === 'saha') loadSaha();
   if (name === 'katalog') { loadKatalog(); loadIgPlan(); }
+  if (name === 'uretilenler') loadUretilenler();
   if (name === 'kreatifParti') loadKreatifParti();
   if (name === 'tasarim') tasarimYukle();
   if (name === 'asistan') asistanYukle();
@@ -7147,4 +7149,144 @@ function igGorsel(p) {
           ? '<span class="ig-taslak">taslak</span>' : '')
     +   '<a class="ig-indir" href="' + url + '" download>indir</a>'
     + '</figcaption></figure>';
+}
+
+
+/* ---------------------------- ÜRETİLENLER ----------------------------
+ * 🔴 Üretilen şeyler 22 sekmeye dağılmıştı: katalog PDF'i KATALOG'da,
+ * gönderi görselleri INSTAGRAM'da, çekim föyü gönderi kartının içinde,
+ * kreatif konseptler HİÇBİR YERDE. "Şu dosya nerede" sorusunun tek bir
+ * cevabı yoktu. Burada hepsi aynı biçimde durur.
+ *
+ * Boş bölüm GİZLENMEZ: üretilmemiş olan, görünmez olmamalı. */
+async function loadUretilenler() {
+  const cevap = await api('/api/uretilenler');
+  const kap = qs('urListe');
+  if (!kap) return;
+  if (!cevap.ok) {
+    kap.innerHTML = '<p class="sect-empty">Üretilenler okunamadı: '
+      + escapeHtml((cevap.body && cevap.body.error) || 'bilinmeyen hata')
+      + '</p>';
+    return;
+  }
+  urCiz(cevap.body);
+}
+
+function urCiz(veri) {
+  const sayi = qs('urSayi');
+  if (sayi) {
+    sayi.textContent = (veri.toplam || 0) + ' üretilmiş kayıt'
+      + (veri.soramadim && veri.soramadim.length
+          ? ' · sorulamayan: ' + veri.soramadim.join(', ') : '');
+  }
+  const kap = qs('urListe');
+  kap.innerHTML = (veri.bolumler || []).map(urBolum).join('');
+}
+
+function urBolum(b) {
+  let govde;
+  if (b.durum === 'SORAMADIM') {
+    /* SORAMADIM ile YOK ayrı şeyler: biri üretilmediğini, öbürü
+       bakamadığımızı söyler. */
+    govde = '<p class="ur-soramadim">Bakılamadı: '
+      + escapeHtml(b.sebep || '') + '</p>';
+  } else if (!b.kayitlar || !b.kayitlar.length) {
+    govde = '<p class="ur-yok">' + escapeHtml(b.bos_notu || 'henüz üretilmedi')
+      + '</p>';
+  } else if (b.anahtar === 'konsept') {
+    govde = b.kayitlar.map(urKonsept).join('');
+  } else if (b.anahtar === 'gonderi') {
+    govde = b.kayitlar.map(urGonderi).join('');
+  } else if (b.anahtar === 'tasarim') {
+    govde = b.kayitlar.map(urTasarim).join('');
+  } else {
+    govde = b.kayitlar.map(urDosya).join('');
+  }
+  return '<section class="ur-bolum">'
+    + '<header><h3>' + escapeHtml(b.baslik) + '</h3>'
+    + '<span class="ur-adet">' + ((b.kayitlar || []).length) + '</span></header>'
+    + '<p class="ur-aciklama">' + escapeHtml(b.aciklama || '') + '</p>'
+    + (b.elenen ? '<p class="ur-elenen">' + b.elenen
+        + ' konsept klişe nedeniyle elendi</p>' : '')
+    + '<div class="ur-govde">' + govde + '</div></section>';
+}
+
+function urKonsept(k) {
+  const satir = function (ad, deger) {
+    if (!deger) return '';
+    return '<div class="ur-satir"><span>' + escapeHtml(ad) + '</span><span>'
+      + escapeHtml(deger) + '</span></div>';
+  };
+  return '<article class="ur-kart">'
+    + '<header class="ur-kart-bas">'
+    +   '<span class="ur-urun">' + escapeHtml(k.urun_slug) + '</span>'
+    +   '<strong class="ur-ad">' + escapeHtml(k.ad) + '</strong>'
+    +   '<span class="ur-puan">' + k.puan + '/30</span>'
+    + '</header>'
+    + '<p class="ur-fikir">' + escapeHtml(k.ana_fikir || '') + '</p>'
+    + satir('Görsel metafor', k.gorsel_metafor)
+    + satir('Kompozisyon', k.kompozisyon)
+    + satir('Ne durdurur', k.neden_durdurur)
+    + satir('Kamera', k.ay_kamera)
+    + satir('Işık', k.ay_isik)
+    + satir('Yazı alanı', k.ay_tipografi_alani)
+    + (k.istem ? '<pre class="ur-istem">' + escapeHtml(k.istem) + '</pre>' : '')
+    + '<p class="ur-zaman">paket ' + k.plan_id + ' · ' + escapeHtml(k.uretim)
+    + '</p></article>';
+}
+
+function urGonderi(g) {
+  const gorsel = g.gorsel
+    ? '<a href="/gonderi-gorsel/' + encodeURIComponent(g.gorsel)
+      + '" target="_blank" rel="noopener"><img src="/gonderi-gorsel/'
+      + encodeURIComponent(g.gorsel) + '" alt="" loading="lazy"></a>'
+    : '<span class="ur-gorsel-yok">görsel yok</span>';
+  return '<article class="ur-kart ur-kart-gorsel">'
+    + '<div class="ur-kucuk">' + gorsel + '</div>'
+    + '<div class="ur-kart-govde">'
+    +   '<header class="ur-kart-bas">'
+    +     '<span class="ur-urun">' + escapeHtml(g.urun) + '</span>'
+    +     '<strong class="ur-ad">' + escapeHtml(g.bicim) + '</strong>'
+    +     '<span class="ur-rozet">' + escapeHtml(g.durum) + '</span>'
+    +   '</header>'
+    +   (g.kapak_karesi
+          ? '<p class="ur-uyari">Bu kare KAPAK KARESİ — video değil</p>' : '')
+    +   (g.taslak
+          ? '<p class="ur-not">taslak'
+            + (g.konsept_id ? '' : ' · konsept bağlanmadı') + '</p>' : '')
+    +   '<p class="ur-zaman">paket ' + g.plan_id + ' · '
+    +     escapeHtml(g.amac) + ' · ' + escapeHtml(g.uretim)
+    +     (g.mb ? ' · ' + g.mb + ' MB' : '') + '</p>'
+    +   '<p class="ur-baglar">'
+    +     (g.gorsel ? '<a href="/gonderi-gorsel/'
+          + encodeURIComponent(g.gorsel) + '" download>görseli indir</a>' : '')
+    +     '<a href="' + escapeHtml(g.foy) + '" download>çekim föyü</a>'
+    +   '</p>'
+    + '</div></article>';
+}
+
+function urDosya(d) {
+  return '<article class="ur-kart ur-kart-dosya">'
+    + '<div class="ur-kart-govde">'
+    +   '<strong class="ur-ad">' + escapeHtml(d.baslik) + '</strong>'
+    +   (d.aciklama ? '<p class="ur-not">' + escapeHtml(d.aciklama)
+        + '</p>' : '')
+    +   '<p class="ur-zaman">' + escapeHtml(d.uretim)
+    +     (d.mb ? ' · ' + d.mb + ' MB' : '') + '</p>'
+    + '</div>'
+    + (d.indir ? '<a class="btn btn-ince" href="' + escapeHtml(d.indir)
+        + '" download>indir</a>' : '')
+    + '</article>';
+}
+
+function urTasarim(t) {
+  return '<article class="ur-kart ur-kart-dosya">'
+    + '<div class="ur-kart-govde">'
+    +   '<strong class="ur-ad">' + escapeHtml(t.istek || t.is_turu) + '</strong>'
+    +   '<p class="ur-not">' + escapeHtml(t.is_turu) + ' · isteyen: '
+    +     escapeHtml(t.isteyen) + '</p>'
+    +   '<p class="ur-zaman">' + escapeHtml(t.uretim) + '</p>'
+    + '</div>'
+    + '<span class="ur-rozet">' + escapeHtml(t.durum) + '</span>'
+    + '</article>';
 }

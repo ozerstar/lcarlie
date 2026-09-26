@@ -60,7 +60,8 @@ from jarvis.transport import memory_host  # noqa: E402
 import auth  # noqa: E402
 import meta_webhook  # noqa: E402
 import isler  # noqa: E402
-import katalog  # noqa: E402
+import katalog
+import uretilenler  # noqa: E402
 import harita  # noqa: E402
 import saha  # noqa: E402
 import sistem  # noqa: E402
@@ -1378,6 +1379,13 @@ class Handler(BaseHTTPRequestHandler):
                     kim, saat=(s2.get("saat") or [12])[0]))
             except saha.SahaHatasi as hata:
                 self._send_json(400, {"error": str(hata)})
+            return
+        if path == "/api/uretilenler":
+            # Uretilen her sey tek yerde: sekme sekme aramaya son.
+            try:
+                self._send_json(200, uretilenler.uretilenler())
+            except uretilenler.UretimHatasi as hata:
+                self._send_json(503, {"error": str(hata)})
             return
         if path == "/api/katalog":
             try:

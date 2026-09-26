@@ -59,6 +59,8 @@ def _fonksiyon_govdeleri(js: str, onek: str):
 # Every path the frontend may call, and the reason each one is legitimate.
 KNOWN_ROUTES = {
     "/api/session", "/api/login", "/api/logout", "/api/status",
+    # URETILENLER: uretilen her seyi tek yerde toplar (26.09.2026).
+    "/api/uretilenler",
     "/api/activity", "/api/proposals", "/api/chat", "/api/chat/stream",
     "/api/plan", "/api/panel",
     # Yurutme: /api/plan planlar, /api/run planlar VE calistirir (yalniz
@@ -142,6 +144,7 @@ BACKED_VIEWS = {"home", "analiz", "gorevler", "veri", "ajanlar", "raporlar",
                 "saha",       # /api/saha
                 "katalog",    # /api/katalog
                 "asistan",   # /api/asistan
+                "uretilenler",  # /api/uretilenler
                 "sistem"}    # /api/sistem
 PANEL_VIEWS = {"veri", "ajanlar", "raporlar", "ayarlar"}
 
