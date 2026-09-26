@@ -15,12 +15,13 @@ bogar. Iki yon de olculur.
    SUSTUGU ayrica olculur.
 """
 from __future__ import annotations
+from tests import betik_yolu
 
 import importlib.util
 import pathlib
 import unittest
 
-BETIK = pathlib.Path("/opt/lcarlie/jarvis-phase2/scripts/site-nobeti.py")
+BETIK = pathlib.Path(betik_yolu("site-nobeti.py"))
 
 
 def _yukle():

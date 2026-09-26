@@ -1,8 +1,9 @@
 """Muafiyetin GERÇEK ihlalleri hâlâ yakaladığını kanıtlar."""
+from tests import betik_yolu
 import importlib.util
 import sys
 
-spec = importlib.util.spec_from_file_location("kb", "/opt/lcarlie/jarvis-phase2/scripts/kreatif-brief.py")
+spec = importlib.util.spec_from_file_location("kb", betik_yolu("kreatif-brief.py"))
 kb = importlib.util.module_from_spec(spec)
 sys.argv = ["kb"]
 spec.loader.exec_module(kb)

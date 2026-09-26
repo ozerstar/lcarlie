@@ -3,6 +3,7 @@ import json
 import pathlib
 import tempfile
 import unittest
+from tests import EnterContextMixin
 from unittest.mock import patch
 
 from jarvis import knowledge
@@ -30,7 +31,7 @@ class FakeController:
         return payload or {"sources": [], "stop_reason": "NO_RESULTS", "model_calls": 0}
 
 
-class TemelTests(unittest.TestCase):
+class TemelTests(EnterContextMixin, unittest.TestCase):
     def setUp(self):
         tmp = pathlib.Path(tempfile.mkdtemp())
         self.enterContext(patch.object(knowledge, "STATE_DIR", tmp))
@@ -71,7 +72,7 @@ class TemelTests(unittest.TestCase):
         self.assertIn("Action Firewall", out["note"])
 
 
-class DayaniklilikTests(unittest.TestCase):
+class DayaniklilikTests(EnterContextMixin, unittest.TestCase):
     def setUp(self):
         tmp = pathlib.Path(tempfile.mkdtemp())
         self.enterContext(patch.object(knowledge, "STATE_DIR", tmp))
@@ -110,7 +111,7 @@ class DayaniklilikTests(unittest.TestCase):
         self.assertLessEqual(len(row["snippet"]), knowledge.MAX_CONTENT_CHARS)
 
 
-class KonuVeOzetTests(unittest.TestCase):
+class KonuVeOzetTests(EnterContextMixin, unittest.TestCase):
     def setUp(self):
         tmp = pathlib.Path(tempfile.mkdtemp())
         self.enterContext(patch.object(knowledge, "STATE_DIR", tmp))

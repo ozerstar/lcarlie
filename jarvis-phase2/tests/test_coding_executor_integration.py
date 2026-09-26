@@ -5,6 +5,7 @@ propose, or -> fail_task on denial) is correct."""
 import json
 import tempfile
 import unittest
+from tests import EnterContextMixin
 from pathlib import Path
 from unittest.mock import patch
 
@@ -19,7 +20,7 @@ def contract():
     return build_contract(LIVE_ROWS, source="postgres:action_contract")
 
 
-class LoopCodingBridgeTests(unittest.TestCase):
+class LoopCodingBridgeTests(EnterContextMixin, unittest.TestCase):
     def setUp(self):
         tmp = Path(tempfile.mkdtemp())
         self.enterContext(patch.object(loop, "STATE_DIR", tmp))
@@ -105,7 +106,7 @@ class LoopCodingBridgeTests(unittest.TestCase):
         run_mock.assert_not_called()
 
 
-class OperatorCreateCodingTaskTests(unittest.TestCase):
+class OperatorCreateCodingTaskTests(EnterContextMixin, unittest.TestCase):
     def setUp(self):
         tmp = Path(tempfile.mkdtemp())
         self.enterContext(patch.object(jarvis_operator, "CODING_TASK_PENDING_DIR", tmp / "pending"))

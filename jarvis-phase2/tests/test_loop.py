@@ -1,13 +1,14 @@
 """Minimum Operational Jarvis: deterministic analysis, dedup, fail-safe claim
 handling. No DB required -- run_cycle's DB calls are patched."""
 import unittest
+from tests import EnterContextMixin
 from unittest.mock import patch
 
 from jarvis import loop
 from jarvis.memory import Evidence
 
 
-class AnalyzeTests(unittest.TestCase):
+class AnalyzeTests(EnterContextMixin, unittest.TestCase):
     def _obs(self, health, agenda_count=5):
         return loop.Observation(health=health, agenda_count=agenda_count,
                                 observed_at="t", content_hash="h")
@@ -31,7 +32,7 @@ class AnalyzeTests(unittest.TestCase):
         self.assertEqual(result.status, "NOOP")
 
 
-class ObserveTests(unittest.TestCase):
+class ObserveTests(EnterContextMixin, unittest.TestCase):
     def test_observe_uses_only_existing_allowlisted_queries(self):
         class FakeMemory:
             def get_system_status(self):
@@ -43,7 +44,7 @@ class ObserveTests(unittest.TestCase):
         self.assertTrue(observation.content_hash)
 
 
-class RunCycleTests(unittest.TestCase):
+class RunCycleTests(EnterContextMixin, unittest.TestCase):
     def setUp(self):
         import pathlib
         import tempfile

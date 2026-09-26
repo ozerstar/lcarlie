@@ -1,6 +1,7 @@
 """Business-signal rules: firing, silence, and refusal to fabricate.
 No DB, no network, no model."""
 import unittest
+from tests import EnterContextMixin
 from datetime import datetime, timedelta, timezone
 
 from jarvis import business_signals as bs
@@ -30,7 +31,7 @@ def work_row(days_old=1, tur="satis", anahtar="k1"):
             "yapilacak": "y"}
 
 
-class NoFabricationTests(unittest.TestCase):
+class NoFabricationTests(EnterContextMixin, unittest.TestCase):
     def test_empty_everything_is_noop_and_fires_nothing(self):
         report = bs.analyze_business([], [], [], now=NOW)
         self.assertEqual(report.status, "NOOP")
@@ -61,7 +62,7 @@ class NoFabricationTests(unittest.TestCase):
         self.assertEqual(report.external_actions, 0)
 
 
-class DecisionRuleTests(unittest.TestCase):
+class DecisionRuleTests(EnterContextMixin, unittest.TestCase):
     def test_approval_backlog_fires_at_threshold(self):
         report = bs.analyze_business(decision(insan_onayi_bekleyen=5), [], [], now=NOW)
         signal = next(s for s in report.signals if s.code == "approval_backlog")
@@ -96,7 +97,7 @@ class DecisionRuleTests(unittest.TestCase):
         self.assertEqual(report.signals[0].code, "red_team_objection")  # sorted first
 
 
-class AgendaRuleTests(unittest.TestCase):
+class AgendaRuleTests(EnterContextMixin, unittest.TestCase):
     def test_agenda_aging_fires_with_enough_stale_items(self):
         rows = [agenda_row(days_old=30, soru_id=i) for i in range(3)]
         report = bs.analyze_business(decision(), rows, [], now=NOW)
@@ -118,7 +119,7 @@ class AgendaRuleTests(unittest.TestCase):
         self.assertEqual(signal.evidence["ids"], [1, 2])
 
 
-class OpenWorkRuleTests(unittest.TestCase):
+class OpenWorkRuleTests(EnterContextMixin, unittest.TestCase):
     def test_open_work_aging(self):
         rows = [work_row(days_old=20, anahtar=f"k{i}") for i in range(4)]
         report = bs.analyze_business(decision(), [], rows, now=NOW)
@@ -146,7 +147,7 @@ class OpenWorkRuleTests(unittest.TestCase):
         self.assertIn("rule_open_work_concentration", {e["rule"] for e in report.skipped})
 
 
-class ReportShapeTests(unittest.TestCase):
+class ReportShapeTests(EnterContextMixin, unittest.TestCase):
     def test_hash_is_stable_for_same_findings(self):
         args = (decision(insan_onayi_bekleyen=7), [agenda_row()], [work_row()])
         first = bs.analyze_business(*args, now=NOW)
@@ -170,7 +171,7 @@ class ReportShapeTests(unittest.TestCase):
         self.assertIn("approval_backlog", json.dumps(report.to_dict(), ensure_ascii=False))
 
 
-class CollectTests(unittest.TestCase):
+class CollectTests(EnterContextMixin, unittest.TestCase):
     """collect() must use only getters that already exist on the adapter."""
 
     class FakeMemory:
@@ -211,7 +212,7 @@ class CollectTests(unittest.TestCase):
         self.assertIn("open_work", CompanyMemory.QUERIES)
 
 
-class CycleIntegrationTests(unittest.TestCase):
+class CycleIntegrationTests(EnterContextMixin, unittest.TestCase):
     """The signal layer inside run_cycle: dedup, fail-safe, no model calls."""
 
     def setUp(self):
@@ -350,7 +351,7 @@ class CycleIntegrationTests(unittest.TestCase):
         propose.assert_not_called()
 
 
-class BusinessTtlTests(unittest.TestCase):
+class BusinessTtlTests(EnterContextMixin, unittest.TestCase):
     """Katman her turda degil, TTL dolunca yeniden okur.
 
     Olculen sorun: dongu 5 dakikada bir calisiyor ve her turda 3 sorgu

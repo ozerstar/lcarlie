@@ -11,6 +11,7 @@ acmaya kalkti. Gruplama o yuzden eklendi; bu testler onu bekcilik eder.
    acmaz, hicbir kayit yazmaz.
 """
 from __future__ import annotations
+from tests import betik_yolu
 
 import importlib.util
 import json
@@ -19,7 +20,7 @@ import shutil
 import tempfile
 import unittest
 
-BETIK = pathlib.Path("/opt/lcarlie/jarvis-phase2/scripts/bulgu-gorev.py")
+BETIK = pathlib.Path(betik_yolu("bulgu-gorev.py"))
 
 
 def _yukle():

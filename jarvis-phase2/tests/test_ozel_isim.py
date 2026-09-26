@@ -1,9 +1,10 @@
 """Ozel isim istisnasi: etkinlik adini birakir, gercek iddiayi yakalar."""
+from tests import betik_yolu
 import importlib.util
 import sys
 
 spec = importlib.util.spec_from_file_location(
-    "it", "/opt/lcarlie/jarvis-phase2/scripts/itibar-tara.py")
+    "it", betik_yolu("itibar-tara.py"))
 it = importlib.util.module_from_spec(spec)
 sys.argv = ["it"]
 spec.loader.exec_module(it)
