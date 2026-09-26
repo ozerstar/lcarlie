@@ -93,9 +93,15 @@ Therefore the prompt you write MUST:
 7. State that it is photographic and photorealistic, not an illustration
    or a 3D render. Name a camera body and lens, an aperture, the camera
    height and tilt, and a film grain reference.
-8. Describe the light as a real set would: modifier type and size, its
-   angle, any bounce or fill, how far the shadow edge takes to fall off,
-   and any colour temperature drift across the frame.
+8. Describe the light by its QUALITY and DIRECTION, never by its
+   hardware. Say soft or hard, its direction, how far the shadow edge
+   takes to fall off, any colour temperature drift across the frame.
+   NEVER name a softbox, a bounce card, a light stand, a lamp or any
+   fixture: the model draws whatever you name, and the equipment then
+   appears in the photograph. This was measured -- a prompt reading
+   \"a single 90x120cm softbox at 45 degrees and a large white bounce
+   card low on the right\" produced a frame with a softbox on a stand at
+   the upper left and a white panel at the right.
 9. Ask for REAL SURFACE IMPERFECTION and say nothing should be perfectly
    uniform: settled dust, uneven wear, weave slubs, slightly off-centre
    composition, imperfect symmetry. This is what separates a photograph
