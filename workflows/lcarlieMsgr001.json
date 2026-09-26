@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-25T17:14:01.664Z",
+  "updatedAt": "2026-09-26T13:47:20.622Z",
   "createdAt": "2026-09-25T17:14:01.664Z",
   "id": "lcarlieMsgr001",
   "name": "MESSENGER KANALI - Meta Page Messaging",
@@ -26,7 +26,7 @@
     },
     {
       "parameters": {
-        "jsCode": "\n// Meta webhook dogrulama.\n// 🔴 ASAGIDAKI ANAHTARI Meta panelindeki \"Verify token\" ile AYNI YAP.\n// Sunucuda hazir bir anahtar var; okumak icin:\n//     ssh lcarlie \"grep META_VERIFY_TOKEN /opt/lcarlie/n8n/.env\"\nconst DOGRULAMA_ANAHTARI = 'BURAYA_META_DOGRULAMA_ANAHTARI';\n\nconst q = $input.first().json.query || {};\nconst mod  = q['hub.mode'];\nconst tok  = q['hub.verify_token'];\nconst chal = q['hub.challenge'];\n\nif (mod === 'subscribe' && tok === DOGRULAMA_ANAHTARI) {\n  // Meta sadece challenge degerini duz metin bekler\n  return [{ json: { dogrulandi: true, cevap: String(chal ?? '') } }];\n}\nreturn [{ json: { dogrulandi: false, cevap: 'dogrulama basarisiz' } }];\n"
+        "jsCode": "\n// Meta webhook dogrulama. Anahtar uretim aninda gomuldu (bkz. uretici).\nconst DOGRULAMA_ANAHTARI = \"<REDAKTE:MESSENGER_VERIFY_TOKEN>\";\n\nconst q = $input.first().json.query || {};\nconst mod  = q['hub.mode'];\nconst tok  = q['hub.verify_token'];\nconst chal = q['hub.challenge'];\n\nif (mod === 'subscribe' && tok === DOGRULAMA_ANAHTARI) {\n  // Meta sadece challenge degerini duz metin bekler\n  return [{ json: { dogrulandi: true, cevap: String(chal ?? '') } }];\n}\nreturn [{ json: { dogrulandi: false, cevap: 'dogrulama basarisiz' } }];\n"
       },
       "id": "dddddddd-0000-4000-8000-000000000002",
       "name": "Dogrulama kontrolu",
@@ -210,6 +210,12 @@
         "jsonBody": "={{ JSON.stringify($json.govde) }}",
         "options": {}
       },
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "lcarlieSayfaJet",
+          "name": "LCARLIE Sayfa Jetonu (Messenger)"
+        }
+      },
       "id": "dddddddd-0000-4000-8000-00000000000b",
       "name": "Messenger yaniti gonder",
       "type": "n8n-nodes-base.httpRequest",
@@ -369,9 +375,9 @@
   "meta": null,
   "nodeGroups": [],
   "pinData": null,
-  "versionId": "07c555c3-2d69-401c-b988-fd23ff7ec313",
+  "versionId": "deeaf7ee-9926-46ed-be70-aa4d56288489",
   "activeVersionId": null,
-  "versionCounter": 1,
+  "versionCounter": 3,
   "triggerCount": 0,
   "sourceWorkflowId": null,
   "tags": [],
