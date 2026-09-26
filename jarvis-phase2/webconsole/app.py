@@ -915,6 +915,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._route_karo(path)
             elif path.startswith("/etiket/"):
                 self._route_etiket(path)
+            elif path == "/messenger-pilot":
+                self._route_messenger_pilot()
             elif path.startswith("/canva/"):
                 self._route_canva(path, parse_qs(parsed.query))
             else:
@@ -1235,41 +1237,42 @@ class Handler(BaseHTTPRequestHandler):
                                         "application/octet-stream")
         self._send_file(hedef, tur)
 
+    def _route_messenger_pilot(self) -> None:
+        """Messenger pilot panelini oturumlu kullaniciya acar."""
+        # Messenger pilot panelini ac. Panel n8n tarafindan servis
+        # ediliyor (WhatsApp'in /webhook/pilot deseniyle ayni).
+        #
+        # 🔴 ANAHTAR SAYFAYA GOMULMEZ. Baglantiyi index.html'e erisim
+        #    anahtariyla birlikte yazsaydik, konsolu goren herkes
+        #    anahtari kopyalayip paneli konsol OTURUMU OLMADAN
+        #    acabilirdi. Burada anahtar sunucu tarafinda kaliyor ve
+        #    yalniz oturumu olan kullanici yonlendiriliyor.
+        #
+        # 🔴 EKSIK AYAR SESSIZ KALMAZ. Anahtar yoksa 503 doner ve
+        #    nerede tanimlanacagini soyler; kirik bir baglanti
+        #    vermektense acikca sikayet etmek daha iyidir.
+        if self._current_session() is None:
+            self._send_json(401, {"error": "oturum gerekli"})
+            return
+        anahtar = _messenger_panel_anahtari()
+        if not anahtar:
+            self._send_json(503, {
+                "error": "Messenger panel anahtari bulunamadi",
+                "cozum": "state/messenger_panel_token dosyasina yaz; "
+                         "asil kopya /opt/lcarlie/n8n/.env icinde"})
+            return
+        from urllib.parse import quote
+        self.send_response(302)
+        self.send_header(
+            "Location",
+            "https://n8n.lcarlie.shop/webhook/messenger-panel?k=" + quote(anahtar))
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+        return
+
     def _route_canva(self, path: str, query: dict) -> None:
         """Canva OAuth: baslatma (oturumlu) ve geri donus (state korumali)."""
         from jarvis import canva
-
-        if path == "/messenger-pilot":
-            # Messenger pilot panelini ac. Panel n8n tarafindan servis
-            # ediliyor (WhatsApp'in /webhook/pilot deseniyle ayni).
-            #
-            # 🔴 ANAHTAR SAYFAYA GOMULMEZ. Baglantiyi index.html'e erisim
-            #    anahtariyla birlikte yazsaydik, konsolu goren herkes
-            #    anahtari kopyalayip paneli konsol OTURUMU OLMADAN
-            #    acabilirdi. Burada anahtar sunucu tarafinda kaliyor ve
-            #    yalniz oturumu olan kullanici yonlendiriliyor.
-            #
-            # 🔴 EKSIK AYAR SESSIZ KALMAZ. Anahtar yoksa 503 doner ve
-            #    nerede tanimlanacagini soyler; kirik bir baglanti
-            #    vermektense acikca sikayet etmek daha iyidir.
-            if self._current_session() is None:
-                self._send_json(401, {"error": "oturum gerekli"})
-                return
-            anahtar = _messenger_panel_anahtari()
-            if not anahtar:
-                self._send_json(503, {
-                    "error": "Messenger panel anahtari bulunamadi",
-                    "cozum": "state/messenger_panel_token dosyasina yaz; "
-                             "asil kopya /opt/lcarlie/n8n/.env icinde"})
-                return
-            from urllib.parse import quote
-            self.send_response(302)
-            self.send_header(
-                "Location",
-                "https://n8n.lcarlie.shop/webhook/messenger-panel?k=" + quote(anahtar))
-            self.send_header("Content-Length", "0")
-            self.end_headers()
-            return
 
         if path == "/canva/baslat":
             # 🔴 Oturum ZORUNLU: yetkilendirmeyi yalniz sahip baslatir.
