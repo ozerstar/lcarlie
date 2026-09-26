@@ -63,6 +63,12 @@ ZORUNLU = [
       r"uneven", r"not perfectly uniform", r"nothing perfectly uniform"]),
     ("cgi_karsiti", "CGI karşıtı olumsuzlar",
      [r"no cgi", r"no 3d render", r"no hdr", r"no plastic"]),
+    # Uretilen karede ayakli studyo lambasi cikti; istem bunu
+    # yasaklamiyordu. Sahibin isteminde "no lamp, no light fixture"
+    # vardi -- kopyalamayi atlamisim.
+    ("ekipman_yok", "set ekipmanı yasağı",
+     [r"no lamp", r"no light fixture", r"no studio equipment",
+      r"no tripod", r"no softbox"]),
     ("olumsuz", "yasak listesi",
      [r"\bno product", r"\bno bottle", r"\bwithout any product"]),
 ]
@@ -98,7 +104,10 @@ Therefore the prompt you write MUST:
    jars, no tubes, no packaging, no labels, no text, no letters, no
    words, no logos, no watermarks, no people, no hands, no faces, and
    also no CGI look, no 3D render, no HDR, no glow, no oversaturation,
-   no plastic surfaces, plus any cliche the brief rejects.
+   no plastic surfaces, and no visible set equipment: no lamp, no light
+   fixture, no softbox, no tripod, no light stand, no cable, no camera.
+   The lighting must be felt, never seen. Plus any cliche the brief
+   rejects.
 
 Write ONE English paragraph of 130-200 words. No headings, no bullet
 points, no preamble. Output the prompt text only."""

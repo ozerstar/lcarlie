@@ -56,6 +56,14 @@ KAPILAR = [
     ("klise", "reddedilen klişe",
      ["a flower", "a leaf", "a pebble", "a stone",
       "a water splash", "a crystal"], 0.20, True),
+    # 🔴 Set ekipmani kadrajda gorunmemeli. Bu kapi, kapinin kendi
+    # korlugunden dogdu: uretilen bir karede ayakli studyo lambasi
+    # vardi ve dort kapinin dordunden de GECTI aldi -- lamba urun
+    # degil, yazi degil, insan degil, klise listesinde de yok.
+    # Kapi yalniz aradigini bulur; aramadigini goremez.
+    ("ekipman", "set ekipmanı",
+     ["a studio light", "a lamp", "a light fixture", "a tripod",
+      "a softbox", "a light stand", "a camera"], 0.18, True),
 ]
 
 _MODEL = None

@@ -29,9 +29,20 @@ _d = SourceFileLoader(
 
 
 class TestKapiListesi(unittest.TestCase):
-    def test_dort_kapi_var(self):
+    def test_bes_kapi_var(self):
         anahtarlar = [k[0] for k in _d.KAPILAR]
-        self.assertEqual(anahtarlar, ["urun", "yazi", "insan", "klise"])
+        self.assertEqual(anahtarlar,
+                         ["urun", "yazi", "insan", "klise", "ekipman"])
+
+    def test_ekipman_kapisi_kapinin_korlugunden_dogdu(self):
+        # Uretilen bir karede ayakli studyo lambasi vardi ve DORT
+        # kapinin dordunden de GECTI aldi: lamba urun degil, yazi
+        # degil, insan degil, klise listesinde de yok. Kapi yalniz
+        # aradigini bulur. Besinci kapi eklendikten sonra ayni kare
+        # "a light stand 0,81" ile RET aldi.
+        sorgular = dict((k[0], k[2]) for k in _d.KAPILAR)["ekipman"]
+        for gereken in ("a light stand", "a studio light", "a tripod"):
+            self.assertIn(gereken, sorgular)
 
     def test_urun_kapisi_gercek_vakayi_kapsar(self):
         # Olculen kacak "a cosmetic jar" ve "a cosmetic bottle" idi.
