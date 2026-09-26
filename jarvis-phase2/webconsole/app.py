@@ -383,6 +383,13 @@ def _kademe_gorunumu(limit: int = 200) -> dict:
 SATIS_TURLERI = ("SATIS", "UGC", "INFLUENCER", "NUMUNE", "HEDIYE",
                  "IADE", "DEGISIM", "BILINMIYOR")
 
+# 🔴 SATIŞ KANALI (migration 027). Elle girilen satışın nereden geldiği.
+#    NULL ile 'BILINMIYOR' AYRI: biri "sorulmadı", diğeri "soruldu ama
+#    bilinmiyor". Yokluğun sebebini ayırmak bu projenin kuralı.
+#    Liste veritabanındaki CHECK ile AYNI olmalı; biri değişirse diğeri de.
+SATIS_KANALLARI = ("KAPIDA", "WHATSAPP", "TELEFON", "TRENDYOL",
+                   "ELDEN", "DIGER", "BILINMIYOR")
+
 
 def _sql_oku(sql: str, rol: str = "ai_reader", zaman: int = 25) -> list[dict]:
     """Salt okuma. row_to_json satirlarini dict listesine cevirir."""
@@ -456,6 +463,22 @@ def _satis_merkezi() -> dict:
     except Exception as exc:  # noqa: BLE001
         veri["stok"], veri["stok_hatasi"] = [], str(exc)[:200]
 
+    # --- kanal bazlı ciro (migration 027)
+    # 🔴 OLCULDU ile BEYAN TOPLANMAZ. Biri ödeme kaydına dayanır, diğeri
+    #    insan girişidir. Panel ikisini yan yana gösterir; tek sayıya
+    #    indirmek ciroyu şişirir.
+    try:
+        veri["ciro_kanal"] = _sql_oku(
+            "SELECT row_to_json(x) FROM (SELECT kanal, kaynak_tipi,"
+            " sum(siparis)::int AS siparis,"
+            " round(sum(ciro_dogrulanmis)) AS ciro_dogrulanmis,"
+            " round(sum(ciro_beyan)) AS ciro_beyan,"
+            " sum(tutar_eksik)::int AS tutar_eksik"
+            " FROM mart.ciro_kanal GROUP BY kanal, kaynak_tipi"
+            " ORDER BY kaynak_tipi, kanal) x;")
+    except Exception as exc:  # noqa: BLE001
+        veri["ciro_kanal"], veri["ciro_kanal_hatasi"] = [], str(exc)[:200]
+
     # --- elle girilen gönderi notları
     try:
         veri["notlar"] = _sql_oku(
@@ -484,7 +507,8 @@ def _satis_merkezi() -> dict:
 
 
 def _gonderi_notu_ekle(siparis_ref: str, tur: str, alici: str, urun_adi: str,
-                       adet, elle_fiyat, not_metni: str, giren: str) -> dict:
+                       adet, elle_fiyat, not_metni: str, giren: str,
+                       kanal: str = "") -> dict:
     """Gönderi notunu human_approver olarak yazar.
 
     🔴 `_pazar_bulgu_ekle` ile AYNI yol: değerler argv'den değil stdin'den,
@@ -496,6 +520,9 @@ def _gonderi_notu_ekle(siparis_ref: str, tur: str, alici: str, urun_adi: str,
     tur = (tur or "").strip().upper()
     if tur not in SATIS_TURLERI:
         return {"hata": f"tür şunlardan biri olmalı: {', '.join(SATIS_TURLERI)}"}
+    kanal = (kanal or "").strip().upper()
+    if kanal and kanal not in SATIS_KANALLARI:
+        return {"hata": f"kanal şunlardan biri olmalı: {', '.join(SATIS_KANALLARI)}"}
     urun_adi = (urun_adi or "").strip()[:300]
     if not urun_adi:
         return {"hata": "ürün adı zorunlu — hangi ürünün gittiği yazılmadan kayıt olmaz"}
@@ -514,6 +541,7 @@ def _gonderi_notu_ekle(siparis_ref: str, tur: str, alici: str, urun_adi: str,
         "tur": tur, "alici": (alici or "").strip()[:200] or None,
         "urun_adi": urun_adi, "adet": _sayi(adet), "elle_fiyat": _sayi(elle_fiyat),
         "not_metni": (not_metni or "").strip()[:1000] or None,
+        "kanal": kanal or None,
         "giren": (giren or "operator")[:80],
     }, ensure_ascii=False)
 
@@ -2041,6 +2069,7 @@ class Handler(BaseHTTPRequestHandler):
                 urun_adi=str(body.get("urun_adi", "")),
                 adet=body.get("adet"), elle_fiyat=body.get("elle_fiyat"),
                 not_metni=str(body.get("not_metni", "")),
+                kanal=str(body.get("kanal", "")),
                 giren=session.username))
             return
 
