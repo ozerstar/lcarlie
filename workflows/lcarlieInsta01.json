@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-20T13:17:07.975Z",
+  "updatedAt": "2026-09-26T18:57:24.788Z",
   "createdAt": "2026-09-13T16:37:53.602Z",
   "id": "lcarlieInsta01",
   "name": "INSTAGRAM KANALI - DM",
@@ -288,25 +288,35 @@
     "global": {
       "hiz": {
         "test-duman": [
-          1789910247832
-        ],
-        "test-iddia-kontrol": [
-          1789910279173
-        ],
-        "test-icerik-kontrol": [
-          1789910289197
-        ],
-        "test-fiyat-kontrol": [
-          1789910291764
+          1790449068966
         ]
       },
       "toplam": [
-        1789910247832,
-        1789910279173,
-        1789910289197,
-        1789910291764
+        1790449068966
       ],
       "kayitlar": [
+        {
+          "zaman": "2026-09-26T18:57:49.439Z",
+          "musteri": "test-duman",
+          "sinif": "FIYAT",
+          "gelen": "lipvora fiyat",
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "otomatik": true,
+          "insanaAktar": false,
+          "korelasyon": "ig-muir5bc6-kpty",
+          "traffic_class": "test"
+        },
+        {
+          "zaman": "2026-09-26T16:44:24.578Z",
+          "musteri": "test-duman",
+          "sinif": "FIYAT",
+          "gelen": "lipvora fiyat",
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "otomatik": true,
+          "insanaAktar": false,
+          "korelasyon": "ig-muimdqp9-u37j",
+          "traffic_class": "test"
+        },
         {
           "zaman": "2026-09-20T13:18:12.353Z",
           "musteri": "test-fiyat-kontrol",
@@ -464,8 +474,8 @@
   "meta": null,
   "nodeGroups": [],
   "pinData": null,
-  "versionId": "be058b52-0927-48b5-bf40-bef75977c910",
-  "activeVersionId": "be058b52-0927-48b5-bf40-bef75977c910",
+  "versionId": "6ef67f1d-d11c-4e58-b94e-416809bf8ca0",
+  "activeVersionId": "6ef67f1d-d11c-4e58-b94e-416809bf8ca0",
   "versionCounter": 6,
   "triggerCount": 2,
   "sourceWorkflowId": null,

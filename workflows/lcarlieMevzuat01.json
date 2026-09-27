@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-20T13:16:52.188Z",
+  "updatedAt": "2026-09-26T18:57:07.674Z",
   "createdAt": "2026-09-12T15:06:55.489Z",
   "id": "lcarlieMevzuat01",
   "name": "MEVZUAT FILTRESI - her mesaj once buradan gecer",
@@ -54,8 +54,8 @@
   "meta": null,
   "nodeGroups": [],
   "pinData": null,
-  "versionId": "ff9e035b-9a8e-4dbe-aa04-275ab903ac6e",
-  "activeVersionId": "ff9e035b-9a8e-4dbe-aa04-275ab903ac6e",
+  "versionId": "e8077e3b-7cf0-4a7e-ac77-ed822c69955b",
+  "activeVersionId": "e8077e3b-7cf0-4a7e-ac77-ed822c69955b",
   "versionCounter": 14,
   "triggerCount": 0,
   "sourceWorkflowId": null,

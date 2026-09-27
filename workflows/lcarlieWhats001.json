@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-20T13:17:02.735Z",
+  "updatedAt": "2026-09-26T18:57:19.144Z",
   "createdAt": "2026-09-12T22:39:32.722Z",
   "id": "lcarlieWhats001",
   "name": "WHATSAPP KANALI - Meta Cloud API",
@@ -26,7 +26,7 @@
     },
     {
       "parameters": {
-        "jsCode": "\n// Meta webhook dogrulama.\n// 🔴 ASAGIDAKI ANAHTARI Meta panelindeki \"Verify token\" ile AYNI YAP.\n// Sunucuda hazir bir anahtar uretildi; okumak icin:\n//     ssh lcarlie \"grep WHATSAPP_VERIFY_TOKEN /opt/lcarlie/n8n/.env\"\n// Kendi anahtarini da kullanabilirsin, yeter ki iki yerde ayni olsun.\nconst DOGRULAMA_ANAHTARI = 'BURAYA_META_DOGRULAMA_ANAHTARI';\n\nconst q = $input.first().json.query || {};\nconst mod  = q['hub.mode'];\nconst tok  = q['hub.verify_token'];\nconst chal = q['hub.challenge'];\n\nif (mod === 'subscribe' && tok === DOGRULAMA_ANAHTARI) {\n  // Meta sadece challenge degerini duz metin bekler\n  return [{ json: { dogrulandi: true, cevap: String(chal ?? '') } }];\n}\nreturn [{ json: { dogrulandi: false, cevap: 'dogrulama basarisiz' } }];\n"
+        "jsCode": "\n// Meta webhook dogrulama. Anahtar uretim aninda gomuldu (bkz. uretici).\nconst DOGRULAMA_ANAHTARI = \"<REDAKTE:WHATSAPP_VERIFY_TOKEN>\";\n\nconst q = $input.first().json.query || {};\nconst mod  = q['hub.mode'];\nconst tok  = q['hub.verify_token'];\nconst chal = q['hub.challenge'];\n\nif (mod === 'subscribe' && tok === DOGRULAMA_ANAHTARI) {\n  // Meta sadece challenge degerini duz metin bekler\n  return [{ json: { dogrulandi: true, cevap: String(chal ?? '') } }];\n}\nreturn [{ json: { dogrulandi: false, cevap: 'dogrulama basarisiz' } }];\n"
       },
       "id": "cccccccc-0000-4000-8000-000000000002",
       "name": "Dogrulama kontrolu",
@@ -554,9 +554,9 @@
   "meta": null,
   "nodeGroups": [],
   "pinData": null,
-  "versionId": "61213614-4b08-4970-b80e-27ac3daaa1f0",
-  "activeVersionId": "61213614-4b08-4970-b80e-27ac3daaa1f0",
-  "versionCounter": 11,
+  "versionId": "82e88a33-0c0a-4ecc-b2f1-9a4b6c06c494",
+  "activeVersionId": "82e88a33-0c0a-4ecc-b2f1-9a4b6c06c494",
+  "versionCounter": 12,
   "triggerCount": 3,
   "sourceWorkflowId": null,
   "tags": [],
