@@ -85,6 +85,23 @@ FORBIDDEN_OBJECTS: tuple[tuple[str, tuple[str, ...], str], ...] = (
      "kozmetik_kapsam"),
 )
 
+# Belge §1 EK — CİLT TİPİ TANIMI İDDİA DEĞİLDİR (27.09.2026, sahip kararı).
+#
+# “akneye eğilimli cilt” bir hastalık iddiası değil, ürünün hangi cilt
+# tipinin KULLANIMINA UYGUN olduğunu söyleyen tanımdır. Motor bunu “durum
+# adı” saydığı için dört meşru metni bloke etmişti (ölçüldü 27.09.2026):
+#   LUCIDERM tanımlayıcı · LUCIDERM madde · SUNACNEA madde · CALMAROS tanımlayıcı
+#
+# Çözüm terimi listeden ÇIKARMAK DEĞİL: “akne” tek başına geçtiğinde hala
+# bloke edilir. Yalnız aşağıdaki cilt tipi kalıplarının İÇİNDEKİ geçiş
+# sayılmaz; cümle taranmadan önce bu kalıplar maskelenir. Böylece
+# “Akneye eğilimli ciltlerde akneyi tedavi eder” yine BLOCKED kalır.
+SKIN_TYPE_DESCRIPTORS = (
+    "akneye eğilimli", "akne eğilimli", "sivilceye eğilimli",
+    "kızarıklığa eğilimli", "kızarıklık eğilimli",
+    "akneye yatkın", "kızarıklığa yatkın",
+)
+
 # Belge §2 — genel yasak ifadeler.
 FORBIDDEN_PHRASES: tuple[tuple[str, str], ...] = tuple(
     (phrase, "saglik_beyani") for phrase in (
@@ -169,6 +186,24 @@ def deaccent(text: str) -> str:
     decomposed = unicodedata.normalize("NFD", text)
     stripped = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
     return stripped.replace("ı", "i").replace("ğ", "g").replace("ş", "s")
+
+
+# Cilt tipi kalıpları iki biçimde de maskelenir: fold() çıktısı ve
+# aksansız kopya — arama ikisinde de yapılıyor.
+_SKIN_TYPE_RE = re.compile(
+    "|".join(re.escape(fold(_p)) for _p in SKIN_TYPE_DESCRIPTORS))
+_SKIN_TYPE_FLAT_RE = re.compile(
+    "|".join(re.escape(deaccent(fold(_p))) for _p in SKIN_TYPE_DESCRIPTORS))
+
+
+def mask_skin_type(haystack: str, *, flat: bool = False) -> str:
+    """Cilt tipi tanımlarını aynı uzunlukta boşlukla değiştirir.
+
+    Uzunluk korunur ki maskeleme kelime sınırlarını bozmasın. Aynı cümlede
+    kalıp dışında geçen terim maskelenmez, yani bloke edilmeye devam eder.
+    """
+    rx = _SKIN_TYPE_FLAT_RE if flat else _SKIN_TYPE_RE
+    return rx.sub(lambda m: " " * len(m.group(0)), haystack)
 
 
 _SOFTENING = {"k": "ğ", "p": "b", "t": "d", "ç": "c"}
@@ -298,9 +333,15 @@ def _scan_sentence(sentence: str) -> list[Finding]:
                 "İfade kaldırılır. Yumuşatma veya eşanlamlı ile saklama yapılmaz.")
             break  # tek bulgu
 
+    # Durum adı kategorisi, cilt tipi tanımları maskelenmiş metinde aranır.
+    folded_ct = mask_skin_type(folded)
+    flat_ct = mask_skin_type(flat, flat=True)
     for category, terms, basis_key in FORBIDDEN_OBJECTS:
+        hay_folded, hay_flat = ((folded_ct, flat_ct)
+                                if category == "hastalık veya durum adı"
+                                else (folded, flat))
         for term in terms:
-            if _contains(folded, flat, term):
+            if _contains(hay_folded, hay_flat, term):
                 add(BLOCKED, f"yasak nesne — {category}", term, basis_key,
                     "Cümlenin nesnesi izinli listede değil (görünüm/his/doku/nem/konfor/koku). "
                     "Nesne değiştirilir; fiili değiştirmek yetmez.")

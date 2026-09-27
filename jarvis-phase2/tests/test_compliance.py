@@ -250,6 +250,57 @@ class OnayKaydiTests(unittest.TestCase):
         self.assertEqual(record["yayin_durumu"], "PENDING_HUMAN_REVIEW")
 
 
+class CiltTipiTanimiTests(unittest.TestCase):
+    """27.09.2026 sahip kararı — cilt tipi tanımı iddia değildir.
+
+    “akneye eğilimli cilt” hedef kitle tanımıdır; motor bunu durum adı saydığı
+    için dört meşru katalog metnini bloke etmişti. Aşağıdaki iki test o ölçülmüş
+    vakayı, kalanı ise kapının açık bırakmaması gerekeni sabitler.
+    """
+
+    def test_akneye_egilimli_cilt_serbest(self):
+        result = review(
+            "Yağlı ve Akneye Eğilimli Ciltler İçin Yüz Temizleme Köpüğü")
+        self.assertTrue(result.clean, rules(result))
+
+    def test_kizarikliga_egilimli_cilt_serbest(self):
+        result = review(
+            "Hassas ve Kızarıklığa Eğilimli Ciltler İçin Yatıştırıcı Tonik")
+        self.assertTrue(result.clean, rules(result))
+
+    def test_madde_bicimi_de_serbest(self):
+        result = review("Akneye eğilimli ciltlere uygun yapı")
+        self.assertTrue(result.clean, rules(result))
+
+    def test_kalip_disinda_gecen_akne_hala_bloklu(self):
+        """Kapı yalnız kalıbı muaf tutar, terimi listeden çıkarmaz."""
+        result = review("Akne oluşumunu engeller.")
+        self.assertTrue(result.blocked)
+        self.assertIn("yasak nesne — hastalık veya durum adı", rules(result))
+
+    def test_ayni_cumlede_kalip_ve_iddia_varsa_bloklu(self):
+        """Maskeleme cümlenin geri kalanını korumaz."""
+        result = review("Akneye eğilimli ciltlerde akneyi tedavi eder.")
+        self.assertTrue(result.blocked)
+
+    def test_kizariklik_tek_basina_hala_bloklu(self):
+        result = review("Ciltteki kızarıklığı azaltır.")
+        self.assertTrue(result.blocked)
+        self.assertIn("yasak nesne — hastalık veya durum adı", rules(result))
+
+    def test_diger_hastalik_adlari_kalipla_da_muaf_degil(self):
+        """Kapı yalnız akne ve kızarıklık için açıldı; egzama cilt tipi değildir."""
+        result = review("Egzamaya eğilimli ciltler için geliştirildi.")
+        self.assertTrue(result.blocked)
+        self.assertIn("yasak nesne — hastalık veya durum adı", rules(result))
+
+    def test_uyari_cumlesi_hala_uyaridir(self):
+        """Uyarıdaki “kızarıklık” cilt tipi kalıbı değil; davranış değişmedi."""
+        result = review(
+            "Tahriş, kızarıklık veya hassasiyet görülürse kullanımı durdurunuz.")
+        self.assertTrue(result.blocked)
+
+
 class CumleAyirmaTests(unittest.TestCase):
     def test_cumleler_ayrilir(self):
         self.assertEqual(len(sentences("Bir. İki! Üç?")), 3)
