@@ -53,7 +53,12 @@ LEGAL_BASIS = {
 
 # Belge §1 — izinli nesneler. Bilgi amaçlı taşınır; tarama yasak nesne üzerinden
 # yürür, çünkü izinli listede olmayan her nesneyi makine güvenle sayamaz.
-PERMITTED_OBJECTS = ("görünüm", "his", "doku", "nem", "konfor", "koku")
+# 28.09.2026 denetimi: liste, Kozmetik Kanunu m.3'teki işlevlerin yalnız bir
+# kısmını taşıyordu. "Temizlemek", "korumak" ve "iyi durumda tutmak" yoktu; bu
+# yüzden diş macununun diş yüzeyini temizlemesi ENGELLENİYORDU (BRIGHT SMILE,
+# ölçüldü). Kanunun tanımındaki işlevler eksiksiz taşınır.
+PERMITTED_OBJECTS = ("görünüm", "his", "doku", "nem", "konfor", "koku",
+                     "temizlik", "koruma", "iyi durumda tutma")
 
 # Belge §1 — yasak nesneler, kategori ve dayanağıyla.
 FORBIDDEN_OBJECTS: tuple[tuple[str, tuple[str, ...], str], ...] = (
@@ -247,6 +252,119 @@ def _contains(haystack_folded: str, haystack_flat: str, needle: str) -> bool:
     return False
 
 
+# ======================================================================
+# 28.09.2026 — AŞIRI ENGELLEME DÜZELTMELERİ
+#
+# Ölçüm: motor, 39 ürünün ONAYLI KUTU METNİ üzerinde 77 bulgu üretti;
+# 66'sı yanlıştı. Kanunen basmak zorunda olduğumuz üç metni engelliyordu:
+# istenmeyen etki uyarısını, INCI listesini ve raf ömrünü.
+#
+# Kök neden tek: tarama, belgenin kendi kuralından (§1 "fiil değil NESNE
+# denetlenir") önce davranıyordu. Nesnesi izinli olan cümle bile, içinde
+# geçen terim yüzünden engelleniyordu. Cilt tipi düzeltmesi bunu tek kalıp
+# için çözmüştü; burada kural genelleştiriliyor.
+#
+# Kaçak riski: her muafiyet, muafiyeti kötüye kullanacak cümleyi hâlâ
+# engelleyen bir testle birlikte yazıldı (tests/test_asiri_engelleme.py).
+# ======================================================================
+
+# Uygulama BÖLGESİ tarifi iddia değildir (sahip kararı 28.09.2026:
+# "alan adı kullanımı ve cilt tipi olarak değerlendir, sorun yok").
+# "kas bölgesi" nerede uygulanacağını söyler; "kası gevşetir" işlev iddiasıdır.
+AREA_DESCRIPTORS = ("kas bölge", "kas bolge", "kas bolgesi", "kas bölgesi")
+
+# Yüzeysel görünüm terimleri: izinli bir nesneyle ya da temizlik bağlamıyla
+# birlikte geçtiğinde hastalık adı sayılmaz. Liste bilinçli olarak dardır --
+# egzama, sedef, mantar, kanser gibi tıbbi tanılar BU LİSTEDE YOKTUR ve
+# "görünümü" eklenerek aklanamaz.
+SURFACE_TERMS = ("leke", "çatlak", "catlak", "kızarıklık", "kizariklik",
+                 "selülit", "sellulit", "sellülit", "yara izi")
+
+# İzinli nesne veya temizlik bağlamı işaretleri.
+_OBJECT_MARKERS = ("görünüm", "gorunum", "his", "doku", "nem", "konfor",
+                   "koku", "temizle", "temizli", "yüzeyindeki", "yuzeyindeki")
+
+# İstenmeyen etki uyarısı kalıpları -- zorunlu metin.
+_WARNING_MARKERS = ("halinde kullanımı bırak", "halinde kullanimi birak",
+                    "halinde kullanmayı bırak", "halinde kullanmayi birak",
+                    "durumunda kullanımı bırak", "durumunda kullanimi birak",
+                    "doktora başvur", "doktora basvur",
+                    "hekime başvur", "hekime basvur",
+                    "görülmesi halinde", "gorulmesi halinde")
+
+# Fayda fiili: uyarı muafiyetini iptal eder ve süre iddiasını doğurur.
+_BENEFIT_MARKERS = ("yardımcı ol", "yardimci ol", "destek", "azal", "gider",
+                    "iyileş", "iyiles", "artır", "artir", "sağlar", "saglar",
+                    "geçir", "gecir", "tedavi", "önler", "onler", "yok eder",
+                    "pürüzsüz", "puruzsuz", "canlan", "sıkılaş", "sikilas",
+                    "nemlen", "onar", "etki", "sonuç ver", "sonuc ver", "sonuçlan", "sonuclan",
+                    "fark ed", "hissedil", "belirgin", "görünür", "gorunur",
+                    "yumuşa", "yumusa", "parla", "beyazla", "temizle",
+                    "dolgunlaş", "dolgunlas")
+
+# Sağlık mesleği çağrışımı. Üretim ortamının kendisi (beyaz önlük,
+# laboratuvar) bu listede DEĞİLDİR: sahip kararı 27.09.2026 -- kimyagerler de
+# beyaz giyer ve kozmetik laboratuvarda üretilir. Otorite transferi, sağlık
+# mesleği çağrışımı eşlik ettiğinde doğar.
+_HEALTH_SIGNALS = ("doktor", "hekim", "eczacı", "eczaci", "hemşire", "hemsire",
+                   "sağlık", "saglik", "tedavi", "reçete", "recete", "hasta",
+                   "teşhis", "teshis", "klinik olarak")
+
+# Bağlama bağlı otorite ifadeleri: tek başına işaretlenmez.
+_AUTHORITY_CONTEXTUAL = ("beyaz önlük", "beyaz onluk", "klinik ortam",
+                         "laboratuvar sahnesi")
+
+# Kullanım talimatı deyimi -- rakiple kıyas değil.
+_USAGE_IDIOMS = ("en iyi sonuç için", "en iyi sonuc icin")
+
+# Zorunlu güneş ibaresinin kendisi oran iddiası sayılmaz.
+_PERCENT_EXEMPT = ("%100 koruma", "% 100 koruma")
+
+# INCI listesi başlıksız da gelebilir (alan adı metinde yoktur). Yapısal
+# tanıma: çok sayıda virgülle ayrılmış parça ve içlerinde bileşen sözcükleri.
+_INCI_TOKENS = ("yağı", "yagi", " oil", "extract", "ekstresi", "ekstre",
+                "butter", "juice", "aqua", "water", "acid", "alcohol",
+                "glycerin", "gliserin", "sodium", "parfum", "tocopherol",
+                "tokoferol", " su,", "saf su")
+_INCI_MIN_PARTS = 6
+_INCI_MIN_TOKENS = 3
+
+
+def _variants(term: str) -> list[str]:
+    """Bir terimin maskelenecek bütün yazımları: düz, yumuşamış, aksansız."""
+    out = []
+    for base in (term, _soften(term)):
+        if not base:
+            continue
+        f = fold(base)
+        out.append(f)
+        out.append(deaccent(f))
+    return [v for v in dict.fromkeys(out) if v]
+
+
+def _mask_re(terms) -> re.Pattern:
+    parts = []
+    for t in terms:
+        parts.extend(re.escape(v) for v in _variants(t))
+    return re.compile("|".join(sorted(set(parts), key=len, reverse=True)))
+
+
+_AREA_RE = _mask_re(AREA_DESCRIPTORS)
+_SURFACE_RE = _mask_re(SURFACE_TERMS)
+_CONDITION_RE = _mask_re(
+    tuple(t for _c, terms, _b in FORBIDDEN_OBJECTS for t in terms
+          if _c == "hastalık veya durum adı"))
+
+
+def _blank(rx: re.Pattern, haystack: str) -> str:
+    """Eşleşmeyi aynı uzunlukta boşlukla değiştirir; kelime sınırları bozulmaz."""
+    return rx.sub(lambda m: " " * len(m.group(0)), haystack)
+
+
+def _has(folded: str, flat: str, markers) -> bool:
+    return any(m in folded or deaccent(m) in flat for m in markers)
+
+
 @dataclass(frozen=True)
 class Finding:
     label: str            # BLOCKED | VERIFY
@@ -313,7 +431,19 @@ def _is_ingredient_declaration(sentence: str, folded: str) -> bool:
     if any(header in folded or header in ascii_lower
            for header in _INGREDIENT_HEADERS):
         return True
-    return bool(_FORMULA_ROW.search(sentence.strip()))
+    if _FORMULA_ROW.search(sentence.strip()):
+        return True
+    # Alan adi metinde gecmeyebilir: VIREON ve FEMISIA'nin INCI listesi
+    # basliksiz geliyordu ve bilesen tuzagi ZORUNLU beyani engelliyordu
+    # (olculdu 28.09.2026). Yapisal tanima: cok parcali virgullu liste ve
+    # icinde bilesen sozcukleri.
+    parts = [x for x in sentence.split(",") if x.strip()]
+    if len(parts) >= _INCI_MIN_PARTS:
+        hits = sum(1 for tok in _INCI_TOKENS
+                   if tok in folded or tok in ascii_lower)
+        if hits >= _INCI_MIN_TOKENS:
+            return True
+    return False
 
 
 def _scan_sentence(sentence: str) -> list[Finding]:
@@ -333,17 +463,44 @@ def _scan_sentence(sentence: str) -> list[Finding]:
                 "İfade kaldırılır. Yumuşatma veya eşanlamlı ile saklama yapılmaz.")
             break  # tek bulgu
 
-    # Durum adı kategorisi, cilt tipi tanımları maskelenmiş metinde aranır.
+    # --- nesne kontrolu, terim taramasinin ONUNDE ---
+    # Belge §1: denetlenen sey fiil degil NESNEDIR. Nesnesi izinli olan cumle,
+    # icinde gecen terim yuzunden engellenemez. Maskeleme sirasi:
+    #   1) cilt tipi tanimlari            (sahip karari 27.09.2026)
+    #   2) yuzey terimleri + izinli nesne (leke gorunumu, catlak gorunumu)
+    #   3) istenmeyen etki uyarisi        (zorunlu metin)
     folded_ct = mask_skin_type(folded)
     flat_ct = mask_skin_type(flat, flat=True)
+
+    if _has(folded, flat, _OBJECT_MARKERS):
+        # Nesne izinli: yuzeysel gorunum terimi hastalik adi sayilmaz.
+        # Tibbi tanilar SURFACE_TERMS'te yok, bu yuzden aklanmaz.
+        folded_ct = _blank(_SURFACE_RE, folded_ct)
+        flat_ct = _blank(_SURFACE_RE, flat_ct)
+
+    if (_has(folded, flat, _WARNING_MARKERS)
+            and not _has(folded, flat, _BENEFIT_MARKERS)):
+        # Istenmeyen etki uyarisi: iddia degil, basilmasi zorunlu metin.
+        # Fayda fiili varsa muafiyet YOK -- uyari ekleyerek iddia aklanamaz.
+        folded_ct = _blank(_CONDITION_RE, folded_ct)
+        flat_ct = _blank(_CONDITION_RE, flat_ct)
+
+    # Uygulama bolgesi tarifi islev iddiasi degildir (sahip karari 28.09.2026).
+    folded_fz = _blank(_AREA_RE, folded)
+    flat_fz = _blank(_AREA_RE, flat)
+
     for category, terms, basis_key in FORBIDDEN_OBJECTS:
-        hay_folded, hay_flat = ((folded_ct, flat_ct)
-                                if category == "hastalık veya durum adı"
-                                else (folded, flat))
+        if category == "hastalık veya durum adı":
+            hay_folded, hay_flat = folded_ct, flat_ct
+        elif category == "fizyolojik fonksiyon":
+            hay_folded, hay_flat = folded_fz, flat_fz
+        else:
+            hay_folded, hay_flat = folded, flat
         for term in terms:
             if _contains(hay_folded, hay_flat, term):
                 add(BLOCKED, f"yasak nesne — {category}", term, basis_key,
-                    "Cümlenin nesnesi izinli listede değil (görünüm/his/doku/nem/konfor/koku). "
+                    "Cümlenin nesnesi izinli listede değil "
+                    f"({'/'.join(PERMITTED_OBJECTS)}). "
                     "Nesne değiştirilir; fiili değiştirmek yetmez.")
                 break
 
@@ -356,8 +513,14 @@ def _scan_sentence(sentence: str) -> list[Finding]:
                     "Bileşen INCI listesinde kalır, cümlede anılmaz.")
                 break
 
+    # "En iyi sonuç için kurulayın" bir kullanım talimatıdır, rakiple kıyas
+    # değil. Deyim maskelenir; "en iyi krem" engelli kalır.
+    folded_us, flat_us = folded, flat
+    for idiom in _USAGE_IDIOMS:
+        folded_us = folded_us.replace(fold(idiom), " " * len(idiom))
+        flat_us = flat_us.replace(deaccent(fold(idiom)), " " * len(idiom))
     for phrase in SUPERIORITY:
-        if _contains(folded, flat, phrase):
+        if _contains(folded_us, flat_us, phrase):
             add(BLOCKED, "üstünlük iddiası", phrase, "ispat",
                 "Üstünlük iddiası kaldırılır; ispat külfeti reklamverendedir.")
             break
@@ -376,11 +539,19 @@ def _scan_sentence(sentence: str) -> list[Finding]:
                 "retouch yok, tipik sonuç izlenimi ve açıklamalar birlikte değerlendirilir.")
             break
 
+    # Sahip kararı 27.09.2026: kimyagerler de beyaz önlük giyer ve kozmetik
+    # laboratuvarda üretilir. Üretim ortamının kendisi sağlık çalışanı algısı
+    # değildir; otorite transferi, sağlık mesleği çağrışımı EŞLİK ETTİĞİNDE
+    # doğar. Yönetmelik maddesi kalkmadı, kapsamı daraltıldı.
+    saglik_cagrisimi = _has(folded, flat, _HEALTH_SIGNALS)
     for phrase in AUTHORITY:
+        if phrase in _AUTHORITY_CONTEXTUAL and not saglik_cagrisimi:
+            continue
         if _contains(folded, flat, phrase):
             add(VERIFY, "sağlık çalışanı algısı / otorite transferi", phrase,
                 "saglik_calisani",
-                "Beyaz önlük, klinik ortam ve laboratuvar sahnesi dahil denetlenir.")
+                "Sağlık mesleği çağrışımıyla birlikte denetlenir; üretim "
+                "ortamının kendisi (laboratuvar, önlük) tek başına ihlal değildir.")
             break
 
     for phrase in DOSSIER_REQUIRED:
@@ -394,13 +565,19 @@ def _scan_sentence(sentence: str) -> list[Finding]:
             add(VERIFY, "GMP/ISO kullanımı", mark, "ispat",
                 "Yasal gerekliliktir, ürüne özgü fayda değildir; üstünlük kurgusunda kullanılmaz.")
 
+    # Süre, bir ETKİYE bağlıyken iddiadır: "7 günde pürüzsüz". Raf ömrüne
+    # ("24 ay – serin ve kuru yerde saklayınız") veya kullanım talimatına
+    # ("en az 6 saat suyla temas ettirmeyiniz") bağlıyken iddia değildir.
+    # Ölçüm 28.09.2026: 35 süre bulgusunun 35'i iddia değildi.
     duration = _DURATION.search(sentence)
-    if duration:
+    if duration and _has(folded, flat, _BENEFIT_MARKERS):
         add(VERIFY, "süre iddiası", duration.group(0), "ispat",
             "Klinik veri olmadan süre sonucu verilemez.")
 
+    # Formülasyon tablosunun % sütunu iddia değildir; zorunlu güneş ibaresi
+    # ("%100 koruma sağlamaz") de değildir.
     percent = _PERCENT.search(sentence)
-    if percent:
+    if percent and not ingredient_line and not _has(folded, flat, _PERCENT_EXEMPT):
         add(VERIFY, "oran/yüzde iddiası", percent.group(0), "ispat",
             "Rakamın dayandığı belge onay kaydına yazılır.")
 
