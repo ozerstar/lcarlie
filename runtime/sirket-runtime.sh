@@ -44,30 +44,73 @@ event_scan() {
   say "F5 EVENT SCAN"
   SQLF <<'EOSQL'
 WITH
--- SALE_DROP: en son satistan bu yana gecen gun + ayni donemde harcama
-sd AS (
-  SELECT (current_date - max(olusturma)::date) AS gun_gecti
-  FROM mart.siparis
+-- 28.09.2026 DUZELTME (olculdu). Uc alarmin ucu de yanlis konusuyordu:
+--   1) SALE_DROP yalniz mart.siparis'e bakiyordu; Wix DISI (kapida odemeli,
+--      elle) satislari hic gormuyordu. 13-14.09'da tahsil edilip bakiyeye
+--      aktarilmis 4 adet 1.200 TL'lik satis bu yuzden "satis yok" sayildi.
+--   2) "Harcama devam ederken" SIMDIKI ZAMAN iddiasidir; dayanagi ise son
+--      satistan beri biriken KUMULATIF sayiydi. Harcama 24.09'dan beri
+--      sifirken alarm uc gun ust uste ayni 6559 TL'yi "devam eden" diye
+--      gosterdi ve "butceyi acilen durdur" olu tavsiyesini uretti.
+--   3) DATA_STALE 24 saatlik tazelik bekliyordu; oysa core.kanit_anlik'i
+--      ureten buyume-brief.sh CR-015 ile bilerek HAFTALIGA alindi (Pazartesi
+--      08:45). Haftalik bir tablo dogal olarak 168 saate kadar eskir; alarm
+--      her hafta bos yere yandi (gundem #100/#109/#112/#114/#116 hep budur).
+-- SON SATIS = Wix siparisi VEYA tahsil edilmis elle satis; hangisi gec ise o.
+ss AS (
+  SELECT max(an) AS an FROM (
+    SELECT max(olusturma) AS an FROM mart.siparis
+    UNION ALL
+    SELECT max(olusturma) FROM mart.gonderi
+     WHERE sinif = 'ELLE_SATIS' AND cod_durum = 'TRANSFERRED'
+  ) k
 ),
+sd AS (SELECT (current_date - (SELECT an FROM ss)::date) AS gun_gecti),
+-- GECMIS: son satistan bu yana biriken toplam
 hd AS (
-  SELECT round(sum(harcama)) AS harcama FROM raw.meta_harcama
-  WHERE gun > (SELECT max(olusturma)::date FROM mart.siparis)
+  SELECT round(coalesce(sum(harcama),0)) AS harcama FROM raw.meta_harcama
+  WHERE gun > (SELECT an FROM ss)::date
+),
+-- SIMDI: harcama HALA suruyor mu. Olcut SON HARCAMA YAPILAN GUN'dur,
+-- 7 gunluk pencere degil: pencere, 5 gun once bitmis bir harcamayi da
+-- "suruyor" gibi gosterir. Pencere toplami ayrica yazilir ama hukum vermez.
+hd7 AS (
+  SELECT round(coalesce(sum(harcama),0)) AS harcama,
+         max(gun) FILTER (WHERE harcama > 0) AS son_gun
+    FROM raw.meta_harcama WHERE gun >= current_date-7
 ),
 -- META_SPEND_ANOMALY: son 7 gun harcama var, siparis yok/az
 msa AS (
-  SELECT round(sum(harcama)) h FROM raw.meta_harcama WHERE gun >= current_date-7
+  SELECT round(coalesce(sum(harcama),0)) h FROM raw.meta_harcama WHERE gun >= current_date-7
 ),
-ms AS (SELECT count(*) n FROM mart.siparis WHERE olusturma >= current_date-7),
--- DATA_STALE: en son anlik goruntu yasi
+-- siparis sayaci da iki kaynagi birden sayar (ayni kusur burada da vardi)
+ms AS (
+  SELECT (SELECT count(*) FROM mart.siparis WHERE olusturma >= current_date-7)
+       + (SELECT count(*) FROM mart.gonderi
+           WHERE sinif = 'ELLE_SATIS' AND cod_durum = 'TRANSFERRED'
+             AND olusturma >= current_date-7) AS n
+),
+-- DATA_STALE: en son anlik goruntu yasi (uretim HAFTALIK -> esik 192 saat)
 ds AS (SELECT round(extract(epoch from (now()-max(alindi)))/3600) saat FROM core.kanit_anlik)
 INSERT INTO core.ic_mesaj (kimden, kime, tip, konu, icerik, durum)
 SELECT * FROM (
   SELECT 'ECOM'::text, 'EXEC'::text, 'ALERT'::text,
          'SALE_DROP · '||sd.gun_gecti||' gundur satis yok',
-         'Son siparisten bu yana '||sd.gun_gecti||' gun gecti. Bu surede Meta harcamasi '||
-         coalesce(hd.harcama,0)||' TL. Harcama devam ederken satis durmus durumda.',
+         'Son satistan (Wix siparisi veya tahsil edilmis elle satis) bu yana '||
+         sd.gun_gecti||' gun gecti. O tarihten beri biriken Meta harcamasi '||
+         hd.harcama||' TL (kumulatif, gecmis). '||
+         CASE WHEN hd7.son_gun IS NULL
+              THEN 'Harcama DURMUS: son 7 gunde hic harcama yok; '||
+                   'butce durdurma tavsiyesi gecersiz.'
+              WHEN hd7.son_gun >= current_date-1
+              THEN 'Harcama SURUYOR: son harcama gunu '||hd7.son_gun||
+                   ', son 7 gun toplami '||hd7.harcama||' TL.'
+              ELSE 'Harcama DURMUS: en son '||hd7.son_gun||' tarihinde harcandi ('||
+                   (current_date - hd7.son_gun)||' gun once). Son 7 gun toplami '||
+                   hd7.harcama||' TL; butce durdurma tavsiyesi gecersiz.'
+         END,
          'OPEN'
-  FROM sd, hd WHERE sd.gun_gecti >= 3
+  FROM sd, hd, hd7 WHERE sd.gun_gecti >= 3
   UNION ALL
   SELECT 'META_MEDIA','FINANCE','ALERT',
          'META_SPEND_ANOMALY · 7 gunde '||msa.h||' TL / '||ms.n||' siparis',
@@ -79,9 +122,11 @@ SELECT * FROM (
   UNION ALL
   SELECT 'AI_OPS','EXEC','ALERT',
          'DATA_STALE · anlik goruntu '||ds.saat||' saatlik',
-         'core.kanit_anlik en son '||ds.saat||' saat once uretildi. Karar girdisi bayat olabilir.',
+         'core.kanit_anlik en son '||ds.saat||' saat once uretildi. Uretim HAFTALIK '||
+         '(buyume-brief.sh, Pazartesi 08:45), esik 192 saat. Bu yastaki bir goruntu '||
+         'haftalik uretimin de disinda kalmis demektir.',
          'OPEN'
-  FROM ds WHERE ds.saat > 24
+  FROM ds WHERE ds.saat > 192
 ) e(kimden,kime,tip,konu,icerik,durum)
 -- IDEMPOTENCY: ayni konu son 20 saatte acilmissa tekrar acma
 WHERE NOT EXISTS (
