@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-26T18:57:24.788Z",
+  "updatedAt": "2026-09-28T08:12:55.079Z",
   "createdAt": "2026-09-13T16:37:53.602Z",
   "id": "lcarlieInsta01",
   "name": "INSTAGRAM KANALI - DM",
@@ -288,13 +288,24 @@
     "global": {
       "hiz": {
         "test-duman": [
-          1790449068966
+          1790583206253
         ]
       },
       "toplam": [
-        1790449068966
+        1790583206253
       ],
       "kayitlar": [
+        {
+          "zaman": "2026-09-28T08:13:26.912Z",
+          "musteri": "test-duman",
+          "sinif": "FIYAT",
+          "gelen": "lipvora fiyat",
+          "cevap": "LIPVORA Dudak Nemlendirici Balm fiyatı 900 TL. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/lipvora",
+          "otomatik": true,
+          "insanaAktar": false,
+          "korelasyon": "ig-mukz0cby-y91q",
+          "traffic_class": "test"
+        },
         {
           "zaman": "2026-09-26T18:57:49.439Z",
           "musteri": "test-duman",
@@ -474,8 +485,8 @@
   "meta": null,
   "nodeGroups": [],
   "pinData": null,
-  "versionId": "6ef67f1d-d11c-4e58-b94e-416809bf8ca0",
-  "activeVersionId": "6ef67f1d-d11c-4e58-b94e-416809bf8ca0",
+  "versionId": "26e92dfb-e795-479f-8634-849c468ee4e3",
+  "activeVersionId": "26e92dfb-e795-479f-8634-849c468ee4e3",
   "versionCounter": 6,
   "triggerCount": 2,
   "sourceWorkflowId": null,

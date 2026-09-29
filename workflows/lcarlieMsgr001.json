@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-26T18:57:29.887Z",
+  "updatedAt": "2026-09-28T08:13:01.726Z",
   "createdAt": "2026-09-25T17:14:01.664Z",
   "id": "lcarlieMsgr001",
   "name": "MESSENGER KANALI - Meta Page Messaging",
@@ -450,24 +450,40 @@
   "staticData": {
     "global": {
       "islenenMesajlar": [
+        "test-inci-1790583227000",
         "test-mid-eski1790449111000",
         "test-mid-p1790449097000",
         "test-mid-p1790441632000",
         "test-mid-1790440556000"
       ],
       "hiz": {
-        "test-duman-pilot": [
-          1790449097194
-        ],
-        "test-panel-eski": [
-          1790449111373
+        "test-inci-duman": [
+          1790583227415
         ]
       },
       "toplam": [
-        1790449097194,
-        1790449111373
+        1790583227415
       ],
       "pilot": [
+        {
+          "ts": "2026-09-28T08:13:47.931Z",
+          "korelasyon": "ms-mukz0sns-7sth",
+          "trafik": "test",
+          "gonderilecek": true,
+          "insanaAktar": false,
+          "sebep": null,
+          "urun": "HYDRAVIE",
+          "sinif": "ICERIK",
+          "pencereIcinde": true,
+          "cevap": "HYDRAVIE El & Yüz Nemlendirici Krem öne çıkan içerikleri: Squalane & Shea Butter, Bakuchiol, Nar Çekirdeği Yağı, Sodium Hyaluronate, Niacinamide, Panthenol. Tam içerik listesini (INCI) ürün sayfasında bulabilirsiniz. Hemen sipariş vermek için: https://www.lcarlie.shop/product-page/hydravie",
+          "filtre": {
+            "gelen": "TEMIZ",
+            "taslak": "TEMIZ"
+          },
+          "gerekceler": [
+            "Temiz - otomatik gonderilebilir"
+          ]
+        },
         {
           "ts": "2026-09-26T18:58:31.792Z",
           "korelasyon": "ms-muir6826-hstm",
@@ -541,8 +557,8 @@
   "meta": null,
   "nodeGroups": [],
   "pinData": null,
-  "versionId": "2d4bb19e-cd27-45f2-9b95-8847e7bd20a7",
-  "activeVersionId": "2d4bb19e-cd27-45f2-9b95-8847e7bd20a7",
+  "versionId": "c8afd8b3-9125-45f2-b91c-36753c561e12",
+  "activeVersionId": "c8afd8b3-9125-45f2-b91c-36753c561e12",
   "versionCounter": 5,
   "triggerCount": 3,
   "sourceWorkflowId": null,
