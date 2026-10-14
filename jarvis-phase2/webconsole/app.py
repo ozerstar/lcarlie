@@ -1772,6 +1772,30 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(403, {"error": "csrf token missing or invalid"})
             return
 
+        if path == "/api/account/password":
+            body = _read_json_body(self)
+            if not isinstance(body, dict):
+                self._send_json(400, {"error": "invalid request"})
+                return
+            current_password = body.get("current_password")
+            new_password = body.get("new_password")
+            if not isinstance(current_password, str) or not isinstance(new_password, str):
+                self._send_json(400, {"error": "invalid request"})
+                return
+            if len(new_password) < 6:
+                self._send_json(400, {"error": "password too short"})
+                return
+            account = auth.load_account()
+            if not account or account["username"] != session.username or not auth.verify_password(
+                current_password, account["password_hash"], account["salt"]
+            ):
+                self._send_json(403, {"error": "current password incorrect"})
+                return
+            auth.set_password(session.username, new_password)
+            sessions.destroy_all()
+            self._send_json(200, {"ok": True}, self._clear_session_cookies())
+            return
+
         if path == "/api/gelenkutusu/devir":
             # Devir durumunu DEGISTIRIR. Mesaj GONDERMEZ.
             body = _read_json_body(self)

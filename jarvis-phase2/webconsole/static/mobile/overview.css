@@ -1,0 +1,18 @@
+.tab-nav{display:flex;overflow-x:auto;gap:6px;scrollbar-width:thin;flex-shrink:0}
+.tab-nav button{flex:0 0 auto;min-width:80px;padding:11px 9px;font-size:12px}
+.section-title{font-size:16px;margin:24px 0 12px}
+.overview-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.overview-links a{display:block;min-height:88px;padding:15px;border:1px solid #354b54;border-radius:16px;background:#1a2b34;color:#e6f3f2;text-decoration:none}
+.overview-links a strong,.overview-links a small{display:block}
+.overview-links a small{color:#a9bcc2;margin-top:7px;line-height:1.35}
+.overview-links a:focus-visible{outline:2px solid #76d9c7;outline-offset:2px}
+.approval-detail{white-space:normal;max-height:50dvh;overflow:auto;font-family:inherit;font-size:14px;line-height:1.5}
+.approval-detail h3{font-size:16px;margin:0 0 10px}
+.approval-detail p{margin:8px 0;color:#e7f1f1;overflow-wrap:anywhere}
+.approval-detail .approval-warning{background:#463227;border:1px solid #9d714b;border-radius:12px;padding:11px;color:#ffe0ba}
+.approval-detail .approval-meta{color:#a9bec2;font-size:12px}
+.approval-detail .approval-reason{white-space:pre-wrap}
+.approval-detail details{margin-top:14px;color:#a9bec2}
+.approval-detail pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px}
+.approval-detail img{display:block;max-width:100%;max-height:280px;object-fit:contain;margin-top:8px;border-radius:10px}
+.mobile-card .approval-summary{white-space:pre-wrap}

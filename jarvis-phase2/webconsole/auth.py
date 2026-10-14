@@ -16,6 +16,7 @@ import hmac
 import json
 import os
 import secrets
+import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -78,11 +79,21 @@ def load_account() -> dict[str, Any] | None:
 def set_password(username: str, password: str) -> None:
     AUTH_FILE.parent.mkdir(parents=True, exist_ok=True)
     password_hash, salt = hash_password(password)
-    AUTH_FILE.write_text(json.dumps({
+    payload = json.dumps({
         "username": username, "password_hash": password_hash, "salt": salt,
         "created_at": time.time(),
-    }), encoding="utf-8")
-    os.chmod(AUTH_FILE, 0o600)
+    })
+    descriptor, temporary_path = tempfile.mkstemp(prefix=".auth-", dir=AUTH_FILE.parent)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.chmod(temporary_path, 0o600)
+        os.replace(temporary_path, AUTH_FILE)
+    finally:
+        if os.path.exists(temporary_path):
+            os.unlink(temporary_path)
 
 
 @dataclass
@@ -131,6 +142,10 @@ class SessionStore:
     def destroy(self, session_id: str) -> None:
         with self._lock:
             self._sessions.pop(session_id, None)
+
+    def destroy_all(self) -> None:
+        with self._lock:
+            self._sessions.clear()
 
     def sweep(self) -> None:
         now = time.time()

@@ -1,0 +1,11 @@
+{
+  "name": "L’CARLIÉ Jarvis",
+  "short_name": "L’CARLIÉ",
+  "description": "L’CARLIÉ Jarvis mobil yönetim ve sesli sohbet.",
+  "start_url": "/mobile/index.html",
+  "scope": "/mobile/",
+  "display": "standalone",
+  "background_color": "#101923",
+  "theme_color": "#101923",
+  "icons": [{"src": "/iphone-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any maskable"}]
+}

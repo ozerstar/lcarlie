@@ -59,6 +59,7 @@ class WebConsoleIntegrationTests(unittest.TestCase):
         cls.server.server_close()
 
     def setUp(self):
+        auth.set_password(TEST_USER, TEST_PASS)
         app.sessions = auth.SessionStore()
         app.throttle = auth.LoginThrottle()
         app._operator.reset_mock()
@@ -149,6 +150,44 @@ class WebConsoleIntegrationTests(unittest.TestCase):
         resp, _ = self._post("/api/logout", {},
                              headers={"Cookie": f"{app.SESSION_COOKIE}={sid}", "X-CSRF-Token": "wrong-token"})
         self.assertEqual(resp.status, 403)
+
+    def test_password_change_requires_authentication_and_csrf(self):
+        payload = {"current_password": TEST_PASS, "new_password": "654321"}
+        resp, _ = self._post("/api/account/password", payload)
+        self.assertEqual(resp.status, 401)
+        csrf, sid = self._login()
+        resp, _ = self._post("/api/account/password", payload,
+                             headers={"Cookie": f"{app.SESSION_COOKIE}={sid}"})
+        self.assertEqual(resp.status, 403)
+
+    def test_password_change_validates_current_and_minimum_length(self):
+        csrf, sid = self._login()
+        headers = {"Cookie": f"{app.SESSION_COOKIE}={sid}", "X-CSRF-Token": csrf}
+        resp, _ = self._post("/api/account/password",
+                             {"current_password": "wrong", "new_password": "654321"}, headers=headers)
+        self.assertEqual(resp.status, 403)
+        resp, _ = self._post("/api/account/password",
+                             {"current_password": TEST_PASS, "new_password": "12345"}, headers=headers)
+        self.assertEqual(resp.status, 400)
+        self.assertTrue(auth.verify_password(TEST_PASS, auth.load_account()["password_hash"],
+                                             auth.load_account()["salt"]))
+
+    def test_password_change_accepts_six_digits_and_revokes_sessions(self):
+        csrf, sid = self._login()
+        _, other_sid = self._login()
+        headers = {"Cookie": f"{app.SESSION_COOKIE}={sid}", "X-CSRF-Token": csrf}
+        resp, body = self._post("/api/account/password",
+                                {"current_password": TEST_PASS, "new_password": "654321"}, headers=headers)
+        self.assertEqual(resp.status, 200)
+        self.assertTrue(body["ok"])
+        self.assertIn("Max-Age=0", " ".join(resp.msg.get_all("Set-Cookie") or []))
+        for old_sid in (sid, other_sid):
+            resp, _ = self._get("/api/status", headers={"Cookie": f"{app.SESSION_COOKIE}={old_sid}"})
+            self.assertEqual(resp.status, 401)
+        resp, _ = self._post("/api/login", {"username": TEST_USER, "password": TEST_PASS})
+        self.assertEqual(resp.status, 401)
+        resp, _ = self._post("/api/login", {"username": TEST_USER, "password": "654321"})
+        self.assertEqual(resp.status, 200)
 
     # -- structural safety --------------------------------------------------
     def test_status_endpoint_never_returns_db_credentials(self):

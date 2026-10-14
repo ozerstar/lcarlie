@@ -60,6 +60,14 @@ class SessionStoreTests(unittest.TestCase):
         store.destroy(session.session_id)
         self.assertIsNone(store.get(session.session_id))
 
+    def test_destroy_all_removes_every_session(self):
+        store = auth.SessionStore()
+        first = store.create("operator")
+        second = store.create("operator")
+        store.destroy_all()
+        self.assertIsNone(store.get(first.session_id))
+        self.assertIsNone(store.get(second.session_id))
+
     def test_each_session_has_unique_csrf_token(self):
         store = auth.SessionStore()
         a = store.create("operator")
