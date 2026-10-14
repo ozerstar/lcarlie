@@ -72,9 +72,40 @@ class KuyrukOkumaDAYANIKLI(unittest.TestCase):
         self.assertEqual(mk.olaylari_oku(Path("/yok/olan/dosya.jsonl")), [])
 
     def test_kuyruk_silinmez_ARSIVLENIR(self):
-        # Yukleme sonrasi bir sorun cikarsa olay elde kalsin.
-        self.assertIn("shutil.move", KAYNAK)
+        """Kuyruk DOSYASI islendikten sonra arsivde durmali, silinmemeli.
+
+        Onceki hali `shutil.move` dizesini ariyordu. Betik `Path.replace()`
+        kullanmaya gecince test kirildi, oysa davranis AYNIYDI -- hatta
+        daha iyisiydi: `replace` ayni dosya sisteminde atomiktir. Dizeye
+        bakan test, dogru bir degisikligi yanlis bildiriyordu.
+
+        Artik DAVRANISA bakiyor: dosya kuyruk yolundan kalkar, arsivde
+        icerigiyle birlikte durur. Yukleme sonrasi bir sorun cikarsa olay
+        elde kalsin diye bu kural var.
+        """
+        with tempfile.TemporaryDirectory() as gecici:
+            kok = Path(gecici)
+            kuyruk = kok / "meta_webhook" / "gelen.jsonl"
+            kuyruk.parent.mkdir(parents=True)
+            icerik = json.dumps({"mesaj_id": "a"}) + "\n"
+            kuyruk.write_text(icerik, encoding="utf-8")
+
+            eski_kuyruk, eski_arsiv = mk.KUYRUK, mk.ARSIV
+            mk.KUYRUK = kuyruk
+            mk.ARSIV = kok / "meta_webhook" / "arsiv"
+            try:
+                bekleyenler = mk.bekleyen_kuyrugu_al()
+            finally:
+                mk.KUYRUK, mk.ARSIV = eski_kuyruk, eski_arsiv
+
+            self.assertFalse(kuyruk.exists(), "kuyruk dosyasi yerinde kalmis")
+            self.assertEqual(len(bekleyenler), 1, "arsive tasinmamis")
+            self.assertEqual(bekleyenler[0].read_text(encoding="utf-8"), icerik,
+                             "arsivlenen dosyanin icerigi degismis")
+
+        # Silme cagrisi kaynakta HIC bulunmamali.
         self.assertNotIn("os.remove(kuyruk)", KAYNAK)
+        self.assertNotIn("unlink()", KAYNAK)
 
 
 class TirnakKACISI(unittest.TestCase):
