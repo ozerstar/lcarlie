@@ -1599,7 +1599,7 @@ def _chat(message: str, intent: str, started: float,
         # "denetlendi, temiz" ile "denetlenemedi" ayni sey degildir.
         # Katalog okunamazsa bos doner ve yalniz o kontrol devre disi kalir.
         result = _router().synthesize(_dil_notlu(message), (), system=_system_for(message), max_tokens=CHAT_MAX_TOKENS,
-                                      escalate=needs_escalation(message),
+                                      escalate=ESCALATE_REASONING or needs_escalation(message),
                                       history=conversation_memory.history(),
                                       known_products=_known_products(runtime))
     except ModelUnavailable:

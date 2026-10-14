@@ -33,6 +33,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
+from urllib.request import Request, urlopen
 
 HERE = Path(__file__).resolve().parent
 JARVIS_ROOT = HERE.parent
@@ -1742,6 +1743,38 @@ class Handler(BaseHTTPRequestHandler):
             return
         if not self._require_csrf(session):
             self._send_json(403, {"error": "csrf token missing or invalid"})
+            return
+
+        if path == "/api/voice/synthesize":
+            # Browser audio comes through the authenticated console. Piper itself
+            # listens on loopback and never receives browser credentials.
+            body = _read_json_body(self)
+            spoken_text = str(body.get("text", "")).strip()
+            if not spoken_text or len(spoken_text) > 800:
+                self._send_json(400, {"error": "invalid speech text"})
+                return
+            request = Request(
+                "http://127.0.0.1:5000/synthesize",
+                data=json.dumps({"text": spoken_text}, ensure_ascii=False).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            try:
+                with urlopen(request, timeout=15) as response:
+                    audio = response.read(4_000_001)
+            except (OSError, TimeoutError):
+                self._send_json(503, {"error": "voice service unavailable"})
+                return
+            if len(audio) > 4_000_000 or not audio.startswith(b"RIFF"):
+                self._send_json(502, {"error": "invalid voice response"})
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "audio/wav")
+            self.send_header("Content-Length", str(len(audio)))
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(audio)
             return
 
         if path == "/api/improvement":
