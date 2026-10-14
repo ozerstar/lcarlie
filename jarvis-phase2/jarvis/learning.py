@@ -305,4 +305,9 @@ def run(memory: Any) -> dict[str, Any]:
     except Exception:  # noqa: BLE001
         payload["evidence_readiness"] = []
 
+    try:
+        from .improvement import Store
+        payload["improvement"] = Store().snapshot()
+    except Exception as exc:  # noqa: BLE001
+        payload["improvement"] = {"error_type": type(exc).__name__}
     return payload

@@ -703,6 +703,14 @@ class ModelRouter:
         messages = ([{"role": "system", "content": system or GROUNDING_SYSTEM}]
                     + list(history or [])
                     + [{"role": "user", "content": user}])
+        if system is None:
+            try:
+                from .improvement import Store
+                previous_lessons = Store().context(question)
+                if previous_lessons:
+                    messages[-1]["content"] += "\n\n" + previous_lessons
+            except Exception:  # noqa: BLE001 - optional memory cannot break synthesis
+                pass
         states = self.provider_states()
         try:
             result, tier, calls = self.generate(messages, max_tokens, escalate)

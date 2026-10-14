@@ -1508,6 +1508,14 @@ def _system_for(message: str, internal_ok: bool = True) -> str:
     identity = _KNOWLEDGE.identity()
     if identity:
         parts.append(identity)
+    if internal_ok:
+        try:
+            from jarvis.improvement import Store
+            lessons = Store().context(message)
+            if lessons:
+                parts.append(lessons)
+        except Exception:  # noqa: BLE001 - optional memory must not break replies
+            pass
     block = _KNOWLEDGE.context(message, internal_ok=internal_ok)
     if block:
         parts.append(block)

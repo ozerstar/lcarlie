@@ -1417,6 +1417,13 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/status":
             self._send_json(200, self._build_status())
             return
+        if path == "/api/improvement":
+            from jarvis.improvement import Store
+            try:
+                self._send_json(200, Store().snapshot())
+            except Exception as exc:  # noqa: BLE001
+                self._send_json(503, {"error": "Gelişim defteri okunamadı", "error_type": type(exc).__name__})
+            return
         if path == "/api/activity":
             limit = int((query.get("limit") or ["30"])[0])
             limit = max(1, min(limit, 200))
@@ -1737,6 +1744,17 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(403, {"error": "csrf token missing or invalid"})
             return
 
+        if path == "/api/improvement":
+            from jarvis.improvement import Store
+            try:
+                result = Store().operation(_read_json_body(self), session.username)
+            except (ValueError, TypeError) as exc:
+                self._send_json(400, {"error": str(exc)[:250]})
+            except Exception as exc:  # noqa: BLE001
+                self._send_json(503, {"error": "Gelişim kaydı yazılamadı", "error_type": type(exc).__name__})
+            else:
+                self._send_json(200, result)
+            return
         if path == "/api/logout":
             sessions.destroy(session.session_id)
             self._send_json(200, {"ok": True}, self._clear_session_cookies())

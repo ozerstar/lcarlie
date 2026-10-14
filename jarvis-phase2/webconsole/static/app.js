@@ -1713,6 +1713,63 @@ function renderLessons(block) {
     + `<p class="sect-note">${escapeHtml(String(block.note || ''))}</p>`;
 }
 
+
+function renderImprovement(d) {
+  if (!d || d.error_type) return card('GELİŞİM DÖNGÜSÜ', '<p>Gelişim defteri okunamadı.</p>', '');
+  const statuses = {WAITING_APPLICATION_EVIDENCE:'Uygulama kanıtı bekliyor', WAITING_MEASUREMENT:'Sonuç ölçümü bekliyor', TARGET_REACHED:'Hedefe ulaştı', MEASURED_FOLLOW_UP:'Ölçüldü; takip gerekli', CANCELLED:'İptal edildi'};
+  const works = d.works || [];
+  const rows = works.slice(0, 60).map(w => `<div class="kv"><span class="kv-k">#${w.id} ${escapeHtml(w.objective)}</span><span class="kv-v">${escapeHtml(statuses[w.status] || w.status)}</span></div><p class="sect-note">Sorumlu: ${escapeHtml(w.owner)} · Son tarih: ${escapeHtml(w.due)}${w.overdue ? ' · Süresi geçti' : ''}<br>Ölçüt: ${escapeHtml(w.metric)} · Hedef: ${escapeHtml(String(w.target ?? 'belirlenecek'))} ${escapeHtml(w.unit)}<br>Kaynak: ${escapeHtml(w.source)}</p>`).join('');
+  const lessons = (d.outcome_lessons || []).map(r => `<p>${escapeHtml(r.summary)}<br><small>${r.sample} gözlem · ${escapeHtml(r.evidence.join(' · '))}</small></p>`).join('');
+  const ev = d.evaluation || {};
+  const cases = ev.cases || [];
+  const tests = cases.map(r => kvRow(r.task, `${r.status === 'PASS' ? 'Kaynak okunuyor' : r.status === 'NEEDS_DATA' ? 'Veri gerekli' : 'Okuma hatası'} · ${r.duration_ms} ms`)).join('');
+  const previous = d.previous_evaluation;
+  const comparison = previous ? `<p class="sect-note">Önceki kontrol: ${(previous.cases || []).filter(r=>r.status==='PASS').length}/${(previous.cases || []).length} kaynak · ${previous.duration_ms} ms. Son kontrol: ${ev.duration_ms} ms.</p>` : '';
+  const modelEval = d.model_evaluation || {};
+  const modelTests = (modelEval.cases || []).map(r => kvRow(r.task, `${r.status} · ${r.model || 'yanıt alınamadı'} · ${r.duration_ms} ms`)).join('');
+  const options = works.map(w => `<option value="${w.id}">#${w.id} ${escapeHtml(w.objective.slice(0,100))}</option>`).join('');
+  const labels = {domain:'Alan / konu',objective:'Yapılacak iş',owner:'Sorumlu rol',metric:'Başarı ölçütü',unit:'Birim',target:'Hedef değer',due:'Son tarih',source:'İşin kaynağı',at:'Uygulandığı tarih',evidence:'Uygulama / düzeltme kanıtı',baseline:'Başlangıç değeri',result:'Sonuç değeri',sample:'Gözlem sayısı',before_at:'Başlangıç ölçüm tarihi',after_at:'Sonuç ölçüm tarihi',before_source:'Başlangıç ölçümünün kaynağı',after_source:'Sonuç ölçümünün kaynağı',note:'Ölçüm yorumu ve sınırları',wrong:'Hatalı yaklaşım',right:'Doğru yaklaşım',reason:'Neden'};
+  function form(operation,title,fields) {
+    const inputs = fields.map(name => {
+      if(name === 'work_id') return `<label>İş <select name="work_id" required>${options}</select></label>`;
+      if(name === 'direction') return '<label>İyileşme yönü <select name="direction"><option value="lower">Değer azaldıkça iyileşir</option><option value="higher">Değer arttıkça iyileşir</option></select></label>';
+      const type = ['baseline','result','target','sample'].includes(name) ? 'number' : ['at','due','before_at','after_at'].includes(name) ? 'datetime-local' : 'text';
+      return `<label style="display:block;margin:8px 0">${labels[name]} <input style="width:100%" name="${name}" type="${type}" ${type === 'number' ? `step="${name === 'sample' ? '1' : 'any'}"` : 'maxlength="1000"'} required></label>`;
+    }).join('');
+    return `<details><summary>${title}</summary><form data-improvement="${operation}">${inputs}<button type="submit">Kaydet</button><p role="status" class="sect-note"></p></form></details>`;
+  }
+  const forms = form('work','Yeni iş ve hedef oluştur',['domain','objective','owner','metric','unit','direction','target','due','source'])
+    + form('plan','Mevcut işin sorumlusunu ve hedefini belirle',['work_id','owner','metric','unit','direction','target','due'])
+    + form('application','Yapılan uygulamanın kanıtını kaydet',['work_id','at','evidence'])
+    + form('measurement','Önce / sonra sonuç ölçümü ekle',['work_id','baseline','result','sample','before_at','after_at','before_source','after_source','note'])
+    + form('correction','Jarvis’in hatasını ve doğru yaklaşımı hatırlat',['domain','wrong','right','reason','evidence']);
+  return card('GELİŞİM DÖNGÜSÜ', `<p class="sect-note">${escapeHtml(d.note)} Görevler ve kaynaklar her saat kontrol edilir.</p>${rows}`, `${works.length} iş`)
+    + card('ÖLÇÜLEN SONUÇLAR', lessons || '<p>Henüz uygulama ve ölçümü birlikte kaydedilmiş iş yok.</p>', '')
+    + card('CANLI KAYNAK KONTROLLERİ', `${tests}${comparison}<p class="sect-note">${escapeHtml(ev.note || '')}</p>`, `${cases.filter(r=>r.status==='PASS').length}/${cases.length} kaynak`)
+    + card('MODEL KANIT YORUMLAMA TESTLERİ', modelTests + `<p class="sect-note">${escapeHtml(modelEval.note || 'Model değerlendirmesi henüz çalıştırılmadı.')}</p>`, '')
+    + card('İŞ, ÖLÇÜM VE DÜZELTME KAYDI', forms+'<p class="sect-note">Tarihleri yerel saatinizle girin. Ölçüm aralığı gerçek uygulama tarihini kapsamalıdır. Kanıt olarak rapor veya kayıt konumunu belirtin.</p>', `${(d.corrections || []).length} düzeltme`);
+}
+
+document.addEventListener('submit', async (event) => {
+  const form = event.target;
+  if (!(form instanceof HTMLFormElement) || !form.dataset.improvement) return;
+  event.preventDefault();
+  const button = form.querySelector('button');
+  const message = form.querySelector('[role="status"]');
+  button.disabled = true;
+  try {
+    const data = Object.fromEntries(Array.from(form.elements).filter(el => el.name && !el.disabled).map(el => [el.name, el.value]));
+    data.operation = form.dataset.improvement;
+    for (const key of ['work_id','baseline','result','sample','target']) if (key in data) data[key] = Number(data[key]);
+    for (const key of ['at','due','before_at','after_at']) if (key in data) data[key] = new Date(data[key]).toISOString();
+    if(data.operation === 'work') data.source_key = 'operator:'+crypto.randomUUID();
+    await postJSON('/api/improvement', data);
+    message.textContent = 'Kaydedildi.';
+    await loadSection('raporlar');
+  } catch (error) { message.textContent = error.message || String(error); }
+  finally { button.disabled = false; }
+});
+
 function renderRaporlar(d) {
   const f = (d.findings || []).map((x) => `<div class="kv">
       <span class="kv-k">${escapeHtml(String(x.code))}</span>
@@ -1725,7 +1782,8 @@ function renderRaporlar(d) {
     + kvRow('iş zekâsı', b.status ? `${b.status} · ${b.signals} sinyal` : '—')
     + kvRow('model çağrısı', last.model_calls) + kvRow('dış aksiyon', last.external_actions)
     + kvRow('süre', last.total_ms ? `${last.total_ms} ms` : '—');
-  return renderLessons(d.lessons)
+  return renderImprovement(d.lessons && d.lessons.improvement)
+    + renderLessons(d.lessons)
     + card('SON DÖNGÜ', lastRows, '')
     + card('BULGULAR', f, `${d.finding_total || 0} kayıt`)
     + card('DÖNGÜ SONUÇLARI', c, '');
