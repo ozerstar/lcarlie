@@ -59,6 +59,7 @@ from jarvis.shadow import ShadowRunner  # noqa: E402
 from jarvis.transport import memory_host  # noqa: E402
 
 import auth  # noqa: E402
+import push_store  # noqa: E402
 import meta_webhook  # noqa: E402
 import isler  # noqa: E402
 import katalog
@@ -1416,6 +1417,13 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(401, {"error": "authentication required"})
             return
 
+        if path == "/api/push/config":
+            try:
+                self._send_json(200, {"public_key": push_store.public_key()})
+            except OSError:
+                self._send_json(503, {"error": "push unavailable"})
+            return
+
         if path == "/api/status":
             self._send_json(200, self._build_status())
             return
@@ -1770,6 +1778,43 @@ class Handler(BaseHTTPRequestHandler):
             return
         if not self._require_csrf(session):
             self._send_json(403, {"error": "csrf token missing or invalid"})
+            return
+
+        if path == "/api/push/subscribe":
+            try:
+                push_store.save(_read_json_body(self))
+            except ValueError:
+                self._send_json(400, {"error": "invalid push subscription"})
+            else:
+                self._send_json(200, {"ok": True})
+            return
+
+        if path == "/api/push/unsubscribe":
+            body = _read_json_body(self)
+            if not isinstance(body, dict) or not isinstance(body.get("endpoint"), str):
+                self._send_json(400, {"error": "invalid request"})
+                return
+            push_store.remove(body["endpoint"])
+            self._send_json(200, {"ok": True})
+            return
+
+        if path == "/api/push/test":
+            body = _read_json_body(self)
+            endpoint = body.get("endpoint") if isinstance(body, dict) else None
+            if not isinstance(endpoint, str) or not push_store.get(push_store.subscription_id(endpoint)):
+                self._send_json(400, {"error": "device not registered"})
+                return
+            try:
+                result = subprocess.run([
+                    str(JARVIS_ROOT / "venv-push/bin/python"),
+                    str(JARVIS_ROOT / "scripts/push-send.py"), "--test",
+                    push_store.subscription_id(endpoint),
+                ], capture_output=True, timeout=20, check=False)
+            except (OSError, subprocess.TimeoutExpired):
+                self._send_json(503, {"error": "push service unavailable"})
+                return
+            self._send_json(200 if result.returncode == 0 else 503,
+                            {"ok": result.returncode == 0})
             return
 
         if path == "/api/account/password":

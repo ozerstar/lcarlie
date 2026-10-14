@@ -189,6 +189,33 @@ class WebConsoleIntegrationTests(unittest.TestCase):
         resp, _ = self._post("/api/login", {"username": TEST_USER, "password": "654321"})
         self.assertEqual(resp.status, 200)
 
+    def test_push_subscription_requires_session_and_csrf(self):
+        subscription = {"endpoint": "https://web.push.apple.com/integration-test",
+                        "keys": {"p256dh": "a" * 87, "auth": "b" * 22}}
+        resp, _ = self._post("/api/push/subscribe", subscription)
+        self.assertEqual(resp.status, 401)
+        csrf, sid = self._login()
+        resp, _ = self._post("/api/push/subscribe", subscription,
+                             headers={"Cookie": f"{app.SESSION_COOKIE}={sid}"})
+        self.assertEqual(resp.status, 403)
+        headers = {"Cookie": f"{app.SESSION_COOKIE}={sid}", "X-CSRF-Token": csrf}
+        resp, body = self._post("/api/push/subscribe", subscription, headers=headers)
+        self.assertEqual(resp.status, 200)
+        self.assertTrue(body["ok"])
+        resp, body = self._post("/api/push/unsubscribe", {"endpoint": subscription["endpoint"]}, headers=headers)
+        self.assertEqual(resp.status, 200)
+
+    def test_push_config_requires_session(self):
+        resp, _ = self._get("/api/push/config")
+        self.assertEqual(resp.status, 401)
+        csrf, sid = self._login()
+        public_key_file = TMP_STATE / "test-push-public.txt"
+        public_key_file.write_text("test-public-key", encoding="ascii")
+        with patch.object(app.push_store, "PUBLIC_KEY_FILE", public_key_file):
+            resp, body = self._get("/api/push/config", headers={"Cookie": f"{app.SESSION_COOKIE}={sid}"})
+        self.assertEqual(resp.status, 200)
+        self.assertEqual(body["public_key"], "test-public-key")
+
     # -- structural safety --------------------------------------------------
     def test_status_endpoint_never_returns_db_credentials(self):
         csrf, sid = self._login()

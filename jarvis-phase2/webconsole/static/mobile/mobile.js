@@ -7,7 +7,13 @@ let selectedProposal = null;
 
 function status(message) { $('status').textContent = message; }
 function showLogin() { $('login').hidden = false; $('app').hidden = true; $('logout').hidden = true; status('Giriş gerekli'); }
-function showApp() { $('login').hidden = true; $('app').hidden = false; $('logout').hidden = false; status('Bağlı'); refreshMobile(); }
+function showApp() {
+  $('login').hidden = true; $('app').hidden = false; $('logout').hidden = false;
+  status('Bağlı'); refreshMobile(); refreshPushStatus();
+  if (new URLSearchParams(location.search).get('tab') === 'approvals') {
+    document.querySelector('[data-tab="approvals"]').click();
+  }
+}
 
 async function request(path, options = {}) {
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
@@ -75,6 +81,79 @@ $('password-form').addEventListener('submit', async (event) => {
     result.classList.add('error');
     result.hidden = false;
   }
+});
+
+function pushSupported() {
+  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+}
+
+function pushMessage(message) { $('push-status').textContent = message; }
+
+async function refreshPushStatus() {
+  if (!pushSupported()) { pushMessage('Bu tarayıcı telefon bildirimlerini desteklemiyor.'); return; }
+  try {
+    const registration = await navigator.serviceWorker.register('/mobile/sw.js', { scope: '/mobile/' });
+    const subscription = await registration.pushManager.getSubscription();
+    const active = Boolean(subscription && Notification.permission === 'granted');
+    $('push-enable').hidden = active;
+    $('push-test').hidden = !active;
+    $('push-disable').hidden = !active;
+    pushMessage(active ? 'Bildirimler bu telefonda açık.' : 'Bildirimler bu telefonda kapalı.');
+  } catch (_) { pushMessage('Bildirim durumu kontrol edilemedi.'); }
+}
+
+function pushKeyBytes(value) {
+  const padded = value.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(value.length / 4) * 4, '=');
+  return Uint8Array.from(atob(padded), (character) => character.charCodeAt(0));
+}
+
+$('push-enable').addEventListener('click', async () => {
+  if (!pushSupported()) { pushMessage('Bu tarayıcı bildirimleri desteklemiyor.'); return; }
+  if (/iPhone|iPad|iPod/.test(navigator.userAgent) &&
+      !navigator.standalone && !window.matchMedia('(display-mode: standalone)').matches) {
+    pushMessage('Önce Safari paylaş menüsünden Ana Ekran’a Ekle; ardından Jarvis simgesinden aç.');
+    return;
+  }
+  const permissionRequest = Notification.requestPermission();
+  try {
+    const permission = await permissionRequest;
+    if (permission !== 'granted') { pushMessage('Bildirim izni verilmedi. Telefon ayarlarından izin ver.'); return; }
+    const registration = await navigator.serviceWorker.register('/mobile/sw.js', { scope: '/mobile/' });
+    const config = await readApi('/api/push/config');
+    let subscription = await registration.pushManager.getSubscription();
+    if (!subscription) subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true, applicationServerKey: pushKeyBytes(config.public_key),
+    });
+    await readApi('/api/push/subscribe', { method: 'POST', body: JSON.stringify(subscription.toJSON()) });
+    await refreshPushStatus();
+    pushMessage('Bildirimler açıldı. Test düğmesiyle deneyebilirsin.');
+  } catch (_) { pushMessage('Bildirimler açılamadı. Ana ekran uygulaması ve telefon iznini kontrol et.'); }
+});
+
+$('push-test').addEventListener('click', async () => {
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+    if (!subscription) throw new Error('subscription missing');
+    await readApi('/api/push/test', {
+      method: 'POST', body: JSON.stringify({ endpoint: subscription.endpoint }),
+    });
+    pushMessage('Test bildirimi gönderim servisine kabul edildi. Telefona ulaşıp ulaşmadığını kontrol et.');
+  } catch (_) { pushMessage('Test bildirimi gönderilemedi.'); }
+});
+
+$('push-disable').addEventListener('click', async () => {
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+    if (subscription) {
+      await readApi('/api/push/unsubscribe', {
+        method: 'POST', body: JSON.stringify({ endpoint: subscription.endpoint }),
+      });
+      await subscription.unsubscribe();
+    }
+    await refreshPushStatus();
+  } catch (_) { pushMessage('Bildirimler kapatılamadı; tekrar dene.'); }
 });
 
 function bubble(kind, text) {
