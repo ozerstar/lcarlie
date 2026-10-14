@@ -50,6 +50,7 @@ from jarvis import conversation_memory as _cmem  # noqa: E402
 from jarvis.action_contract import ContractCache, ContractError  # noqa: E402
 from jarvis.execution_planner import plan_request  # noqa: E402
 from jarvis.execution_runtime import ExecutionDenied, ExecutionRuntime  # noqa: E402
+from jarvis.orchestration_status import snapshot as orchestration_snapshot  # noqa: E402
 from jarvis.context import ContextCompiler  # noqa: E402
 from jarvis import degisiklik
 from jarvis.memory import CompanyMemory, MemoryError as JarvisMemoryError  # noqa: E402
@@ -1426,6 +1427,9 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/status":
             self._send_json(200, self._build_status())
+            return
+        if path == "/api/orchestration":
+            self._send_json(200, orchestration_snapshot())
             return
         if path == "/api/improvement":
             from jarvis.improvement import Store

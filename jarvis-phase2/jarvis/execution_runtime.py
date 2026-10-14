@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import json
 import os
+import fcntl
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -484,6 +485,19 @@ class ExecutionRuntime:
             raise ExecutionDenied(f"plan {plan.plan_id} has no steps ({plan.status})")
 
         run_id = run_id_for(plan.plan_id, attempt)
+        self.run_dir.mkdir(parents=True, exist_ok=True)
+        os.chmod(self.run_dir, 0o750)
+        lock_path = self.run_dir / f"{run_id}.lock"
+        with lock_path.open("a+b") as lock_file:
+            os.chmod(lock_path, 0o640)
+            try:
+                fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as exc:
+                raise ExecutionDenied(f"run {run_id} is already active") from exc
+            return self._execute_locked(plan, originator, attempt, resume, run_id)
+
+    def _execute_locked(self, plan: ExecutionPlan, originator: str,
+                        attempt: int, resume: bool, run_id: str) -> RunRecord:
         existing = self.load(run_id)
         if (existing is not None and resume and existing.finished_at
                 and existing.status in (RUN_COMPLETED, RUN_DEGRADED)):

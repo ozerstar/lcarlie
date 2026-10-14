@@ -5,7 +5,11 @@ const state = { csrf: null, busy: false, audio: null, audioUrl: null, audioGener
 let voiceMode = false;
 let selectedProposal = null;
 
-function status(message) { $('status').textContent = message; }
+function status(message) {
+  $('status').textContent = message;
+  $('status').dataset.state = /hata|kesildi|açılamadı|algılanamadı|gerekli/i.test(message) ? 'error'
+    : /dinliyor|düşünüyor/i.test(message) ? 'busy' : 'ready';
+}
 function showLogin() { $('login').hidden = false; $('app').hidden = true; $('logout').hidden = true; status('Giriş gerekli'); }
 function showApp() {
   $('login').hidden = true; $('app').hidden = false; $('logout').hidden = false;
@@ -393,6 +397,7 @@ function addApprovalLine(container, text, className = '') {
 }
 
 async function loadJobs() {
+  loadOrchestration();
   try {
     const data = await readApi('/api/isler');
     const counts = data.sayilar || {};
@@ -403,6 +408,37 @@ async function loadJobs() {
     }
     if (!list.children.length) empty(list, 'Kuyrukta iş yok.');
   } catch (error) { empty($('job-list'), error.message); $('job-count').textContent = 'İşler alınamadı'; }
+}
+
+async function loadOrchestration() {
+  const list = $('orchestration-list');
+  try {
+    const data = await readApi('/api/orchestration');
+    $('orchestration-count').textContent = `${data.total} çalışma · ${data.needs_attention} inceleme`;
+    list.replaceChildren();
+    for (const run of data.runs || []) {
+      const statusText = {
+        COMPLETED: 'Tamamlandı', COMPLETED_DEGRADED: 'Eksik veri', RUNNING: 'Çalışıyor',
+        FAILED: 'Hata', INTERRUPTED: 'Yarım kalmış olabilir',
+      }[run.status] || run.status;
+      const card = mobileCard(run.request || run.plan_id, statusText, run.started_at || '');
+      const detail = document.createElement('details');
+      const summary = document.createElement('summary'); summary.textContent = `${(run.steps || []).length} adımı gör`;
+      const steps = document.createElement('ol');
+      for (const step of run.steps || []) {
+        const item = document.createElement('li');
+        const evidence = step.evidence_state === 'MISSING' ? ' · Kanıt eksik' :
+          step.evidence_state === 'PRESENT' ? ` · ${step.evidence_count} kaynak` : '';
+        item.textContent = `${step.step_id} · ${step.capability}: ${step.status}${evidence}${step.reason ? ` — ${step.reason}` : ''}`;
+        steps.append(item);
+      }
+      detail.append(summary, steps); card.append(detail); list.append(card);
+    }
+    if (!list.children.length) empty(list, 'Henüz kayıtlı planlı çalışma yok.');
+  } catch (error) {
+    $('orchestration-count').textContent = 'Çalışmalar okunamadı';
+    empty(list, 'Orkestrasyon kayıtları yüklenemedi.');
+  }
 }
 
 $('job-form').addEventListener('submit', async (event) => {
@@ -421,7 +457,9 @@ async function loadApprovals() {
     const data = await readApi('/api/proposals');
     const list = $('approval-list'); list.replaceChildren();
     const pending = data.pending || [];
-    $('approval-count').textContent = pending.length ? String(pending.length) : '';
+    $('approval-count').textContent = String(pending.length);
+    $('approval-count').hidden = pending.length === 0;
+    $('home-approval-count').textContent = String(pending.length);
     for (const proposal of pending) {
       const reason = String(proposal.payload?.reason || '').trim();
       const preview = reason.length > 240 ? `${reason.slice(0, 240)}…` : reason;
@@ -432,7 +470,11 @@ async function loadApprovals() {
       card.append(button); list.append(card);
     }
     if (!pending.length) empty(list, 'Bekleyen onay yok.');
-  } catch (error) { empty($('approval-list'), error.message); }
+  } catch (error) {
+    empty($('approval-list'), error.message);
+    $('approval-count').hidden = true;
+    $('home-approval-count').textContent = '—';
+  }
 }
 
 async function openMobileProposal(id) {
@@ -489,22 +531,36 @@ async function loadSystem() {
   try {
     const data = await readApi('/api/status');
     const host = data.host || {};
-    $('home-summary').textContent = `Jarvis: ${data.visual_state || '—'} · Bekleyen onay: ${data.pending_proposals ?? '—'} · Şirket hafızası: ${data.company_memory?.healthy ? 'Bağlı' : 'Kontrol gerekli'}`;
+    const online = data.visual_state && data.visual_state !== 'OFFLINE';
+    $('home-summary').dataset.state = online ? 'ready' : 'error';
+    $('home-system-state').textContent = online ? 'Jarvis bağlı' : 'Jarvis bağlantısını kontrol et';
+    $('home-memory-state').textContent = data.company_memory?.healthy ? 'Şirket hafızası erişilebilir' : 'Şirket hafızasını kontrol et';
     const list = $('system-list'); list.replaceChildren();
     list.append(mobileCard('Jarvis', data.visual_state || '—', `Bekleyen onay: ${data.pending_proposals ?? '—'}`));
     list.append(mobileCard('Şirket hafızası', data.company_memory?.healthy ? 'Bağlı' : 'Erişilemiyor',
       `Eylem güvenliği: ${data.action_firewall?.contract_valid === true ? 'etkin' : 'kontrol gerekli'}`));
     list.append(mobileCard('Sunucu', `CPU ${host.cpu?.percent ?? '—'}% · RAM ${host.ram?.percent ?? '—'}% · Disk ${host.disk?.percent ?? '—'}%`,
       host.measured_at || ''));
-  } catch (error) { empty($('system-list'), error.message); }
+  } catch (error) {
+    empty($('system-list'), error.message);
+    $('home-summary').dataset.state = 'error';
+    $('home-system-state').textContent = 'Durum alınamadı';
+    $('home-memory-state').textContent = 'Bağlantıyı kontrol edip yeniden dene';
+  }
 }
 $('refresh-system').addEventListener('click', loadSystem);
 
 function refreshMobile() { loadJobs(); loadApprovals(); loadSystem(); }
 document.querySelectorAll('[data-tab]').forEach((button) => button.addEventListener('click', () => {
   const tab = button.dataset.tab;
-  document.querySelectorAll('[data-tab]').forEach((item) => item.classList.toggle('active', item === button));
-  for (const name of ['home', 'chat', 'jobs', 'approvals', 'system', 'settings']) $(`${name}-panel`).hidden = name !== tab;
+  const mainTab = ['system', 'settings'].includes(tab) ? 'more' : tab;
+  document.querySelectorAll('.tab-nav [data-tab]').forEach((item) => {
+    const active = item.dataset.tab === mainTab;
+    item.classList.toggle('active', active);
+    if (active) item.setAttribute('aria-current', 'page');
+    else item.removeAttribute('aria-current');
+  });
+  for (const name of ['home', 'chat', 'jobs', 'approvals', 'system', 'settings', 'more']) $(`${name}-panel`).hidden = name !== tab;
   if (tab === 'home') loadSystem();
   if (tab === 'jobs') loadJobs();
   if (tab === 'approvals') loadApprovals();

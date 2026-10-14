@@ -175,7 +175,7 @@ function setView(name) {
   document.querySelectorAll('.nav-item').forEach((btn) => {
     btn.classList.toggle('is-active', btn.dataset.view === name);
   });
-  if (name === 'gorevler') { refreshActivity(); refreshProposals(); }
+  if (name === 'gorevler') { refreshActivity(); refreshProposals(); refreshOrchestration(); }
   if (name === 'fiyat') loadFiyatMatrisi();
   if (name === 'eticaret') loadUrunAlanlari();
   if (name === 'satislar') loadSatislar();
@@ -195,6 +195,56 @@ function setView(name) {
   if (name === 'hafiza') loadHafiza();
   if (PANEL_SECTIONS[name]) loadSection(name);
 }
+
+function renderViewSearch() {
+  const query = qs('viewSearchInput').value.trim().toLocaleLowerCase('tr-TR');
+  const results = qs('viewSearchResults');
+  results.replaceChildren();
+  const matches = [...document.querySelectorAll('#mainNav .nav-item:not(:disabled)')]
+    .filter((button) => button.textContent.toLocaleLowerCase('tr-TR').includes(query));
+  for (const navButton of matches) {
+    const option = document.createElement('button');
+    option.type = 'button';
+    option.textContent = navButton.textContent.trim();
+    option.addEventListener('click', () => {
+      setView(navButton.dataset.view);
+      qs('viewSearchDialog').close();
+    });
+    results.append(option);
+  }
+  if (!matches.length) {
+    const empty = document.createElement('p');
+    empty.textContent = 'Bu adla bir bölüm bulunamadı.';
+    results.append(empty);
+  }
+}
+
+qs('quickSearch').addEventListener('click', () => {
+  if (qs('viewSearchDialog').open) {
+    qs('viewSearchInput').focus();
+    return;
+  }
+  qs('viewSearchInput').value = '';
+  renderViewSearch();
+  qs('viewSearchDialog').showModal();
+  qs('viewSearchInput').focus();
+});
+qs('viewSearchClose').addEventListener('click', () => qs('viewSearchDialog').close());
+qs('viewSearchInput').addEventListener('input', renderViewSearch);
+qs('viewSearchInput').addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    qs('viewSearchResults').querySelector('button')?.click();
+  }
+});
+document.addEventListener('keydown', (event) => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k' && !qs('appView').hidden) {
+    event.preventDefault();
+    qs('quickSearch').click();
+  }
+});
+qs('quickChat').addEventListener('click', () => qs('chatInput').focus());
+qs('quickApprovals').addEventListener('click', () => setView('gorevler'));
 
 qs('mainNav').addEventListener('click', (event) => {
   const btn = event.target.closest('.nav-item');
@@ -381,6 +431,8 @@ async function refreshStatus() {
   if (!ok || !body) {
     qs('tbLiveText').textContent = 'BAĞLANTI YOK';
     live.className = 'tb-live is-error';
+    qs('quickApprovalCount').textContent = '—';
+    qs('quickApprovals').classList.remove('has-pending');
     // Eski sayılar ekranda kalıp güncelmiş gibi durmasın.
     renderHostMetrics(null, 'Ölçüm alınamadı — sunucuya ulaşılamıyor.');
     return;
@@ -406,6 +458,9 @@ async function refreshStatus() {
   renderHostMetrics(body.host, 'Bu sürüm kaynak ölçümü göndermiyor.');
   renderQueue((body.company_memory && body.company_memory.health) || null);
   setBigStat('statApprovals', body.pending_proposals);
+  const pendingCount = Number(body.pending_proposals);
+  qs('quickApprovalCount').textContent = Number.isFinite(pendingCount) ? String(pendingCount) : '—';
+  qs('quickApprovals').classList.toggle('has-pending', Number.isFinite(pendingCount) && pendingCount > 0);
   const health = (body.company_memory && body.company_memory.health) || null;
   setBigStat('statProposals', health ? health.pending_actions : null);
 }
@@ -528,6 +583,38 @@ async function refreshActivity() {
   }
 }
 
+const ORCHESTRATION_STATUS = {
+  RUNNING: 'Çalışıyor', COMPLETED: 'Tamamlandı', COMPLETED_DEGRADED: 'Eksik veriye rağmen tamamlandı',
+  FAILED: 'Hata', INTERRUPTED: 'Yarım kalmış olabilir', PROPOSED: 'Öneri hazır; gönderilmedi',
+  SUCCEEDED: 'Tamam', DATA_UNAVAILABLE: 'Veri yok', BLOCKED_CAPABILITY: 'Yetenek engeli',
+  BLOCKED_UPSTREAM: 'Önceki adım engeli', REQUIRES_HUMAN_ORIGINATION: 'İnsan başlatmalı',
+};
+
+async function refreshOrchestration() {
+  const list = qs('orchestrationList');
+  if (!list) return;
+  const { ok, body, status } = await api('/api/orchestration');
+  if (!ok || !body) {
+    qs('orchestrationCount').textContent = 'okunamadı';
+    list.innerHTML = `<li class="f-sistem">Çalışmalar okunamadı (HTTP ${escapeHtml(String(status))}).</li>`;
+    return;
+  }
+  qs('orchestrationCount').textContent = `${body.total} çalışma · ${body.needs_attention} inceleme`;
+  list.innerHTML = (body.runs || []).map((run) => {
+    const steps = (run.steps || []).map((step) => {
+      const evidence = step.evidence_state === 'MISSING' ? ' · Kanıt eksik' :
+        step.evidence_state === 'PRESENT' ? ` · ${step.evidence_count} kaynak` : '';
+      return `<li>${escapeHtml(step.step_id)} · ${escapeHtml(step.capability)}: `
+        + `${escapeHtml(ORCHESTRATION_STATUS[step.status] || step.status)}${escapeHtml(evidence)}`
+        + `${step.reason ? ` — ${escapeHtml(step.reason)}` : ''}</li>`;
+    }).join('');
+    return `<li class="f-sistem"><div class="f-text"><strong>${escapeHtml(run.request || run.plan_id)}</strong>`
+      + `<div>${escapeHtml(ORCHESTRATION_STATUS[run.status] || run.status)} · ${escapeHtml(run.run_id)}`
+      + ` · ${escapeHtml(run.started_at || '')}</div>`
+      + `<details><summary>${(run.steps || []).length} adımın durumu</summary><ol>${steps}</ol></details></div></li>`;
+  }).join('') || '<li class="f-sistem">Henüz kayıtlı planlı çalışma yok.</li>';
+}
+
 /* ---------------- proposals ---------------- */
 
 /* ==================================================================
@@ -553,7 +640,12 @@ const ONERI_ROZET = {
 
 function oneriBaslik(reason) {
   const ilk = String(reason || '').split('\n')[0] || '';
+  if (ilk.startsWith('CodingExecutor')) return 'Kod değişikliğini incele';
   return ilk.replace(/^[A-ZÇĞİÖŞÜ ]+—\s*/, '').trim() || ilk.trim();
+}
+
+function oneriRisk(risk) {
+  return {LOW: 'Düşük risk', MEDIUM: 'Orta risk', HIGH: 'Yüksek risk', CRITICAL: 'Kritik risk'}[risk] || 'Risk belirtilmedi';
 }
 
 function oneriGovdesi(payload) {
@@ -655,14 +747,25 @@ function oneriHamJson(payload) {
     <pre>${escapeHtml(JSON.stringify(payload, null, 2))}</pre></details>`;
 }
 
+function oneriGorseller(payload) {
+  const reason = String((payload || {}).reason || '');
+  const yollar = [...reason.matchAll(/\/kreatif\/[\w./-]+\.(?:jpe?g|png)/gi)].map((m) => m[0]);
+  const tekil = [...new Set(yollar)];
+  if (!tekil.length) return '';
+  return `<section class="o-gorseller"><h4>Görseller</h4>${tekil.map((url) =>
+    `<a class="o-gorsel" href="${escapeHtml(url)}" target="_blank" rel="noopener">
+      <img src="${escapeHtml(url)}" alt="Onaylanacak reklam görseli" loading="lazy"><span>Görseli büyüt</span></a>`).join('')}</section>`;
+}
+
 function proposalCardHtml(p) {
   // 🔴 Liste kartinda artik ONERININ KONUSU var. Eskiden yalniz
   // "REQUEST_HUMAN_REVIEW #28" yaziyordu; ayni tipte on oneri yan yana
   // durunca hangisinin ne oldugu ANLASILMIYORDU.
   const baslik = oneriBaslik((p.payload || {}).reason);
-  return `<div class="p-type">${escapeHtml(p.action_type)} <span class="risk-badge risk-${escapeHtml(p.risk_class)}">${escapeHtml(p.risk_class)}</span></div>
+  return `<div class="p-type">Onay bekliyor <span class="risk-badge risk-${escapeHtml(p.risk_class)}">${escapeHtml(oneriRisk(p.risk_class))}</span></div>
     ${baslik ? `<div class="p-konu">${escapeHtml(baslik)}</div>` : ''}
-    <div class="p-meta">#${escapeHtml(p.action_id)} · ${escapeHtml(fmtDateTime(p.proposed_at))}</div>`;
+    <div class="p-meta">${escapeHtml(fmtDateTime(p.proposed_at))}</div>
+    <span class="p-open">Öneriyi incele</span>`;
 }
 
 function fillProposalList(listEl, emptyEl, pending) {
@@ -673,7 +776,12 @@ function fillProposalList(listEl, emptyEl, pending) {
     const li = document.createElement('li');
     li.className = 'proposal-card';
     li.innerHTML = proposalCardHtml(p);
+    li.tabIndex = 0;
+    li.setAttribute('role', 'button');
     li.addEventListener('click', () => openProposal(p.action_id));
+    li.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openProposal(p.action_id); }
+    });
     listEl.appendChild(li);
   });
 }
@@ -692,17 +800,17 @@ async function openProposal(actionId) {
   const { ok, body } = await api('/api/proposals/' + actionId);
   if (!ok || !body) return;
   qs('modalBody').innerHTML = `
-    <h3>${escapeHtml(body.action_type)} <span class="risk-badge risk-${escapeHtml(body.risk_class)}">${escapeHtml(body.risk_class)}</span></h3>
-    <p><strong>#${escapeHtml(body.action_id)}</strong> · görev ${escapeHtml(body.task_id)} · ${escapeHtml(fmtDateTime(body.proposed_at))}</p>
-    <p>Son geçerlilik: ${escapeHtml(fmtDateTime(body.expires_at))}</p>
+    <h3>${escapeHtml(oneriBaslik((body.payload || {}).reason) || 'Öneriyi incele')}</h3>
+    <p><span class="risk-badge risk-${escapeHtml(body.risk_class)}">${escapeHtml(oneriRisk(body.risk_class))}</span> · Son karar tarihi: ${escapeHtml(fmtDateTime(body.expires_at))}</p>
     ${oneriGovdesi(body.payload)}
+    ${oneriGorseller(body.payload)}
     ${oneriHamJson(body.payload)}
-    <label class="reason-label">GEREKÇE
+    <label class="reason-label">Karar notu (isteğe bağlı)
       <input id="decisionReason" type="text" class="reason-input">
     </label>
     <div class="modal-actions">
-      <button class="btn-approve" id="btnApprove" type="button">ONAYLA</button>
-      <button class="btn-reject" id="btnReject" type="button">REDDET</button>
+      <button class="btn-approve" id="btnApprove" type="button">Öneriyi onayla</button>
+      <button class="btn-reject" id="btnReject" type="button">Öneriyi reddet</button>
     </div>
   `;
   qs('btnApprove').addEventListener('click', () => decide(actionId, 'APPROVED'));
@@ -3678,9 +3786,9 @@ hfBind();
 const kpState = { partiler: [], acik: null };
 
 const KP_DURUM = {
-  ONAY_BEKLIYOR: 'promptlar hazır · görsel onay bekliyor',
-  GORSEL_VAR: 'görsel üretildi · inceleme yok',
-  GORSEL_INCELENDI: 'görsel üretildi ve ekip inceledi',
+  ONAY_BEKLIYOR: 'Görsel henüz üretilmedi',
+  GORSEL_VAR: 'Görsel hazır',
+  GORSEL_INCELENDI: 'Görselleri aç',
 };
 
 const KP_KARAR = { GECER: 'kp-ok', DUZELT: 'kp-orta', RED: 'kp-kotu' };
@@ -3724,7 +3832,10 @@ function kpKare(k, partiKlasor) {
     `<li><b>${escapeHtml(String(i.uye || ''))}</b> ${escapeHtml(String(i.karar || ''))} — ` +
     `${escapeHtml(String(i.gerekce || ''))}</li>`).join('');
   return `<figure class="kp-kare">
-    <img src="${escapeHtml(String(k.url || ''))}" alt="${escapeHtml(String(k.ust_yazi || 'kreatif'))}" loading="lazy">
+    <a href="${escapeHtml(String(k.url || ''))}" target="_blank" rel="noopener" aria-label="Görseli büyüt">
+      <img src="${escapeHtml(String(k.url || ''))}" alt="${escapeHtml(String(k.ust_yazi || 'Reklam görseli'))}" loading="lazy">
+      <span class="kp-buyut">Görseli büyüt</span>
+    </a>
     <figcaption>
       <span class="kp-rozet ${sinif}">${escapeHtml(String(k.karar || '?'))}</span>
       <span class="kp-oran">${escapeHtml(String(k.oran || ''))}</span>
@@ -3825,6 +3936,7 @@ function renderKreatifParti() {
     const acik = kpState.acik === p.parti;
     const klasor = p.parti_klasor || (p.parti + '-gorseller');
     const kareler = (p.kareler || []).map((k) => kpKare(k, klasor)).join('');
+    const ilkGorsel = (p.kareler || [])[0];
     const promptlar = (p.promptlar || []).map(kpPrompt).join('');
     const red = (p.red_team || []).map((r) =>
       `<li><span class="kp-agirlik">${escapeHtml(String(r.agirlik || ''))}</span> ` +
@@ -3833,9 +3945,11 @@ function renderKreatifParti() {
     const kurul = (p.kurul || []).map((k) =>
       `<li><b>${escapeHtml(String(k.uye || ''))}</b> — ${escapeHtml(String(k.soyledigi || ''))}</li>`).join('');
     return `<article class="kp-parti${acik ? ' is-acik' : ''}">
-      <header class="kp-basi" data-kp-ac="${escapeHtml(p.parti)}">
+      <header class="kp-basi" data-kp-ac="${escapeHtml(p.parti)}" role="button" tabindex="0" aria-expanded="${acik}">
+        ${ilkGorsel ? `<img class="kp-onizleme" src="${escapeHtml(String(ilkGorsel.url || ''))}" alt="" loading="lazy">` : ''}
         <strong>${escapeHtml(String(p.urun_adi || p.parti))}</strong>
         <span class="kp-durum">${escapeHtml(KP_DURUM[p.durum] || p.durum || '')}</span>
+        ${ilkGorsel ? `<span class="kp-sayi">${p.kareler.length} görsel</span>` : ''}
         <span class="kp-tarih">${escapeHtml(String(p.uretildi || ''))}</span>
       </header>
       <div class="kp-ozet">
@@ -3847,6 +3961,7 @@ function renderKreatifParti() {
       </div>
       ${acik ? `<div class="kp-govde">
         ${kareler ? `<h4>ÜRETİLEN GÖRSELLER</h4><div class="kp-kareler">${kareler}</div>` : ''}
+        ${!kareler ? '<p>Bu çalışma için görsel henüz üretilmedi. Hazırlanan metinleri aşağıda görebilirsiniz.</p>' : ''}
         <h4>HAZIR PROMPTLAR (${(p.promptlar || []).length})</h4>${promptlar}
         ${red ? `<h4>RED TEAM</h4><ul class="kp-red">${red}</ul>` : ''}
         ${kurul ? `<details><summary>EKİBİN GÖRÜŞÜ (${(p.kurul || []).length} departman)</summary>
@@ -3891,6 +4006,11 @@ function kpBind() {
     const p = b.dataset.kpAc;
     kpState.acik = (kpState.acik === p) ? null : p;
     renderKreatifParti();
+  });
+  kutu.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const b = e.target.closest('[data-kp-ac]');
+    if (b) { e.preventDefault(); b.click(); }
   });
 }
 

@@ -321,6 +321,41 @@ class TelemetryTests(RuntimeTestBase):
 
 
 class ConcurrencyTests(RuntimeTestBase):
+    def test_same_run_cannot_execute_in_two_workers_at_once(self):
+        plan = self._plan("şirket durumunu analiz et")
+        capability = plan.steps[0].capability
+        original = rt.EXECUTORS[capability]
+        entered = threading.Event()
+        release = threading.Event()
+        errors = []
+
+        def paused(ctx):
+            entered.set()
+            if not release.wait(5):
+                raise RuntimeError("first worker was not released")
+            return original(ctx)
+
+        def run_first():
+            try:
+                self.runtime.execute(plan, originator="operator")
+            except Exception as exc:
+                errors.append(exc)
+
+        other = rt.ExecutionRuntime(FakeMemory(), run_dir=self.run_dir)
+        with patch.dict(rt.EXECUTORS, {capability: paused}):
+            worker = threading.Thread(target=run_first)
+            worker.start()
+            self.assertTrue(entered.wait(3))
+            try:
+                with self.assertRaises(rt.ExecutionDenied):
+                    other.execute(plan, originator="operator")
+            finally:
+                release.set()
+                worker.join(5)
+
+        self.assertFalse(worker.is_alive())
+        self.assertFalse(errors)
+
     def test_independent_steps_run_bounded_and_dependencies_are_respected(self):
         runtime = rt.ExecutionRuntime(
             self.memory, run_dir=self.run_dir,

@@ -11,7 +11,8 @@
   <link rel="apple-touch-icon" href="/iphone-icon.png">
   <link rel="stylesheet" href="/mobile/mobile.css">
   <link rel="stylesheet" href="/mobile/overview.css">
-  <script defer src="/mobile/mobile.js"></script>
+  <link rel="stylesheet" href="/mobile/experience.css?v=1">
+  <script defer src="/mobile/mobile.js?v=2"></script>
 </head>
 <body>
   <main class="shell">
@@ -34,17 +35,23 @@
 
     <section id="app" hidden>
       <nav class="tab-nav" aria-label="Mobil bölümler">
-        <button type="button" class="active" data-tab="home">Ana Sayfa</button>
-        <button type="button" data-tab="chat">Asistan</button>
-        <button type="button" data-tab="jobs">Görevler</button>
-        <button type="button" data-tab="approvals">Onaylar <span id="approval-count"></span></button>
-        <button type="button" data-tab="system">Sistem</button>
-        <button type="button" data-tab="settings">Ayarlar</button>
+        <button type="button" class="active" data-tab="home" aria-current="page"><span class="tab-icon" aria-hidden="true">⌂</span>Ana Sayfa</button>
+        <button type="button" data-tab="chat"><span class="tab-icon" aria-hidden="true">✦</span>Asistan</button>
+        <button type="button" data-tab="jobs"><span class="tab-icon" aria-hidden="true">▤</span>Görevler</button>
+        <button type="button" data-tab="approvals"><span class="tab-icon" aria-hidden="true">✓</span>Onaylar <span id="approval-count" class="tab-badge" hidden></span></button>
+        <button type="button" data-tab="more"><span class="tab-icon" aria-hidden="true">⋯</span>Diğer</button>
       </nav>
       <section id="home-panel" class="tab-panel">
-        <div class="intro"><span class="eyebrow">L’CARLIÉ · KONTROL MERKEZİ</span><h1>Ana Sayfa</h1><p>Şirket panelindeki bölümlere buradan ulaşabilirsin.</p></div>
-        <div id="home-summary" class="mobile-card" role="status">Durum yükleniyor…</div>
-        <h2 class="section-title">Hızlı erişim</h2>
+        <div class="intro home-intro"><span class="eyebrow">L’CARLIÉ / JARVIS</span><h1>Bugün neler oluyor?</h1><p>Önce önemli işler, sonra ayrıntılar.</p></div>
+        <div id="home-summary" class="home-status" role="status">
+          <span class="home-status-dot" aria-hidden="true"></span>
+          <span><strong id="home-system-state">Durum yükleniyor…</strong><small id="home-memory-state">Şirket hafızası kontrol ediliyor</small></span>
+        </div>
+        <div class="home-actions">
+          <button type="button" class="home-action-main" data-tab="chat"><span aria-hidden="true">✦</span><strong>Jarvis’e sor</strong><small>Yaz veya sesle konuş</small></button>
+          <button type="button" class="home-action-approval" data-tab="approvals"><span>Onay bekleyenler</span><strong id="home-approval-count">—</strong><small>Önerileri incele</small></button>
+        </div>
+        <h2 class="section-title">Şirket işleri</h2>
         <div class="overview-links">
           <a href="/?view=home"><strong>Ana Sayfa</strong><small>Şirket özeti</small></a>
           <a href="/?view=satislar"><strong>Satışlar</strong><small>Satış kayıtları</small></a>
@@ -55,7 +62,7 @@
           <a href="/?view=kreatifParti"><strong>Kreatif</strong><small>İçerik üretimi</small></a>
           <a href="/?view=raporlar"><strong>Raporlar</strong><small>Şirket raporları</small></a>
         </div>
-        <p class="help">Bu bağlantılar tam web panelinin ilgili bölümünü açar.</p>
+        <p class="help">Bu bağlantılar tam web panelindeki bölümleri açar.</p>
       </section>
       <section id="chat-panel" class="tab-panel" hidden>
       <div class="intro"><span class="eyebrow">L’CARLIÉ · TÜRKÇE SES</span><h1>Nasıl yardımcı olayım?</h1><p>Şirket Jarvis’iyle konuş veya bir iş başlat.</p></div>
@@ -75,6 +82,8 @@
       </section>
       <section id="jobs-panel" class="tab-panel" hidden>
         <div class="intro"><span class="eyebrow">GÖREV AKIŞI</span><h1>İşler</h1><p id="job-count">Yükleniyor…</p></div>
+        <div class="intro"><span class="eyebrow">PLANLI ÇALIŞMALAR</span><h2>Orkestrasyon</h2><p id="orchestration-count">Yükleniyor…</p><p>Okuma analizleri ve kanıt durumu. Hazır öneri, onay kuyruğuna otomatik eklenmez.</p></div>
+        <div id="orchestration-list" class="card-list" aria-live="polite"></div>
         <form id="job-form" class="mobile-form card">
           <label>Yeni iş<textarea id="job-request" rows="3" placeholder="Jarvis ne yapsın?" required></textarea></label>
           <label>Yapılmaması gerekenler<input id="job-negative" placeholder="İsteğe bağlı"></label>
@@ -108,6 +117,14 @@
           <button id="push-test" class="secondary" type="button" hidden>Test bildirimi gönder</button>
           <button id="push-disable" class="secondary" type="button" hidden>Bildirimleri kapat</button>
           <p class="help">iPhone'da bildirimler için bu sayfayı önce Ana Ekran'a ekleyip oradaki simgeden açmalısın.</p>
+        </div>
+      </section>
+      <section id="more-panel" class="tab-panel" hidden>
+        <div class="intro"><span class="eyebrow">DİĞER</span><h1>Araçlar ve hesap</h1><p>Sistem durumunu gör veya hesabını yönet.</p></div>
+        <div class="more-links">
+          <button type="button" data-tab="system"><strong>Sistem durumu</strong><small>Bağlantı, hafıza ve sunucu</small></button>
+          <button type="button" data-tab="settings"><strong>Ayarlar</strong><small>Parola ve telefon bildirimleri</small></button>
+          <a href="/"><strong>Tam web paneli</strong><small>Şirketin bütün bölümleri</small></a>
         </div>
       </section>
     </section>

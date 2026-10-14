@@ -8,6 +8,7 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="/app.css">
+  <link rel="stylesheet" href="/experience.css?v=2">
 </head>
 <body>
 
@@ -104,12 +105,21 @@
     </nav>
 
     <div class="tb-meta">
+      <button id="quickSearch" class="quick-action" type="button" aria-label="Bölüm ara" title="Bölüm ara (Ctrl+K)">⌕ <span>Bölüm ara</span></button>
+      <button id="quickChat" class="quick-action" type="button" aria-label="Jarvis'e soru sor">✦ <span>Jarvis’e sor</span></button>
+      <button id="quickApprovals" class="quick-action quick-approvals" type="button" aria-label="Bekleyen onayları aç">Onaylar <span id="quickApprovalCount" class="quick-count">—</span></button>
       <div class="tb-clock"><span id="tbDate" class="tb-date">—</span><span id="tbTime" class="tb-time">—</span></div>
       <div class="tb-live" id="tbLive"><span class="live-dot"></span><span id="tbLiveText" class="live-text">BAĞLANIYOR</span></div>
       <div class="tb-operator"><span class="op-avatar" id="opAvatar">—</span><span class="op-name" id="opName">—</span></div>
       <button id="logoutBtn" class="ghost-btn" type="button">ÇIKIŞ</button>
     </div>
   </header>
+
+  <dialog id="viewSearchDialog" class="view-search-dialog" aria-label="Bölüm ara">
+    <div class="view-search-head"><strong>Bölüm ara</strong><button id="viewSearchClose" type="button" aria-label="Kapat">×</button></div>
+    <input id="viewSearchInput" type="search" placeholder="Örneğin satışlar, kargo, asistan…" autocomplete="off" aria-label="Bölüm adı">
+    <div id="viewSearchResults" class="view-search-results"></div>
+  </dialog>
 
   <!-- ------------------------- ANA SAYFA ------------------------- -->
   <main class="stage view-panel" id="viewHome">
@@ -946,6 +956,11 @@
 
   <!-- ------------------------- GÖREVLER -------------------------- -->
   <main class="stage stage-split view-panel" id="viewGorevler" hidden>
+    <section class="panel" aria-label="Orkestrasyon çalışmaları">
+      <div class="panel-head"><h2 class="panel-title">ORKESTRASYON</h2><span class="panel-count" id="orchestrationCount">—</span></div>
+      <p class="empty-note">Plan → okuma analizi → kanıt denetimi → insan kararı. Öneri hazırlanması onay kuyruğuna gönderildiği anlamına gelmez.</p>
+      <ol id="orchestrationList" class="feed feed-lg" aria-live="polite"></ol>
+    </section>
     <section class="panel" aria-label="Bekleyen öneriler">
       <div class="panel-head">
         <h2 class="panel-title">BEKLEYEN ÖNERİLER</h2>
@@ -1185,6 +1200,6 @@
 </div>
 
 <script src="/vendor/leaflet/leaflet.js"></script>
-  <script src="/app.js"></script>
+  <script src="/app.js?v=4"></script>
 </body>
 </html>

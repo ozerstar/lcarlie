@@ -25,12 +25,17 @@ SAGLIK_SIKAYET = "SAGLIK_SIKAYET"
 ISLEM = "ISLEM"
 URUN_BELIRSIZ = "URUN_BELIRSIZ"
 MEVZUAT = "MEVZUAT"
+IDDIA = "IDDIA"
 SINIF_YOK = "SINIF_YOK"
 
 # 1. madde -- şikâyet, yan etki, sağlık
 SAGLIK_SINIFLARI = frozenset({"SAGLIK", "BELIRTI_ANLATIMI", "SIKAYET", "DURDURMA"})
 # 2. madde -- işlem gerektiren konular
 ISLEM_SINIFLARI = frozenset({"SIPARIS", "IADE", "ODEME", "KARGO_SORUN"})
+# Ürünün ETKİSİNİ soran mesajlar. Cevabı bir iddia üretir ve kozmetikte bu
+# mevzuat alanıdır -- Jarvis'e bırakılmaz. Eski 540 etiketlemede bu sınıf
+# yoktu; sorular SAGLIK ve TESEKKUR arasına dağılmıştı.
+IDDIA_SINIFLARI = frozenset({"IDDIA_SORUSU"})
 # Jarvis'in cevaplayabileceği sınıflar. Beyaz liste: listede olmayan DEVREDİLİR.
 JARVIS_SINIFLARI = frozenset({
     "FIYAT", "ICERIK", "KULLANIM", "KARGO", "SELAMLAMA", "TESEKKUR", "KATEGORI",
@@ -45,6 +50,7 @@ SEBEP_METNI = {
     ISLEM: "Sipariş, ödeme veya iade işlemi",
     URUN_BELIRSIZ: "Hangi üründen bahsedildiği belli değil",
     MEVZUAT: "Üretilen cevap mevzuat kapısından geçmedi",
+    IDDIA: "Ürünün etkisi soruluyor; cevabı mevzuat iddiası üretir",
     SINIF_YOK: "Mesajın sınıfı belirlenemedi",
 }
 
@@ -64,6 +70,8 @@ def devir_gerekir(sinif: str | None, *, urun_bilindi: bool,
         return True, SINIF_YOK
     if temiz in SAGLIK_SINIFLARI:
         return True, SAGLIK_SIKAYET
+    if temiz in IDDIA_SINIFLARI:
+        return True, IDDIA
     if temiz in ISLEM_SINIFLARI:
         return True, ISLEM
     if temiz not in JARVIS_SINIFLARI:

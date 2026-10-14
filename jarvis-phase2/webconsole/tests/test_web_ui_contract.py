@@ -70,7 +70,7 @@ KNOWN_ROUTES = {
     "/api/plan", "/api/panel",
     # Yurutme: /api/plan planlar, /api/run planlar VE calistirir (yalniz
     # okuma analizi; eylem ureten adim PROPOSED zarfi olur). app.py sunuyor.
-    "/api/run",
+    "/api/run", "/api/orchestration",
     # Platform fiyat yonetimi -- ikisi de app.py'de sunuluyor.
     "/api/fiyat-matrisi", "/api/fiyat-toplu-onizleme",
     # E-ticaret urun alanlari -- app.py sunuyor.
