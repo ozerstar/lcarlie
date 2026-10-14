@@ -182,6 +182,9 @@ class RunCodingTaskGatingTests(unittest.TestCase):
                 (Path(cwd) / "jarvis-phase2" / "a.py").write_text("x = 2\n")
                 return subprocess.CompletedProcess(cmd, 0, "", "")
             if cmd[:2] == ["python3", "-m"] and "unittest" in cmd:
+                self.assertEqual("C.UTF-8", env["LC_ALL"])
+                self.assertTrue(Path(env["HOME"]).is_dir())
+                self.assertNotEqual("/root", env["HOME"])
                 return subprocess.CompletedProcess(cmd, 1, "", "1 test failed")
             return subprocess.run(cmd, cwd=cwd, timeout=timeout_s, capture_output=True, text=True, env=env)
 

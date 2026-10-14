@@ -351,6 +351,11 @@ def run_coding_task(spec: CodingTaskSpec, task_id: str) -> CodingTaskResult:
 
         test_cwd = clone_path / spec.test_cwd
         env = dict(os.environ)
+        test_home = clone_path / ".test-home"
+        test_home.mkdir(mode=0o700, exist_ok=True)
+        env["HOME"] = str(test_home)
+        env["LANG"] = "C.UTF-8"
+        env["LC_ALL"] = "C.UTF-8"
         env["PYTHONPATH"] = str(test_cwd)
         env["PATH"] = str(Path(sys.executable).parent) + os.pathsep + env.get("PATH", "/usr/bin:/bin")
         env.setdefault("NLTK_DATA", "/opt/lcarlie/jarvis-phase2/nltk_data")
