@@ -1,0 +1,333 @@
+/* =========================================================================
+   L'CARLIÉ · Jarvis giriş ekranı
+   Editöryal sürüm — porselen zemin, tipografi taşır, kutu değil çizgi.
+
+   Marka dosyası §7: beyaz mineral, traverten, mat seramik, kontrollü cam.
+   Red listesi: neon aqua, elektrik mavisi, kontrolsüz gradyan, rozet yığını.
+   Bu sayfa o listeye göre kuruldu.
+
+   Panel kısıtı (ölçüldü 28.09.2026):
+   default-src 'self'; script-src 'self'; style-src 'self'
+   -> gömülü stil/betik yok, dış font yok, data: font yok.
+   🔴 Metropolis'te · ℮ ° ™ ® ₺ glifi YOK — orta nokta kullanılmaz, em tire kullanılır.
+   ========================================================================= */
+
+@font-face{font-family:"Metropolis";font-weight:300;font-style:normal;font-display:swap;
+  src:url("/fonts/Metropolis-Light.otf") format("opentype")}
+@font-face{font-family:"Metropolis";font-weight:400;font-style:normal;font-display:swap;
+  src:url("/fonts/Metropolis-Regular.otf") format("opentype")}
+@font-face{font-family:"Metropolis";font-weight:500;font-style:normal;font-display:swap;
+  src:url("/fonts/Metropolis-Medium.otf") format("opentype")}
+@font-face{font-family:"Metropolis";font-weight:600;font-style:normal;font-display:swap;
+  src:url("/fonts/Metropolis-SemiBold.otf") format("opentype")}
+@font-face{font-family:"Monument Extended";font-weight:400;font-style:normal;font-display:swap;
+  src:url("/fonts/MonumentExtended-Regular.otf") format("opentype")}
+@font-face{font-family:"Monument Extended";font-weight:800;font-style:normal;font-display:swap;
+  src:url("/fonts/MonumentExtended-Ultrabold.otf") format("opentype")}
+
+:root{
+  /* porselen ve traverten */
+  --kagit:#FFFFFF;
+  --zemin:#FBFAF7;
+  --zemin-2:#F5F2EC;
+  --zemin-3:#EFEBE3;
+
+  /* mürekkep */
+  --murekkep:#14161A;
+  --murekkep-2:#565C63;
+  --murekkep-3:#878D94;
+
+  /* saç teli çizgiler */
+  --tel:#E4E0D8;
+  --tel-2:#D0CAC0;
+
+  /* sakin aqua — neon değil, mat seramik yeşili-mavisi */
+  --aqua:#1C5E68;
+  --aqua-koyu:#144750;
+  --aqua-yumusak:#EBF1F0;
+  --aqua-tel:#BBD0CE;
+
+  /* ikincil ton ailesi */
+  --adacayi:#6C7C68;
+  --amber:#9E6F26;
+  --kil:#96594A;
+
+  --ease:cubic-bezier(.32,.72,0,1);
+  --olcu:1180px;
+  --dar:660px;
+}
+
+*{box-sizing:border-box}
+html,body{max-width:100%;overflow-x:hidden}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+
+body{
+  margin:0;
+  padding-inline:26px;
+  background:var(--zemin);
+  color:var(--murekkep);
+  font-family:"Metropolis",system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-weight:300;
+  font-size:17.5px;
+  line-height:1.68;
+  letter-spacing:.002em;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+}
+.kap{max-width:var(--olcu);margin-inline:auto}
+
+/* ---------- hareket: 8px / 240ms, tek eğri ---------- */
+@keyframes gir{from{transform:translateY(8px)}}
+.gir{animation:gir .24s var(--ease) both}
+.g1{animation-delay:0s}.g2{animation-delay:.07s}.g3{animation-delay:.14s}
+.g4{animation-delay:.21s}.g5{animation-delay:.28s}
+
+/* ---------- üst şerit ---------- */
+.serit{
+  display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+  padding-block:22px 20px;border-bottom:1px solid var(--tel);
+}
+.amblem{
+  font-family:"Monument Extended",sans-serif;font-weight:800;
+  font-size:15px;letter-spacing:.055em;line-height:1;
+}
+.serit .kucuk{margin-left:auto}
+
+/* küçük başlık — her yerde aynı ölçü */
+.kucuk{
+  font-family:"Metropolis",sans-serif;font-weight:500;
+  font-size:10.5px;letter-spacing:.24em;text-transform:uppercase;
+  color:var(--murekkep-3);
+}
+.kucuk.aqua{color:var(--aqua)}
+
+/* ---------- açılış ---------- */
+.acilis{padding-block:clamp(72px,11vw,148px) clamp(56px,8vw,104px);max-width:960px}
+.acilis .kucuk{display:block;margin-bottom:clamp(26px,4vw,44px)}
+.acilis .olcum{margin-bottom:0;margin-top:26px}
+h1{
+  font-family:"Monument Extended","Metropolis",sans-serif;font-weight:400;
+  font-size:clamp(2.1rem,5.1vw,3.55rem);line-height:1.1;letter-spacing:-.03em;
+  margin:0 0 clamp(26px,4vw,40px);text-wrap:balance;
+}
+h1 b{font-weight:800}
+h1 i{font-style:normal;color:var(--aqua)}
+.giris-metin{max-width:var(--dar);font-size:clamp(1.02rem,1.5vw,1.14rem);color:var(--murekkep-2)}
+.giris-metin strong{font-weight:500;color:var(--murekkep)}
+.giris-metin p+p{margin-top:1.05em}
+
+.eylem{display:flex;align-items:center;gap:26px;flex-wrap:wrap;margin-top:clamp(34px,5vw,52px)}
+.bag{
+  display:inline-flex;align-items:center;gap:11px;text-decoration:none;
+  font-weight:500;font-size:1.02rem;color:var(--murekkep);
+  padding-bottom:7px;border-bottom:1px solid var(--murekkep);
+  transition:color .24s var(--ease),border-color .24s var(--ease),gap .24s var(--ease);
+}
+.bag:hover{color:var(--aqua);border-color:var(--aqua);gap:16px}
+.bag.ikincil{color:var(--murekkep-2);border-color:var(--tel-2);font-weight:400}
+.bag.ikincil:hover{color:var(--aqua);border-color:var(--aqua-tel)}
+.ok{font-family:"Metropolis",sans-serif;font-weight:400}
+
+/* ---------- bölüm ---------- */
+.bolum{padding-block:clamp(56px,8vw,96px);border-top:1px solid var(--tel);scroll-margin-top:24px}
+.bolum-bas{display:flex;align-items:baseline;gap:22px;flex-wrap:wrap;margin-bottom:clamp(26px,4vw,40px)}
+h2{
+  font-family:"Monument Extended","Metropolis",sans-serif;font-weight:400;
+  font-size:clamp(1.24rem,2.5vw,1.62rem);letter-spacing:-.018em;margin:0;line-height:1.2;
+}
+.bolum-bas .kucuk{margin-left:auto;text-align:right}
+.bolum-metin{max-width:var(--dar);color:var(--murekkep-2);margin:0 0 clamp(26px,4vw,38px)}
+.bolum-metin strong{font-weight:500;color:var(--murekkep)}
+
+/* ---------- levha (kutu değil: hafif zemin + saç teli) ---------- */
+.levha{background:var(--kagit);border:1px solid var(--tel);border-radius:3px}
+.levha.sema{margin-top:34px}
+.levha-bas{
+  display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;
+  padding:15px 22px;border-bottom:1px solid var(--tel);background:var(--zemin-2);
+}
+.levha-bas .kucuk:last-child{margin-left:auto}
+
+/* ---------- durum listesi ---------- */
+.durum{display:grid;grid-template-columns:1fr;gap:0}
+.durum-satir{
+  display:flex;align-items:baseline;gap:16px;
+  padding:15px 22px;border-bottom:1px solid var(--tel);
+}
+.durum-satir:last-child{border-bottom:0}
+.im{width:5px;height:5px;flex:0 0 auto;background:var(--adacayi);transform:translateY(-3px)}
+.im.bekleyen{background:var(--amber)}
+.durum-ad{font-size:.98rem;color:var(--murekkep-2)}
+.durum-deg{
+  margin-left:auto;font-weight:500;font-size:.96rem;
+  font-variant-numeric:tabular-nums;text-align:right;
+}
+.durum-deg.bekleyen{color:var(--amber)}
+.durum-dip{padding:14px 22px;border-top:1px solid var(--tel);background:var(--zemin-2)}
+
+/* ---------- büyük sayılar: kutu yok, çizgi var ---------- */
+.rakamlar{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));
+  border-top:1px solid var(--tel)}
+.rakam{padding:30px 0 24px;border-bottom:1px solid var(--tel);padding-right:20px}
+@media(min-width:760px){
+  .rakam{border-right:1px solid var(--tel);padding-left:24px}
+  .rakam:first-child{padding-left:0}
+  .rakam:last-child{border-right:0}
+}
+.rakam b{
+  display:block;font-family:"Monument Extended",sans-serif;font-weight:400;
+  font-size:clamp(1.9rem,3.6vw,2.5rem);line-height:1;letter-spacing:-.03em;
+  font-variant-numeric:tabular-nums;
+}
+.rakam span{display:block;margin-top:12px}
+
+/* ---------- ekip ağacı ---------- */
+.agac-duzen{display:grid;grid-template-columns:1fr}
+@media(min-width:940px){.agac-duzen{grid-template-columns:1.3fr .7fr}}
+.agac-alan{
+  position:relative;display:flex;align-items:center;justify-content:center;
+  padding:clamp(14px,3vw,30px);border-bottom:1px solid var(--tel);
+  background:
+    radial-gradient(520px 380px at 50% 46%, var(--kagit), transparent 72%),
+    var(--zemin-2);
+}
+@media(min-width:940px){.agac-alan{border-bottom:0;border-right:1px solid var(--tel)}}
+.agac{width:100%;max-width:640px;height:auto;display:block}
+
+@keyframes don{to{transform:rotate(360deg)}}
+.halka{transform-origin:280px 280px;animation:don 150s linear infinite}
+.agac:hover .halka,.agac:focus-within .halka{animation-play-state:paused}
+
+.tel-hat{stroke:var(--tel-2);stroke-width:.7;fill:none;transition:stroke .3s var(--ease)}
+.tel-hat.vurgu{stroke:var(--aqua);stroke-width:1.1}
+.dugum{cursor:pointer}
+.dugum circle{
+  fill:var(--kagit);stroke:var(--tel-2);stroke-width:1;
+  transition:fill .24s var(--ease),stroke .24s var(--ease);
+}
+.dugum:hover circle{stroke:var(--aqua)}
+.dugum[aria-pressed="true"] circle{fill:var(--aqua);stroke:var(--aqua)}
+.dugum text{
+  font-family:"Metropolis",sans-serif;font-weight:500;font-size:7.4px;
+  letter-spacing:.1em;fill:var(--murekkep-3);pointer-events:none;
+  transition:fill .24s var(--ease);
+}
+.dugum:hover text,.dugum[aria-pressed="true"] text{fill:var(--murekkep)}
+.dugum:focus-visible{outline:none}
+.dugum:focus-visible circle{stroke:var(--aqua);stroke-width:2.2}
+.cekirdek{fill:none;stroke:var(--tel-2);stroke-width:.7}
+.cekirdek-ic{fill:var(--kagit);stroke:var(--murekkep);stroke-width:1.1}
+.cekirdek-ad{font-family:"Monument Extended",sans-serif;font-weight:400;font-size:10.5px;
+  fill:var(--murekkep);letter-spacing:.02em}
+.cekirdek-alt{font-family:"Metropolis",sans-serif;font-weight:500;font-size:6.6px;
+  fill:var(--murekkep-3);letter-spacing:.2em}
+
+.agac-yan{padding:clamp(22px,3vw,30px);display:flex;flex-direction:column}
+.agac-yan h3{
+  font-family:"Monument Extended",sans-serif;font-weight:400;
+  font-size:1.16rem;letter-spacing:-.015em;margin:10px 0 0;
+}
+.agac-yan .rol{font-size:.96rem;color:var(--murekkep-2);margin:14px 0 0}
+.kunye{margin-top:26px;border-top:1px solid var(--tel)}
+.kunye div{display:flex;align-items:baseline;gap:14px;padding:11px 0;border-bottom:1px solid var(--tel)}
+.kunye dt{color:var(--murekkep-3)}
+.kunye dd{margin:0 0 0 auto;font-weight:500;text-align:right;font-size:.95rem}
+.baglar{margin-top:24px}
+.baglar .kucuk{display:block;margin-bottom:12px}
+.rozetler{display:flex;flex-wrap:wrap;gap:6px 20px}
+.rozet{
+  font-family:"Metropolis",sans-serif;font-weight:400;font-size:.88rem;
+  background:transparent;border:0;border-bottom:1px solid var(--tel-2);
+  padding:2px 0 4px;color:var(--murekkep-2);cursor:pointer;
+  transition:color .24s var(--ease),border-color .24s var(--ease);
+}
+.rozet:hover{color:var(--aqua);border-color:var(--aqua)}
+.ipucu{margin-top:auto;padding-top:26px;color:var(--murekkep-3);font-size:.88rem}
+
+/* ---------- veri hattı ---------- */
+.hat-sar{overflow-x:auto;padding:clamp(18px,3vw,34px) clamp(14px,3vw,26px);
+  scrollbar-width:thin;scrollbar-color:var(--tel-2) transparent}
+.hat-sar::-webkit-scrollbar{height:5px}
+.hat-sar::-webkit-scrollbar-thumb{background:var(--tel-2);border-radius:99px}
+.hat-sar:focus-visible{outline:2px solid var(--aqua);outline-offset:3px}
+.hat{width:100%;min-width:600px;height:auto;display:block}
+.hat .kutu{fill:var(--kagit);stroke:var(--tel-2);stroke-width:.8}
+.hat .kutu-son{fill:var(--aqua-yumusak);stroke:var(--aqua-tel);stroke-width:.8}
+.hat .yol{fill:none;stroke:var(--tel-2);stroke-width:.7}
+.hat .akis{fill:none;stroke:var(--aqua);stroke-width:1;stroke-linecap:round;
+  stroke-dasharray:5 43;animation:ak 3.2s linear infinite}
+@keyframes ak{to{stroke-dashoffset:-48}}
+/* gecikmeler sınıfla verilir: panel CSP'si satır içi style niteliğini engeller */
+.hat .a2{animation-delay:.5s}.hat .a3{animation-delay:1s}.hat .a4{animation-delay:.35s}
+.hat .a5{animation-delay:.85s}.hat .a6{animation-delay:1.25s}.hat .a7{animation-delay:1.7s}
+.hat text{font-family:"Metropolis",sans-serif;font-weight:500;font-size:8.4px;
+  letter-spacing:.09em;fill:var(--murekkep-2)}
+
+/* ---------- adımlar: kart değil, numaralı satır ---------- */
+.adimlar{list-style:none;margin:0;padding:0;border-top:1px solid var(--tel);max-width:960px}
+.adimlar li{
+  display:grid;grid-template-columns:1fr;gap:4px;
+  padding:22px 0;border-bottom:1px solid var(--tel);
+}
+@media(min-width:720px){
+  .adimlar li{grid-template-columns:84px 200px 1fr;gap:26px;align-items:baseline}
+  .adimlar .kucuk{padding-top:4px}
+}
+.adimlar b{font-family:"Monument Extended",sans-serif;font-weight:400;
+  font-size:1.02rem;letter-spacing:-.012em;line-height:1.3}
+.adimlar p{margin:0;color:var(--murekkep-2);font-size:.98rem;max-width:56ch}
+
+/* ---------- departman dizini ---------- */
+.dizin{
+  display:grid;grid-template-columns:1fr;gap:0 44px;
+  max-width:1000px;border-top:1px solid var(--tel);
+}
+@media(min-width:620px){.dizin{grid-template-columns:1fr 1fr}}
+@media(min-width:960px){.dizin{grid-template-columns:1fr 1fr 1fr}}
+.dizin-satir{
+  display:flex;align-items:baseline;gap:12px;width:100%;
+  padding:10px 0;border:0;border-bottom:1px solid var(--tel);
+  background:transparent;text-align:left;cursor:pointer;
+  font-family:inherit;font-size:.95rem;font-weight:400;color:var(--murekkep);
+  transition:color .22s var(--ease);
+}
+.dizin-satir:hover{color:var(--aqua)}
+.dizin-satir:hover .dizin-aile{color:var(--aqua)}
+.dizin-aile{font-size:.78rem;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--murekkep-3);transition:color .22s var(--ease)}
+.dizin-sayi{margin-left:auto;font-weight:500;font-size:.9rem;
+  font-variant-numeric:tabular-nums;color:var(--murekkep-2)}
+
+/* ---------- kapanış ---------- */
+.kapanis{padding-block:clamp(64px,9vw,112px);border-top:1px solid var(--tel);text-align:center}
+.kapanis h2{margin-bottom:20px}
+.kapanis p{max-width:52ch;margin:0 auto 34px;color:var(--murekkep-2)}
+.kapanis .eylem{justify-content:center}
+
+footer{border-top:1px solid var(--tel);padding-block:30px 40px;
+  color:var(--murekkep-3);font-size:.84rem;line-height:1.9}
+footer b{display:block;font-weight:500;color:var(--murekkep-2)}
+
+:focus-visible{outline:2px solid var(--aqua);outline-offset:3px}
+.atla{position:absolute;left:-9999px;top:0;z-index:60;background:var(--aqua);color:#fff;
+  padding:12px 18px;font-weight:500;text-decoration:none}
+.atla:focus{left:0}
+
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .gir,.halka,.hat .akis{animation:none}
+  .bag,.rozet,.dugum circle,.tel-hat{transition:none}
+}
+/* satır kırmaları yalnız geniş ekranda; darda metin kendi akışında kırılır */
+@media(max-width:720px){ h1 br.gen{display:none} }
+@media(max-width:560px){
+  body{font-size:16.5px;padding-inline:20px}
+  .kucuk{letter-spacing:.17em}
+  .serit{padding-block:18px 16px;gap:4px 14px}
+  .serit .kucuk{margin-left:0}
+  .serit .tarih{display:none}
+  .acilis{padding-block:58px 52px}
+  .bolum-bas .kucuk{margin-left:0;text-align:left;width:100%}
+  .dizin{columns:1}
+  .eylem{gap:18px}
+}

@@ -1,0 +1,10 @@
+{
+  "name": "L'CARLIÉ OS",
+  "short_name": "L'CARLIÉ",
+  "description": "L'CARLIÉ Autonomous Company Intelligence OS -- operator console",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#08080a",
+  "theme_color": "#08080a",
+  "icons": []
+}

@@ -1,0 +1,15 @@
+MINIMUM_OPERATIONAL_JARVIS_READY
+created_at=2026-09-18T16:12:59+03:00
+overall=PASS
+jarvis_enabled=true
+jarvis_mode=OPERATIONAL
+external_actions=false
+external_provider_calls=0
+timer=active/enabled, 5min interval
+human_proposal_surface=bin/jarvis-operator (list/inspect/approve/reject/create-task)
+real_demo_proposal_id=20 (REQUEST_HUMAN_REVIEW, APPROVED, EXECUTED, zero external calls)
+soak=20 cycles/8s, zero duplicates, zero DB growth
+kill_switch=verified clean stop/disable/restart
+security_recheck=32/32 PASS
+unit_tests=108 OK
+source_commit=0b560cfb5fff2bb2d628a4db316888e574388465

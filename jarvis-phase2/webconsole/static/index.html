@@ -1,0 +1,1205 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>L’CARLIÉ · AUTONOMOUS COMPANY INTELLIGENCE OS</title>
+<meta name="theme-color" content="#0a0a0b">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="/app.css">
+  <link rel="stylesheet" href="/experience.css?v=2">
+</head>
+<body>
+
+<!-- ============================ LOGIN ============================ -->
+<section id="loginView" class="view login-view" hidden>
+  <div class="login-frame">
+    <div class="login-card">
+      <div class="brand-mark">
+        <img class="brand-logo" src="img/lcarlie-mark-light.png" alt="L’CARLIÉ" width="1400" height="194" decoding="async">
+        <span class="brand-rule"></span>
+        <span class="brand-sub">AUTONOMOUS COMPANY INTELLIGENCE OS</span>
+      </div>
+      <form id="loginForm" class="login-form" autocomplete="off">
+        <label>OPERATÖR
+          <input id="loginUser" name="username" type="text" autocomplete="username" required>
+        </label>
+        <label>PAROLA
+          <input id="loginPass" name="password" type="password" autocomplete="current-password" required>
+        </label>
+        <button type="submit">GİRİŞ</button>
+        <p id="loginError" class="login-error" hidden></p>
+      </form>
+      <p class="login-foot">Naturally Yours</p>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= COMMAND CENTER ======================= -->
+<div id="appView" class="view app-view" hidden>
+
+  <header class="topbar">
+    <button type="button" class="nav-toggle" id="navToggle"
+            aria-label="Menüyü aç/kapat" aria-expanded="false" aria-controls="mainNav">
+      <span></span><span></span><span></span>
+    </button>
+    <div class="tb-brand">
+      <img class="brand-logo" src="img/lcarlie-mark-light.png" alt="L’CARLIÉ" width="1400" height="194" decoding="async">
+      <span class="brand-sub">AUTONOMOUS COMPANY INTELLIGENCE OS</span>
+    </div>
+
+    <nav class="tb-nav" id="mainNav" aria-label="Ana gezinme">
+      <div class="nav-group" data-group="izleme">
+        <button type="button" class="nav-head" aria-expanded="true">
+          <span>İZLEME</span><i class="nav-caret" aria-hidden="true"></i>
+        </button>
+        <div class="nav-body">
+          <button type="button" class="nav-item is-active" data-view="home">ANA SAYFA</button>
+          <button type="button" class="nav-item" data-view="analiz">ANALİZ</button>
+          <button type="button" class="nav-item" data-view="asistan">ASİSTAN</button>
+          <button type="button" class="nav-item" data-view="raporlar">RAPORLAR</button>
+        </div>
+      </div>
+      <div class="nav-group" data-group="is">
+        <button type="button" class="nav-head" aria-expanded="true">
+          <span>İŞ</span><i class="nav-caret" aria-hidden="true"></i>
+        </button>
+        <div class="nav-body">
+          <button type="button" class="nav-item" data-view="gorevler">GÖREVLER</button>
+          <button type="button" class="nav-item" data-view="fiyat">FİYAT</button>
+          <button type="button" class="nav-item" data-view="eticaret">E-TİCARET</button>
+          <button type="button" class="nav-item" data-view="satislar">SATIŞLAR</button>
+          <button type="button" class="nav-item" data-view="kargo">KARGO</button>
+          <button type="button" class="nav-item" data-view="gelenkutusu">GELEN KUTUSU</button>
+          <button type="button" class="nav-item" data-view="musteri">MÜŞTERİLER</button>
+        </div>
+      </div>
+      <div class="nav-group" data-group="kreatif">
+        <button type="button" class="nav-head" aria-expanded="true">
+          <span>KREATİF</span><i class="nav-caret" aria-hidden="true"></i>
+        </button>
+        <div class="nav-body">
+          <button type="button" class="nav-item" data-view="uretilenler">ÜRETİLENLER</button>
+          <button type="button" class="nav-item" data-view="kreatifParti">KREATİF</button>
+          <button type="button" class="nav-item" data-view="reklam">REKLAM</button>
+          <button type="button" class="nav-item" data-view="tasarim">TASARIM</button>
+        </div>
+      </div>
+      <div class="nav-group" data-group="org">
+        <button type="button" class="nav-head" aria-expanded="true">
+          <span>ORGANİZASYON</span><i class="nav-caret" aria-hidden="true"></i>
+        </button>
+        <div class="nav-body">
+          <button type="button" class="nav-item" data-view="ekip">EKİP</button>
+          <button type="button" class="nav-item" data-view="ajanlar">AJANLAR</button>
+          <button type="button" class="nav-item" data-view="hafiza">HAFIZA</button>
+          <button type="button" class="nav-item" data-view="veri">VERİ</button>
+          <button type="button" class="nav-item" data-view="katalog">KATALOG</button>
+          <button type="button" class="nav-item" data-view="saha">SAHA</button>
+          <button type="button" class="nav-item" data-view="isler">İŞLER</button>
+          <button type="button" class="nav-item" data-view="sistem">SİSTEM</button>
+          <button type="button" class="nav-item" data-view="ayarlar">AYARLAR</button>
+        </div>
+      </div>
+    </nav>
+
+    <div class="tb-meta">
+      <button id="quickSearch" class="quick-action" type="button" aria-label="Bölüm ara" title="Bölüm ara (Ctrl+K)">⌕ <span>Bölüm ara</span></button>
+      <button id="quickChat" class="quick-action" type="button" aria-label="Jarvis'e soru sor">✦ <span>Jarvis’e sor</span></button>
+      <button id="quickApprovals" class="quick-action quick-approvals" type="button" aria-label="Bekleyen onayları aç">Onaylar <span id="quickApprovalCount" class="quick-count">—</span></button>
+      <div class="tb-clock"><span id="tbDate" class="tb-date">—</span><span id="tbTime" class="tb-time">—</span></div>
+      <div class="tb-live" id="tbLive"><span class="live-dot"></span><span id="tbLiveText" class="live-text">BAĞLANIYOR</span></div>
+      <div class="tb-operator"><span class="op-avatar" id="opAvatar">—</span><span class="op-name" id="opName">—</span></div>
+      <button id="logoutBtn" class="ghost-btn" type="button">ÇIKIŞ</button>
+    </div>
+  </header>
+
+  <dialog id="viewSearchDialog" class="view-search-dialog" aria-label="Bölüm ara">
+    <div class="view-search-head"><strong>Bölüm ara</strong><button id="viewSearchClose" type="button" aria-label="Kapat">×</button></div>
+    <input id="viewSearchInput" type="search" placeholder="Örneğin satışlar, kargo, asistan…" autocomplete="off" aria-label="Bölüm adı">
+    <div id="viewSearchResults" class="view-search-results"></div>
+  </dialog>
+
+  <!-- ------------------------- ANA SAYFA ------------------------- -->
+  <main class="stage view-panel" id="viewHome">
+
+    <section class="panel p-left" aria-label="Canlı zekâ akışı">
+      <div class="panel-head">
+        <h2 class="panel-title">CANLI ZEKÂ AKIŞI</h2>
+        <span class="panel-count" id="feedCount">—</span>
+      </div>
+      <ol id="activityFeed" class="feed"></ol>
+    </section>
+
+    <section class="panel" aria-label="GÜNÜN HABERLERİ">
+          <div class="panel-head">
+            <h2 class="panel-title">GÜNÜN HABERLERİ</h2>
+          </div>
+          <div class="panel-body sect-body">
+            <div id="anaHaber" class="feed">Yükleniyor…</div>
+          </div>
+        </section>
+        <section class="panel p-core" aria-label="L’CARLIÉ zekâ çekirdeği">
+      <div class="core-stack">
+        <svg id="jarvisCore" class="core-svg core-state-idle" viewBox="0 0 620 470" role="img"
+             aria-labelledby="coreSvgTitle" preserveAspectRatio="xMidYMid meet">
+          <title id="coreSvgTitle">L’CARLIÉ zekâ çekirdeği ve departman düğümleri</title>
+
+          <g class="orbit-spin" aria-hidden="true">
+            <circle class="ring ring-outer" cx="310" cy="235" r="205"></circle>
+          </g>
+          <g class="orbit-spin-rev" aria-hidden="true">
+            <circle class="ring ring-mid" cx="310" cy="235" r="128"></circle>
+          </g>
+          <circle class="ring ring-node" cx="310" cy="235" r="168"></circle>
+          <circle class="ring ring-inner" cx="310" cy="235" r="92"></circle>
+
+          <g class="orbit-sweep" aria-hidden="true">
+            <path class="sweep-arc" d="M 310 67 A 168 168 0 0 1 455.5 319"></path>
+          </g>
+
+          <g class="orbit-nodes">
+            <g class="onode" data-dept="EXEC,DECISION_MEM,DATA_BI,FORECAST,EXPERIMENT"
+               data-dept-ad="STRATEJİ"
+               role="button" tabindex="0"
+               aria-label="STRATEJİ departmanlarını aç">
+              <circle class="ohit" cx="310.0" cy="67.0" r="26"/>
+              <line class="ospoke" x1="310.0" y1="139.0" x2="310.0" y2="77.0"/>
+              <circle class="opulse" cx="310.0" cy="67.0" r="8"/>
+              <circle class="ohalo" cx="310.0" cy="67.0" r="8"/>
+              <circle class="odot" cx="310.0" cy="67.0" r="3.4"/>
+              <text class="olabel" x="310.0" y="43.0" text-anchor="middle">STRATEJİ</text>
+            </g>
+            <g class="onode" data-dept="MARKET_INT,COMPETITOR_INT"
+               data-dept-ad="PAZAR & RAKİP"
+               role="button" tabindex="0"
+               aria-label="PAZAR & RAKİP departmanlarını aç">
+              <circle class="ohit" cx="408.7" cy="99.1" r="26"/>
+              <line class="ospoke" x1="366.4" y1="157.3" x2="402.9" y2="107.2"/>
+              <circle class="opulse" cx="408.7" cy="99.1" r="8"/>
+              <circle class="ohalo" cx="408.7" cy="99.1" r="8"/>
+              <circle class="odot" cx="408.7" cy="99.1" r="3.4"/>
+              <text class="olabel" x="427.3" y="84.5" text-anchor="start"><tspan x="427.3">PAZAR &</tspan><tspan x="427.3" dy="11">RAKİP</tspan></text>
+            </g>
+            <g class="onode" data-dept="PRODUCT,RND"
+               data-dept-ad="ÜRÜN & AR-GE"
+               role="button" tabindex="0"
+               aria-label="ÜRÜN & AR-GE departmanlarını aç">
+              <circle class="ohit" cx="469.8" cy="183.1" r="26"/>
+              <line class="ospoke" x1="401.3" y1="205.3" x2="460.3" y2="186.2"/>
+              <circle class="opulse" cx="469.8" cy="183.1" r="8"/>
+              <circle class="ohalo" cx="469.8" cy="183.1" r="8"/>
+              <circle class="odot" cx="469.8" cy="183.1" r="3.4"/>
+              <text class="olabel" x="494.9" y="177.5" text-anchor="start"><tspan x="494.9">ÜRÜN &</tspan><tspan x="494.9" dy="11">AR-GE</tspan></text>
+            </g>
+            <g class="onode" data-dept="ECOM,B2B,MARKETPLACE,EXPORT,PHARMACY,BIZDEV"
+               data-dept-ad="SATIŞ & E-TİCARET"
+               role="button" tabindex="0"
+               aria-label="SATIŞ & E-TİCARET departmanlarını aç">
+              <circle class="ohit" cx="469.8" cy="286.9" r="26"/>
+              <line class="ospoke" x1="401.3" y1="264.7" x2="460.3" y2="283.8"/>
+              <circle class="opulse" cx="469.8" cy="286.9" r="8"/>
+              <circle class="ohalo" cx="469.8" cy="286.9" r="8"/>
+              <circle class="odot" cx="469.8" cy="286.9" r="3.4"/>
+              <text class="olabel" x="494.9" y="292.5" text-anchor="start"><tspan x="494.9">SATIŞ &</tspan><tspan x="494.9" dy="11">E-TİCARET</tspan></text>
+            </g>
+            <g class="onode" data-dept="META_MEDIA,GOOGLE_ADS,SEO,SOCIAL,INSTAGRAM,TIKTOK,INFLUENCER,CRO"
+               data-dept-ad="REKLAM & BÜYÜME"
+               role="button" tabindex="0"
+               aria-label="REKLAM & BÜYÜME departmanlarını aç">
+              <circle class="ohit" cx="408.7" cy="370.9" r="26"/>
+              <line class="ospoke" x1="366.4" y1="312.7" x2="402.9" y2="362.8"/>
+              <circle class="opulse" cx="408.7" cy="370.9" r="8"/>
+              <circle class="ohalo" cx="408.7" cy="370.9" r="8"/>
+              <circle class="odot" cx="408.7" cy="370.9" r="3.4"/>
+              <text class="olabel" x="427.3" y="385.5" text-anchor="start"><tspan x="427.3">REKLAM &</tspan><tspan x="427.3" dy="11">BÜYÜME</tspan></text>
+            </g>
+            <g class="onode" data-dept="CREATIVE_STRAT,BRAND,ART,CONTENT,COPY,UGC,PR"
+               data-dept-ad="KREATİF & MARKA"
+               role="button" tabindex="0"
+               aria-label="KREATİF & MARKA departmanlarını aç">
+              <circle class="ohit" cx="310.0" cy="403.0" r="26"/>
+              <line class="ospoke" x1="310.0" y1="331.0" x2="310.0" y2="393.0"/>
+              <circle class="opulse" cx="310.0" cy="403.0" r="8"/>
+              <circle class="ohalo" cx="310.0" cy="403.0" r="8"/>
+              <circle class="odot" cx="310.0" cy="403.0" r="3.4"/>
+              <text class="olabel" x="310.0" y="446.0" text-anchor="middle"><tspan x="310.0">KREATİF &</tspan><tspan x="310.0" dy="11">MARKA</tspan></text>
+            </g>
+            <g class="onode" data-dept="CRM,CS,CUSTOMER_INT,RETENTION"
+               data-dept-ad="MÜŞTERİ & CRM"
+               role="button" tabindex="0"
+               aria-label="MÜŞTERİ & CRM departmanlarını aç">
+              <circle class="ohit" cx="211.3" cy="370.9" r="26"/>
+              <line class="ospoke" x1="253.6" y1="312.7" x2="217.1" y2="362.8"/>
+              <circle class="opulse" cx="211.3" cy="370.9" r="8"/>
+              <circle class="ohalo" cx="211.3" cy="370.9" r="8"/>
+              <circle class="odot" cx="211.3" cy="370.9" r="3.4"/>
+              <text class="olabel" x="192.7" y="385.5" text-anchor="end"><tspan x="192.7">MÜŞTERİ</tspan><tspan x="192.7" dy="11">& CRM</tspan></text>
+            </g>
+            <g class="onode" data-dept="FINANCE"
+               data-dept-ad="FİNANS"
+               role="button" tabindex="0"
+               aria-label="FİNANS departmanlarını aç">
+              <circle class="ohit" cx="150.2" cy="286.9" r="26"/>
+              <line class="ospoke" x1="218.7" y1="264.7" x2="159.7" y2="283.8"/>
+              <circle class="opulse" cx="150.2" cy="286.9" r="8"/>
+              <circle class="ohalo" cx="150.2" cy="286.9" r="8"/>
+              <circle class="odot" cx="150.2" cy="286.9" r="3.4"/>
+              <text class="olabel" x="125.1" y="292.5" text-anchor="end">FİNANS</text>
+            </g>
+            <g class="onode" data-dept="FULFILLMENT,INVENTORY,PROCUREMENT,SUPPLY,AI_OPS,SECURITY"
+               data-dept-ad="OPERASYON"
+               role="button" tabindex="0"
+               aria-label="OPERASYON departmanlarını aç">
+              <circle class="ohit" cx="150.2" cy="183.1" r="26"/>
+              <line class="ospoke" x1="218.7" y1="205.3" x2="159.7" y2="186.2"/>
+              <circle class="opulse" cx="150.2" cy="183.1" r="8"/>
+              <circle class="ohalo" cx="150.2" cy="183.1" r="8"/>
+              <circle class="odot" cx="150.2" cy="183.1" r="3.4"/>
+              <text class="olabel" x="125.1" y="177.5" text-anchor="end">OPERASYON</text>
+            </g>
+            <g class="onode" data-dept="REGULATORY,LEGAL,QUALITY,RED_TEAM"
+               data-dept-ad="MEVZUAT & KALİTE"
+               role="button" tabindex="0"
+               aria-label="MEVZUAT & KALİTE departmanlarını aç">
+              <circle class="ohit" cx="211.3" cy="99.1" r="26"/>
+              <line class="ospoke" x1="253.6" y1="157.3" x2="217.1" y2="107.2"/>
+              <circle class="opulse" cx="211.3" cy="99.1" r="8"/>
+              <circle class="ohalo" cx="211.3" cy="99.1" r="8"/>
+              <circle class="odot" cx="211.3" cy="99.1" r="3.4"/>
+              <text class="olabel" x="192.7" y="84.5" text-anchor="end"><tspan x="192.7">MEVZUAT</tspan><tspan x="192.7" dy="11">& KALİTE</tspan></text>
+            </g>
+          </g>
+
+          <circle class="core-aura" cx="310" cy="235" r="74"></circle>
+          <circle class="core-disc" cx="310" cy="235" r="62"></circle>
+          <circle class="core-edge" cx="310" cy="235" r="62"></circle>
+        </svg>
+
+        <div class="core-label" aria-live="polite">
+          <img class="core-brand-logo" src="img/lcarlie-mark-light.png" alt="L’CARLIÉ" width="1400" height="194" decoding="async">
+          <span class="core-state" id="coreStateLabel">HAZIR</span>
+          <span class="core-hint" id="coreHint"></span>
+        </div>
+
+        <!-- Sesli konuşma düğmesi: çekirdek diskinin tam üstünde duran
+             şeffaf daire. Bas -> dinler, tekrar bas -> durur ve cevabı sesli
+             okur. .core-label'dan SONRA geliyor; oradaki `.core-svg +
+             .core-label` bitişiklik kuralları bozulmasın diye. -->
+        <button type="button" id="coreBtn" class="core-btn" aria-pressed="false"
+                aria-label="Sesli konuşmayı başlat"></button>
+      </div>
+
+      <div class="core-foot">
+        <p class="core-chain">VERİ<span>+</span>ARAŞTIRMA<span>+</span>ANALİZ<span>+</span>ÖNERİ<span>+</span>EYLEM</p>
+        <p class="core-sign">Naturally Yours</p>
+      </div>
+    </section>
+
+    <aside class="panel p-right" aria-label="Sistem durumu">
+      <div class="panel-head">
+        <h2 class="panel-title">SİSTEM DURUMU</h2>
+      </div>
+
+      <div class="rp-scroll">
+        <div class="metric-row">
+          <div class="metric"><span class="m-label">CPU</span><span class="m-value m-na" id="mCpu">N/A</span><span class="m-sub" id="mCpuSub"></span></div>
+          <div class="metric"><span class="m-label">RAM</span><span class="m-value m-na" id="mRam">N/A</span><span class="m-sub" id="mRamSub"></span></div>
+          <div class="metric"><span class="m-label">DİSK</span><span class="m-value m-na" id="mDisk">N/A</span><span class="m-sub" id="mDiskSub"></span></div>
+        </div>
+        <p class="rp-note" id="mNote">Kaynak ölçümü bekleniyor…</p>
+
+        <h3 class="rp-sub">SERVİSLER</h3>
+        <ul class="svc-list" id="svcList"></ul>
+
+        <h3 class="rp-sub">KUYRUK <span class="rp-src">Company Memory</span></h3>
+        <ul class="kv-list" id="queueList"></ul>
+
+        <h3 class="rp-sub">BEKLEYEN ONAYLAR <span class="rp-src">operatör kuyruğu</span></h3>
+        <div class="big-stat big-stat-link" id="statApprovalsKart" role="button" tabindex="0" title="Bekleyen önerilere git"><span id="statApprovals" class="big-num">—</span><span class="big-unit">öneri onay bekliyor</span></div>
+        <ol id="proposalList" class="proposal-list"></ol>
+        <p id="proposalEmpty" class="empty-note" hidden>Bekleyen öneri yok.</p>
+
+        <h3 class="rp-sub">BEKLEYEN ÖNERİLER <span class="rp-src">pending_actions</span></h3>
+        <div class="big-stat"><span id="statProposals" class="big-num">—</span><span class="big-unit">Company Memory kaydı</span></div>
+
+        <h3 class="rp-sub">DOMAIN DURUMU <span class="rp-src" id="domainSrc">plan yok</span></h3>
+        <ul class="svc-list" id="domainStrip"></ul>
+
+        <h3 class="rp-sub">HIZLI AKSİYONLAR</h3>
+        <div class="qa-grid">
+          <button type="button" class="qa-btn" id="qaRefresh">DURUMU YENİLE</button>
+          <button type="button" class="qa-btn" data-ask="Bugün şirkette durum ne?">GÜNLÜK DURUM</button>
+          <button type="button" class="qa-btn" data-ask="Bekleyen önerilerin neler?">ÖNERİLERİ LİSTELE</button>
+          <button type="button" class="qa-btn" data-ask="Açık işler neler?">AÇIK İŞLER</button>
+        </div>
+      </div>
+    </aside>
+
+  </main>
+
+  <!-- -------------------------- ANALİZ --------------------------- -->
+  <main class="stage stage-single view-panel" id="viewEkip" hidden>
+  <section class="panel" aria-label="EKİP PANOSU">
+    <div class="panel-head">
+      <h2 class="panel-title">EKİP PANOSU</h2>
+      <span class="panel-count" id="ekipCount">—</span>
+    </div>
+    <div class="panel-body sect-body" id="ekipBody">
+      <p class="sect-empty">Yükleniyor…</p>
+    </div>
+  </section>
+</main>
+  <main class="stage stage-single view-panel" id="viewVeri" hidden>
+  <section class="panel" aria-label="VERİ KAYNAKLARI">
+    <div class="panel-head">
+      <h2 class="panel-title">VERİ KAYNAKLARI</h2>
+      <span class="panel-count" id="veriCount">—</span>
+    </div>
+    <div class="panel-body sect-body" id="veriBody">
+      <p class="sect-empty">Yükleniyor…</p>
+    </div>
+  </section>
+</main>
+
+<main class="stage stage-single view-panel" id="viewAjanlar" hidden>
+  <section class="panel" aria-label="AJANLAR VE MOTORLAR">
+    <div class="panel-head">
+      <h2 class="panel-title">AJANLAR VE MOTORLAR</h2>
+      <span class="panel-count" id="ajanlarCount">—</span>
+    </div>
+    <div class="panel-body sect-body" id="ajanlarBody">
+      <p class="sect-empty">Yükleniyor…</p>
+    </div>
+  </section>
+</main>
+
+<main class="stage stage-single view-panel" id="viewReklam" hidden>
+  <section class="panel" aria-label="REKLAM KREATİF ANALİZİ">
+    <div class="panel-head">
+      <h2 class="panel-title">REKLAM · KREATİF ANALİZİ</h2>
+      <span class="panel-count" id="krCount">—</span>
+    </div>
+    <div class="panel-body sect-body" id="krBody">
+
+      <p class="kr-giris" id="krGiris"></p>
+
+      <!-- Ozet kartlari: her biri sayi + ne demek + ne yapmali -->
+      <div class="kr-kartlar" id="krKartlar"></div>
+
+      <h3 class="rp-sub">ÇAĞRI DÜĞMESİNE GÖRE <span class="rp-src">link tıklama oranı</span></h3>
+      <p class="kr-aciklama">
+        Reklamın altındaki düğme. Her biri farklı şey ister — biri mağazaya,
+        biri profile, biri mesaja götürür. <strong>Doğrudan kıyaslanamazlar:</strong>
+        profil tıklaması ucuzdur ama satış değildir.
+      </p>
+      <div class="kr-bar-liste" id="krCta"></div>
+
+      <h3 class="rp-sub">BİÇİME GÖRE <span class="rp-src">video mu, görsel mi</span></h3>
+      <p class="kr-aciklama">
+        Hangi reklam biçimi daha çok tıklanıyor. Video dikkat çeker ama
+        pahalıdır; görsel paylaşımı ucuzdur ama anlatım gücü azdır.
+      </p>
+      <div class="kr-bar-liste" id="krBicim"></div>
+
+      <h3 class="rp-sub">EN ÇOK TIKLANAN KREATİFLER <span class="rp-src">yalnız ölçülebilir olanlar</span></h3>
+      <div class="fm-scroll">
+        <table class="fm-table kr-table">
+          <thead>
+            <tr>
+              <th scope="col">METİN</th>
+              <th scope="col">BİÇİM</th>
+              <th scope="col">DÜĞME</th>
+              <th scope="col" class="fm-num-th">GÖSTERİM</th>
+              <th scope="col" class="fm-num-th">LİNK CTR</th>
+              <th scope="col" class="fm-num-th">TL/TIKLAMA</th>
+              <th scope="col" class="fm-num-th">FREKANS</th>
+            </tr>
+          </thead>
+          <tbody id="krRows"></tbody>
+        </table>
+      </div>
+
+      <h3 class="rp-sub">DİKKAT EDİLECEKLER <span class="rp-src">veriden çıkan uyarılar</span></h3>
+      <ul class="kr-uyarilar" id="krUyarilar"></ul>
+
+      <h3 class="rp-sub">TERİMLER <span class="rp-src">ne anlama geliyor</span></h3>
+      <dl class="kr-sozluk" id="krSozluk"></dl>
+
+      <p class="fm-foot" id="krFoot"></p>
+    </div>
+  </section>
+</main>
+
+<main class="stage stage-single view-panel" id="viewEticaret" hidden>
+  <section class="panel" aria-label="E-TİCARET ÜRÜN BİLGİLERİ">
+    <div class="panel-head">
+      <h2 class="panel-title">E-TİCARET · ÜRÜN BİLGİLERİ</h2>
+      <span class="panel-count" id="etCount">—</span>
+    </div>
+    <div class="panel-body sect-body" id="etBody">
+
+      <div class="et-split">
+        <aside class="et-liste" aria-label="Ürün listesi">
+          <label class="fm-label" for="etSearch">ÜRÜN ARA</label>
+          <input type="search" id="etSearch" class="fm-input fm-search"
+                 placeholder="ürün adı…" autocomplete="off">
+          <ul class="et-urunler" id="etUrunler"></ul>
+        </aside>
+
+        <div class="et-detay">
+          <div class="et-baslik">
+            <h3 class="et-ad" id="etAd">Soldan bir ürün seçin</h3>
+            <span class="et-sku mono" id="etSku"></span>
+          </div>
+
+          <div class="fm-bar">
+            <span class="fm-label">SÜZ</span>
+            <select id="etFilter" class="fm-input">
+              <option value="">tüm alanlar</option>
+              <option value="FARKLI">yalnız farklı olanlar</option>
+              <option value="YAZILIR">yalnız değiştirilebilirler</option>
+            </select>
+            <span class="fm-scope" id="etScope"></span>
+          </div>
+
+          <div class="fm-scroll">
+            <table class="fm-table et-table" id="etTable">
+              <thead>
+                <tr>
+                  <th scope="col">ALAN</th>
+                  <th scope="col">WIX</th>
+                  <th scope="col">TRENDYOL</th>
+                  <th scope="col">DURUM</th>
+                  <th scope="col" class="et-th-ops">MÜDAHALE</th>
+                </tr>
+              </thead>
+              <tbody id="etRows"></tbody>
+            </table>
+          </div>
+
+          <p class="fm-foot" id="etFoot"></p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+</main>
+
+<main class="stage stage-single view-panel" id="viewFiyat" hidden>
+  <section class="panel" aria-label="PLATFORM FİYAT YÖNETİMİ">
+    <div class="panel-head">
+      <h2 class="panel-title">PLATFORM FİYAT YÖNETİMİ</h2>
+      <span class="panel-count" id="fiyatCount">—</span>
+    </div>
+    <div class="panel-body sect-body" id="fiyatBody">
+
+      <div class="fm-bar" role="group" aria-label="Platform seçimi">
+        <span class="fm-label">PLATFORM</span>
+        <div class="fm-chips" id="fmPlatforms"></div>
+      </div>
+
+      <div class="fm-bar">
+        <label class="fm-label" for="fmSearch">ARA</label>
+        <input type="search" id="fmSearch" class="fm-input fm-search"
+               placeholder="ürün adı…" autocomplete="off">
+        <label class="fm-label" for="fmFilter">SÜZ</label>
+        <select id="fmFilter" class="fm-input">
+          <option value="">tümü</option>
+          <option value="ZARAR">yalnız zarar</option>
+          <option value="KRITIK">zarar + kritik</option>
+          <option value="DEGISIK">referanstan farklı</option>
+          <option value="EKSIK">verisi eksik</option>
+        </select>
+      </div>
+
+      <div class="fm-bulk" role="group" aria-label="Toplu fiyat işlemi">
+        <span class="fm-label">TOPLU İŞLEM</span>
+        <select id="fmMethod" class="fm-input">
+          <option value="YUZDE">yüzde değiştir (%)</option>
+          <option value="SABIT_EKLE">tutar ekle/çıkar (TL)</option>
+          <option value="SABIT_FIYAT">sabit fiyat yap (TL)</option>
+        </select>
+        <input type="number" id="fmValue" class="fm-input fm-num"
+               step="0.01" placeholder="-20" aria-label="Değer">
+        <button type="button" class="qa-btn" id="fmPreview">ÖNİZLE</button>
+        <button type="button" class="qa-btn fm-danger" id="fmSubmit" disabled>
+          ONAYA GÖNDER
+        </button>
+        <span class="fm-scope" id="fmScope">süzülen tüm ürünler</span>
+        <input type="text" id="fmGerekce" class="fm-input fm-gerekce"
+               placeholder="Gerekçe — onaylayan bunu görecek"
+               aria-label="Değişiklik gerekçesi">
+      </div>
+
+      <div class="fm-preview" id="fmPreviewBox" hidden>
+        <div class="fm-preview-head">
+          <strong>ÖNİZLEME</strong>
+          <span class="fm-preview-note">Hiçbir fiyat değiştirilmedi.</span>
+          <button type="button" class="fm-x" id="fmPreviewClose"
+                  aria-label="Önizlemeyi kapat">×</button>
+        </div>
+        <ul class="fm-tally" id="fmTally"></ul>
+      </div>
+
+      <div class="fm-scroll">
+        <table class="fm-table" id="fmTable">
+          <thead>
+            <tr>
+              <th scope="col" class="fm-th-sort" data-sort="urun_adi">ÜRÜN</th>
+              <th scope="col" class="fm-num-th" data-sort="referans_fiyat">REFERANS</th>
+              <th scope="col" class="fm-num-th" data-sort="platform_fiyati">PLATFORM</th>
+              <th scope="col" class="fm-num-th" data-sort="fark_yuzde">FARK</th>
+              <th scope="col" class="fm-num-th" data-sort="komisyon_yuzde">KOM.</th>
+              <th scope="col" class="fm-num-th" data-sort="net_kdvsiz">NET</th>
+              <th scope="col" class="fm-num-th" data-sort="marj">MARJ</th>
+              <th scope="col" class="fm-num-th" data-sort="marj_yuzde">MARJ %</th>
+              <th scope="col" data-sort="marj_uyari">DURUM</th>
+            </tr>
+          </thead>
+          <tbody id="fmRows"></tbody>
+        </table>
+      </div>
+
+      <p class="fm-foot" id="fmFoot"></p>
+    </div>
+  </section>
+</main>
+
+<main class="stage stage-single view-panel" id="viewRaporlar" hidden>
+  <section class="panel" aria-label="RAPORLAR">
+    <div class="panel-head">
+      <h2 class="panel-title">RAPORLAR</h2>
+      <span class="panel-count" id="raporlarCount">—</span>
+    </div>
+    <div class="panel-body sect-body" id="raporlarBody">
+      <p class="sect-empty">Yükleniyor…</p>
+    </div>
+  </section>
+</main>
+
+<main class="stage stage-single view-panel" id="viewAyarlar" hidden>
+  <section class="panel" aria-label="AYARLAR">
+    <div class="panel-head">
+      <h2 class="panel-title">AYARLAR</h2>
+      <span class="panel-count" id="ayarlarCount">—</span>
+    </div>
+    <div class="panel-body sect-body" id="ayarlarBody">
+      <p class="sect-empty">Yükleniyor…</p>
+    </div>
+  </section>
+</main>
+
+<main class="stage stage-single view-panel" id="viewUretilenler" hidden>
+  <section class="panel" aria-label="URETILEN HER SEY">
+    <div class="panel-head">
+      <h2 class="panel-title">ÜRETİLENLER</h2>
+      <span class="panel-count" id="urSayi">—</span>
+    </div>
+    <div class="panel-body sect-body">
+      <p class="fm-sub">
+        Üretilen her şey burada: kreatif konseptler, gönderi görselleri,
+        basılı katalog, çekim föyleri. Hangi sekmede olduğunu aramak
+        gerekmiyor.
+      </p>
+      <div id="urListe" class="ur-liste"></div>
+    </div>
+  </section>
+</main>
+
+<main class="stage stage-single view-panel" id="viewKatalog" hidden>
+  <section class="panel" aria-label="ECZANE VE PROFESYONEL KATALOĞU">
+    <div class="panel-head">
+      <h2 class="panel-title">KATALOG</h2>
+      <span class="panel-count" id="katCount">—</span>
+    </div>
+    <div class="panel-body sect-body">
+      <p class="fm-sub">
+        Eczane ve profesyonel sunumu için ürün kartları. Her satır
+        <strong>yayındaki ürün metninden</strong> alınır ve mevzuat
+        denetiminden geçmiş cümleler gösterilir — katalogda uydurulmuş
+        cümle yoktur. Sunum sırasında not alıp ilgi işaretleyebilirsin.
+      </p>
+
+      <div class="kat-arac">
+        <input id="katArama" class="is-input kat-ara" type="search"
+               maxlength="60" placeholder="ürün ara…">
+        <select id="katSirala" class="is-input">
+          <option value="ad">ada göre</option>
+          <option value="fiyat">fiyata göre (yüksek → düşük)</option>
+          <option value="ilgi">ilgiye göre</option>
+        </select>
+        <label class="kat-onay"><input type="checkbox" id="katEksik">
+          <span>yalnız eksik bilgisi olanlar</span></label>
+        <span id="katHedefEtiket" class="kat-hedef"></span>
+        <button type="button" class="btn btn-ince" id="katYazdir">🖨 YAZDIR</button>
+        <span id="katDurum" class="is-sonuc"></span>
+      </div>
+
+      <p class="kat-uyari" id="katUyari" hidden></p>
+      <div class="kat-kampanya" id="katKampanya" hidden></div>
+      <div class="kat-kampanya kat-pdf" id="katPdf" hidden></div>
+      <div id="katListe" class="kat-liste"></div>
+    </div>
+  </section>
+
+  <section class="panel ig-panel" aria-label="INSTAGRAM GÖNDERİ PLANI">
+    <div class="panel-head">
+      <h2 class="panel-title">INSTAGRAM PLANI</h2>
+      <span class="panel-count" id="igCount">—</span>
+    </div>
+    <div class="panel-body sect-body">
+      <p class="fm-sub">
+        Gönderi paketleri <strong>ölçülmüş veriden</strong> üretilir:
+        124 Instagram gönderisinin etkileşimi, 63 reklam kreatifinin
+        maliyeti ve gerçek satış sinyali. Her pakette karşı argüman
+        (<em>itiraz</em>) ve ona ölçülmüş yanıt vardır — tartışılmamış
+        paket onaya çıkmaz.
+      </p>
+      <div class="kat-arac">
+        <select id="igDurum" class="is-input">
+          <option value="">hepsi</option>
+          <option value="ONERI">karar bekleyen</option>
+          <option value="ONAYLANDI">onaylı</option>
+          <option value="YAYINLANDI">yayında</option>
+          <option value="REDDEDILDI">reddedilen</option>
+        </select>
+        <span id="igDurumMetni" class="is-sonuc"></span>
+      </div>
+      <div id="igPlanListe" class="ig-liste"></div>
+    </div>
+  </section>
+</main>
+
+<main class="stage stage-single view-panel" id="viewSaha" hidden>
+  <section class="panel" aria-label="SAHA ZİYARET">
+    <div class="panel-head">
+      <h2 class="panel-title">SAHA</h2>
+      <span class="panel-count" id="sahaCount">—</span>
+    </div>
+    <div class="panel-body sect-body">
+      <p class="fm-sub">
+        Ankara&#39;daki ziyaret hedefleri. Kaynaklar OpenStreetMap ve Overture
+        Maps; ayda bir kendiliğinden taranır. <strong>Senin girdiğin bilgi
+        tazelemede silinmez.</strong>
+      </p>
+
+      <div class="sh-ust">
+        <input id="shArama" class="is-input sh-ara" type="search" maxlength="60"
+               placeholder="işletme adı ara…">
+        <select id="shZiyaret" class="is-input sh-ziy">
+          <option value="">gidilen · gidilmeyen</option>
+          <option value="GIDILMEDI">henüz gidilmedi</option>
+          <option value="GIDILDI">gidilmiş</option>
+        </select>
+        <select id="shEleme" class="is-input sh-ziy">
+          <option value="">elenenler gizli</option>
+          <option value="GOSTER">elenenleri de göster</option>
+          <option value="SADECE">yalnız elenenler</option>
+        </select>
+        <span id="shEslesen" class="sh-eslesen">—</span>
+        <button type="button" class="btn btn-ince" id="shSifirla">FİLTREYİ SIFIRLA</button>
+      </div>
+
+      <div class="sh-filtreler" id="shFiltreler">
+        <section class="sh-facet" data-alan="tur">
+          <header class="sh-facet-bas"><h3>TÜR</h3>
+            <button type="button" class="sh-facet-temizle" data-alan="tur">temizle</button>
+          </header>
+          <div class="sh-facet-liste" id="shTur"></div>
+        </section>
+        <section class="sh-facet" data-alan="brans">
+          <header class="sh-facet-bas"><h3>BRANŞ</h3>
+            <button type="button" class="sh-facet-temizle" data-alan="brans">temizle</button>
+          </header>
+          <input class="is-input sh-facet-ara" data-alan="brans" placeholder="branş ara…">
+          <div class="sh-facet-liste" id="shBrans"></div>
+        </section>
+        <section class="sh-facet" data-alan="ilce">
+          <header class="sh-facet-bas"><h3>İLÇE</h3>
+            <button type="button" class="sh-facet-temizle" data-alan="ilce">temizle</button>
+          </header>
+          <input class="is-input sh-facet-ara" data-alan="ilce" placeholder="ilçe ara…">
+          <div class="sh-facet-liste" id="shIlce"></div>
+          <p class="sh-facet-not" id="shIlceNot"></p>
+        </section>
+      </div>
+
+      <div class="sh-satir">
+        <button type="button" class="btn" id="shListele">LİSTELE</button>
+        <button type="button" class="btn" id="shBuradan">📍 BURADAN ROTA</button>
+        <label class="is-label" for="shYaricap">YARIÇAP (m)</label>
+        <input id="shYaricap" class="is-input is-dar" type="number"
+               min="100" max="20000" step="100" value="1500">
+        <label class="is-label" for="shDurak">DURAK</label>
+        <input id="shDurak" class="is-input is-dar" type="number"
+               min="1" max="60" value="20">
+        <button type="button" class="btn btn-ince" id="shHaritaAc">🗺 HARİTA</button>
+        <button type="button" class="btn btn-ince" id="shAlanTara" hidden>BU ALANI TARA</button>
+        <button type="button" class="btn btn-ince" id="shNoktaAc">+ YENİ NOKTA</button>
+        <span id="shDurum" class="is-sonuc"></span>
+      </div>
+
+      <form id="shNoktaForm" class="sh-form" hidden>
+        <p class="fm-sub">Haritada olmayan bir yeri ekle. Konum, telefonundan
+          alınır; alınamazsa elle girebilirsin.</p>
+        <div class="sh-arac">
+          <div class="sh-grup"><label class="is-label" for="shnAd">AD</label>
+            <input id="shnAd" class="is-input" maxlength="200" required></div>
+          <div class="sh-grup"><label class="is-label" for="shnTur">TÜR</label>
+            <select id="shnTur" class="is-input"></select></div>
+          <div class="sh-grup"><label class="is-label" for="shnTel">TELEFON</label>
+            <input id="shnTel" class="is-input" maxlength="60"></div>
+          <div class="sh-grup"><label class="is-label" for="shnEposta">E-POSTA</label>
+            <input id="shnEposta" class="is-input" type="email" maxlength="120"></div>
+        </div>
+        <div class="sh-satir">
+          <button type="submit" class="btn">KAYDET</button>
+          <button type="button" class="btn btn-ince" id="shnVazgec">VAZGEÇ</button>
+          <span id="shnKonum" class="is-sonuc">konum alınmadı</span>
+        </div>
+      </form>
+
+      <div class="sh-harita-sar" id="shHaritaSar" hidden>
+        <div id="shHarita" class="sh-harita"></div>
+        <p class="sh-harita-not">
+          Harita karoları <strong>kendi sunucumuzdan</strong> gelir ve orada
+          saklanır — hangi bölgeye baktığın dışarı çıkmaz.
+          Karo verisi © OpenStreetMap katkıcıları (ODbL).
+        </p>
+      </div>
+      <div id="shRotaOzet"></div>
+      <div id="shListe"></div>
+    </div>
+  </section>
+</main>
+
+<main class="stage stage-single view-panel" id="viewIsler" hidden>
+  <section class="panel" aria-label="İŞ KUYRUĞU">
+    <div class="panel-head">
+      <h2 class="panel-title">İŞLER</h2>
+      <span class="panel-count" id="islerCount">—</span>
+    </div>
+    <div class="panel-body sect-body">
+      <p class="fm-sub">
+        Görsel üretim kuyruğu. Buraya konan iş <strong>PC-2&#39;nin ekran
+        kartında</strong> üretilir: kuyrukta iş varsa ComfyUI açılır, kuyruk
+        boşalınca kart bırakılır. PC-2 kapalıysa iş kaybolmaz, sırada bekler.
+      </p>
+      <div id="islerUyari"></div>
+      <form id="isForm" class="is-form">
+        <label class="is-label" for="isIstem">Ne üretilsin</label>
+        <textarea id="isIstem" class="is-input" rows="3" maxlength="2000"
+                  placeholder="beyaz mermer zemin, yumuşak doğal ışık, ürün ortada"></textarea>
+        <label class="is-label" for="isNegatif">İstenmeyenler (isteğe bağlı)</label>
+        <input id="isNegatif" class="is-input" type="text" maxlength="2000"
+               placeholder="şişe, kutu, yazı">
+        <div class="is-satir">
+          <label class="is-label" for="isAdet">Adet</label>
+          <input id="isAdet" class="is-input is-dar" type="number" min="1" max="8" value="1">
+          <button type="submit" class="btn" id="isGonder">KUYRUĞA EKLE</button>
+          <span id="isSonuc" class="is-sonuc"></span>
+        </div>
+      </form>
+      <div id="islerListe"></div>
+    </div>
+  </section>
+</main>
+
+<main class="stage stage-single view-panel" id="viewSistem" hidden>
+  <section class="panel" aria-label="SİSTEM KAYNAKLARI">
+    <div class="panel-head">
+      <h2 class="panel-title">SİSTEM</h2>
+      <span class="panel-count" id="sistemCount">—</span>
+    </div>
+    <div class="panel-body sect-body" id="sistemBody">
+      <p class="fm-sub">
+        Üç makinenin gerçek kaynak kullanımı ve hangi makinenin neyi
+        kullanabileceğini belirleyen anahtarlar. Sunucu her istekte
+        <strong>anlık ölçülür</strong>; iki bilgisayar dakikada bir kendi
+        ölçümünü sunucuya iter. Bir PC&#39;den veri gelmiyorsa sebebi yazılır —
+        <strong>veri yokluğu, makinenin kapalı olduğunu kanıtlamaz.</strong>
+      </p>
+      <p class="sistem-baglanti">
+        <a href="/messenger-pilot" target="_blank" rel="noopener">MESSENGER PİLOT PANELİ →</a>
+        <span class="sistem-baglanti-not">Ajanın ne diyeceği. Gönderim kapalı.</span>
+      </p>
+      <div id="sistemGovde"></div>
+
+      <div class="kd-blok">
+        <h3 class="kd-baslik">MODEL KADEMELERİ</h3>
+        <p class="fm-sub">
+          Bir soru sorulduğunda sırayla hangi uca gidildiği. Zincir
+          <strong>API önce</strong> çalışır; yerel kademeler yedektir ve API
+          ayakta olduğu sürece hiç yoklanmaz. <strong>ATLANDI</strong> bir arıza
+          değildir — o kademe hazır olmadığı için hiç denenmemiştir.
+        </p>
+        <div id="kademeGovde"></div>
+      </div>
+    </div>
+  </section>
+</main>
+<main class="stage stage-single view-panel" id="viewHafiza" hidden>
+  <section class="panel" aria-label="KİŞİSEL ASİSTAN HAFIZASI">
+    <div class="panel-head">
+      <h2 class="panel-title">HAFIZA</h2>
+      <span class="panel-count" id="hafizaCount">—</span>
+    </div>
+    <div class="panel-body sect-body" id="hafizaBody">
+
+      <p class="hf-giris">
+        Jarvis’in kalıcı olarak aklında tuttuğu notlar. Yalnız buraya yazılan
+        ya da sohbette <strong>“bunu hatırla”</strong> denilen cümleler girer —
+        hiçbir şey konuşmadan çıkarım yapılarak eklenmez.
+      </p>
+
+      <!-- Iki kaynak ayri gosterilir: dosya kayit kaynagi, dizin arama katmani -->
+      <div class="hf-durum" id="hfDurum"></div>
+
+      <h3 class="rp-sub">YENİ NOT <span class="rp-src">kalıcı olarak hatırlanır</span></h3>
+      <form class="hf-form" id="hfForm">
+        <label class="hf-label" for="hfInput">Hatırlanacak cümle</label>
+        <textarea id="hfInput" class="hf-input" rows="2" maxlength="400"
+                  placeholder="Örn: Toplu fiyat değişikliğini yüzde bazlı istiyorum, sabit tutarla değil."></textarea>
+        <div class="hf-form-alt">
+          <span class="hf-sayac" id="hfSayac">0 / 400</span>
+          <button type="submit" class="qa-btn" id="hfSubmit">KAYDET</button>
+        </div>
+      </form>
+      <p class="hf-mesaj" id="hfMesaj" hidden></p>
+
+      <h3 class="rp-sub">KAYITLI NOTLAR <span class="rp-src">en yeni üstte</span></h3>
+      <div class="hf-liste" id="hfListe"></div>
+
+      <p class="fm-foot" id="hfFoot"></p>
+    </div>
+  </section>
+</main>
+
+<main class="stage stage-single view-panel" id="viewAnaliz" hidden>
+    <section class="panel p-wide" aria-label="Yürütme planı analizi">
+      <div class="panel-head">
+        <h2 class="panel-title">ANALİZ · YÜRÜTME PLANI</h2>
+        <span class="panel-count">/api/plan · /api/run</span>
+      </div>
+      <div class="analiz-body">
+        <p class="rp-note">
+          Bir talebi yaz; Jarvis onu denetlenmiş bir yürütme grafiğine çevirir.
+          <strong>PLAN ÜRET</strong> yalnızca grafiği gösterir, hiçbir şey çalışmaz.
+          <strong>ÇALIŞTIR</strong> adımları yürütür ve kanıtları, bulguları,
+          önerileri doldurur — ama yalnızca <em>okuma</em> analizi yapar:
+          model çağrılmaz, dış eylem yapılmaz, eylem üreten adım çalıştırılmaz;
+          o adım onay bekleyen bir <strong>ÖNERİ</strong> zarfına dönüşür ve
+          gerçek eyleme ancak mevcut insan onayı hattından geçerek döner.
+        </p>
+        <form id="analizForm" class="analiz-form">
+          <input id="analizInput" type="text" autocomplete="off"
+                 placeholder="örn. “VIREON için rakip fiyat analizi çıkar”">
+          <button type="submit" class="ghost-btn">PLAN ÜRET</button>
+          <button type="button" id="analizRunBtn" class="gold-btn">ÇALIŞTIR</button>
+        </form>
+
+        <!-- Execution flow rail. Stage state comes from the plan today and
+             from a run record the moment the backend returns one; a stage the
+             backend says nothing about stays a dim skeleton and never animates. -->
+        <section class="exec-section" aria-label="Yürütme akışı">
+          <div class="exec-head">
+            <h3 class="exec-title">YÜRÜTME AKIŞI</h3>
+            <span class="exec-state-chip" id="execStateChip">HAZIR</span>
+            <span class="exec-src" id="execSrc">kaynak: —</span>
+          </div>
+          <ol class="exec-rail" id="execRail"></ol>
+          <p class="exec-note" id="execNote">Henüz plan üretilmedi.</p>
+        </section>
+
+        <!-- Five business domains. No percentage is shown anywhere: the
+             backend reports a per-step status, never a completion ratio. -->
+        <section class="exec-section" aria-label="Domain durumu">
+          <div class="exec-head">
+            <h3 class="exec-title">DOMAIN DURUMU</h3>
+            <span class="exec-src" id="domainGridSrc">kaynak: —</span>
+          </div>
+          <div class="dom-grid" id="domainGrid"></div>
+        </section>
+
+        <div id="analizResult" class="analiz-result"></div>
+
+        <!-- Generic evidence table: renders whatever evidence fields the
+             backend actually supplies (internal refs today, web-research rows
+             later) and prints an em dash for every field it does not. -->
+        <section class="exec-section" aria-label="Kanıt">
+          <div class="exec-head">
+            <h3 class="exec-title">KANIT</h3>
+            <span class="exec-src" id="evidenceSrc">kaynak: —</span>
+          </div>
+          <div class="ev-wrap" id="evidenceWrap"></div>
+        </section>
+
+        <!-- Management analysis. Advisory only: it renders a PROPOSED
+             envelope and never reports anything as applied. -->
+        <section class="exec-section" aria-label="Yönetim analizi">
+          <div class="exec-head">
+            <h3 class="exec-title">YÖNETİM ANALİZİ</h3>
+            <span class="risk-badge risk-MEDIUM" id="proposedBadge">ÖNERİ</span>
+            <span class="exec-src" id="proposedSrc">kaynak: —</span>
+          </div>
+          <div id="proposedBody" class="proposed-body"></div>
+          <p class="exec-note">
+            Bu panel hiçbir aksiyonu uygulamaz. Uygulama yolu değişmedi:
+            öneri, mevcut insan onayı akışından geçer.
+          </p>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <!-- ------------------------- GÖREVLER -------------------------- -->
+  <main class="stage stage-split view-panel" id="viewGorevler" hidden>
+    <section class="panel" aria-label="Orkestrasyon çalışmaları">
+      <div class="panel-head"><h2 class="panel-title">ORKESTRASYON</h2><span class="panel-count" id="orchestrationCount">—</span></div>
+      <p class="empty-note">Plan → okuma analizi → kanıt denetimi → insan kararı. Öneri hazırlanması onay kuyruğuna gönderildiği anlamına gelmez.</p>
+      <ol id="orchestrationList" class="feed feed-lg" aria-live="polite"></ol>
+    </section>
+    <section class="panel" aria-label="Bekleyen öneriler">
+      <div class="panel-head">
+        <h2 class="panel-title">BEKLEYEN ÖNERİLER</h2>
+        <span class="panel-count" id="taskPropCount">—</span>
+      </div>
+      <p id="taskProposalEmpty" class="empty-note" hidden>Bekleyen öneri yok.</p>
+      <ol id="taskProposalList" class="proposal-list proposal-list-lg"></ol>
+    </section>
+    <section class="panel" aria-label="Döngü kayıtları">
+      <div class="panel-head">
+        <h2 class="panel-title">DÖNGÜ KAYITLARI</h2>
+        <span class="panel-count" id="taskCycleCount">—</span>
+      </div>
+      <ol id="taskCycleList" class="feed feed-lg"></ol>
+    </section>
+  
+</main>
+
+      <main class="stage stage-single view-panel" id="viewKreatifParti" hidden
+            aria-label="KREATİF PARTİLERİ">
+        <section class="panel" aria-label="KREATİF PARTİLERİ">
+          <div class="panel-head">
+            <h2 class="panel-title">KREATİF PARTİLERİ</h2>
+          </div>
+          <div class="panel-body sect-body">
+            <p class="fm-sub">Haftalık koşu tüm ürünler için araştırma ve prompt
+              üretir; <strong>görsel ancak onayınızdan sonra</strong> üretilir.</p>
+            <div id="kpListe" class="kp-liste">
+              <p class="fm-empty">Yükleniyor…</p>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <main class="stage stage-single view-panel" id="viewSatislar" hidden
+            aria-label="SATIŞLAR">
+        <section class="panel" aria-label="SATIŞLAR">
+          <div class="panel-head">
+            <h2 class="panel-title">SATIŞLAR</h2>
+          </div>
+          <div class="panel-body sect-body">
+            <p class="fm-sub">Tüm gönderiler tek yerde: kim, ne, kaça.
+            Fiyatı olmayan ya da kararsız kalınan gönderileri elle
+            işaretleyin ki veri eksik kalmasın.</p>
+            <div id="satisGovde"><p class="fm-empty">Yükleniyor…</p></div>
+          </div>
+        </section>
+      </main>
+
+
+
+      <main class="stage stage-single view-panel" id="viewAsistan" hidden
+            aria-label="ASİSTAN">
+        <section class="panel" aria-label="ASİSTAN">
+          <div class="panel-head">
+            <h2 class="panel-title">ASİSTAN</h2>
+          </div>
+
+          <div class="as-tabs" id="asSekmeler" role="tablist">
+            <button type="button" class="as-tab is-active" role="tab"
+                    data-as="hatirlatici">HATIRLATICILAR</button>
+            <button type="button" class="as-tab" role="tab"
+                    data-as="gundem">GÜNDEM &amp; HABERLER</button>
+            <button type="button" class="as-tab" role="tab"
+                    data-as="onay">ONAYLAR &amp; İMZALAR
+              <span class="pill" id="asOnaySayi" hidden></span>
+            </button>
+          </div>
+
+          <div class="panel-body sect-body" id="asPanelHatirlatici">
+            <p class="fm-sub">Kişisel hatırlatıcılarınız. Bunları yalnız siz
+            yazarsınız; makine buraya kayıt ekleyemez, sadece okur ve zamanı
+            gelince gösterir.</p>
+            <div class="sect-card">
+              <h3 class="sect-title">Yeni hatırlatıcı</h3>
+              <div class="fm-row">
+                <input id="htrBaslik" type="text" class="fm-input"
+                       placeholder="Ne hatırlatılsın?" maxlength="200">
+              </div>
+              <div class="fm-row">
+                <input id="htrZaman" type="datetime-local" class="fm-input">
+                <select id="htrTekrar" class="fm-input">
+                  <option value="">Tek seferlik</option>
+                  <option value="gunluk">Her gün</option>
+                  <option value="haftalik">Her hafta</option>
+                  <option value="aylik">Her ay</option>
+                </select>
+                <select id="htrOnem" class="fm-input">
+                  <option value="NORMAL">Normal</option>
+                  <option value="YUKSEK">Yüksek</option>
+                  <option value="DUSUK">Düşük</option>
+                </select>
+              </div>
+              <div class="fm-row">
+                <input id="htrNot" type="text" class="fm-input"
+                       placeholder="Not (isteğe bağlı)" maxlength="500">
+                <button type="button" id="htrEkle" class="btn">Ekle</button>
+              </div>
+              <p class="fm-sub" id="htrDurum"></p>
+            </div>
+            <div class="sect-card">
+              <h3 class="sect-title">Açık hatırlatıcılar</h3>
+              <div id="htrListe" class="feed">Yükleniyor…</div>
+            </div>
+          </div>
+
+          <div class="panel-body sect-body" id="asPanelGundem" hidden>
+            <div class="sect-card">
+              <h3 class="sect-title">Günün haberleri</h3>
+              <div id="asHaber" class="feed">Yükleniyor…</div>
+            </div>
+            <div class="sect-card">
+              <h3 class="sect-title">Şirket gündemi</h3>
+              <div id="asGundem" class="feed">Yükleniyor…</div>
+            </div>
+          </div>
+
+          <div class="panel-body sect-body" id="asPanelOnay" hidden>
+            <p class="fm-sub">İmzanızı bekleyen her şey burada. Rozet
+            hangisinin nereden geldiğini söyler — onay mekanizmaları farklı
+            olduğu için kaynak görünür kalıyor.</p>
+            <div class="sect-card">
+              <h3 class="sect-title">Bekleyen öneriler</h3>
+              <div id="asOneri" class="feed">Yükleniyor…</div>
+            </div>
+            <div class="sect-card">
+              <h3 class="sect-title">Onay bekleyen tasarımlar</h3>
+              <div id="asTasarimOnay" class="feed">Yükleniyor…</div>
+            </div>
+          </div>
+        </section>
+      </main>
+      <main class="stage stage-single view-panel" id="viewTasarim" hidden
+            aria-label="TASARIM">
+        <section class="panel" aria-label="TASARIM">
+          <div class="panel-head">
+            <h2 class="panel-title">TASARIM</h2>
+          </div>
+          <div class="panel-body sect-body">
+            <p class="fm-sub">Şablon kütüğü ve üretilen tasarımların
+            defteri. Jarvis şablonu veriyle doldurur, metin önce mevzuat
+            kapısından geçer; geçemezse tasarım hiç üretilmez. Onayı
+            yalnız sahip verir — makine kendi çıktısını onaylayamaz.</p>
+
+            <div class="sect-card" id="tasarimSablonKart">
+              <h3 class="sect-title">Şablon kütüğü</h3>
+              <div id="tasarimSablonlar" class="feed">Yükleniyor…</div>
+            </div>
+
+            <div class="sect-card" id="tasarimIsKart">
+              <h3 class="sect-title">Üretilen işler</h3>
+              <div id="tasarimIsler" class="feed">Yükleniyor…</div>
+            </div>
+          </div>
+        </section>
+      </main>
+      <main class="stage stage-single view-panel" id="viewKargo" hidden
+            aria-label="KARGO">
+        <section class="panel" aria-label="KARGO">
+          <div class="panel-head">
+            <h2 class="panel-title">KARGO</h2>
+          </div>
+          <div class="panel-body sect-body">
+            <p class="fm-sub">Gönderi aç, taşıyıcı ve fiyatı gör, barkodu al,
+            etiketleri HB-1006 sayfasına dizip yazdır. Barkod üretimi
+            şirketin BasitKargo bakiyesinden para düşürür ve ekranda
+            onaylanmadan yapılmaz.</p>
+            <div id="kargoGovde"><p class="fm-empty">Yükleniyor…</p></div>
+          </div>
+        </section>
+      </main>
+
+      <main class="stage stage-single view-panel" id="viewMusteri" hidden
+            aria-label="MÜŞTERİLER">
+        <section class="panel" aria-label="MÜŞTERİLER">
+          <div class="panel-head">
+            <h2 class="panel-title">MÜŞTERİLER</h2>
+          </div>
+          <div class="panel-body sect-body">
+            <p class="fm-sub">Kim kaç kez aldı, ne harcadı, en son ne zaman.
+            Satıra tıklayınca o müşterinin bütün siparişleri ve kargoları
+            açılır. Altta iade, değişim ve iptaller üç ayrı kaynaktan.</p>
+            <div id="musteriGovde"><p class="fm-empty">Yükleniyor…</p></div>
+          </div>
+        </section>
+      </main>
+
+      <main class="stage stage-single view-panel" id="viewGelenKutusu" hidden
+            aria-label="GELEN KUTUSU">
+        <section class="panel" aria-label="GELEN KUTUSU">
+          <div class="panel-head">
+            <h2 class="panel-title">GELEN KUTUSU</h2>
+            <div class="gk-sayac" id="gkSayac"></div>
+          </div>
+          <div class="panel-body sect-body">
+            <p class="fm-sub">Müşteri konuşmaları ve her birinin kimde olduğu.
+            <strong>Jarvis</strong> işaretli konuşmalara Jarvis cevap verebilir;
+            <strong>sende</strong> olanları yalnız sen cevaplarsın. Devir kuralı
+            sağlık/şikâyet, sipariş/ödeme/iade, ürün belirsizliği ve mevzuat
+            için konuşmayı sana getirir — tanımadığı bir durumu tahmin etmez.</p>
+            <div class="gk-suzgec" id="gkSuzgec" role="group" aria-label="Süzgeç">
+              <button type="button" class="gk-f is-active" data-durum="">HEPSİ</button>
+              <button type="button" class="gk-f" data-durum="INSANDA">SENDE</button>
+              <button type="button" class="gk-f" data-durum="JARVIS">JARVIS'TE</button>
+              <button type="button" class="gk-f" data-durum="KAPALI">KAPALI</button>
+            </div>
+            <div class="gk-duzen">
+              <div class="gk-liste" id="gkListe"><p class="fm-empty">Yükleniyor…</p></div>
+              <div class="gk-detay" id="gkDetay"><p class="fm-empty">Soldan bir konuşma seç.</p></div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+
+  <!-- ----------------------- COMMAND BAR ------------------------- -->
+  <section class="cmdbar" id="cmdBar" aria-label="L’CARLIÉ komut satırı">
+    <div id="chatLog" class="chat-log" hidden></div>
+    <form id="chatForm" class="cmd-form">
+      <span class="cmd-caret" aria-hidden="true"></span>
+      <input id="chatInput" type="text" autocomplete="off"
+             placeholder="L’CARLIÉ’ye sorun… örn. “Bugün şirkette durum ne?”">
+      <button type="button" id="retryBtn" class="ghost-btn" hidden>TEKRAR</button>
+      <button type="button" id="stopBtn" class="ghost-btn" hidden>DURDUR</button>
+      <button type="button" id="planBtn" class="ghost-btn" data-ipucu="1" title="Sorunuzu CEVAPLAMADAN önce, hangi adımlarla cevaplayacağını gösterir. Veri okunmaz, hiçbir şey çalıştırılmaz.">PLAN</button>
+      <button type="submit" id="sendBtn" class="gold-btn">GÖNDER</button>
+    </form>
+  </section>
+
+  <div id="proposalModal" class="modal" hidden>
+    <div class="modal-card">
+      <button class="modal-close" id="modalClose" type="button" aria-label="Kapat">×</button>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+
+</div>
+
+<script src="/vendor/leaflet/leaflet.js"></script>
+  <script src="/app.js?v=6"></script>
+</body>
+</html>

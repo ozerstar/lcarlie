@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh LCARLIE research and synthesis outputs every 30 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=30min
+RandomizedDelaySec=30
+Unit=lcarlie-team-cycle.service
+
+[Install]
+WantedBy=timers.target

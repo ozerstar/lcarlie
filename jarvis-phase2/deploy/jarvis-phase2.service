@@ -1,0 +1,51 @@
+[Unit]
+Description=LCARLIE Jarvis Phase 2 (minimum operational: read-analyze-propose)
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+Environment=JARVIS_ENABLED=false
+# DOCKER_API_VERSION SABITLENMEZ (20.09.2026'da kaldirildi): daemon minimum
+# API'yi yukseltince sabitlenmis istemci sessizce patlar. Ayni gun 1.43 sabiti
+# n8n yayinlama hattini ve geri donus/kurtarma betiklerini oldurdu.
+Environment=DOCKER_CONFIG=/tmp
+EnvironmentFile=-/etc/lcarlie/jarvis-phase2.env
+ExecStart=/opt/lcarlie/jarvis-phase2/bin/jarvis-phase2
+TimeoutStartSec=120
+Nice=10
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/opt/lcarlie/jarvis-phase2/state
+MemoryMax=256M
+CPUQuota=100%
+TasksMax=64
+
+# Runs as root (no User=), matching lcarlie-action-worker.service: reaching
+# the docker socket (owned root:docker, 660) requires root or docker-group
+# membership, and docker-group is root-equivalent anyway, so a dedicated
+# low-privilege "jarvis" OS user bought no real isolation here -- it only
+# blocked docker exec entirely (discovered and fixed during this task; the
+# systemd path had never actually been exercised before). The real
+# authorization boundary is unchanged: every SQL session still runs as
+# whatever PostgreSQL role SET SESSION AUTHORIZATION selects (ai_writer for
+# the loop, human_approver only via the separate jarvis-operator command),
+# never as a superuser role, exactly as verified in Phase 2C/2D. Root here
+# only starts `docker exec`; CapabilityBoundingSet= (empty),
+# NoNewPrivileges, ProtectSystem=strict and the other flags above match the
+# already-audited action-worker unit.
+#
+# Intentionally no [Install] section here: this service is only ever
+# triggered by jarvis-phase2.timer (same oneshot+timer pattern as
+# lcarlie-action-worker.{service,timer}), never enabled/started directly.
+# Even when the timer fires, JARVIS_ENABLED=false in the persistent env file
+# makes every invocation exit 78 immediately -- activation is controlled
+# entirely by that one environment file.

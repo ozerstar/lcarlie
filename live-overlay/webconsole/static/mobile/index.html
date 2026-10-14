@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101923">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>L’CARLIÉ Jarvis</title>
+  <link rel="manifest" href="/mobile/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/iphone-icon.png">
+  <link rel="stylesheet" href="/mobile/mobile.css">
+  <link rel="stylesheet" href="/mobile/overview.css?v=2">
+  <link rel="stylesheet" href="/mobile/experience.css?v=1">
+  <script defer src="/mobile/mobile.js?v=6"></script>
+</head>
+<body>
+  <main class="shell">
+    <header class="header">
+      <div class="brand"><span class="brand-icon" aria-hidden="true">J</span><div><strong>L’CARLIÉ JARVIS</strong><small>Mobil yönetim</small></div></div>
+      <div class="header-actions"><span id="status" class="status">Bağlanıyor</span><button id="logout" class="text-button" hidden>Çıkış</button></div>
+    </header>
+
+    <section id="login" class="login card" hidden>
+      <div class="halo" aria-hidden="true"></div>
+      <h1>Tekrar hoş geldin.</h1>
+      <p>L’CARLIÉ Jarvis hesabınla giriş yap.</p>
+      <form id="login-form">
+        <label>Kullanıcı adı<input id="username" autocomplete="username" required></label>
+        <label>Parola<input id="password" type="password" autocomplete="current-password" required></label>
+        <button class="primary" type="submit">Giriş yap</button>
+      </form>
+      <p id="login-error" class="error" role="alert" hidden></p>
+    </section>
+
+    <section id="app" hidden>
+      <nav class="tab-nav" aria-label="Mobil bölümler">
+        <button type="button" class="active" data-tab="home" aria-current="page"><span class="tab-icon" aria-hidden="true">⌂</span>Ana Sayfa</button>
+        <button type="button" data-tab="chat"><span class="tab-icon" aria-hidden="true">✦</span>Asistan</button>
+        <button type="button" data-tab="jobs"><span class="tab-icon" aria-hidden="true">▤</span>Görevler</button>
+        <button type="button" data-tab="approvals"><span class="tab-icon" aria-hidden="true">✓</span>Onaylar <span id="approval-count" class="tab-badge" hidden></span></button>
+        <button type="button" data-tab="more"><span class="tab-icon" aria-hidden="true">⋯</span>Diğer</button>
+      </nav>
+      <section id="home-panel" class="tab-panel">
+        <div class="intro home-intro"><span class="eyebrow">L’CARLIÉ / JARVIS</span><h1>Bugün neler oluyor?</h1><p>Önce önemli işler, sonra ayrıntılar.</p></div>
+        <div id="home-summary" class="home-status" role="status">
+          <span class="home-status-dot" aria-hidden="true"></span>
+          <span><strong id="home-system-state">Durum yükleniyor…</strong><small id="home-memory-state">Şirket hafızası kontrol ediliyor</small></span>
+        </div>
+        <div class="home-actions">
+          <button type="button" class="home-action-main" data-tab="chat"><span aria-hidden="true">✦</span><strong>Jarvis’e sor</strong><small>Yaz veya sesle konuş</small></button>
+          <button type="button" class="home-action-approval" data-tab="approvals"><span>Onay bekleyenler</span><strong id="home-approval-count">—</strong><small>Önerileri incele</small></button>
+        </div>
+        <h2 class="section-title">Şirket işleri</h2>
+        <div class="overview-links">
+          <a href="/?view=home"><strong>Ana Sayfa</strong><small>Şirket özeti</small></a>
+          <a href="/?view=satislar"><strong>Satışlar</strong><small>Satış kayıtları</small></a>
+          <a href="/?view=eticaret"><strong>E-Ticaret</strong><small>Ürün ve kanal görünümü</small></a>
+          <a href="/?view=fiyat"><strong>Fiyat</strong><small>Fiyat çalışmaları</small></a>
+          <a href="/?view=kargo"><strong>Kargo</strong><small>Gönderiler</small></a>
+          <a href="/?view=musteri"><strong>Müşteriler</strong><small>Müşteri görünümü</small></a>
+          <button type="button" data-tab="creative"><strong>Görseller</strong><small>Üretilen reklam çalışmaları</small></button>
+          <a href="/?view=raporlar"><strong>Raporlar</strong><small>Şirket raporları</small></a>
+        </div>
+        <p class="help">Bu bağlantılar tam web panelindeki bölümleri açar.</p>
+      </section>
+      <section id="chat-panel" class="tab-panel" hidden>
+      <div class="intro"><span class="eyebrow">L’CARLIÉ · TÜRKÇE SES</span><h1>Nasıl yardımcı olayım?</h1><p>Şirket Jarvis’iyle konuş veya bir iş başlat.</p></div>
+      <section class="actions" aria-label="Telefon işlemleri">
+        <button data-action="call"><span>☎</span> Ara</button>
+        <button data-action="message"><span>✉</span> Mesaj</button>
+        <button data-action="maps"><span>⌖</span> Harita</button>
+        <button data-action="shortcut"><span>✦</span> Kestirme</button>
+      </section>
+      <section id="messages" class="messages" aria-label="Sohbet" aria-live="polite"></section>
+      <form id="chat-form" class="composer">
+        <input id="chat-input" placeholder="Jarvis'e yaz…" aria-label="Jarvis'e yaz" autocomplete="off" required>
+        <button id="mic" type="button" aria-label="Sesli komut">🎙</button>
+        <button id="send" type="submit" aria-label="Gönder">➤</button>
+      </form>
+      <p class="help">Sesli yanıtı dinlemek için cevabın yanındaki oynat düğmesine dokun.</p>
+      </section>
+      <section id="jobs-panel" class="tab-panel" hidden>
+        <div class="intro"><span class="eyebrow">GÖREV AKIŞI</span><h1>İşler</h1><p id="job-count">Yükleniyor…</p></div>
+        <div class="intro"><span class="eyebrow">PLANLI ÇALIŞMALAR</span><h2>Jarvis neleri inceledi?</h2><p id="orchestration-count">Yükleniyor…</p><p>Jarvis burada yaptığı analizleri gösterir. Hazırladığı öneri taslağı kendiliğinden onay listesine eklenmez.</p></div>
+        <div id="orchestration-list" class="card-list" aria-live="polite"></div>
+        <form id="job-form" class="mobile-form card">
+          <label>Yeni iş<textarea id="job-request" rows="3" placeholder="Jarvis ne yapsın?" required></textarea></label>
+          <label>Yapılmaması gerekenler<input id="job-negative" placeholder="İsteğe bağlı"></label>
+          <button class="primary" type="submit">İşi kuyruğa ekle</button>
+        </form>
+        <div id="job-list" class="card-list"></div>
+      </section>
+      <section id="approvals-panel" class="tab-panel" hidden>
+        <div class="intro"><span class="eyebrow">İNSAN KARARI</span><h1>Bekleyen onaylar</h1><p>Ne önerildiğini ve riskini okumadan onay verme.</p></div>
+        <div id="approval-list" class="card-list"></div>
+      </section>
+      <section id="creative-panel" class="tab-panel" hidden>
+        <div class="intro"><h1>Görseller</h1><p>Üretilen çalışmaları açıp büyütebilir, inceleme kararlarını görebilirsin.</p></div>
+        <div id="creative-list" class="creative-list" aria-live="polite"></div>
+      </section>
+      <section id="system-panel" class="tab-panel" hidden>
+        <div class="intro"><span class="eyebrow">CANLI DURUM</span><h1>Jarvis durumu</h1><p>Sunucu ve iş akışı özeti.</p></div>
+        <div id="system-list" class="card-list"></div>
+        <button id="refresh-system" type="button" class="secondary">Yenile</button>
+        <a class="full-console" href="/">Tam yönetim panelini aç</a>
+      </section>
+      <section id="settings-panel" class="tab-panel" hidden>
+        <div class="intro"><span class="eyebrow">HESAP</span><h1>Parolayı değiştir</h1><p>Bu parola mobil ve web panelinde ortaktır.</p></div>
+        <form id="password-form" class="mobile-form card">
+          <label>Mevcut parola<input id="current-password" type="password" autocomplete="current-password" required></label>
+          <label>Yeni parola<input id="new-password" type="password" autocomplete="new-password" minlength="6" required></label>
+          <label>Yeni parolayı tekrar gir<input id="confirm-password" type="password" autocomplete="new-password" minlength="6" required></label>
+          <button class="primary" type="submit">Parolayı değiştir</button>
+          <p id="password-result" role="status" hidden></p>
+        </form>
+        <div class="intro"><span class="eyebrow">TELEFON</span><h2>Bildirimler</h2><p>Yeni onay bekleyen işler için telefonuna bildirim gönder.</p></div>
+        <div class="mobile-form card">
+          <p id="push-status" role="status">Bildirim durumu kontrol ediliyor…</p>
+          <button id="push-enable" class="primary" type="button">Bildirimleri aç</button>
+          <button id="push-test" class="secondary" type="button" hidden>Test bildirimi gönder</button>
+          <button id="push-disable" class="secondary" type="button" hidden>Bildirimleri kapat</button>
+          <p class="help">iPhone'da bildirimler için bu sayfayı önce Ana Ekran'a ekleyip oradaki simgeden açmalısın.</p>
+        </div>
+      </section>
+      <section id="more-panel" class="tab-panel" hidden>
+        <div class="intro"><span class="eyebrow">DİĞER</span><h1>Araçlar ve hesap</h1><p>Sistem durumunu gör veya hesabını yönet.</p></div>
+        <div class="more-links">
+          <button type="button" data-tab="creative"><strong>Görseller</strong><small>Üretilen çalışmalar ve inceleme kararları</small></button>
+          <button type="button" data-tab="system"><strong>Sistem durumu</strong><small>Bağlantı, hafıza ve sunucu</small></button>
+          <button type="button" data-tab="settings"><strong>Ayarlar</strong><small>Parola ve telefon bildirimleri</small></button>
+          <a href="/"><strong>Tam web paneli</strong><small>Şirketin bütün bölümleri</small></a>
+        </div>
+      </section>
+    </section>
+
+    <dialog id="action-dialog" class="dialog">
+      <form id="action-form" method="dialog">
+        <h2 id="action-title">Telefon işlemi</h2>
+        <p id="action-description"></p>
+        <label id="target-label">Hedef<input id="action-target" autocomplete="off" required></label>
+        <label id="message-label" hidden>Mesaj<textarea id="action-message" rows="3"></textarea></label>
+        <p id="action-help" class="help"></p>
+        <div class="dialog-buttons"><button id="action-cancel" type="button" class="secondary">Vazgeç</button><button id="action-confirm" type="submit" class="primary">Devam et</button></div>
+      </form>
+    </dialog>
+    <dialog id="approval-dialog" class="dialog">
+      <h2 id="approval-title">Öneri</h2>
+      <div id="approval-detail" class="approval-detail"></div>
+      <label>Karar gerekçesi<input id="approval-reason" placeholder="Kısa gerekçe"></label>
+      <div class="dialog-buttons"><button id="approval-close" type="button" class="secondary">Kapat</button><button id="approval-reject" type="button" class="secondary">Reddet</button><button id="approval-approve" type="button" class="primary">Onayla</button></div>
+    </dialog>
+  </main>
+</body>
+</html>

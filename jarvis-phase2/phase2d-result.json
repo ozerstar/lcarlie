@@ -1,0 +1,267 @@
+{
+  "phase": "2D",
+  "document": "PHASE2D_CONTRACT_CLOSURE_RESULT",
+  "overall": "PASS",
+  "marker": "PHASE2D_CONTRACT_READY",
+  "marker_authorizes_activation": false,
+  "executed_at": "2026-09-18T15:35:00+03:00",
+  "executed_on": "production host",
+  "continued_from": "phase2c",
+  "scope_expanded": false,
+
+  "findings_closed": {
+    "F-1": {
+      "title": "Python firewall allowlist and core.ai_action_type disagreed (zero overlap)",
+      "status": "CLOSED",
+      "root_cause": "core.ai_action_type is owner-only and no function exposes it; ai_propose_action, ai_decide_action and ai_claim_approved_action all consume it. With no read path a hardcoded Python copy was the only option, and an unverifiable copy always drifts.",
+      "fix": "one production allowlist (the database), read through a fixed allowlisted query enabled by a column-level SELECT grant; Python keeps only a versioned intent mapping with a fail-closed drift check"
+    },
+    "F-2": {
+      "title": "ContextCompiler performed no capability-gap analysis",
+      "status": "CLOSED",
+      "root_cause": "jarvis/capabilities.py was a static dict that nothing consulted; capability questions fell through to the decision-summary branch",
+      "fix": "the existing registry was extended with evidence-derived status, and ContextCompiler gained a capability branch producing a real gap analysis"
+    }
+  },
+
+  "starting_state_verified": {
+    "jarvis_enabled": false,
+    "env_file_mtime": "2026-09-18T14:39:13+03:00",
+    "service_unit_state": "static",
+    "service_active_state": "inactive",
+    "disabled_run_exit_code": 78,
+    "source_commit": "37a3b96",
+    "deployment_source_identical": true,
+    "postgres_healthy": true,
+    "n8n_healthy": true,
+    "drift_found": {
+      "item": "lcarlie-measurement-generator-once container",
+      "explanation": "pre-existing CR-015 one-shot --rm container launched by run-measurement-generator.sh; already exited; unrelated to the Jarvis mutation path",
+      "blocked_mutation": false
+    }
+  },
+
+  "backup": {
+    "dir": "/opt/lcarlie/backups/phase2d-20260918T152553",
+    "archive": "jarvis-phase2.pre-phase2d.tgz",
+    "sha256": "8fb67b482ba892233c78ebc73d88dbfd92a42dace860f580970092f7ac6db8fe",
+    "db_schema_snapshot": "ai_action_type.pre-phase2d.sql"
+  },
+
+  "canonical_contract": {
+    "object": "core.ai_action_type",
+    "relkind": "r",
+    "owner": "function_owner",
+    "rows": {
+      "DRAFT_CUSTOMER_REPLY": {"risk_class": "MEDIUM", "approval_mode": "ONE_PERSON", "proposal_enabled": true, "execution_enabled": false, "schema_version": "v1"},
+      "META_CAMPAIGN_CHANGE": {"risk_class": "HIGH", "approval_mode": "ONE_PERSON", "proposal_enabled": true, "execution_enabled": false, "schema_version": "v1"},
+      "PRICE_CHANGE": {"risk_class": "CRITICAL", "approval_mode": "TWO_PERSON", "proposal_enabled": true, "execution_enabled": false, "schema_version": "v1"},
+      "REQUEST_HUMAN_REVIEW": {"risk_class": "LOW", "approval_mode": "ONE_PERSON", "proposal_enabled": true, "execution_enabled": true, "schema_version": "v1"},
+      "WHATSAPP_SEND_TEMPLATE": {"risk_class": "HIGH", "approval_mode": "ONE_PERSON", "proposal_enabled": true, "execution_enabled": false, "schema_version": "v1"},
+      "WIX_PUBLISH": {"risk_class": "CRITICAL", "approval_mode": "TWO_PERSON", "proposal_enabled": true, "execution_enabled": false, "schema_version": "v1"}
+    },
+    "contract_hash": "935c0769511c188e",
+    "map_version": "2026-09-18.1",
+    "intent_map": {
+      "CUSTOMER_REPLY_DRAFT": "DRAFT_CUSTOMER_REPLY",
+      "HUMAN_REVIEW_REQUEST": "REQUEST_HUMAN_REVIEW",
+      "WHATSAPP_TEMPLATE_SEND": "WHATSAPP_SEND_TEMPLATE",
+      "META_CAMPAIGN_CHANGE": "META_CAMPAIGN_CHANGE",
+      "PRICE_CHANGE": "PRICE_CHANGE",
+      "WIX_PUBLISH": "WIX_PUBLISH"
+    },
+    "read_path": "fixed allowlisted query 'action_contract' as ai_reader inside BEGIN ... ROLLBACK",
+    "python_allowlist_removed": true
+  },
+
+  "migration_004": {
+    "type": "column-level SELECT grant",
+    "object": "core.ai_action_type",
+    "grantee": "ai_reader",
+    "columns": ["action_type", "risk_class", "approval_mode", "proposal_enabled", "execution_enabled", "schema_version"],
+    "columns_deliberately_excluded": ["description", "created_at"],
+    "new_security_definer_function_created": false,
+    "ai_writer_granted": false,
+    "rollback": "migrations/rollback/004_action_contract_read_ROLLBACK.sql",
+    "verified": {
+      "granted_projection_readable": true,
+      "ungranted_column_denied": true,
+      "select_star_denied": true,
+      "ai_writer_denied": true,
+      "reader_update_denied": true,
+      "reader_insert_denied": true
+    }
+  },
+
+  "drift_protection": {
+    "checked_at": "preflight (ShadowRunner construction), cached 60s TTL",
+    "fails_closed_on": ["mapping target missing", "mapping target not proposal_enabled", "unmapped canonical type", "empty or malformed contract", "contract load failure"],
+    "risky_request_when_invalid": "BLOCKED via route contract-drift-block",
+    "read_only_request_when_invalid": "unaffected by design",
+    "telemetry_fields": ["contract_source", "contract_hash", "contract_map_version", "canonical_action_count", "mapped_action_count", "unknown_internal", "unknown_canonical", "contract_valid", "contract_reason", "contract_load_ms", "contract_check_ms"],
+    "live": {"canonical_action_count": 6, "mapped_action_count": 6, "unknown_internal": [], "unknown_canonical": [], "contract_valid": true}
+  },
+
+  "proposal_e2e": {
+    "status": "PASS",
+    "checks": 28,
+    "failed": 0,
+    "transaction": "BEGIN ... ROLLBACK",
+    "handcrafted_sql": false,
+    "cases": [
+      {"name": "risky_customer_action", "request": "Bu müşteriye WhatsApp mesajı gönder.", "planner": "PROPOSED", "internal_intent": "WHATSAPP_TEMPLATE_SEND", "canonical_action_type": "WHATSAPP_SEND_TEMPLATE", "risk_class": "HIGH", "approval_mode": "ONE_PERSON", "proposal_id": 14, "proposal_status": "PROPOSED", "decided_by": null, "executed": false},
+      {"name": "capability_gap_remediation", "request": "Bu capability eksikliği için insana karar gerekiyor.", "planner": "PLANNED", "internal_intent": "HUMAN_REVIEW_REQUEST", "canonical_action_type": "REQUEST_HUMAN_REVIEW", "risk_class": "LOW", "approval_mode": "ONE_PERSON", "proposal_id": 15, "proposal_status": "PROPOSED", "decided_by": null, "executed": false}
+    ],
+    "rollback_left": {"proposals": 0, "tasks": 0},
+    "sequence_note": "PostgreSQL sequences are not transactional; rolled-back enqueues consumed core.ai_task ids. No row committed.",
+    "test_expectation_corrected": "the first version demanded both cases be planner-risky; asking a human to decide is the safe path and correctly stays PLANNED, so the expectation is now per-case"
+  },
+
+  "adversarial": {
+    "all_fail_closed": true,
+    "cases": ["unknown python action", "retired Phase 2C names", "canonical DB name used directly", "case manipulation", "whitespace manipulation", "non-string intent", "missing mapping", "removed DB type", "new unmapped DB type", "disabled proposal_enabled", "malformed payload", "forbidden payload keys", "oversize payload", "idempotency prefix", "contract drift", "direct DB bypass", "self approval", "direct execution"],
+    "silent_coercion": false
+  },
+
+  "capability_registry": {
+    "reused_existing_module": true,
+    "second_registry_created": false,
+    "size": 9,
+    "fields": ["capability_id", "capability_name", "status", "executor", "source", "evidence", "last_verified_at", "resource_requirement", "blocker", "fallback"],
+    "statuses": {
+      "deterministic_company_memory": "AVAILABLE",
+      "postgres_persistent_state": "AVAILABLE",
+      "pgvector_retrieval_interface": "AVAILABLE",
+      "semantic_memory_retrieval": "RESOURCE_BLOCKED",
+      "embedding_model_bge_m3": "RESOURCE_BLOCKED",
+      "external_business_action": "CONTROLLED",
+      "external_model_provider": "BLOCKED",
+      "ruflo_workflow_engine": "UPSTREAM_BLOCKED",
+      "yemaka_reference": "UPSTREAM_BLOCKED"
+    },
+    "derived_from_evidence": true,
+    "unprobed_reports": "UNKNOWN",
+    "probe": "single fixed allowlisted read 'capability_state' (pg_catalog + core.ai_orchestrator_health in one snapshot)"
+  },
+
+  "test_d": {
+    "result": "PASS",
+    "previously": "PASS_WITH_LIMITATION",
+    "capability_analysed": true,
+    "selection_scope": "topic",
+    "capabilities_in_context": 5,
+    "registry_size": 9,
+    "required": ["deterministic_company_memory", "postgres_persistent_state", "semantic_memory_retrieval", "pgvector_retrieval_interface", "embedding_model_bge_m3"],
+    "available": ["deterministic_company_memory", "postgres_persistent_state", "pgvector_retrieval_interface"],
+    "resource_blocked": ["semantic_memory_retrieval", "embedding_model_bge_m3"],
+    "recommendations": ["REQUIRES_RESOURCE_UPGRADE"],
+    "fallbacks": ["deterministic_company_memory"],
+    "measured_evidence": {"host_ram_gib": 13.65, "required_ram_gib": 32, "host_cpu_cores": 4, "required_cpu_cores": 8},
+    "action_type": null,
+    "auto_remediation": false,
+    "software_installed": false,
+    "external_actions": false,
+    "model_calls": 0
+  },
+
+  "test_e": {
+    "result": "PASS",
+    "status": "PROPOSED",
+    "risk": "RISKY",
+    "human_approval_required": true,
+    "message_sent": false,
+    "p50_ms": 95.6,
+    "now_persistable": true
+  },
+
+  "cross_check": {
+    "capability_gap_emits_action_type": false,
+    "auto_remediation": false,
+    "recommendation_strings_rejected_by_firewall": true,
+    "gap_remediation_uses_normal_path": true,
+    "capability_specific_write_path": false
+  },
+
+  "regression": {
+    "unit_suite": {"collected": 85, "result": "OK", "live_gated": 5},
+    "live_company_memory": {"passed": 5, "failed": 0},
+    "acceptance_gate": {"status": "PASS"},
+    "acceptance_a_f_h": {"status": "PASS", "samples": 70, "repeats_per_case": 10},
+    "test_g": {"status": "PASS", "checks": 17, "failed": 0},
+    "security": {"status": "PASS", "total": 32, "deny": 27, "allow": 5, "fail": 0, "inconclusive": 0},
+    "question_worker": {"passed": 9, "failed": 0}
+  },
+
+  "security_additions": [
+    "ai_reader cannot read ungranted description column",
+    "ai_reader cannot SELECT *",
+    "ai_writer cannot read the contract table",
+    "ai_reader cannot UPDATE the contract",
+    "ai_reader cannot INSERT a new action type into its own allowlist",
+    "positive control: the granted six-column projection works"
+  ],
+
+  "performance": {
+    "acceptance": {"samples": 70, "p50_ms": 93.397, "p95_ms": 104.803, "min_ms": 84.841, "max_ms": 109.398},
+    "per_case_p50_ms": {"A": 90.53, "B": 92.75, "C": 89.06, "D": 102.89, "E": 95.60, "F": 92.37, "H": 93.66},
+    "benchmark_live": {"samples": 18, "p50_ms": 91.229, "p95_ms": 95.822, "failures": 0},
+    "modified_paths": {"contract_check_ms_cached": 0.009, "contract_load_ms_at_preflight": 86.5, "capability_registry_ms": 93.98},
+    "phase2c_baseline": {"p50_ms": 91.979, "p95_ms": 97.398},
+    "delta": {"p50_ms": 1.418, "p95_ms": 7.405, "material": false},
+    "max_rss_mb": 19.25,
+    "model_calls": 0,
+    "tuned_because_measured": [
+      "TEST D made two round trips (181 ms p50); health folded into the capability probe -> ~103 ms and atomic",
+      "contract load landed on the first request (~180 ms p95 outlier); moved to preflight where Phase 2D specifies the drift check"
+    ]
+  },
+
+  "totals": {
+    "external_provider_calls": 0,
+    "external_actions": 0,
+    "messages_sent": 0,
+    "software_installed": 0,
+    "production_code_mutations_by_jarvis": 0,
+    "human_approvals_fabricated": 0,
+    "executions": 0
+  },
+
+  "production_mutations": {
+    "database": ["migration 004: column-level SELECT grant on 6 columns of core.ai_action_type to ai_reader"],
+    "database_unchanged": ["all rows", "all functions", "all roles", "all other grants", "constraints"],
+    "code_added": ["jarvis/action_contract.py", "tests/test_action_contract.py", "tests/test_capabilities.py", "scripts/run_phase2d_proposal_e2e.py", "migrations/004_action_contract_read_PROPOSED.sql", "migrations/rollback/004_action_contract_read_ROLLBACK.sql"],
+    "code_modified": ["jarvis/firewall.py", "jarvis/capabilities.py", "jarvis/context.py", "jarvis/shadow.py", "jarvis/phase2.py", "jarvis/memory.py", "jarvis/cli.py", "tests/test_bootstrap.py", "tests/test_shadow.py", "scripts/run_phase2c_acceptance.py", "scripts/run_phase2c_security_recheck.py", "scripts/run_test_g_state_fallback.py"],
+    "untouched": ["Caddy", "n8n and its configuration", "ICaz", "/opt/lcarlie/orchestrator", "core.ai_propose_action and every Core function", "human approval ownership", "every role", "/etc/lcarlie/jarvis-phase2.env", "the systemd unit", "container images", "the production question-worker"]
+  },
+
+  "final_state": {
+    "jarvis_enabled": false,
+    "env_file_written": false,
+    "env_file_mtime": "2026-09-18T14:39:13+03:00",
+    "service_unit_state": "static",
+    "service_active_state": "inactive",
+    "disabled_run_exit_code": 78,
+    "jarvis_process_running": false,
+    "jarvis_task_state_rows": 0,
+    "ai_action_proposal_rows": 0,
+    "leaked_test_tasks": 0,
+    "action_types": 6,
+    "question_worker_service": "inactive",
+    "question_worker_sha256_prefix": "d0a6e9ac",
+    "containers_healthy": true,
+    "n8n_workflows_unchanged": true
+  },
+
+  "open_blockers": [],
+  "carried_forward_blockers": {
+    "BGE-M3": {"status": "WAITING_RESOURCE_UPGRADE", "now_measured": true, "host_ram_gib": 13.65, "required_ram_gib": 32, "host_cpu_cores": 4, "required_cpu_cores": 8},
+    "Ruflo": {"status": "WAITING_UPSTREAM_REPRODUCIBILITY"},
+    "Yemaka": {"status": "REFERENCE_ONLY"},
+    "remote_canonical_repository": {"status": "UNRESOLVED_BY_DESIGN"},
+    "production_question_worker_service": {"status": "FAILED_SAFE", "deliberately_not_restarted": true}
+  },
+
+  "design_note": "Per-type payload schemas remain enforced only by core.ai_propose_action. Duplicating them in Python would recreate the drift F-1 was about, so a wrong payload shape is caught at the database. schema_version is part of the contract hash, so a schema change flips contract_valid and fails closed.",
+
+  "next_step": "Phase 2D is closed with no open blocker and nothing follows automatically. The next step is a human decision, not a task: whether to pursue a narrow supervised activation (one action type, one channel, approval on every proposal) or keep the system shadow-only. If activation is chosen, the first technical question is who holds human_approver in practice and how a proposal is surfaced to them -- the approval path exists in the database but has no operator-facing surface."
+}

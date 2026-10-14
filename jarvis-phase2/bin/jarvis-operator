@@ -1,0 +1,15 @@
+#!/bin/sh
+# Minimum human proposal surface. Separate from the Jarvis service/timer:
+# this is a human-run command, not gated by JARVIS_ENABLED, so a proposal
+# can be inspected/approved/rejected even while the automated loop is off.
+set -eu
+[ "$(id -u)" -eq 0 ] || { echo "root required" >&2; exit 1; }
+# Istege bagli kutuphaneler (zeyrek morfolojisi, trafilatura tarih cikarimi)
+# venv'de kurulu. Sistem python'u onlari goremez ve servis sessizce daha az
+# yetenekli calisir -- jarvis-web venv kullandigi icin panel ile dongu
+# farkli davraniyordu. venv yoksa python3'e dusulur.
+JARVIS_PY=/opt/lcarlie/jarvis-phase2/venv/bin/python
+[ -x "$JARVIS_PY" ] || JARVIS_PY=python3
+
+cd /opt/lcarlie/jarvis-phase2
+exec "$JARVIS_PY" -m jarvis.operator_cli "$@"

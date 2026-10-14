@@ -1,0 +1,12 @@
+[Unit]
+Description=LCARLIE incoming customer message classifier
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+ExecStart=/usr/bin/flock -n /run/lcarlie-mesaj-siniflandir.lock /opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/mesaj-siniflandir.py
+TimeoutStartSec=180
+NoNewPrivileges=true
+UMask=0077

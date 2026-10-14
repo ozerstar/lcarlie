@@ -1,0 +1,15 @@
+[Unit]
+Description=LCARLIE site nobeti (yalniz okur; onarim yapmaz)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+ExecStart=/opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/site-nobeti.py
+# 🔴 Kritik bulgu cikis kodunu 1 yapiyor. Bu bir SERVIS ARIZASI DEGIL,
+#    olcumun sonucudur; systemd'nin birimi "failed" gostermesi paneli
+#    yaniltir. Bulgu zaten findings.jsonl'e yaziliyor.
+SuccessExitStatus=0 1
+TimeoutStartSec=900
+Nice=10

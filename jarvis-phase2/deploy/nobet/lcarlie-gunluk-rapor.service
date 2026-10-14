@@ -1,0 +1,12 @@
+[Unit]
+Description=LCARLIE gunluk rapor (e-posta, her sabah 09:00)
+After=network-online.target lcarlie-sirket-runtime.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+ExecStart=/opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/gunluk-rapor.py
+# Yalnizca okur ve e-posta gonderir. Hicbir dis eylem yapmaz.
+TimeoutStartSec=600
+Nice=10

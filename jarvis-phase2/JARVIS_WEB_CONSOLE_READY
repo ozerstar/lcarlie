@@ -1,0 +1,13 @@
+JARVIS_WEB_CONSOLE_READY_PENDING_DNS
+created_at=2026-09-18T16:49:48+03:00
+overall=READY_PENDING_DNS
+url=https://jarvis.lcarlie.shop
+dns_action_required=A jarvis.lcarlie.shop -> 185.169.180.68
+auth=single operator account, scrypt hash, session+CSRF, rate limited
+chat=real, reuses jarvis.shadow.ShadowRunner + jarvis.operator.OperatorSession, streaming, Turkish capability boundary
+proposals=list/inspect/approve/reject via jarvis.operator.OperatorSession unchanged
+external_provider_calls=0
+external_actions=0
+tests=57 web + 108 jarvis + 32/32 security
+incident=docker compose recreated caddy, dropped icaz_kapi network, fixed and confirmed healthy
+source_commit=582c2c8fba2c7ab59fb853e217c7daca959accd9

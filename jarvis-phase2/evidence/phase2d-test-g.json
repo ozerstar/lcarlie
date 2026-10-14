@@ -1,0 +1,132 @@
+{
+  "test": "PHASE2C_TEST_G_STATE_FALLBACK",
+  "status": "PASS",
+  "run_tag": "test-phase2c-g-1789734735",
+  "transaction": "BEGIN ... ROLLBACK (nothing committed)",
+  "checks": [
+    {
+      "check": "G0_task_enqueued_by_human_approver",
+      "result": "PASS",
+      "detail": "task_id=107"
+    },
+    {
+      "check": "G1_task_claimed_as_ai_writer",
+      "result": "PASS",
+      "detail": "claimed=(107, '689941a8-908d-44fd-acd4-2b326056e6fb')"
+    },
+    {
+      "check": "G2_initial_state_persisted",
+      "result": "PASS",
+      "detail": "version=1"
+    },
+    {
+      "check": "G3_state_reloaded_after_interruption",
+      "result": "PASS",
+      "detail": "version=1 status=RUNNING"
+    },
+    {
+      "check": "G4_evidence_survived_interruption",
+      "result": "PASS",
+      "detail": "evidence=['postgres:system', 'postgres:agenda']"
+    },
+    {
+      "check": "G5_fallback_A_to_B",
+      "result": "PASS",
+      "detail": "attempts=['A', 'B']"
+    },
+    {
+      "check": "G6_no_task_loss",
+      "result": "PASS",
+      "detail": "outcome={'provider': 'B', 'summary': 'continued from persisted state', 'resumed_from_version': 1}"
+    },
+    {
+      "check": "G7_continuation_persisted",
+      "result": "PASS",
+      "detail": "version=2"
+    },
+    {
+      "check": "G8_no_evidence_loss",
+      "result": "PASS",
+      "detail": "evidence=['postgres:system', 'postgres:agenda', 'router:fallback:B']"
+    },
+    {
+      "check": "G9_state_replay_blocked",
+      "result": "PASS",
+      "detail": "rejected: PsqlError: [P0001] task state version conflict; state_untouched=True version=2"
+    },
+    {
+      "check": "G10a_writer_cannot_read_proposal_table",
+      "result": "PASS",
+      "detail": "denied: [42501] permission denied for table ai_action_proposal"
+    },
+    {
+      "check": "G10_duplicate_proposal_blocked",
+      "result": "PASS",
+      "detail": "rows=1 ids=[19] errors=['[P0001] invalid action task']"
+    },
+    {
+      "check": "G11_proposal_stops_at_PROPOSED",
+      "result": "PASS",
+      "detail": "state=PROPOSED"
+    },
+    {
+      "check": "G15_contract_mapping_covers_database",
+      "result": "PASS",
+      "detail": "mapped=['DRAFT_CUSTOMER_REPLY', 'META_CAMPAIGN_CHANGE', 'PRICE_CHANGE', 'REQUEST_HUMAN_REVIEW', 'WHATSAPP_SEND_TEMPLATE', 'WIX_PUBLISH'] db=['DRAFT_CUSTOMER_REPLY', 'META_CAMPAIGN_CHANGE', 'PRICE_CHANGE', 'REQUEST_HUMAN_REVIEW', 'WHATSAPP_SEND_TEMPLATE', 'WIX_PUBLISH'] unmapped_db=[] dangling=[]"
+    },
+    {
+      "check": "G12_rollback_left_no_state",
+      "result": "PASS",
+      "detail": "jarvis_task_state rows=0"
+    },
+    {
+      "check": "G13_rollback_left_no_proposal",
+      "result": "PASS",
+      "detail": "proposal rows=0"
+    },
+    {
+      "check": "G14_rollback_left_no_task",
+      "result": "PASS",
+      "detail": "task rows=0"
+    }
+  ],
+  "findings": [
+    {
+      "id": "firewall_allowlist_divergence",
+      "status": "CLOSED_IN_PHASE_2D",
+      "internal_intents": [
+        "CUSTOMER_REPLY_DRAFT",
+        "HUMAN_REVIEW_REQUEST",
+        "META_CAMPAIGN_CHANGE",
+        "PRICE_CHANGE",
+        "WHATSAPP_TEMPLATE_SEND",
+        "WIX_PUBLISH"
+      ],
+      "canonical_types": [
+        "DRAFT_CUSTOMER_REPLY",
+        "META_CAMPAIGN_CHANGE",
+        "PRICE_CHANGE",
+        "REQUEST_HUMAN_REVIEW",
+        "WHATSAPP_SEND_TEMPLATE",
+        "WIX_PUBLISH"
+      ],
+      "unmapped_canonical": [],
+      "note": "jarvis/firewall.py no longer carries its own allowlist; the single allowlist is core.ai_action_type, loaded at runtime and checked for drift on every contract load."
+    }
+  ],
+  "telemetry": {
+    "arrange_ms": 16.242,
+    "state_save_ms": 3.448,
+    "fallback_ms": 1.171,
+    "total_ms": 122.213,
+    "model_calls": 0,
+    "external_provider_calls": 0,
+    "external_actions": 0,
+    "fallback_count": 1,
+    "cache_hit": false,
+    "max_rss_mb": 18.25,
+    "cpu_seconds": 0.077,
+    "success": true
+  },
+  "generated_at": "2026-09-18T12:32:15.862546+00:00"
+}

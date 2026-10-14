@@ -1,0 +1,48 @@
+# L'CARLIÉ Jarvis — işleme öncesi kapı
+#
+# 🔴 BU DOSYA EKSİKTİ VE KANCA KURULUYDU. Sonuç: her `git commit` "No
+# .pre-commit-config.yaml file was found" diyerek DURUYORDU. Yani kapı
+# hiçbir şey denetlemiyor, yalnız işlemeyi engelliyordu -- kapı değil,
+# duvar. Yarım bırakılmış bir koruma, korumasızlıktan kötüdür: insan onu
+# atlamayı öğrenir ve gerçekten denetleyen bir kapı geldiğinde de atlar.
+#
+# NEDEN `repo: local`: hazır pre-commit deposu her kurulumda ağdan indirir
+# ve kendi sanal ortamını kurar. Bu sunucuda ruff ZATEN venv'de (0.16.9);
+# dışarıdan indirmek hem gereksiz hem de ağ kesildiğinde işlemeyi
+# durduran yeni bir kırılganlık olurdu.
+#
+# NEDEN SADECE RUFF VE SADECE BU KURALLAR: `ruff.toml` kasıtlı olarak dar
+# tutuldu -- 51.000 satırlık, davranışı ÖLÇÜLMÜŞ bir kod tabanını satır
+# uzunluğu için yeniden düzenlemek, çalışan bir şeyi kozmetik uğruna riske
+# atmaktır. Seçilen kuralların her biri ÇALIŞMA ZAMANINDA yanlış davranış
+# üretebilir (tanımsız ad, yutulan hata, bozuk regex, kapatılmayan dosya).
+#
+# Biçimlendirici (`ruff format`) BİLEREK YOK: bu depoda yorumlar hizaya
+# göre yazılmış uzun açıklamalar taşıyor; otomatik biçimlendirme onları
+# dağıtır ve her işlemede alakasız fark üretir.
+repos:
+  - repo: local
+    hooks:
+      - id: ruff
+        name: ruff (kusur denetimi)
+        entry: /opt/lcarlie/jarvis-phase2/venv/bin/ruff check --force-exclude
+        language: system
+        types_or: [python, pyi]
+        require_serial: false
+
+      - id: buyuk-dosya
+        name: buyuk dosya engeli
+        # Ürün görselleri ve model dosyaları depoya girmemeli; git'te
+        # 2 MB'ı aşan bir dosya neredeyse her zaman bir kazadır.
+        entry: check-added-large-files
+        args: [--maxkb=2048]
+        language: python
+        additional_dependencies: [pre-commit-hooks==6.0.0]
+        stages: [pre-commit]
+
+      - id: birlesme-izi
+        name: birlesme cakismasi izi
+        entry: check-merge-conflict
+        language: python
+        additional_dependencies: [pre-commit-hooks==6.0.0]
+        stages: [pre-commit]

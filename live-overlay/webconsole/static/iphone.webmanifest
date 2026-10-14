@@ -1,0 +1,11 @@
+{
+  "name": "Jarvis Kişisel Asistan",
+  "short_name": "Jarvis",
+  "description": "Jarvis ile iPhone'dan konuş ve telefon işlemlerini başlat.",
+  "start_url": "/iphone.html",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#101923",
+  "theme_color": "#101923",
+  "icons": [{"src": "/iphone-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any maskable"}]
+}

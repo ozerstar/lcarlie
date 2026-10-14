@@ -1,0 +1,14 @@
+[Unit]
+Description=Gunluk LCARLIE departman arastirmasi
+
+[Timer]
+# 🔴 SIRA ONEMLI: sirket runtime'i 09:15'te kosuyor ve gundemi o uretiyor.
+# Arastirma ondan SONRA calisir (09:35) ki yeni bulgular ertesi gunun
+# gundemine girsin; ayni anda kosarlarsa ayni dakikada hem CPU hem SearXNG
+# yarisir ve arastirma zaman asimina ugrar.
+OnCalendar=*-*-* 09:35:00 Europe/Istanbul
+RandomizedDelaySec=10min
+Persistent=false
+
+[Install]
+WantedBy=timers.target

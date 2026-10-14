@@ -1,0 +1,50 @@
+[Unit]
+Description=LCARLIE Jarvis Web Console (operator interface)
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+Environment=JARVIS_ENABLED=true
+Environment=JARVIS_MODE=SHADOW
+Environment=EXTERNAL_ACTIONS=false
+Environment=JARVIS_MEMORY_TRANSPORT=local-docker
+Environment=JARVIS_STATE_DIR=/opt/lcarlie/jarvis-phase2/state
+Environment=JARVIS_WEB_STATE_DIR=/opt/lcarlie/jarvis-phase2/state/webconsole
+Environment=JARVIS_WEB_BIND=0.0.0.0
+Environment=JARVIS_WEB_PORT=8091
+# DOCKER_API_VERSION SABITLENMEZ (20.09.2026'da kaldirildi): daemon minimum
+# API'yi yukseltince sabitlenmis istemci sessizce patlar. Ayni gun 1.43 sabiti
+# n8n yayinlama hattini ve geri donus/kurtarma betiklerini oldurdu.
+Environment=DOCKER_CONFIG=/tmp
+ExecStart=/usr/bin/python3 /opt/lcarlie/jarvis-phase2/webconsole/app.py
+Restart=on-failure
+RestartSec=5
+Nice=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/opt/lcarlie/jarvis-phase2/state
+MemoryMax=256M
+CPUQuota=100%
+TasksMax=64
+
+# Runs as root for the same reason jarvis-phase2.service does (see that
+# unit's comment): reaching the docker socket requires root or docker-group
+# membership, and docker-group is root-equivalent anyway. This process binds
+# 0.0.0.0:8091 because Caddy reaches it from inside a container via the
+# docker bridge (host-gateway), not loopback -- public exposure is blocked
+# at the host firewall (ufw allow only from the docker web-network subnet),
+# not by this process. It never assumes ai_writer or human_approver itself;
+# every DB call happens inside jarvis.memory / jarvis.operator exactly as
+# already verified in Phase 2C/2D/Minimum-Operational.
+
+[Install]
+WantedBy=multi-user.target

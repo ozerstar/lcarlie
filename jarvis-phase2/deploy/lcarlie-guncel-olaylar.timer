@@ -1,0 +1,16 @@
+[Unit]
+Description=Gunluk Guncel Olaylar bulteni
+
+[Timer]
+# 07:45 -- yonetici brief'inden (08:18) ONCE. Sira kasitli: gunun dis
+# haberleri, ic ozet hazirlanmadan once yerinde olsun.
+OnCalendar=*-*-* 07:45:00
+# Sunucu o saatte kapaliysa acilista telafi edilir; haber gunu atlamasin.
+Persistent=true
+# Ayni anda baslayan islerle yarismasin.
+RandomizedDelaySec=3min
+AccuracySec=1min
+Unit=lcarlie-guncel-olaylar.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,10 @@
+[Unit]
+Description=Itibar/basin taramasi - her gun 06:40
+
+[Timer]
+OnCalendar=*-*-* 06:40:00 Europe/Istanbul
+Persistent=true
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target

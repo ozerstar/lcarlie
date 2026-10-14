@@ -1,0 +1,219 @@
+{
+  "test": "PHASE2D_PROPOSAL_E2E",
+  "status": "PASS",
+  "run_tag": "test-phase2d-1789734735",
+  "transaction": "BEGIN ... ROLLBACK (nothing committed)",
+  "contract": {
+    "contract_source": "postgres:action_contract",
+    "contract_hash": "935c0769511c188e83444d921edec0dae52086678ceca152d773a8f9287b5944",
+    "contract_map_version": "2026-09-18.1",
+    "canonical_action_count": 6,
+    "mapped_action_count": 6,
+    "unknown_internal": [],
+    "unknown_canonical": [],
+    "contract_valid": true,
+    "contract_reason": "contract matches mapping",
+    "contract_load_ms": 82.692
+  },
+  "cases": [
+    {
+      "name": "risky_customer_action",
+      "request": "Bu müşteriye WhatsApp mesajı gönder.",
+      "internal_intent": "WHATSAPP_TEMPLATE_SEND",
+      "canonical_action_type": "WHATSAPP_SEND_TEMPLATE",
+      "risk_class": "HIGH",
+      "approval_mode": "ONE_PERSON",
+      "schema_version": "v1",
+      "execution_enabled": false,
+      "task_id": 105,
+      "proposal_id": 17,
+      "proposal_status": "PROPOSED",
+      "idempotency_key": "action:test-phase2d-1789734735-0",
+      "evidence_refs": [
+        "postgres:action_contract",
+        "postgres:core.ai_propose_action"
+      ],
+      "external_action": false,
+      "human_approval_required": true,
+      "firewall_ms": 0.068,
+      "proposal_path_ms": 24.146
+    },
+    {
+      "name": "capability_gap_remediation",
+      "request": "Bu capability eksikliği için insana karar gerekiyor.",
+      "internal_intent": "HUMAN_REVIEW_REQUEST",
+      "canonical_action_type": "REQUEST_HUMAN_REVIEW",
+      "risk_class": "LOW",
+      "approval_mode": "ONE_PERSON",
+      "schema_version": "v1",
+      "execution_enabled": true,
+      "task_id": 106,
+      "proposal_id": 18,
+      "proposal_status": "PROPOSED",
+      "idempotency_key": "action:test-phase2d-1789734735-1",
+      "evidence_refs": [
+        "postgres:action_contract",
+        "postgres:core.ai_propose_action"
+      ],
+      "external_action": false,
+      "human_approval_required": true,
+      "firewall_ms": 0.068,
+      "proposal_path_ms": 6.292
+    }
+  ],
+  "checks": [
+    {
+      "check": "D1_contract_loaded_from_postgres",
+      "result": "PASS",
+      "detail": "contract matches mapping; source=postgres:action_contract hash=935c0769511c188e canonical=6 mapped=6"
+    },
+    {
+      "check": "D2.0_planner_risk_matches_expectation",
+      "result": "PASS",
+      "detail": "risky_customer_action: plan.status=PROPOSED expected_risky=True"
+    },
+    {
+      "check": "D3.0_internal_intent_selected",
+      "result": "PASS",
+      "detail": "risky_customer_action: intent=WHATSAPP_TEMPLATE_SEND"
+    },
+    {
+      "check": "D4.0_firewall_returned_canonical_type",
+      "result": "PASS",
+      "detail": "risky_customer_action: WHATSAPP_TEMPLATE_SEND -> WHATSAPP_SEND_TEMPLATE risk=HIGH approval=ONE_PERSON"
+    },
+    {
+      "check": "D5.0_postgres_accepted_the_proposal",
+      "result": "PASS",
+      "detail": "risky_customer_action: proposal_id=17 err="
+    },
+    {
+      "check": "D6.0_status_is_PROPOSED",
+      "result": "PASS",
+      "detail": "risky_customer_action: state=PROPOSED"
+    },
+    {
+      "check": "D7.0_risk_class_matches_contract",
+      "result": "PASS",
+      "detail": "risky_customer_action: db=HIGH contract=HIGH"
+    },
+    {
+      "check": "D7b.0_no_approval_and_no_execution",
+      "result": "PASS",
+      "detail": "risky_customer_action: decided_by= execution_enabled=False"
+    },
+    {
+      "check": "D2.1_planner_risk_matches_expectation",
+      "result": "PASS",
+      "detail": "capability_gap_remediation: plan.status=PLANNED expected_risky=False"
+    },
+    {
+      "check": "D3.1_internal_intent_selected",
+      "result": "PASS",
+      "detail": "capability_gap_remediation: intent=HUMAN_REVIEW_REQUEST"
+    },
+    {
+      "check": "D4.1_firewall_returned_canonical_type",
+      "result": "PASS",
+      "detail": "capability_gap_remediation: HUMAN_REVIEW_REQUEST -> REQUEST_HUMAN_REVIEW risk=LOW approval=ONE_PERSON"
+    },
+    {
+      "check": "D5.1_postgres_accepted_the_proposal",
+      "result": "PASS",
+      "detail": "capability_gap_remediation: proposal_id=18 err="
+    },
+    {
+      "check": "D6.1_status_is_PROPOSED",
+      "result": "PASS",
+      "detail": "capability_gap_remediation: state=PROPOSED"
+    },
+    {
+      "check": "D7.1_risk_class_matches_contract",
+      "result": "PASS",
+      "detail": "capability_gap_remediation: db=LOW contract=LOW"
+    },
+    {
+      "check": "D7b.1_no_approval_and_no_execution",
+      "result": "PASS",
+      "detail": "capability_gap_remediation: decided_by= execution_enabled=True"
+    },
+    {
+      "check": "D8_unknown_python_action_blocked",
+      "result": "PASS",
+      "detail": "blocked: unknown internal action: 'RUN_SHELL'"
+    },
+    {
+      "check": "D8_retired_phase2c_name_blocked",
+      "result": "PASS",
+      "detail": "blocked: unknown internal action: 'CRM_REPLY_DRAFT'"
+    },
+    {
+      "check": "D8_canonical_name_used_directly_blocked",
+      "result": "PASS",
+      "detail": "blocked: unknown internal action: 'REQUEST_HUMAN_REVIEW'"
+    },
+    {
+      "check": "D8_case_manipulation_blocked",
+      "result": "PASS",
+      "detail": "blocked: unknown internal action: 'price_change'"
+    },
+    {
+      "check": "D8_whitespace_manipulation_blocked",
+      "result": "PASS",
+      "detail": "blocked: unknown internal action: ' PRICE_CHANGE'"
+    },
+    {
+      "check": "D8_forbidden_payload_blocked",
+      "result": "PASS",
+      "detail": "blocked: forbidden payload keys: shell"
+    },
+    {
+      "check": "D8_malformed_payload_blocked",
+      "result": "PASS",
+      "detail": "blocked: payload must be a JSON object"
+    },
+    {
+      "check": "D8_contract_drift_blocked",
+      "result": "PASS",
+      "detail": "blocked: CONTRACT_DRIFT: contract is empty or unreadable"
+    },
+    {
+      "check": "D9_direct_db_bypass_blocked",
+      "result": "PASS",
+      "detail": "denied: [42501] permission denied for table ai_action_proposal"
+    },
+    {
+      "check": "D10_self_approval_blocked",
+      "result": "PASS",
+      "detail": "denied: [42501] permission denied for function ai_decide_action"
+    },
+    {
+      "check": "D11_direct_execution_blocked",
+      "result": "PASS",
+      "detail": "denied: [42501] permission denied for function ai_claim_approved_action"
+    },
+    {
+      "check": "D12_rollback_left_no_proposal",
+      "result": "PASS",
+      "detail": "rows=0"
+    },
+    {
+      "check": "D13_rollback_left_no_task",
+      "result": "PASS",
+      "detail": "rows=0"
+    }
+  ],
+  "telemetry": {
+    "contract_load_ms": 82.98,
+    "total_ms": 206.658,
+    "model_calls": 0,
+    "external_provider_calls": 0,
+    "external_actions": 0,
+    "human_approvals_fabricated": 0,
+    "executions": 0,
+    "max_rss_mb": 18.24,
+    "success": true
+  },
+  "sequence_note": "PostgreSQL sequences are not transactional: the rolled-back enqueues consumed core.ai_task ids. No row was committed.",
+  "generated_at": "2026-09-18T12:32:15.651738+00:00"
+}

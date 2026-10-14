@@ -1,0 +1,18 @@
+[Unit]
+Description=LCARLIE read-only Meta conversation ingestion
+After=network-online.target docker.service
+Requires=docker.service
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+Environment=JARVIS_STATE_DIR=/opt/lcarlie/jarvis-phase2/state
+ExecStart=/usr/bin/python3 /opt/lcarlie/jarvis-phase2/scripts/meta-conversations-refresh.py
+TimeoutStartSec=900
+MemoryMax=512M
+TasksMax=64
+NoNewPrivileges=true
+ProtectHome=true
+ProtectSystem=strict
+PrivateTmp=true
+UMask=0077
+ReadWritePaths=/opt/lcarlie/jarvis-phase2/state

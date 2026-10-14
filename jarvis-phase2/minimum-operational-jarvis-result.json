@@ -1,0 +1,146 @@
+{
+  "task": "MINIMUM_OPERATIONAL_JARVIS",
+  "overall": "PASS",
+  "marker": "MINIMUM_OPERATIONAL_JARVIS_READY",
+  "executed_at": "2026-09-18T16:02:00+03:00",
+  "continued_from": "phase2d (verified, not repeated)",
+
+  "what_changed": {
+    "added": ["jarvis/operator.py", "jarvis/operator_cli.py", "jarvis/loop.py", "jarvis/loop_cli.py",
+             "bin/jarvis-operator", "deploy/bin/jarvis-operator", "deploy/jarvis-phase2.timer",
+             "tests/test_operator.py", "tests/test_loop.py"],
+    "modified": ["bin/jarvis-phase2", "deploy/bin/jarvis-phase2 (dispatch SHADOW vs OPERATIONAL by JARVIS_MODE)",
+                "deploy/jarvis-phase2.service (root instead of User=jarvis; ReadWritePaths added)"],
+    "latent_bugs_found_and_fixed": [
+      {"bug": "jarvis-phase2.service ran as User=jarvis, which is not in the docker group (socket root:docker 660); could never reach PostgreSQL", "fix": "run as root with the same hardening already audited on lcarlie-action-worker.service (CapabilityBoundingSet=, NoNewPrivileges, ProtectSystem=strict)", "authorization_boundary_affected": false},
+      {"bug": "ProtectSystem=strict makes the filesystem read-only outside listed paths; ReadWritePaths for the loop's local state directory was missing", "fix": "added ReadWritePaths=/opt/lcarlie/jarvis-phase2/state"}
+    ]
+  },
+
+  "human_proposal_surface": {
+    "commands": ["list", "inspect", "approve", "reject", "create-task"],
+    "identity_used": "human_approver (verified against live grants: ai_get_pending_actions and ai_enqueue_task are human_approver-only; ai_action_proposal has no table read grant for anyone but its owner)",
+    "raw_update_used": false,
+    "jarvis_ai_writer_is_human_approver_member": false,
+    "limitation_disclosed": "inspect can only see PENDING proposals; no controlled function returns decided-proposal detail; decide() confirms its effect by re-checking the pending list",
+    "root_required": true
+  },
+
+  "operational_loop": {
+    "cycle": "observe -> analyze -> claim at most one task -> validate via Phase2D firewall/contract -> propose",
+    "model_calls_in_analysis": 0,
+    "trigger": "jarvis-phase2.timer, OnUnitActiveSec=5min (same oneshot+timer pattern as lcarlie-action-worker)",
+    "second_daemon_created": false,
+    "dedup": {
+      "one_task_per_cycle": true,
+      "wrong_task_type_handled": "core.ai_fail_task, hands the task back to the pool, never processed",
+      "issue_finding_dedup": "logged once per distinct signature, not every cycle",
+      "discovered_risk": "a separate pre-existing orchestrator (ai_generate_company_intelligence_task -> PROPOSE_DECISION -> karar -> human-approval-cli.sh) already runs on this host; core.ai_claim_task has no task_type filter, so this loop must never silently absorb its tasks -- handled and unit-tested"
+    },
+    "intent_carrying_convention": "jarvis:<INTERNAL_INTENT>:<slug> in the idempotency_key, because ai_writer has no SELECT on core.ai_task"
+  },
+
+  "real_demonstration": {
+    "cycle_1_real_observation": {"result": "NOOP", "reason": "no rule matched current evidence", "evidence": {"failed_executions": 0, "open_tasks": 0}},
+    "demo_task_created_by_human": {"task_id": 108, "idempotency_key": "jarvis:HUMAN_REVIEW_REQUEST:demo-minop-20260918"},
+    "cycle_2_claimed_and_proposed": {"result": "PROPOSED", "internal_intent": "HUMAN_REVIEW_REQUEST", "action_type": "REQUEST_HUMAN_REVIEW", "proposal_id": 20, "committed": true, "rollback_tested": false}
+  },
+
+  "approval_test": {
+    "inspect_before_decision": "full pending detail returned",
+    "decision": "APPROVED",
+    "decided_by": "jarvis-operator (human_approver)",
+    "self_approval_by_jarvis": false,
+    "confirmed": true,
+    "still_pending_after": false,
+    "execution": {
+      "created": true,
+      "executed_by": "existing action-worker.js FakeExecutor",
+      "final_state": "EXECUTED",
+      "result_summary": "internal human review request recorded by FakeExecutor",
+      "external_call_made": false
+    },
+    "external_actions_false_held": true
+  },
+
+  "soak": {
+    "method": "accelerated (20 rapid cycles, 8 seconds wall clock)",
+    "before": {"ai_task_rows": 17, "ai_action_proposal_rows": 1, "db_connections": 2},
+    "after": {"ai_task_rows": 17, "ai_action_proposal_rows": 1, "db_connections": 2, "open_leased_tasks": 0},
+    "duplicate_tasks": 0,
+    "duplicate_proposals": 0,
+    "db_growth_beyond_demo": 0,
+    "errors": 0,
+    "restarts": 0,
+    "all_containers_healthy_throughout": true,
+    "gateway_health_clean_throughout": true
+  },
+
+  "kill_switch": {
+    "stop_disable": {"timer_active_after": false, "timer_enabled_after": false, "orphan_process": false, "db_consistent": true},
+    "restart": {"timer_active_after": true, "timer_enabled_after": true, "scheduled_correctly": true}
+  },
+
+  "security": {
+    "recheck_status": "PASS",
+    "total": 32, "pass": 32, "fail": 0, "inconclusive": 0,
+    "deny_checks": 27, "allow_controls": 5,
+    "all_denials_sqlstate": "42501",
+    "weakened": false,
+    "note": "root now starts docker exec (was User=jarvis, which lacked docker-group access entirely); the authoritative boundary -- which PostgreSQL role a session assumes via SET SESSION AUTHORIZATION -- is unchanged and re-verified"
+  },
+
+  "unit_tests": {"collected": 108, "result": "OK", "executed": 103, "live_gated": 5},
+
+  "performance": {
+    "observe_ms_range": [200, 260],
+    "claim_ms_range": [90, 125],
+    "propose_ms_when_it_runs": 180,
+    "total_ms_range": [300, 440],
+    "timer_interval_min": 5,
+    "material_regression": false
+  },
+
+  "totals": {
+    "external_provider_calls": 0,
+    "external_actions": 0,
+    "model_calls": 0
+  },
+
+  "service_state": {
+    "jarvis_enabled": true,
+    "jarvis_mode": "OPERATIONAL",
+    "external_actions": false,
+    "jarvis_memory_transport": "local-docker",
+    "timer_active": true,
+    "timer_enabled": true,
+    "timer_interval": "OnUnitActiveSec=5min",
+    "service_active_between_cycles": false,
+    "service_note": "Type=oneshot, triggered only by the timer, exactly like lcarlie-action-worker.service; inactive between firings is normal"
+  },
+
+  "source_control": {
+    "canonical_path": "/opt/lcarlie/source/lcarlie-jarvis-v1",
+    "commit": "0b560cfb5fff2bb2d628a4db316888e574388465",
+    "deployment_in_sync": true,
+    "backup": {
+      "path": "/opt/lcarlie/backups/minop-20260918T155302/jarvis-phase2.pre-minop.tgz",
+      "sha256": "40d75222d6860d65331892f1a54b9acbc8d3b56f00876522d026f64e65851c61",
+      "also_backed_up": ["/etc/lcarlie/jarvis-phase2.env (pre-activation)", "/etc/systemd/system/jarvis-phase2.service (pre-activation)"]
+    },
+    "remote_push": false
+  },
+
+  "open_blockers": [],
+
+  "backlog_not_implemented": [
+    "no controlled read path for a task's free-text context; idempotency-key convention used instead",
+    "inspect cannot show a decided proposal's detail (no controlled function returns it)",
+    "separate pre-existing orchestrator's worker.js is failing (EAI_AGAIN lcarlie-postgres) - unrelated, out of scope, worth attention",
+    "analyze() rule set is intentionally minimal (2 rules); can be widened without architecture change"
+  ],
+
+  "exact_next_step": "None required for this task. The loop is live and self-sustaining via jarvis-phase2.timer. Future work is widening analyze()'s rules or INTENT_TO_CANONICAL as real needs appear; neither requires another activation phase.",
+
+  "final_statement": "JARVIS IS NOW OPERATIONAL IN READ -> ANALYZE -> PROPOSE MODE. EXTERNAL ACTION EXECUTION REMAINS DISABLED."
+}

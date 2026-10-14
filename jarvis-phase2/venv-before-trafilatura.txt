@@ -1,0 +1,9 @@
+click==8.5.0
+cloudpickle==3.1.2
+defusedxml==0.7.1
+joblib==1.6.0
+nltk==3.10.3
+regex==2026.9.10
+tqdm==4.70.1
+turkish-deasciifier @ https://codeload.github.com/emres/turkish-deasciifier/tar.gz/refs/heads/master#sha256=0bed3e812d249388d581176ef794a8dddb4c53517215f470b011476036bd3777
+zeyrek==0.1.3

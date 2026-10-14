@@ -1,0 +1,10 @@
+PHASE2C_SHADOW_READY
+created_at=2026-09-18T15:15:14+03:00
+overall=PASS
+activation_authorized=NO
+jarvis_enabled=false
+service=static/inactive
+external_actions=0
+external_provider_calls=0
+open_blockers=F-1,F-2
+next_step=close F-1 (reconcile jarvis/firewall.py with core.ai_action_type)
