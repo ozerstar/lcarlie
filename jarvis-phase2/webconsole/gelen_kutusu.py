@@ -116,8 +116,15 @@ def durum_yaz(konusma_id: int, yeni_durum: str, sebep: str | None = None) -> dic
     if yeni_durum not in {"JARVIS", "INSANDA", "KAPALI"}:
         raise KutuHatasi("gecersiz devir durumu: %s" % yeni_durum)
     kid = int(konusma_id)
+    # 🔴 UPDATE BIR ALT SORGUDA DURAMAZ. Ilk hali
+    # `SELECT row_to_json(x) FROM (UPDATE ... RETURNING) x` yaziyordu ve
+    # PostgreSQL bunu sozdizimi hatasiyla reddediyor: veri degistiren
+    # ifadeler yalniz CTE icinde yazilabilir. Okuma yollari calistigi icin
+    # kusur ancak YAZMA denendiginde gorundu -- panelin devir dugmesi
+    # sessizce degil, gurultuyle kirilirdi ama hic denenmeseydi
+    # "calisiyor" diye bildirilecekti.
     sonuc = _calistir(f"""
-    SELECT row_to_json(x) FROM (
+    WITH g AS (
       UPDATE lcarlie.konusma
          SET devir_durumu = {_tirnak(yeni_durum)},
              devir_sebep  = {_tirnak(sebep)},
@@ -125,7 +132,8 @@ def durum_yaz(konusma_id: int, yeni_durum: str, sebep: str | None = None) -> dic
              guncelleme   = now()
        WHERE id = {kid}
       RETURNING id, devir_durumu, devir_sebep, devir_zaman
-    ) x;
+    )
+    SELECT row_to_json(g) FROM g;
     """)
     if not sonuc:
         raise KutuHatasi("konusma bulunamadi: %s" % kid)
