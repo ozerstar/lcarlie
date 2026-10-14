@@ -291,7 +291,9 @@ def _build_coding_review_payload(slug: str) -> dict[str, str]:
         raise CodingTaskDenied(f"CodingExecutor could not run: {exc}") from exc
 
     if not result.success:
-        raise CodingTaskDenied(f"CodingExecutor denied: {result.denied_reason}")
+        evidence_path = getattr(result, "evidence_dir", None)
+        detail = f"; evidence: {evidence_path}" if evidence_path else ""
+        raise CodingTaskDenied(f"CodingExecutor denied: {result.denied_reason}{detail}")
 
     return {"subject_ref": f"coding-task:{slug}", "reason": summarize_for_proposal(result)}
 
@@ -566,6 +568,7 @@ def run_cycle(host: str | None = "lcarlie") -> dict[str, Any]:
     state["last_run_at"] = observation.observed_at
     _save_state(state)
 
+    coding_cycle = bool(claimed and str(claimed.get("idempotency_key", "")).startswith("jarvis:CODE_CHANGE_REVIEW:"))
     report = {
         "cycle": state["cycle_count"], "result": result,
         "analysis_status": analysis.status, "analysis_reason": analysis.reason,
@@ -573,7 +576,10 @@ def run_cycle(host: str | None = "lcarlie") -> dict[str, Any]:
         "business": business,
         "observation_hash": observation.content_hash,
         "timings_ms": timings, "total_ms": round((perf_counter() - started) * 1000, 3),
-        "model_calls": 0, "external_provider_calls": 0, "external_actions": 0,
+        "model_calls": None if coding_cycle else 0,
+        "external_provider_calls": None if coding_cycle else 0,
+        "coding_model_usage": "NOT_MEASURED" if coding_cycle else "NOT_USED",
+        "external_actions": 0,
         "state_summary": {k: v for k, v in state.items() if k.endswith("_count")},
     }
     _append_jsonl(AUDIT_LOG, report)

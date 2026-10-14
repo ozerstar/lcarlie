@@ -103,4 +103,36 @@ class RoleActivityTests(unittest.TestCase):
             (root/'team-cycle/latest.json').write_text(json.dumps({'generated_at':(datetime.now(timezone.utc)-timedelta(days=2)).isoformat(),'roles':{'research':{'status':'PRODUCED'}}}))
             with patch.object(role_activity,'state_dir',return_value=root): self.assertEqual({},role_activity.latest())
 
+class CodingEvidenceTests(unittest.TestCase):
+    def test_new_files_are_added_to_review_patch(self):
+        from jarvis import coding_executor
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp)
+            subprocess.run(['git','init','-q',str(root)],check=True)
+            subprocess.run(['git','-C',str(root),'config','user.email','test@example.invalid'],check=True)
+            subprocess.run(['git','-C',str(root),'config','user.name','Test'],check=True)
+            (root/'base.txt').write_text('base')
+            subprocess.run(['git','-C',str(root),'add','base.txt'],check=True)
+            subprocess.run(['git','-C',str(root),'commit','-qm','base'],check=True)
+            (root/'new.py').write_text('NEW_FILE_EVIDENCE\n')
+            review_patch=coding_executor._review_diff(root,'HEAD',['new.py'])
+            self.assertIn('NEW_FILE_EVIDENCE',review_patch)
+
+class RuntimeAssetTests(unittest.TestCase):
+    def test_only_declared_dependencies_are_copied_and_tampering_is_visible(self):
+        from jarvis import coding_executor as ce
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);source=root/'source';clone=root/'clone'
+            assets=source/'jarvis-phase2/varliklar'
+            (assets/'fontlar').mkdir(parents=True)
+            (assets/'fontlar/test.otf').write_bytes(b'font')
+            (assets/'credentials.env').write_text('do not copy')
+            with patch.object(ce,'CANONICAL_SOURCE',source):
+                manifest=ce._copy_runtime_assets(clone)
+            self.assertEqual(1,len(manifest))
+            self.assertFalse((clone/'jarvis-phase2/varliklar/credentials.env').exists())
+            self.assertEqual([],ce._runtime_asset_changes(clone,manifest))
+            (clone/'jarvis-phase2/varliklar/fontlar/test.otf').write_bytes(b'changed')
+            self.assertEqual(['jarvis-phase2/varliklar/fontlar/test.otf'],ce._runtime_asset_changes(clone,manifest))
+
 if __name__=='__main__': unittest.main()

@@ -171,6 +171,47 @@ WHEN FINISHED, REPORT IN YOUR FINAL MESSAGE
 """
 
 
+RUNTIME_ASSET_NAMES = (
+    "fontlar", "fontlar-ttf", "imla-ek-sozluk.txt", "kanca-kaliplari.json",
+    "kutu-gercegi", "madde-haritasi.json", "urun-kitle.json", "logo",
+)
+
+
+def _copy_runtime_assets(clone_path: Path) -> dict[str, str]:
+    """Snapshot only declared test/runtime inputs, never state or credentials."""
+    from hashlib import sha256
+    asset_root = CANONICAL_SOURCE / "jarvis-phase2" / "varliklar"
+    manifest = {}
+    for name in RUNTIME_ASSET_NAMES:
+        source = asset_root / name
+        target = clone_path / "jarvis-phase2" / "varliklar" / name
+        if not source.exists():
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if source.is_dir():
+            shutil.copytree(source, target)
+            paths = [p for p in target.rglob("*") if p.is_file()]
+        else:
+            shutil.copy2(source, target)
+            paths = [target]
+        for path in paths:
+            manifest[str(path.relative_to(clone_path))] = sha256(path.read_bytes()).hexdigest()
+    return manifest
+
+
+def _runtime_asset_changes(clone_path: Path, manifest: dict[str, str]) -> list[str]:
+    from hashlib import sha256
+    changed = []
+    for name, expected in manifest.items():
+        try:
+            actual = sha256((clone_path / name).read_bytes()).hexdigest()
+        except OSError:
+            actual = "MISSING"
+        if actual != expected:
+            changed.append(name)
+    return changed
+
+
 def _clone_canonical_source(task_id: str) -> Path:
     if not CANONICAL_SOURCE.is_dir():
         raise CodingExecutorError(f"canonical source not found: {CANONICAL_SOURCE}")
@@ -212,6 +253,18 @@ def _enforce_scope(changed: list[str], spec: CodingTaskSpec) -> str | None:
         if not _matches_any(path, spec.allowed_files):
             return f"touched a path outside allowed_files: {path}"
     return None
+
+
+def _review_diff(clone_path: Path, base_commit: str, changed: list[str]) -> str:
+    """A review includes new files as well as tracked modifications."""
+    recorded = _run(["git", "add", "--intent-to-add", "--", *changed],
+                    cwd=clone_path, timeout_s=15)
+    if recorded.returncode:
+        raise CodingExecutorError("could not include all changed files in review evidence")
+    result = _run(["git", "diff", base_commit], cwd=clone_path, timeout_s=15)
+    if result.returncode or not result.stdout.strip():
+        raise CodingExecutorError("review patch is empty or could not be generated")
+    return result.stdout
 
 
 def _kimi_env() -> dict[str, str]:
@@ -262,6 +315,7 @@ def run_coding_task(spec: CodingTaskSpec, task_id: str) -> CodingTaskResult:
             raise CodingExecutorError(f"kimi binary not found: {KIMI_BIN}")
 
         clone_path = _clone_canonical_source(task_id)
+        asset_manifest = _copy_runtime_assets(clone_path)
         base_commit = _base_commit(clone_path)
         prompt = _build_prompt(spec)
 
@@ -274,7 +328,7 @@ def run_coding_task(spec: CodingTaskSpec, task_id: str) -> CodingTaskResult:
         )
         kimi_output = (kimi_result.stdout or "") + (("\n[stderr]\n" + kimi_result.stderr) if kimi_result.stderr else "")
 
-        changed = _changed_paths(clone_path, base_commit)
+        changed = sorted(set(_changed_paths(clone_path, base_commit) + _runtime_asset_changes(clone_path, asset_manifest)))
         denial = _enforce_scope(changed, spec)
         if denial:
             return CodingTaskResult(task_id=task_id, success=False, denied_reason=denial,
@@ -299,25 +353,31 @@ def run_coding_task(spec: CodingTaskSpec, task_id: str) -> CodingTaskResult:
         env = dict(os.environ)
         env["PYTHONPATH"] = str(test_cwd)
         env["PATH"] = str(Path(sys.executable).parent) + os.pathsep + env.get("PATH", "/usr/bin:/bin")
+        env.setdefault("NLTK_DATA", "/opt/lcarlie/jarvis-phase2/nltk_data")
         test_result = _run(list(spec.test_command), cwd=test_cwd, timeout_s=120, env=env)
         test_passed = test_result.returncode == 0
         test_summary = (test_result.stderr or test_result.stdout or "").strip()[-2000:]
 
         if not test_passed:
+            failed_dir = EVIDENCE_ROOT / task_id / "failed"
+            failed_dir.mkdir(parents=True, exist_ok=True)
+            log = failed_dir / "test_output.txt"
+            log.write_text((test_result.stdout or "") + (test_result.stderr or ""), encoding="utf-8")
+            os.chmod(log, 0o640)
             return CodingTaskResult(task_id=task_id, success=False, denied_reason="tests failed",
                                     files_changed=tuple(changed), test_passed=False,
-                                    test_summary=test_summary, model=KIMI_MODEL, evidence_dir=None,
+                                    test_summary=test_summary, model=KIMI_MODEL, evidence_dir=str(failed_dir),
                                     duration_s=round(perf_counter() - started, 3))
 
-        diff_result = _run(["git", "diff", base_commit], cwd=clone_path, timeout_s=15)
+        review_patch = _review_diff(clone_path, base_commit, changed)
         evidence_dir = EVIDENCE_ROOT / task_id
         evidence_dir.mkdir(parents=True, exist_ok=True)
-        (evidence_dir / "diff.patch").write_text(diff_result.stdout, encoding="utf-8")
+        (evidence_dir / "diff.patch").write_text(review_patch, encoding="utf-8")
         (evidence_dir / "kimi_output.txt").write_text(kimi_output, encoding="utf-8")
         evidence = {
             "task_id": task_id, "objective": spec.objective, "model": KIMI_MODEL,
             "files_changed": changed, "test_command": list(spec.test_command),
-            "test_passed": True, "test_summary": test_summary,
+            "test_passed": True, "test_summary": test_summary, "runtime_assets": asset_manifest,
             "base_commit": base_commit, "generated_at": datetime.now(timezone.utc).isoformat(),
         }
         (evidence_dir / "evidence.json").write_text(json.dumps(evidence, ensure_ascii=False, indent=2),

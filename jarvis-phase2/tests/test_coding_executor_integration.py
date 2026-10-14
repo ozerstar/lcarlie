@@ -65,6 +65,8 @@ class LoopCodingBridgeTests(EnterContextMixin, unittest.TestCase):
              patch.object(loop, "_fail_task") as fail_mock:
             report = loop.run_cycle(host=None)
         self.assertEqual(report["result"], "PROPOSED")
+        self.assertIsNone(report["model_calls"])
+        self.assertEqual("NOT_MEASURED", report["coding_model_usage"])
         self.assertEqual(report["task_detail"]["action_type"], "REQUEST_HUMAN_REVIEW")
         self.assertEqual(report["task_detail"]["proposal_id"], 999)
         run_mock.assert_called_once()

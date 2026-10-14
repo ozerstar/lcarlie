@@ -189,6 +189,7 @@ class RunCodingTaskGatingTests(unittest.TestCase):
             result = ce.run_coding_task(self._spec(), task_id="t4")
         self.assertFalse(result.success)
         self.assertEqual(result.denied_reason, "tests failed")
+        self.assertIn("1 test failed", (Path(result.evidence_dir) / "test_output.txt").read_text())
         self.assertFalse((self.worktree_root / "t4").exists())
 
     def test_success_produces_evidence_and_disposes_clone(self):
