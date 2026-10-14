@@ -14,3 +14,5 @@ Defter: state/improvement/ledger.sqlite3; WAL dosyalarıyla birlikte yedekleyin.
 Elle çalıştırma: JARVIS_MEMORY_TRANSPORT=local-docker venv/bin/python scripts/improvement-cycle.py
 Durum: systemctl status lcarlie-improvement-cycle.timer
 API: oturumlu GET /api/improvement; oturum+CSRF ile POST /api/improvement (work, plan, application, measurement, correction).
+
+Beş model kanıt yorumlama testi: venv/bin/python scripts/improvement-model-eval.py. Yalnız sunucunun 127.0.0.1:8099 yerel modeli kullanılır; dış sağlayıcı ve GPU tüneline geçiş kapalıdır. Model yanıtı, kaynak referansı, jetonlar ve süre ayrı kaydedilir. Genel model başarısı iddia edilmez.
