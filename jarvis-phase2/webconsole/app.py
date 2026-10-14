@@ -770,8 +770,37 @@ class Handler(BaseHTTPRequestHandler):
     server_version = "JarvisWebConsole/1.0"
     protocol_version = "HTTP/1.1"
 
-    def log_message(self, fmt: str, *args) -> None:  # quieter, no client details leaked
-        sys.stderr.write("[web] " + (fmt % args) + "\n")
+    # KVKK: istemci IP bilgisi uygulama gunlugune yazilmaz.
+    ISTEMCI_IP_YAZ = False
+
+    @staticmethod
+    def _gunluk_maskele(message: str) -> str:
+        """Redact credentials before request details reach journald."""
+        sensitive = re.compile(r"token|password|passwd|secret|api[_-]?key|authorization|csrf", re.I)
+
+        def clean(value):
+            if isinstance(value, dict):
+                return {k: "[REDACTED]" if sensitive.search(str(k)) else clean(v)
+                        for k, v in value.items()}
+            if isinstance(value, list):
+                return [clean(v) for v in value]
+            return value
+
+        try:
+            if message.lstrip().startswith(("{", "[")):
+                return json.dumps(clean(json.loads(message)), ensure_ascii=False)
+        except (ValueError, TypeError):
+            pass
+        # Preserve harmless query parameters and HTTP request structure.
+        message = re.sub(
+            r"([?&](?:[A-Za-z0-9_.%-]*(?:token|password|passwd|secret|csrf)|api[_-]?key|authorization|code)=)[^&\s]*",
+            r"\1[REDACTED]", message, flags=re.I)
+        return re.sub(
+            r'("[^"]*(?:token|password|passwd|secret|api[_-]?key|authorization|csrf)[^"]*"\s*:\s*)"(?:\\.|[^"\\])*"',
+            r'\1"[REDACTED]"', message, flags=re.I)
+
+    def log_message(self, fmt: str, *args) -> None:
+        sys.stderr.write("[web] " + self._gunluk_maskele(fmt % args) + "\n")
 
     # -- response helpers ---------------------------------------------------
     def _send_json(self, status: int, payload: dict, extra_headers: list[tuple[str, str]] | None = None) -> None:

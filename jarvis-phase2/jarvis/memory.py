@@ -24,6 +24,32 @@ class CompanyMemory:
     """Fixed-query adapter. User/model text is never interpolated into SQL."""
 
     QUERIES = {
+        # Roster sources already readable by ai_reader; explicit columns only.
+        "urun_seo": (
+            "SELECT row_to_json(x) FROM (SELECT urun_id,urun_adi,sku,slug,"
+            "seo_baslik,seo_aciklama,anahtar_kelimeler,ana_anahtar,"
+            "baslik_uzunluk,aciklama_uzunluk,baslik_var,aciklama_var,"
+            "anahtar_var,yayinda,guncelleme FROM mart.urun_seo_guncel "
+            "ORDER BY urun_id) x;"
+        ),
+        "arac_envanteri": (
+            "SELECT row_to_json(x) FROM (SELECT arac_id,ad,tur,kaynak,lisans,"
+            "ne_ise_yariyor,nerede,surum,kurulu,calisiyor,calismiyorsa_neden,"
+            "son_arastirma,alternatif_bakildi,arastirma_notu,guncelleme "
+            "FROM mart.arac_guncel ORDER BY arac_id) x;"
+        ),
+        "sayfa_olcum": (
+            "SELECT row_to_json(x) FROM (SELECT url,tur,http_kodu,baslik,"
+            "baslik_uzunluk,meta_uzunluk,h1_adet,h1_metni,kelime_sayisi,"
+            "kanonik,ham_bayt,js_calistirildi,olcum_zamani,h1_yok,"
+            "baslik_kesilir,meta_yok,jssiz_bakana_ince "
+            "FROM mart.sayfa_olcum_guncel ORDER BY url) x;"
+        ),
+        "basin_bahsi": (
+            "SELECT row_to_json(x) FROM (SELECT bahis_id,baslik,kaynak_site,"
+            "url,yayin_tarihi,arama_terimi,mevzuat_durumu,mevzuat_bayragi,"
+            "bulundu,ozet FROM mart.basin_guncel ORDER BY bahis_id) x;"
+        ),
         "system": "SELECT core.ai_orchestrator_health();",
         "agenda": (
             "SELECT row_to_json(x) FROM (SELECT soru_id,hedef,oncelik,soru,"
@@ -455,9 +481,9 @@ class CompanyMemory:
             raise ValueError("query is not allowlisted")
         sql = f"BEGIN; SET SESSION AUTHORIZATION ai_reader; {self.QUERIES[query_name]} ROLLBACK;"
         psql = ["docker", "exec", "lcarlie-postgres", "psql", "-X", "-q",
-                "-U", "n8n", "-d", "n8n", "-Atc", sql]
+                "-v", "ON_ERROR_STOP=1", "-U", "n8n", "-d", "n8n", "-Atc", sql]
         command = (["ssh", self.host, " ".join(
-            ["docker exec lcarlie-postgres psql -X -q -U n8n -d n8n -Atc", f'"{sql}"']
+            ["docker exec lcarlie-postgres psql -X -q -v ON_ERROR_STOP=1 -U n8n -d n8n -Atc", f'"{sql}"']
         )] if self.host else psql)
         started = perf_counter()
         result = subprocess.run(

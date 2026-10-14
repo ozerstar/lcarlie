@@ -148,7 +148,7 @@ def _psql(sql: str, host: str | None, role: str | None = None, timeout_s: int = 
 def _claim_task(host: str | None) -> dict[str, Any] | None:
     sql = (f"SELECT row_to_json(x) FROM (SELECT task_id,source_type,source_id,task_type,"
            f"idempotency_key,context_profile,lease_token,attempt_count "
-           f"FROM core.ai_claim_task('{WORKER_ID}', {LEASE_SECONDS})) x;")
+           f"FROM core.ai_claim_task('{WORKER_ID}', {LEASE_SECONDS}, 'PROPOSE_ACTION')) x;")
     rows = _psql(sql, host, role="ai_writer")
     return rows[0] if rows else None
 

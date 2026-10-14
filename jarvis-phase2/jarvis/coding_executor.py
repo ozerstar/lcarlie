@@ -181,7 +181,7 @@ def _clone_canonical_source(task_id: str) -> Path:
     # --local: disposable working copy, fully separate .git, zero shared
     # state with the canonical repo -- a stray/misbehaving run in here can
     # never corrupt the canonical repo's own git metadata.
-    result = _run(["git", "clone", "--local", "--", str(CANONICAL_SOURCE), str(clone_path)],
+    result = _run(["git", "clone", "--local", "--no-hardlinks", "--", str(CANONICAL_SOURCE), str(clone_path)],
                   cwd=WORKTREE_ROOT, timeout_s=60)
     if result.returncode != 0:
         raise CodingExecutorError(f"clone failed: {result.stderr.strip()}")

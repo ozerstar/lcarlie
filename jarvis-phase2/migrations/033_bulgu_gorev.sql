@@ -57,6 +57,13 @@ BEGIN
     RAISE EXCEPTION 'sebep en az 40 karakter olmali (ici bos oneri onay degildir)';
   END IF;
 
+  -- Serialize quota checks and inserts across competing callers.
+  PERFORM pg_advisory_xact_lock(33061014);
+  IF EXISTS (SELECT 1 FROM core.ai_task
+             WHERE idempotency_key = 'jarvis:HUMAN_REVIEW_REQUEST:' || p_slug) THEN
+    RETURN NULL;
+  END IF;
+
   SELECT count(*) INTO v_sayi
     FROM core.ai_task
    WHERE ai_enqueue AND source_type = 'BULGU'
@@ -69,7 +76,7 @@ BEGIN
   SELECT count(*) INTO v_sayi
     FROM core.ai_task
    WHERE ai_enqueue AND source_type = 'BULGU'
-     AND state NOT IN ('DONE', 'FAILED');
+     AND state NOT IN ('DONE', 'FAILED_FINAL', 'SKIPPED_CUTOFF', 'DUPLICATE');
   IF v_sayi >= c_acik_tavan THEN
     RAISE EXCEPTION 'acik bulgu isi tavani doldu: % acik is var (tavan %)',
                     v_sayi, c_acik_tavan;
@@ -104,6 +111,8 @@ $fn$;
 COMMENT ON FUNCTION core.ai_bulgu_gorev_ac(text, text, integer) IS
   'Bulgudan PROPOSE_ACTION isi acar. Tavanlar ve tekillik BURADA zorlanir; '
   'onay kapisi degismez - acilan is bir ONERI uretir, uygulamaz.';
+
+ALTER FUNCTION core.ai_bulgu_gorev_ac(text, text, integer) OWNER TO function_owner;
 
 REVOKE ALL ON FUNCTION core.ai_bulgu_gorev_ac(text, text, integer) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION core.ai_bulgu_gorev_ac(text, text, integer) TO ai_writer;

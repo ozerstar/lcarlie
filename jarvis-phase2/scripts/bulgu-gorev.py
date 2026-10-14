@@ -207,7 +207,7 @@ def _gorev_ac(slug: str, sebep: str) -> tuple[str | None, str | None]:
     except subprocess.SubprocessError as e:
         return None, f"psql calistirilamadi: {e}"
     if p.returncode != 0:
-        return None, (p.stderr or p.stdout).strip().splitlines()[-1][:200]
+        return None, (p.stderr or p.stdout).strip()[:1200]
     cikti = p.stdout.strip()
     return (cikti or None), None
 
