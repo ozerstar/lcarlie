@@ -63,3 +63,22 @@ class RefreshTests(unittest.TestCase):
     def test_manual_outcome_not_overwritten(self):
         sql=conversation_sql('messenger',self.conv(),[self.msg()],{'brand'},True)
         self.assertNotIn('sonuc=',sql);self.assertNotIn('siparis_no=',sql)
+
+
+class PaginationBoundaryTests(unittest.TestCase):
+    def test_checkpoint_does_not_persist_access_token(self):
+        import runpy
+        from pathlib import Path
+        from unittest.mock import patch
+        module=runpy.run_path(str(Path(__file__).resolve().parents[1]/'scripts/meta-conversations-refresh.py'),run_name='pagination_test')
+        globals_dict=module['pages'].__globals__
+        with patch.dict(globals_dict,{'get':lambda url,token:{'data':[{'id':'x'}],'paging':{'next':'https://graph.facebook.com/v21.0/x?after=abc&access_token=secret'}}}):
+            rows,complete,next_url=module['pages']('https://graph.facebook.com/v21.0/x','secret',1)
+        self.assertFalse(complete);self.assertEqual(len(rows),1)
+        self.assertNotIn('secret',next_url);self.assertIn('after=abc',next_url)
+
+    def test_unknown_pagination_host_is_rejected(self):
+        import runpy
+        from pathlib import Path
+        module=runpy.run_path(str(Path(__file__).resolve().parents[1]/'scripts/meta-conversations-refresh.py'),run_name='pagination_test')
+        with self.assertRaises(ValueError):module['get']('https://outside.invalid/page','secret')

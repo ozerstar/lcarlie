@@ -1,0 +1,9 @@
+[Unit]
+Description=LCARLIE hourly inbound message refresh
+[Timer]
+OnBootSec=15min
+OnUnitActiveSec=1h
+RandomizedDelaySec=5min
+Persistent=true
+[Install]
+WantedBy=timers.target

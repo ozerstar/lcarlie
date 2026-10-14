@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Bounded inbound Meta conversation sync using existing Page token. No sends."""
 import json
+import os
 import sys
 import urllib.parse
 import urllib.request
@@ -45,8 +46,10 @@ def pages(url,token,limit):
         rows.extend(j.get('data',[]))
         url=(j.get('paging') or {}).get('next')
         if not url:
-            return rows,True
-    return rows,False
+            return rows,True,None
+    parsed=urllib.parse.urlparse(url)
+    safe=urllib.parse.urlunparse(parsed._replace(query=urllib.parse.urlencode([(k,v) for k,v in urllib.parse.parse_qsl(parsed.query) if k!='access_token'])))
+    return rows,False,safe
 
 
 def main():
@@ -56,21 +59,39 @@ def main():
         raise ValueError('Existing Page credentials missing')
     own={page,env.get('IG_USER_ID','')}-{''}
     summaries=[]
+    checkpoint_path=Path(os.environ.get('JARVIS_STATE_DIR','/opt/lcarlie/jarvis-phase2/state'))/'data-sync'/'meta-checkpoint.json'
+    checkpoint_path.parent.mkdir(parents=True,exist_ok=True)
+    try:checkpoints=json.loads(checkpoint_path.read_text())
+    except (OSError,ValueError):checkpoints={}
     for channel in ('instagram','messenger'):
         result={'channel':channel,'conversations':0,'messages':0,'errors':0,'history_complete':True}
         try:
-            params={'fields':'id,participants{id},messages.limit(100){id,created_time,from{id},message}','limit':50}
-            if channel=='instagram':params['platform']='instagram'
-            records,complete=pages('https://graph.facebook.com/v21.0/'+page+'/conversations?'+urllib.parse.urlencode(params),token,4)
+            params={'fields':'id,participants,messages.limit(20){id,created_time,from,message}','limit':50}
+            if channel=='instagram':
+                params['platform']='instagram'
+                params['fields']='id,participants'
+            root_url='https://graph.facebook.com/v21.0/'+page+'/conversations?'+urllib.parse.urlencode(params)
+            records,complete,next_url=pages(root_url,token,1 if channel=='instagram' else 10)
+            if channel=='instagram':
+                if checkpoints.get(channel):
+                    older,complete,next_url=pages(checkpoints[channel],token,1)
+                    records=list({r['id']:r for r in records+older}.values())
+                checkpoints[channel]=next_url
+
             result['history_complete']=complete
             for record in records:
                 try:
-                    batch=record.get('messages',{})
+                    if channel=='instagram':
+                        message_url='https://graph.facebook.com/v21.0/'+record['id']+'/messages?'+urllib.parse.urlencode({'fields':'id,created_time,from,message','limit':20})
+                        batch=get(message_url,token)
+                        record['messages']=batch
+                    else:
+                        batch=record.get('messages',{})
                     messages=list(batch.get('data',[]))
                     more=(batch.get('paging') or {}).get('next')
                     message_complete=True
                     if more:
-                        older,message_complete=pages(more,token,4)
+                        older,message_complete,_=pages(more,token,1 if channel=='instagram' else 4)
                         messages+=older
                     if not messages:
                         continue
@@ -89,6 +110,10 @@ def main():
             result.update(status='FAILED',error_type=type(exc).__name__)
         sql("INSERT INTO raw.yukleme_log(kaynak,durum,okunan,yazilan,guncellenen,mesaj,baslangic,bitis) VALUES ("+quote('meta_messages_'+channel)+','+quote(result['status'])+','+str(result['messages'])+','+str(result['messages'])+",0,"+quote(json.dumps(result))+',now(),now());')
         summaries.append(result)
+    temporary=checkpoint_path.with_suffix('.tmp')
+    temporary.write_text(json.dumps(checkpoints))
+    os.chmod(temporary,0o600)
+    temporary.replace(checkpoint_path)
     print(json.dumps(summaries))
     return 1 if any(r['status']=='FAILED' for r in summaries) else 0
 

@@ -43,6 +43,7 @@ def ga4_replace_sql(funnel, purchases, start, end):
     for i in range(0,len(values),500):
         sql += 'INSERT INTO raw.ga4_event(event_name,event_date,transaction_id,source,medium,value,kanit_durumu,granulerlik,ham) VALUES '+','.join(values[i:i+500])+' ON CONFLICT DO NOTHING;\n'
     sql += "UPDATE core.source_authority SET current_connection='CONNECTED',dogrulama_zamani=now(),dogrulama_yontemi='Live GA4 Data API + atomic aggregate refresh',gap='Daily aggregate data is connected; GA4 is not commercial revenue authority. Cart instrumentation requires separate verification.' WHERE alan='behavior';\n"
+    sql += "UPDATE core.funnel_adim SET enstrumantasyon='PARTIAL',olcum_zamani=now(),olcum_yontemi='GA4 Data API daily aggregate',olcum_kaniti='view_cart aggregate observed; consent-limited cart views, not unique-person conversion' WHERE adim_kod='VIEW_CART' AND EXISTS (SELECT 1 FROM raw.ga4_event WHERE event_name='view_cart' AND event_date>=DATE '2026-10-14' AND (ham->>'eventCount')::numeric>0);\n"
     sql += "INSERT INTO raw.yukleme_log(kaynak,durum,okunan,yazilan,guncellenen,mesaj,baslangic,bitis) VALUES ('ga4','SUCCESS',"+str(len(funnel)+len(purchases))+','+str(len(values))+",0,'Atomic GA4 daily aggregate refresh',now(),now()); COMMIT;"
     return sql, len(values)
 

@@ -11,7 +11,8 @@ function check(){
  for(var i=cursor;i<dl.length;i++){var e=dl[i];
   if(e&&((e[0]==='event'&&e[1]==='view_cart')||e.event==='view_cart')){sent=true;diag.deduplicated++;return;}
  }
- window.gtag('event','view_cart',{send_to:'G-KCPFLRG2RV',page_path:path,event_source:'jarvis-cart-v1'});
+ window.dataLayer=dl;
+ window.dataLayer.push({event:'view_cart',page_path:path,event_source:'jarvis-cart-v1',__lcT:Date.now()});
  sent=true;diag.sent++;cursor=dl.length;
 }
 window.addEventListener('popstate',check);
