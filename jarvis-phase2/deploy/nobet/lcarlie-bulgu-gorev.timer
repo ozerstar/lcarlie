@@ -1,0 +1,11 @@
+[Unit]
+Description=Bulgudan gorev - site nobetinden 20 dk sonra
+
+[Timer]
+OnCalendar=*-*-* 07:35:00 Europe/Istanbul
+OnCalendar=*-*-* 15:35:00 Europe/Istanbul
+Persistent=true
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target
