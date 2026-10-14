@@ -2564,7 +2564,8 @@ def _team_opinions() -> list:
     """Ekip üyeleri ve bu veriye bakınca söyledikleri. Sıfır model çağrısı."""
     try:
         from jarvis.roster import opinions
-        return opinions(_memory)
+        from jarvis.role_activity import latest
+        return opinions(_memory, activity=latest())
     except Exception as exc:  # noqa: BLE001 - panel hicbir zaman cokmez
         return [_panel_error(exc)]
 
@@ -2887,7 +2888,8 @@ def _panel_ekip() -> dict:
 
     # 2) Canli uye durumu. Tek cagri, sorgular icerde onbellege aliniyor.
     try:
-        gorusler = roster.opinions(_memory)
+        from jarvis.role_activity import latest
+        gorusler = roster.opinions(_memory, activity=latest())
     except Exception as exc:  # noqa: BLE001
         gorusler = []
         uye_hatasi = str(exc)
@@ -3048,7 +3050,8 @@ def _ekip_sor(kod: str, soru: str) -> dict:
 
     # 1) Uyelerin kendi deterministik bulgulari -- en damitilmis kanit, once.
     try:
-        gorusler = roster.opinions(_memory, only=tuple(m.key for m in uyeler))
+        from jarvis.role_activity import latest
+        gorusler = roster.opinions(_memory, only=tuple(m.key for m in uyeler), activity=latest())
     except Exception:  # noqa: BLE001
         gorusler = []
     for g in gorusler:

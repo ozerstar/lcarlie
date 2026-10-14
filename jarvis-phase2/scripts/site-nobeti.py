@@ -333,6 +333,58 @@ def _bulgu_yaz(kayitlar: list[dict]) -> None:
             f.write(json.dumps(k, ensure_ascii=False) + "\n")
 
 
+def _son_bulgular() -> dict[str, dict]:
+    try:
+        lines = BULGU_DOSYA.read_text(encoding="utf-8").splitlines()[-1000:]
+    except OSError:
+        return {}
+    latest = {}
+    for line in lines:
+        try:
+            row = json.loads(line)
+        except ValueError:
+            continue
+        if row.get("signature"):
+            latest[row["signature"]] = row
+    return latest
+
+
+def _acik_http_adresleri() -> list[str]:
+    host = urllib.parse.urlsplit(TABAN_URL).netloc
+    urls = []
+    for signature, row in _son_bulgular().items():
+        if row.get("status") == "RESOLVED" or row.get("signal_code") != "site_erisim":
+            continue
+        if not re.search(r"HTTP [45]\d\d", str(row.get("reason", ""))):
+            continue
+        url = (row.get("evidence") or {}).get("url") or signature.split(":", 1)[-1]
+        parsed = urllib.parse.urlsplit(url)
+        if parsed.scheme == "https" and parsed.netloc == host:
+            urls.append(url)
+    return list(dict.fromkeys(urls))
+
+
+def _kapanan_http_bulgulari(olcumler: dict, bulgular: list) -> list[dict]:
+    active = {f"{kod}:{url}" for url, _onem, kod, _sebep, _kanit in bulgular}
+    now = dt.datetime.now(dt.timezone.utc).isoformat()
+    closed = []
+    for signature, row in _son_bulgular().items():
+        if row.get("status") == "RESOLVED" or signature in active:
+            continue
+        if row.get("signal_code") != "site_erisim" or not re.search(r"HTTP [45]\d\d", str(row.get("reason", ""))):
+            continue
+        url = (row.get("evidence") or {}).get("url") or signature.split(":", 1)[-1]
+        measurement = olcumler.get(url, {})
+        code = measurement.get("durum")
+        if isinstance(code, int) and 200 <= code < 300:
+            closed.append({"observed_at": now, "signature": signature,
+                "signal_code": "site_erisim", "severity": "INFO", "status": "RESOLVED",
+                "reason": f"Önceki HTTP hatası kapandı: adres yeniden ölçüldü, HTTP {code}.",
+                "evidence": {"url": url, "durum": code},
+                "note": "Yalnız başarılı yeniden ölçümle kapatıldı."})
+    return closed
+
+
 # --------------------------------------------------------------------------
 def main() -> int:
     ap = argparse.ArgumentParser(description="L'CARLIE site nobeti")
@@ -360,7 +412,7 @@ def main() -> int:
         if not a.rapor:
             _bulgu_yaz([kayit])
         print("UYARI: sitemap okunamadi, kapsam 1 adrese dustu", file=sys.stderr)
-    adresler = list(adresler) + list(EK_ADRESLER)
+    adresler = list(dict.fromkeys(_acik_http_adresleri() + list(adresler)))[:AZAMI_URL] + list(EK_ADRESLER)
 
     olcumler, tum_bulgular = {}, []
     for url in adresler:
@@ -393,9 +445,10 @@ def main() -> int:
         print("  sorun bulunmadi.")
 
     # --- bulgulari kaydet ----------------------------------------------
-    if not a.rapor and tum_bulgular:
+    if not a.rapor:
         simdi = dt.datetime.now(dt.timezone.utc).isoformat()
-        _bulgu_yaz([{
+        kapanan = _kapanan_http_bulgulari(olcumler, tum_bulgular)
+        _bulgu_yaz(kapanan + [{
             "observed_at": simdi,
             "signature": f"{kod}:{url}",
             "reason": sebep,

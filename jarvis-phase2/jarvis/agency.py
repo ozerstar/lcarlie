@@ -541,7 +541,7 @@ class AgencyCapability:
     def __init__(self, memory: Any | None = None):
         self.memory = memory or CompanyMemory()
 
-    def run(self, task: str) -> dict[str, Any]:
+    def run(self, task: str, *, synthesize: bool = True) -> dict[str, Any]:
         started = perf_counter()
         task_type = classify_task(task)
         roles = select_roles(task_type, task)
@@ -672,7 +672,13 @@ class AgencyCapability:
                         "external_actions": 0, "load_ms": snapshot.load_ms,
                         "duration_ms": round((perf_counter() - started) * 1000, 3)},
         }
-        result["summary"], result["model"], result["model_calls"] = self._synthesize(result)
+        if synthesize:
+            result["summary"], result["model"], result["model_calls"] = self._synthesize(result)
+        else:
+            lines = [item["problem"] for item in result["problems"][:3]]
+            lines += [item["opportunity"] for item in result["opportunities"][:2]]
+            result["summary"] = "\n".join(lines) or "Kanıt üzerinden özet üretilemedi."
+            result["model"], result["model_calls"] = None, 0
         result["metrics"]["model_calls"] = result["model_calls"]
         result["role_contributions"] = role_contributions(roles, result)
         result["proposal_id"] = "agency-" + hashlib.sha256(

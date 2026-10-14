@@ -6,9 +6,9 @@ Sahip 20.09.2026: "bu mudurler surekli kendi konulari ile ilgili arastirma
 yapip kendilerini gelistirsinler." Ekip panosundaki her birim kendi konusunu
 disaridan takip eder; boylece gundem sahibin okuduguyla sinirli kalmaz.
 
-🔴 TUM 45 DEPARTMAN DEGIL. Sahip kararı: "oncelikli birkac departman, gunluk."
-Sebebi olculmus bir risk: 45 birim x her gun = kimsenin okumadigi bir rapor
-yigini. Odakli liste asagida; degistirmek icin KONULAR sozlugunu duzenle.
+Kapsam mart.arastirma_sirasi planindan okunur. Yalniz vakti gelen en fazla
+8 plan calisir; --sinir ile 1-32 arasinda ayarlanir. KONULAR sozlugu yalniz
+plan kurulu degilse sinirli geri dusme yoludur.
 
 🔴 SIFIR MODEL CAGRISI. Arama, cekme, cikarma, alaka ve tekillestirme
 jarvis/knowledge.py'nin mevcut deterministik hattiyla yapilir. Token
@@ -23,7 +23,9 @@ Cikis: 0=calisti (yeni bulgu olsun olmasin) · 1=hata · 2=hicbir konu kosulamad
 """
 from __future__ import annotations
 
+import argparse
 import json
+import subprocess
 import os
 import sys
 import time
@@ -142,7 +144,60 @@ def _yaz(kayitlar: list[dict]) -> None:
             f.write(json.dumps(k, ensure_ascii=False) + "\n")
 
 
+def _plan_sql(sql: str, role: str) -> list:
+    if role not in ("ai_reader", "ai_writer"):
+        raise ValueError("plan role is not allowed")
+    query = f"BEGIN; SET SESSION AUTHORIZATION {role}; {sql} COMMIT;"
+    result = subprocess.run(
+        ["docker", "exec", "lcarlie-postgres", "psql", "-X", "-q", "-v",
+         "ON_ERROR_STOP=1", "-U", "n8n", "-d", "n8n", "-Atc", query],
+        capture_output=True, text=True, timeout=30)
+    if result.returncode:
+        raise RuntimeError((result.stderr or "plan query failed")[:1000])
+    return [json.loads(line) for line in result.stdout.splitlines() if line.strip()]
+
+
+def plandan_konular(limit: int = 8) -> list[dict]:
+    limit = int(limit)
+    if not 1 <= limit <= 32:
+        raise ValueError("sinir 1 ile 32 arasinda olmali")
+    return _plan_sql(
+        "SELECT row_to_json(x) FROM (SELECT plan_id,kapsam,hedef,konu,"
+        "siklik_gun,oncelik FROM mart.arastirma_sirasi WHERE vakti_geldi "
+        f"ORDER BY oncelik,son_kosu NULLS FIRST,plan_id LIMIT {limit}) x;",
+        "ai_reader")
+
+
+def plani_tamamla(plan_id: int, bulunan: int) -> None:
+    plan_id, bulunan = int(plan_id), int(bulunan)
+    if plan_id <= 0 or bulunan < 0:
+        raise ValueError("gecersiz plan sonucu")
+    rows = _plan_sql(
+        f"UPDATE core.arastirma_plani SET son_kosu=clock_timestamp(),son_bulgu={bulunan} "
+        f"WHERE plan_id={plan_id} RETURNING plan_id;", "ai_writer")
+    if rows != [plan_id]:
+        raise RuntimeError("plan sonucu kaydedilemedi")
+
+
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Vakti gelen arastirma planlari")
+    parser.add_argument("--sinir", type=int, default=8)
+    args = parser.parse_args()
+    if not 1 <= args.sinir <= 32:
+        parser.error("sinir 1 ile 32 arasinda olmali")
+    try:
+        plans = plandan_konular(args.sinir)
+        if not plans:
+            active = _plan_sql("SELECT count(*) FROM mart.arastirma_sirasi;", "ai_reader")
+            if active and active[0] > 0:
+                print("Vakti gelen arastirma plani yok; mevcut takvim korundu.")
+                return 0
+            raise RuntimeError("arastirma plani bos")
+    except (RuntimeError, ValueError, subprocess.SubprocessError) as exc:
+        print(f"UYARI: plan okunamadi, koda gomulu konulara dusuldu: {exc}", file=sys.stderr)
+        plans = [{"plan_id": None, "hedef": dept, "konu": topic}
+                 for dept, topics in KONULAR.items() for topic in topics][:args.sinir]
+
     try:
         from jarvis.adapter_factory import default_factory
         from jarvis.research_controller import ResearchController
@@ -182,7 +237,8 @@ def main() -> int:
     ENGELLEYEN = {"CIRCUIT_OPEN", "TIMEOUT", "RATE_LIMITED", "NO_ADAPTER",
                   "BUDGET_EXHAUSTED", "ERROR"}
 
-    for departman, konular in KONULAR.items():
+    for plan in plans:
+        departman, konular = plan["hedef"], (plan["konu"],)
         dep_yeni = 0
         dep_hata = ""
         dep_engel: list[str] = []
@@ -225,6 +281,12 @@ def main() -> int:
                     "ozet": (i.snippet or "")[:400],
                 })
         toplam_yeni += dep_yeni
+        if plan.get("plan_id") and not dep_engel:
+            try:
+                plani_tamamla(plan["plan_id"], dep_yeni)
+            except (RuntimeError, ValueError, subprocess.SubprocessError) as exc:
+                dep_engel.append("PLAN_KAYIT_HATASI")
+                dep_hata = str(exc)[:120]
         if dep_engel:
             engellenen += 1
             durum = "🔴 ENGELLENDİ: " + ", ".join(sorted(set(dep_engel)))
@@ -238,7 +300,7 @@ def main() -> int:
 
     _yaz(kayitlar)
 
-    print(f"departman arastirmasi · {len(KONULAR)} birim · {kosan} konu kosuldu "
+    print(f"plan arastirmasi · {len(plans)} plan · {kosan} konu kosuldu "
           f"· {toplam_yeni} yeni bulgu")
     for s in ozet_satirlari:
         print(s)
@@ -254,7 +316,7 @@ def main() -> int:
         print("UYARI: hicbir konu kosulamadi - arastirma hatti calismiyor",
               file=sys.stderr)
         return 2
-    return 0
+    return 1 if engellenen == len(plans) else 0
 
 
 if __name__ == "__main__":

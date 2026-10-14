@@ -47,6 +47,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -268,7 +269,7 @@ def run_coding_task(spec: CodingTaskSpec, task_id: str) -> CodingTaskResult:
             # No --auto: Kimi 2.0.1 rejects it outright when combined with -p
             # ("error: Cannot combine --prompt with --auto"). -p is already a
             # one-shot non-interactive run that cannot stop to ask.
-            [KIMI_BIN, "-p", prompt, "-m", KIMI_MODEL],
+            [KIMI_BIN, "-m", KIMI_MODEL, "-p", prompt],
             cwd=clone_path, timeout_s=spec.timeout_s, env=_kimi_env(),
         )
         kimi_output = (kimi_result.stdout or "") + (("\n[stderr]\n" + kimi_result.stderr) if kimi_result.stderr else "")
@@ -297,6 +298,7 @@ def run_coding_task(spec: CodingTaskSpec, task_id: str) -> CodingTaskResult:
         test_cwd = clone_path / spec.test_cwd
         env = dict(os.environ)
         env["PYTHONPATH"] = str(test_cwd)
+        env["PATH"] = str(Path(sys.executable).parent) + os.pathsep + env.get("PATH", "/usr/bin:/bin")
         test_result = _run(list(spec.test_command), cwd=test_cwd, timeout_s=120, env=env)
         test_passed = test_result.returncode == 0
         test_summary = (test_result.stderr or test_result.stdout or "").strip()[-2000:]

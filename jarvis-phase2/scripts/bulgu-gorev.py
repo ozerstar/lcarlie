@@ -101,7 +101,7 @@ def _bulgular() -> list[dict]:
         imza = d.get("signature")
         if imza:
             enyeni[imza] = d
-    return list(enyeni.values())
+    return [row for row in enyeni.values() if row.get("status") != "RESOLVED"]
 
 
 def _sablon(sebep: str) -> str:

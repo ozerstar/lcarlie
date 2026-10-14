@@ -2158,7 +2158,7 @@ SPEAKERS: dict[str, Callable[[dict[str, list]], str]] = {
 }
 
 
-def opinions(memory: Any, only: tuple[str, ...] = ()) -> list[dict[str, Any]]:
+def opinions(memory: Any, only: tuple[str, ...] = (), *, activity: dict | None = None) -> list[dict[str, Any]]:
     """Her ekip üyesinin bu veriye bakınca söylediği. Sıfır model çağrısı.
 
     Veri okunamazsa uye "VERI YOK" der ve hangi sorgunun okunamadigini
@@ -2177,6 +2177,14 @@ def opinions(memory: Any, only: tuple[str, ...] = ()) -> list[dict[str, Any]]:
             "kind": member.kind, "reads": list(member.reads),
             "model_calls": 0,
         }
+        recorded = (activity or {}).get(member.key, {})
+        if member.mode in ("research", "synthesis") and recorded.get("status") == "PRODUCED" and recorded.get("evidence_refs") and recorded.get("statement"):
+            kayit.update(status=SPEAKS, statement=recorded["statement"],
+                         evidence_refs=recorded["evidence_refs"],
+                         produced_items=recorded.get("items", 0),
+                         activity_status="PRODUCED")
+            out.append(kayit)
+            continue
         if member.mode == "research":
             kayit.update(status=NEEDS_RESEARCH,
                          statement="Şirket verisinden konuşamam; dış kaynak "
