@@ -109,6 +109,11 @@ function showApp() {
   qs('opAvatar').textContent = name.slice(0, 2).toLocaleUpperCase('tr-TR');
   startPolling();
   refreshAll();
+  const requestedView = new URLSearchParams(window.location.search).get('view');
+  if (requestedView && Object.hasOwn(VIEWS, requestedView)) {
+    const navButton = document.querySelector(`.nav-item[data-view="${requestedView}"]`);
+    if (navButton && !navButton.disabled) setView(requestedView);
+  }
 }
 
 function refreshAll() {
