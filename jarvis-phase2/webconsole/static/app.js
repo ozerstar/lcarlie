@@ -585,9 +585,19 @@ async function refreshActivity() {
 
 const ORCHESTRATION_STATUS = {
   RUNNING: 'Çalışıyor', COMPLETED: 'Tamamlandı', COMPLETED_DEGRADED: 'Eksik veriye rağmen tamamlandı',
+  UNVERIFIED: 'Kanıt doğrulanamadı',
   FAILED: 'Hata', INTERRUPTED: 'Yarım kalmış olabilir', PROPOSED: 'Öneri hazır; gönderilmedi',
   SUCCEEDED: 'Tamam', DATA_UNAVAILABLE: 'Veri yok', BLOCKED_CAPABILITY: 'Yetenek engeli',
   BLOCKED_UPSTREAM: 'Önceki adım engeli', REQUIRES_HUMAN_ORIGINATION: 'İnsan başlatmalı',
+};
+
+const ACCEPTANCE_TEXT = {
+  read_only_completed: 'Okuma adımı tamamlandı',
+  source_traceable: 'Kaynağı izlenebilir', result_shape: 'Çıktı biçimi geçerli',
+  fusion_shape: 'Birleştirme kaydı geçerli', objections_recorded: 'İtirazlar kaydedildi',
+  clean_flag_consistent: 'Denetim sonucu tutarlı', validated_envelope: 'Öneri zarfı doğrulandı',
+  not_submitted: 'Dış eylem gönderilmedi', human_origination_required: 'İnsan başlatmalı',
+  external_capability_required: 'Dış yetenek gerekir',
 };
 
 async function refreshOrchestration() {
@@ -599,13 +609,16 @@ async function refreshOrchestration() {
     list.innerHTML = `<li class="f-sistem">Çalışmalar okunamadı (HTTP ${escapeHtml(String(status))}).</li>`;
     return;
   }
-  qs('orchestrationCount').textContent = `${body.total} çalışma · ${body.needs_attention} inceleme`;
+  qs('orchestrationCount').textContent = `son ${body.total} çalışma · ${body.needs_attention} inceleme`;
   list.innerHTML = (body.runs || []).map((run) => {
     const steps = (run.steps || []).map((step) => {
       const evidence = step.evidence_state === 'MISSING' ? ' · Kanıt eksik' :
         step.evidence_state === 'PRESENT' ? ` · ${step.evidence_count} kaynak` : '';
+      const acceptance = step.acceptance_status === 'PASSED' ? ' · Teslim doğrulandı' :
+        step.acceptance_status === 'FAILED' ? ` · Kabul edilmedi: ${(step.failed_criteria || []).map((criterion) => ACCEPTANCE_TEXT[criterion] || criterion).join(', ')}` : '';
       return `<li>${escapeHtml(step.step_id)} · ${escapeHtml(step.capability)}: `
         + `${escapeHtml(ORCHESTRATION_STATUS[step.status] || step.status)}${escapeHtml(evidence)}`
+        + escapeHtml(acceptance)
         + `${step.reason ? ` — ${escapeHtml(step.reason)}` : ''}</li>`;
     }).join('');
     return `<li class="f-sistem"><div class="f-text"><strong>${escapeHtml(run.request || run.plan_id)}</strong>`
@@ -873,6 +886,7 @@ function renderPlanSteps(plan) {
         <div class="plan-step-head"><strong>${escapeHtml(step.step_id)}</strong> ${escapeHtml(step.capability)}<span class="plan-deps">${deps}</span></div>
         <div class="plan-step-desc">${escapeHtml(step.description)}</div>
         <div class="plan-step-target">${escapeHtml(step.target)}</div>
+        ${(step.acceptance_criteria || []).length ? `<div class="plan-step-target">Teslim koşulları: ${step.acceptance_criteria.map((criterion) => escapeHtml(ACCEPTANCE_TEXT[criterion] || criterion)).join(' · ')}</div>` : ''}
         ${marks.length ? `<div class="plan-flags">${marks.join(' ')}</div>` : ''}
       </li>`;
     }).join('');
@@ -7579,7 +7593,21 @@ async function gkKonusmaAc(kid) {
       '<button type="button" class="gk-b gk-b-sade" data-devir="KAPALI" data-kid="' +
         k.id + '">KAPAT</button>' +
     '</div>' +
-    '<p class="gk-not">Bu panel mesaj gondermez. Devir durumunu degistirir.</p>';
+    '<div class="gk-cevap">' +
+      '<label class="gk-c-etiket" for="gkCevapMetin">Cevap yaz</label>' +
+      '<textarea id="gkCevapMetin" class="gk-c-alan" rows="3" ' +
+        'placeholder="Musteriye gidecek metin..."></textarea>' +
+      '<div class="gk-c-dugmeler">' +
+        '<button type="button" class="gk-b gk-b-sade" data-cevap="kuru" ' +
+          'data-kid="' + k.id + '">ONCE DENETLE</button>' +
+        '<button type="button" class="gk-b" data-cevap="gonder" ' +
+          'data-kid="' + k.id + '">GONDER</button>' +
+      '</div>' +
+      '<p class="gk-c-sonuc" id="gkCevapSonuc"></p>' +
+    '</div>' +
+    '<p class="gk-not">Gonderme bes kapidan gecer: onay kaynagi, metin siniri, ' +
+    'MEVZUAT denetimi, gonderme anahtari ve kimlik. &quot;Once denetle&quot; aga ' +
+    'cikmaz, yalniz metnin gecip gecmeyecegini soyler.</p>';
 }
 
 function gkUyari(mesaj) {
@@ -7626,4 +7654,37 @@ document.addEventListener('click', function (ev) {
   }
   var btn = ev.target.closest ? ev.target.closest('.gk-eylem .gk-b') : null;
   if (btn) gkDevret(Number(btn.dataset.kid), btn.dataset.devir);
+});
+
+
+/* Cevap gonderme. `kuru` aga cikmaz ama MEVZUAT kapisini isletir --
+   sahip gondermeden once metnin gecip gecmeyecegini gorur. */
+async function gkCevapla(kid, kuru) {
+  var alan = qs('gkCevapMetin');
+  var sonuc = qs('gkCevapSonuc');
+  if (!alan || !sonuc) return;
+  var metin = (alan.value || '').trim();
+  if (!metin) { sonuc.textContent = 'Once bir metin yaz.'; return; }
+  sonuc.textContent = kuru ? 'Denetleniyor...' : 'Gonderiliyor...';
+  var r = await api('/api/gelenkutusu/cevap', {
+    method: 'POST',
+    body: JSON.stringify({ id: kid, metin: metin, kuru: !!kuru })
+  });
+  if (!r.ok) {
+    sonuc.textContent = 'Gonderilmedi: ' +
+      ((r.body && r.body.error) || 'bilinmeyen sebep');
+    return;
+  }
+  if (r.body && r.body.kuru) {
+    sonuc.textContent = 'Denetimden gecti. Gondermek icin GONDER.';
+    return;
+  }
+  sonuc.textContent = 'Gonderildi.';
+  alan.value = '';
+  await gkKonusmaAc(kid);
+}
+
+document.addEventListener('click', function (ev) {
+  var b = ev.target.closest ? ev.target.closest('[data-cevap]') : null;
+  if (b) gkCevapla(Number(b.dataset.kid), b.dataset.cevap === 'kuru');
 });

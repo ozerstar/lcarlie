@@ -25,10 +25,35 @@ class SahibinSectigiDortKural(unittest.TestCase):
                 self.assertTrue(gerek)
                 self.assertEqual(sebep, devir.ISLEM)
 
-    def test_urun_bilinmiyorsa_fiyat_sorusu_devredilir(self):
+    def test_urun_bilinmiyorsa_jarvis_URUNU_SORAR(self):
+        """15.10.2026 sahip karariyla DEGISTI.
+
+        Onceki kural: urun belirsizse devret. Olculdu -- 535 konusmanin
+        0'inda urun cozulmus degil, trafigin %69'u fiyat/icerik, yani kural
+        gercek yonlendirmeyi %3,3 Jarvis / %96,7 sahip yapiyordu. Sahip izin
+        verdi: Jarvis fiyat SOYLEMEZ, hangi urun oldugunu SORAR.
+        """
         gerek, sebep = devir.devir_gerekir("FIYAT", urun_bilindi=False)
-        self.assertTrue(gerek)
-        self.assertEqual(sebep, devir.URUN_BELIRSIZ)
+        self.assertFalse(gerek, "urun sorusu artik devir sebebi degil")
+        self.assertIsNone(sebep)
+        self.assertTrue(devir.urun_sorulmali("FIYAT", urun_bilindi=False),
+                        "cagiran once urunu sormali")
+
+    def test_urun_biliniyorsa_sorulmaz(self):
+        self.assertFalse(devir.urun_sorulmali("FIYAT", urun_bilindi=True))
+
+    def test_urun_gerektirmeyen_sinifta_sorulmaz(self):
+        self.assertFalse(devir.urun_sorulmali("SELAMLAMA", urun_bilindi=False))
+
+    def test_izin_kapatilirsa_eski_davranis_geri_gelir(self):
+        eski = devir.URUN_SORULABILIR
+        devir.URUN_SORULABILIR = False
+        try:
+            gerek, sebep = devir.devir_gerekir("FIYAT", urun_bilindi=False)
+            self.assertTrue(gerek)
+            self.assertEqual(sebep, devir.URUN_BELIRSIZ)
+        finally:
+            devir.URUN_SORULABILIR = eski
 
     def test_mevzuat_bloke_her_seyin_onunde(self):
         # Sinif Jarvis'in cevaplayabilecegi bir sinif olsa BILE mevzuat kazanir.

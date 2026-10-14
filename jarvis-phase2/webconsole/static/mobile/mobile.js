@@ -414,12 +414,12 @@ async function loadOrchestration() {
   const list = $('orchestration-list');
   try {
     const data = await readApi('/api/orchestration');
-    $('orchestration-count').textContent = `${data.total} çalışma · ${data.needs_attention} inceleme`;
+    $('orchestration-count').textContent = `son ${data.total} çalışma · ${data.needs_attention} inceleme`;
     list.replaceChildren();
     for (const run of data.runs || []) {
       const statusText = {
         COMPLETED: 'Tamamlandı', COMPLETED_DEGRADED: 'Eksik veri', RUNNING: 'Çalışıyor',
-        FAILED: 'Hata', INTERRUPTED: 'Yarım kalmış olabilir',
+        FAILED: 'Hata', INTERRUPTED: 'Yarım kalmış olabilir', UNVERIFIED: 'Kanıt doğrulanamadı',
       }[run.status] || run.status;
       const card = mobileCard(run.request || run.plan_id, statusText, run.started_at || '');
       const detail = document.createElement('details');
@@ -429,7 +429,9 @@ async function loadOrchestration() {
         const item = document.createElement('li');
         const evidence = step.evidence_state === 'MISSING' ? ' · Kanıt eksik' :
           step.evidence_state === 'PRESENT' ? ` · ${step.evidence_count} kaynak` : '';
-        item.textContent = `${step.step_id} · ${step.capability}: ${step.status}${evidence}${step.reason ? ` — ${step.reason}` : ''}`;
+        const acceptance = step.acceptance_status === 'PASSED' ? ' · Teslim doğrulandı' :
+          step.acceptance_status === 'FAILED' ? ' · Teslim kabul edilmedi' : '';
+        item.textContent = `${step.step_id} · ${step.capability}: ${step.status}${evidence}${acceptance}${step.reason ? ` — ${step.reason}` : ''}`;
         steps.append(item);
       }
       detail.append(summary, steps); card.append(detail); list.append(card);

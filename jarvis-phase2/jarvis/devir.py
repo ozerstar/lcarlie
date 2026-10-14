@@ -45,6 +45,16 @@ JARVIS_SINIFLARI = frozenset({
 # 183'ü fiyat soruyor (satis_dialog.py'deki ölçüm).
 URUN_GEREKTIREN = frozenset({"FIYAT", "ICERIK", "KULLANIM"})
 
+# 🔴 SAHİP KARARI 15.10.2026 — ürün belirsizken Jarvis SORABİLİR.
+# Önceki kural "ürün belli değilse bana devret"ti. Ölçüm şunu gösterdi:
+# 535 konuşmanın 0'ında ürün çözülmüş değil, trafiğin %69'u fiyat/içerik
+# sorusu, yani kural gerçek yönlendirmeyi %3,3 Jarvis / %96,7 sahip yapıyordu.
+# Sahip izni verdi: Jarvis fiyat SÖYLEMEZ, yalnız hangi ürün olduğunu sorar
+# (`satis_dialog` ürün bilinmezken zaten ürün adı uydurmaz, sorar).
+#
+# Kapatmak için False yap: o zaman ürün belirsiz her soru tekrar sahibe gider.
+URUN_SORULABILIR = True
+
 SEBEP_METNI = {
     SAGLIK_SIKAYET: "Sağlık, yan etki veya şikâyet konusu",
     ISLEM: "Sipariş, ödeme veya iade işlemi",
@@ -78,7 +88,10 @@ def devir_gerekir(sinif: str | None, *, urun_bilindi: bool,
         # ANLASILMADI dahil: tanımadığımız her sınıf insana gider.
         return True, SINIF_YOK
     if temiz in URUN_GEREKTIREN and not urun_bilindi:
-        return True, URUN_BELIRSIZ
+        # Jarvis'te kalır ama cevabı FİYAT DEĞİL, "hangi ürün?" sorusudur.
+        # Çağıran bunu `urun_sorulmali()` ile öğrenir.
+        if not URUN_SORULABILIR:
+            return True, URUN_BELIRSIZ
     return False, None
 
 
@@ -87,3 +100,14 @@ def sebep_aciklamasi(sebep: str | None) -> str:
     if not sebep:
         return ""
     return SEBEP_METNI.get(sebep, sebep)
+
+
+def urun_sorulmali(sinif: str | None, *, urun_bilindi: bool) -> bool:
+    """Jarvis cevap verecek ama önce hangi ürün olduğunu sormalı mı?
+
+    🔴 ÇAĞIRAN BUNU OKUMAK ZORUNDA. Okumazsa `devir_gerekir` False döner ve
+    ürün bilinmeden fiyat cevabı üretilmeye çalışılır -- yanlış ürünün
+    fiyatını söylemek, fiyat söylememekten çok daha pahalıdır.
+    """
+    temiz = (sinif or "").strip().upper()
+    return (URUN_SORULABILIR and temiz in URUN_GEREKTIREN and not urun_bilindi)

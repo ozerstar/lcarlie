@@ -41,6 +41,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Iterable
 
 from . import capabilities as caps
+from .acceptance_contract import criteria_for
 
 # --- vocabulary --------------------------------------------------------
 MODE_FAST = "FAST"
@@ -337,6 +338,7 @@ class PlanStep:
         data = asdict(self)
         data["depends_on"] = list(self.depends_on)
         data["blocked_by"] = list(self.blocked_by)
+        data["acceptance_criteria"] = list(criteria_for(self.capability))
         return data
 
 

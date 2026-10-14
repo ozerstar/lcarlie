@@ -14,10 +14,20 @@ Bu not, beş projenin Jarvis'e uygulanabilir fikirlerini ayırır. Dış projele
 
 `ExecutionRuntime.execute` aynı `run_id` için non-blocking `flock` alır. İkinci işçi açık bir `ExecutionDenied` ile durur; ilk işçi bittiğinde kilit dosya tanıtıcısı kapanınca serbest kalır. Kilit, dosyaya yazma ve resume kararından önce alınır; farklı çalışma kimlikleri birbirini engellemez. Eylem/onay yetkileri değişmez. Aynı çalışma için paralel iki işçi testi eklendi.
 
+## Operasyon görünürlüğü — bu tur
+
+`GET /api/orchestration` yalnız oturum açmış kullanıcıya, kalıcı `execution_runtime` kayıtlarının son 20 özetini verir. Ham adım çıktısı, teklif gövdesi ve erişim anahtarları döndürülmez. Web Görevler ve mobil İşler ekranı aynı kaynaktan adım durumu, engel nedeni ve kanıt sayısını gösterir. Eksik kanıtı olan başarılı okuma adımı arayüzde `UNVERIFIED`, 10 dakikadan eski açık kayıt `INTERRUPTED` olarak işaretlenir; kayıt değiştirilmez ve otomatik tekrar başlatılmaz. `PROPOSED`, onay kuyruğuna gönderilmiş eylem değildir.
+
+## MetaGPT'den uyarlanan teslim sözleşmesi
+
+Her `PlanStep` API çıktısında yeteneğine göre `acceptance_criteria` taşır. Aynı deterministik sözleşme `ExecutionRuntime` içinde adım sonucuna uygulanır ve `StepRecord.acceptance` olarak kalıcılaştırılır. Kanıtsız okuma başarısı `DATA_UNAVAILABLE`, bozuk çıktı veya gönderilmiş gibi görünen öneri `FAILED` olur; bunlar genel çalışmanın başarılı sayılmasını engeller. Web planında koşullar, web/mobil durum kartında teslim sonucu görünür. Mesaj yayınlayan ikinci bir ajan altyapısı kurulmadı; mevcut DAG bağımlılıkları rol devrinin tek kaynağı olarak kaldı. Model çağrısı, otomatik kod çalıştırma ve dış eylem eklenmedi.
+
+Tam test paketi için canlı projedeki `venv/bin/python -m unittest discover -s tests -q` kullanılmalı. Sistem `python3` yorumlayıcısında görsel testlerin `PIL`/`numpy` bağımlılıkları ve Türkçe morfoloji paketi bulunmaz; bu yorumlayıcıdaki kırık sonuçlar canlı servis ortamını temsil etmez.
+
 ## Sıradaki güvenli aşamalar
 
 1. **Kabul sözleşmesi:** Her plan adımına ölçülebilir çıktı koşulları tanımla; eksik veri ve kanıtı başarısız/eksik olarak göster. Serbest metinli model değerlendirmesini tek doğruluk kaynağı yapma.
-2. **Operasyon görünürlüğü:** Plan kimliği, çalışan adım, engel nedeni, kaynak, ölçülen süre ve insan kararını web/mobilde aynı görev kartına bağla. Gösterilen durum yalnız kalıcı kayıttan gelsin.
+2. **Operasyon görünürlüğünü genişlet:** Çalışma kaydı ile gerçek onay kaydını yalnız doğrulanabilir ortak kimlik bulunduğunda bağla; süre ve sürdürme işlemini operatör akışıyla göster.
 3. **Kontrollü yeniden deneme:** Yalnız geçici okuma hataları için sınırlı deneme ve geri çekilme uygula; dış eylemi, kod değişikliğini veya onay adımını otomatik tekrarlama.
 4. **Ölçüm:** Önce/sonra çift çalıştırma, eksik kanıt, durdurulan tehlikeli eylem ve insanın düzelttiği öneri oranlarını ayrı izle. Bunları ticari başarı olarak adlandırma.
 

@@ -43,6 +43,7 @@ from time import perf_counter
 from typing import Any, Callable
 
 from . import business_signals
+from .acceptance_contract import evaluate as evaluate_acceptance
 from .cache import QueryCache
 from .context import ContextCompiler
 from .execution_planner import DATA_UNAVAILABLE, DOMAINS, ExecutionPlan
@@ -99,6 +100,7 @@ class StepRecord:
     duration_ms: float = 0.0
     model_calls: int = 0
     cache_hits: int = 0
+    acceptance: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
@@ -619,6 +621,13 @@ class ExecutionRuntime:
         current.block_reason = outcome.block_reason
         current.cache_hits = outcome.cache_hits
         current.model_calls = 0
+        current.acceptance = evaluate_acceptance(step.capability, current.status,
+                                                 current.output, current.evidence_refs)
+        if current.acceptance["status"] == "FAILED":
+            failed = [item["criterion"] for item in current.acceptance["checks"]
+                      if not item["passed"]]
+            current.status = STEP_DATA_UNAVAILABLE if failed == ["source_traceable"] else STEP_FAILED
+            current.block_reason = "acceptance failed: " + ", ".join(failed)
         return current
 
     @staticmethod

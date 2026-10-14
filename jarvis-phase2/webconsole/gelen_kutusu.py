@@ -193,3 +193,38 @@ def ozet() -> dict:
     ) x;
     """)
     return satir[0] if satir else {}
+
+
+def telefon_bul(konusma_id: int) -> str:
+    """Konuşmanın WhatsApp numarası. Bulunamazsa boş döner -- UYDURULMAZ."""
+    kayit = _calistir(f"""
+    SELECT row_to_json(x) FROM (
+      SELECT k.kanal, COALESCE(k.musteri_ref, k.harici_id) AS numara
+      FROM lcarlie.konusma k WHERE k.id = {int(konusma_id)}
+    ) x;
+    """)
+    if not kayit:
+        raise KutuHatasi("konusma bulunamadi: %s" % konusma_id)
+    if (kayit[0].get("kanal") or "") != "whatsapp":
+        raise KutuHatasi("bu konusma WhatsApp degil: %s" % kayit[0].get("kanal"))
+    return str(kayit[0].get("numara") or "")
+
+
+def cevap_gonder(konusma_id: int, metin: str, *, kuru: bool = False) -> dict:
+    """Sahibin yazdığı cevabı gönderir.
+
+    🔴 ONAY KAYNAĞI HER ZAMAN `sahip-panel`. Bu uç otomatik çağrılamaz:
+    paneldeki bir insan eylemidir. Jarvis'in kendi cevabı gönderecekse
+    AYRI bir yol ve ayrı bir onay kaynağı gerekir -- ikisini aynı uca
+    bağlamak, otomatik gönderimi insan onayı gibi göstermek olurdu.
+    """
+    from jarvis import whatsapp
+    numara = telefon_bul(konusma_id)
+    if not numara:
+        raise KutuHatasi("konusmada telefon numarasi yok")
+    try:
+        return whatsapp.gonder(numara, metin,
+                               onay_kaynagi=whatsapp.ONAY_INSAN,
+                               konusma_id=int(konusma_id), kuru=kuru)
+    except whatsapp.GondermeReddedildi as hata:
+        raise KutuHatasi(str(hata)) from None

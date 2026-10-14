@@ -1845,6 +1845,22 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(200, {"ok": True}, self._clear_session_cookies())
             return
 
+        if path == "/api/gelenkutusu/cevap":
+            # 🔴 MUSTERIYE MESAJ GONDERIR. Kapilar jarvis.whatsapp icinde:
+            # onay kaynagi, metin siniri, MEVZUAT, gonderme anahtari, kimlik.
+            # `kuru` ile hicbiri atlanmaz, yalniz aga cikilmaz.
+            body = _read_json_body(self)
+            kid = str(body.get("id", ""))
+            metin = str(body.get("metin", ""))
+            if not kid.isdigit():
+                self._send_json(400, {"error": "gecersiz konusma id"})
+                return
+            try:
+                self._send_json(200, gelen_kutusu.cevap_gonder(
+                    int(kid), metin, kuru=bool(body.get("kuru"))))
+            except gelen_kutusu.KutuHatasi as hata:
+                self._send_json(400, {"error": str(hata)})
+            return
         if path == "/api/gelenkutusu/devir":
             # Devir durumunu DEGISTIRIR. Mesaj GONDERMEZ.
             body = _read_json_body(self)

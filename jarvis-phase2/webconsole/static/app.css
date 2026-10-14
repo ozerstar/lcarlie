@@ -4440,3 +4440,21 @@ html, body { max-width: 100%; overflow-x: hidden; }
   font-size: 11px; color: var(--ivory); opacity: 0.6; margin: 9px 0 0;
   line-height: 1.5;
 }
+
+.gk-cevap { border-top: 1px solid var(--line-soft); margin-top: 12px; padding-top: 10px; }
+.gk-c-etiket {
+  display: block; font-size: 11px; letter-spacing: 0.06em;
+  color: var(--ivory); opacity: 0.74; margin-bottom: 5px;
+}
+.gk-c-alan {
+  width: 100%; box-sizing: border-box; font-family: var(--font-ui);
+  font-size: 12px; line-height: 1.5; color: var(--ivory);
+  background: var(--glass); border: 1px solid var(--line-soft);
+  border-radius: var(--radius); padding: 8px 10px; resize: vertical;
+}
+.gk-c-alan:focus { outline: none; border-color: var(--gold-dim); }
+.gk-c-dugmeler { display: flex; gap: 6px; margin-top: 7px; flex-wrap: wrap; }
+.gk-c-sonuc {
+  font-size: 11px; color: var(--ivory); opacity: 0.82;
+  margin: 7px 0 0; line-height: 1.5;
+}

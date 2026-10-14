@@ -20,14 +20,19 @@ class OrchestrationStatusTests(unittest.TestCase):
                 "originator": "operator", "status": "COMPLETED", "started_at": "now",
                 "steps": {
                     "S1": {"capability": "crm_analysis", "status": "SUCCEEDED",
-                           "evidence_refs": [], "output": {"private": "do not leak"}},
+                           "evidence_refs": [], "output": {"private": "do not leak"},
+                           "acceptance": {"status": "FAILED", "checks": [
+                               {"criterion": "source_traceable", "passed": False}]}},
                     "S2": {"capability": "action_plan", "status": "PROPOSED",
                            "output": {"payload": {"secret": "do not leak"}}},
                 },
             }), encoding="utf-8")
             result = snapshot(run_dir)
             self.assertEqual(result["needs_attention"], 1)
+            self.assertEqual(result["runs"][0]["status"], "UNVERIFIED")
             self.assertEqual(result["runs"][0]["steps"][0]["evidence_state"], "MISSING")
+            self.assertEqual(result["runs"][0]["steps"][0]["failed_criteria"],
+                             ["source_traceable"])
             self.assertEqual(result["runs"][0]["steps"][1]["status"], "PROPOSED")
             self.assertNotIn("do not leak", json.dumps(result))
 

@@ -21,7 +21,10 @@ def _brief(value: object, limit: int = 160) -> str:
 
 def _run_summary(data: dict, modified: datetime, now: datetime) -> dict:
     steps = []
-    for step_id, step in (data.get("steps") or {}).items():
+    stored_steps = data.get("steps") or {}
+    if not isinstance(stored_steps, dict):
+        stored_steps = {}
+    for step_id, step in stored_steps.items():
         if not isinstance(step, dict):
             continue
         capability = str(step.get("capability") or "")
@@ -30,15 +33,22 @@ def _run_summary(data: dict, modified: datetime, now: datetime) -> dict:
         needs_evidence = capability in EVIDENCE_CAPABILITIES or capability.endswith("_analysis")
         evidence_state = ("MISSING" if status == STEP_SUCCEEDED and needs_evidence and not evidence
                           else "PRESENT" if evidence else "NOT_REQUIRED")
+        acceptance = step.get("acceptance") or {}
         steps.append({
             "step_id": _brief(step_id, 40), "capability": _brief(capability, 80),
             "status": status, "evidence_state": evidence_state,
             "evidence_count": len(evidence),
-            "reason": _brief(step.get("error") or step.get("block_reason"), 200),
+            "acceptance_status": acceptance.get("status", "NOT_RECORDED"),
+            "failed_criteria": [item.get("criterion") for item in acceptance.get("checks", [])
+                                if isinstance(item, dict) and item.get("passed") is False],
+            "reason": ("Adım hata verdi; sunucu kaydını inceleyin." if step.get("error")
+                       else _brief(step.get("block_reason"), 200)),
         })
     status = str(data.get("status") or "UNKNOWN")
     if status == "RUNNING" and (now - modified).total_seconds() > STALE_SECONDS:
         status = "INTERRUPTED"
+    if status == "COMPLETED" and any(step["evidence_state"] == "MISSING" for step in steps):
+        status = "UNVERIFIED"
     return {
         "run_id": _brief(data.get("run_id"), 100),
         "plan_id": _brief(data.get("plan_id"), 100),
@@ -48,7 +58,7 @@ def _run_summary(data: dict, modified: datetime, now: datetime) -> dict:
         "started_at": data.get("started_at"),
         "finished_at": data.get("finished_at"),
         "steps": steps,
-        "needs_attention": status in ("FAILED", "COMPLETED_DEGRADED", "INTERRUPTED")
+        "needs_attention": status in ("FAILED", "COMPLETED_DEGRADED", "INTERRUPTED", "UNVERIFIED")
             or any(step["evidence_state"] == "MISSING" for step in steps),
     }
 

@@ -370,6 +370,30 @@ class ConcurrencyTests(RuntimeTestBase):
 
 
 class FailurePropagationTests(RuntimeTestBase):
+    def test_read_only_executor_cannot_claim_proposal_state(self):
+        def false_proposal(ctx):
+            return rt.StepOutcome(status=rt.STEP_PROPOSED, output={"records": 2},
+                                  evidence_refs=("postgres:sales",))
+
+        with patch.dict(rt.EXECUTORS, {"sales_analysis": false_proposal}):
+            record = self._run()
+        sales = next(step for step in record.steps.values() if step.capability == "sales_analysis")
+        self.assertEqual(sales.status, rt.STEP_FAILED)
+        self.assertEqual(record.status, rt.RUN_FAILED)
+
+    def test_unverified_delivery_is_degraded_and_persisted(self):
+        def no_evidence(ctx):
+            return rt.StepOutcome(status=rt.STEP_SUCCEEDED, output={"records": 2})
+
+        with patch.dict(rt.EXECUTORS, {"sales_analysis": no_evidence}):
+            record = self._run()
+        sales = next(step for step in record.steps.values() if step.capability == "sales_analysis")
+        self.assertEqual(sales.status, rt.STEP_DATA_UNAVAILABLE)
+        self.assertEqual(sales.acceptance["status"], "FAILED")
+        self.assertEqual(record.status, rt.RUN_DEGRADED)
+        self.assertEqual(self.runtime.load(record.run_id).steps[sales.step_id].acceptance,
+                         sales.acceptance)
+
     def test_a_failed_step_blocks_its_downstream(self):
         def boom(ctx):
             raise RuntimeError("upstream exploded")
