@@ -1,0 +1,13 @@
+[Unit]
+Description=LCARLIE Meta webhook message queue loader
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+Environment=JARVIS_STATE_DIR=/opt/lcarlie/jarvis-phase2/state
+ExecStart=/usr/bin/flock -n /run/lcarlie-meta-kuyruk.lock /opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/meta-kuyruk-yukle.py
+TimeoutStartSec=120
+NoNewPrivileges=true
+UMask=0077

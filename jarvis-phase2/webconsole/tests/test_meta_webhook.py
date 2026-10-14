@@ -121,6 +121,34 @@ class ReklamReferansiTASINIR(unittest.TestCase):
         self.assertEqual(mw.olaylari_ayristir({}), [])
 
 
+class WhatsAppMesajlari(unittest.TestCase):
+    def test_gelen_mesaj_ayri_kanala_gider(self):
+        yuk = {"object": "whatsapp_business_account", "entry": [{
+            "id": "2314052356072937", "changes": [{"field": "messages", "value": {
+                "metadata": {"phone_number_id": "12345"},
+                "messages": [{"from": "905551112233", "id": "wamid.test",
+                              "timestamp": "1720000000", "type": "text",
+                              "text": {"body": "Merhaba"}}],
+                "statuses": [{"id": "baska"}],
+            }}],
+        }]}
+        [olay] = mw.olaylari_ayristir(yuk)
+        self.assertEqual(olay["kanal"], "whatsapp")
+        self.assertEqual(olay["sayfa_id"], "12345")
+        self.assertEqual(olay["gonderen_id"], "905551112233")
+        self.assertEqual(olay["mesaj_id"], "wamid.test")
+        self.assertEqual(olay["metin"], "Merhaba")
+        self.assertEqual(olay["zaman_ms"], 1720000000000)
+
+    def test_teslimat_durumu_mesaj_degildir(self):
+        yuk = {"object": "whatsapp_business_account", "entry": [{
+            "changes": [{"field": "messages", "value": {
+                "statuses": [{"id": "wamid.test", "status": "delivered"}],
+            }}],
+        }]}
+        self.assertEqual(mw.olaylari_ayristir(yuk), [])
+
+
 class KuyrukKAYIP_VERMEZ(unittest.TestCase):
     def test_olaylar_satir_satir_eklenir(self):
         with tempfile.TemporaryDirectory() as gecici:

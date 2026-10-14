@@ -31,6 +31,7 @@ import json
 import os
 import re
 import time
+import fcntl
 from pathlib import Path
 from typing import Any
 
@@ -108,6 +109,31 @@ def olaylari_ayristir(yuk: dict[str, Any]) -> list[dict[str, Any]]:
     reklam referansı yoksa `ad_id` None kalır ve ürün TAHMİN EDİLMEZ.
     """
     olaylar: list[dict[str, Any]] = []
+    if yuk.get("object") == "whatsapp_business_account":
+        for giris in (yuk.get("entry") or []):
+            for degisim in (giris.get("changes") or []):
+                if degisim.get("field") != "messages":
+                    continue
+                deger = degisim.get("value") or {}
+                metadata = deger.get("metadata") or {}
+                telefon_id = str(metadata.get("phone_number_id") or "")
+                for mesaj in (deger.get("messages") or []):
+                    icerik = mesaj.get("text") or {}
+                    olaylar.append({
+                        "kanal": "whatsapp",
+                        "sayfa_id": telefon_id,
+                        "gonderen_id": str(mesaj.get("from") or ""),
+                        "alici_id": telefon_id,
+                        "mesaj_id": str(mesaj.get("id") or ""),
+                        "metin": icerik.get("body") or "",
+                        "yanki": False,
+                        "zaman_ms": int(mesaj.get("timestamp") or 0) * 1000,
+                        "ad_id": None,
+                        "referral_ref": None,
+                        "referral_kaynak": None,
+                        "ek": {"type": mesaj.get("type")},
+                    })
+        return olaylar
     for giris in (yuk.get("entry") or []):
         sayfa_id = str(giris.get("id") or "")
         for olay in (giris.get("messaging") or []):
@@ -119,6 +145,7 @@ def olaylari_ayristir(yuk: dict[str, Any]) -> list[dict[str, Any]]:
                         or (olay.get("postback") or {}).get("referral")
                         or {})
             olaylar.append({
+                "kanal": "messenger",
                 "sayfa_id": sayfa_id,
                 "gonderen_id": str((olay.get("sender") or {}).get("id") or ""),
                 "alici_id": str((olay.get("recipient") or {}).get("id") or ""),
@@ -144,10 +171,12 @@ def kuyruga_yaz(olaylar: list[dict[str, Any]], kuyruk: Path) -> int:
     if not olaylar:
         return 0
     kuyruk.parent.mkdir(parents=True, exist_ok=True)
-    with kuyruk.open("a", encoding="utf-8") as dosya:
-        for olay in olaylar:
-            dosya.write(json.dumps({**olay, "alindi_at": time.time()},
-                                   ensure_ascii=False) + "\n")
+    with (kuyruk.parent / ".queue.lock").open("a") as kilit:
+        fcntl.flock(kilit, fcntl.LOCK_EX)
+        with kuyruk.open("a", encoding="utf-8") as dosya:
+            for olay in olaylar:
+                dosya.write(json.dumps({**olay, "alindi_at": time.time()},
+                                       ensure_ascii=False) + "\n")
     try:
         os.chmod(kuyruk, 0o640)
     except OSError:

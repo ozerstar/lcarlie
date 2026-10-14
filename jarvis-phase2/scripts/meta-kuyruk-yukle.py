@@ -29,10 +29,10 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import subprocess
 import sys
 import time
+import fcntl
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -85,6 +85,10 @@ def yukle(olaylar: list[dict], kuru: bool) -> dict[str, int]:
     sayac = {"konusma": 0, "mesaj": 0, "urunlu": 0, "yanki": 0, "atlanan": 0,
              "zaten_vardi": 0}
     for olay in olaylar:
+        kanal = olay.get("kanal") or "messenger"
+        if kanal not in {"messenger", "whatsapp"}:
+            sayac["atlanan"] += 1
+            continue
         psid = (olay.get("gonderen_id") or "").strip()
         mesaj_id = (olay.get("mesaj_id") or "").strip()
         metin = olay.get("metin") or ""
@@ -126,7 +130,7 @@ def yukle(olaylar: list[dict], kuru: bool) -> dict[str, int]:
         sql = f"""
         WITH k AS (
           INSERT INTO lcarlie.konusma (kanal, harici_id, musteri_ref, notlar)
-          VALUES ('messenger', {_tirnak(konusma_ref)}, {_tirnak(konusma_ref)},
+          VALUES ({_tirnak(kanal)}, {_tirnak(konusma_ref)}, {_tirnak(konusma_ref)},
                   jsonb_build_object('kaynak','webhook') || {ad_json})
           ON CONFLICT (kanal, harici_id) DO UPDATE
             SET notlar = CASE WHEN lcarlie.konusma.notlar ? 'ad_id'
@@ -160,37 +164,38 @@ def yukle(olaylar: list[dict], kuru: bool) -> dict[str, int]:
     return sayac
 
 
-def arsivle(kuyruk: Path) -> Path | None:
-    if not kuyruk.is_file():
-        return None
+def bekleyen_kuyrugu_al() -> list[Path]:
     ARSIV.mkdir(parents=True, exist_ok=True)
-    hedef = ARSIV / f"gelen-{time.strftime('%Y%m%d-%H%M%S')}.jsonl"
-    # Taşı, silme: yükleme sonrası bir sorun çıkarsa olay elde kalsın.
-    shutil.move(str(kuyruk), str(hedef))
-    try:
-        os.chmod(hedef, 0o640)
-    except OSError:
-        pass
-    return hedef
+    with (KUYRUK.parent / ".queue.lock").open("a") as kilit:
+        fcntl.flock(kilit, fcntl.LOCK_EX)
+        if KUYRUK.is_file():
+            hedef = ARSIV / f"gelen-{time.time_ns()}.pending"
+            KUYRUK.replace(hedef)
+    return sorted(ARSIV.glob("gelen-*.pending"))
 
 
 def main() -> None:
     kuru = "--kuru" in sys.argv
-    olaylar = olaylari_oku(KUYRUK)
-    if not olaylar:
-        print(f"kuyruk boş ({KUYRUK})")
-        return
-    print(f"kuyrukta {len(olaylar)} olay")
-    sayac = yukle(olaylar, kuru)
-    print(f"yazılan mesaj: {sayac['mesaj']} · zaten vardı: {sayac['zaten_vardi']} "
-          f"· reklam referanslı: {sayac['urunlu']} · kendi yankımız: {sayac['yanki']} "
-          f"· kimliksiz atlanan: {sayac['atlanan']}")
+    if kuru:
+        dosyalar = [KUYRUK, *sorted(ARSIV.glob("gelen-*.pending"))]
+    else:
+        dosyalar = bekleyen_kuyrugu_al()
+    for dosya in dosyalar:
+        olaylar = olaylari_oku(dosya)
+        if not olaylar:
+            continue
+        print(f"kuyrukta {len(olaylar)} olay")
+        sayac = yukle(olaylar, kuru)
+        print(f"yazılan mesaj: {sayac['mesaj']} · zaten vardı: {sayac['zaten_vardi']} "
+              f"· reklam referanslı: {sayac['urunlu']} · kendi yankımız: {sayac['yanki']} "
+              f"· kimliksiz atlanan: {sayac['atlanan']}")
+        if not kuru:
+            hedef = dosya.with_suffix(".jsonl")
+            dosya.replace(hedef)
+            os.chmod(hedef, 0o640)
+            print(f"kuyruk arşivlendi → {hedef}")
     if kuru:
         print("--kuru: veritabanına yazılmadı, kuyruk arşivlenmedi")
-        return
-    hedef = arsivle(KUYRUK)
-    if hedef:
-        print(f"kuyruk arşivlendi → {hedef}")
 
 
 if __name__ == "__main__":
