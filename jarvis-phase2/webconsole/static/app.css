@@ -4345,3 +4345,98 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .sistem-baglanti a { font-weight: 700; letter-spacing: .04em; text-decoration: none; }
 .sistem-baglanti a:hover { text-decoration: underline; }
 .sistem-baglanti-not { display: block; font-size: .78rem; opacity: .7; margin-top: .15rem; }
+
+
+/* ===================== GELEN KUTUSU =====================================
+ * Iki sutun: solda konusma listesi, sagda secili konusmanin akisi.
+ * Dar ekranda tek sutuna iner.
+ *
+ * Renkler paletten gelir; yeni renk tanimlanmadi. Rozetler durumu RENKLE
+ * DEGIL once METINLE soyler -- renk tek basina bilgi tasimaz.
+ */
+.gk-sayac { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.gk-s { font-size: 12px; color: var(--ivory); letter-spacing: 0.04em; }
+.gk-s b { color: var(--gold-hi); font-size: 14px; }
+.gk-s-sade { color: var(--ivory); opacity: 0.72; }
+
+.gk-suzgec { display: flex; gap: 6px; margin: 10px 0 12px; flex-wrap: wrap; }
+.gk-f {
+  font-family: var(--font-ui); font-size: 11px; letter-spacing: 0.08em;
+  padding: 6px 12px; border: 1px solid var(--line); border-radius: var(--radius);
+  background: transparent; color: var(--ivory); cursor: pointer;
+}
+.gk-f:hover { border-color: var(--line-strong); }
+.gk-f.is-active { border-color: var(--gold); color: var(--gold-hi); }
+
+.gk-duzen { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 9fr); gap: 14px; }
+@media (max-width: 900px) { .gk-duzen { grid-template-columns: 1fr; } }
+
+.gk-liste { max-height: 62vh; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+.gk-satir {
+  display: flex; flex-direction: column; gap: 3px; width: 100%; text-align: left;
+  padding: 9px 10px; border: 1px solid var(--line-soft); border-radius: var(--radius);
+  background: var(--glass); color: var(--ivory); cursor: pointer; font-family: var(--font-ui);
+}
+.gk-satir:hover { border-color: var(--line); }
+.gk-satir.is-secili { border-color: var(--gold); }
+.gk-ust { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.gk-ad { font-size: 12px; color: var(--champagne); }
+.gk-son { font-size: 11px; color: var(--ivory); opacity: 0.78; line-height: 1.45; }
+
+.gk-rozet {
+  font-size: 10px; letter-spacing: 0.08em; padding: 2px 6px;
+  border-radius: var(--radius); border: 1px solid var(--line);
+}
+.gk-insan { color: var(--warn); border-color: rgba(217, 168, 79, 0.45); }
+.gk-jarvis { color: var(--ok); border-color: rgba(143, 185, 154, 0.45); }
+.gk-kapali { color: var(--ivory); opacity: 0.6; }
+.gk-bekleyen {
+  font-size: 10px; letter-spacing: 0.08em; padding: 2px 6px;
+  color: var(--crit); border: 1px solid rgba(205, 111, 104, 0.45);
+  border-radius: var(--radius);
+}
+.gk-kanal, .gk-sinif {
+  font-size: 10px; letter-spacing: 0.06em; color: var(--ivory); opacity: 0.66;
+  font-family: var(--font-mono);
+}
+
+.gk-detay {
+  border: 1px solid var(--line-soft); border-radius: var(--radius);
+  padding: 12px; max-height: 62vh; overflow-y: auto;
+}
+.gk-d-bas { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
+.gk-d-bas b { color: var(--champagne); font-size: 13px; }
+.gk-oneri {
+  font-size: 11px; color: var(--ivory); opacity: 0.86; line-height: 1.5;
+  padding: 7px 9px; border-left: 2px solid var(--gold-dim); margin: 0 0 10px;
+}
+.gk-oneri b { color: var(--gold-hi); }
+
+.gk-akis { display: flex; flex-direction: column; gap: 7px; margin-bottom: 12px; }
+.gk-m { display: flex; flex-direction: column; gap: 2px; max-width: 86%; }
+.gk-m-gelen { align-self: flex-start; }
+.gk-m-giden { align-self: flex-end; }
+.gk-m-kim {
+  font-size: 10px; letter-spacing: 0.06em; color: var(--ivory); opacity: 0.6;
+  font-family: var(--font-mono);
+}
+.gk-m-metin {
+  font-size: 12px; line-height: 1.5; color: var(--ivory);
+  padding: 7px 10px; border-radius: var(--radius);
+  border: 1px solid var(--line-soft); background: var(--glass);
+  white-space: pre-wrap; word-break: break-word;
+}
+.gk-m-giden .gk-m-metin { border-color: var(--line); }
+
+.gk-eylem { display: flex; gap: 6px; flex-wrap: wrap; }
+.gk-b {
+  font-family: var(--font-ui); font-size: 11px; letter-spacing: 0.08em;
+  padding: 7px 13px; border: 1px solid var(--line); border-radius: var(--radius);
+  background: transparent; color: var(--gold-hi); cursor: pointer;
+}
+.gk-b:hover { border-color: var(--gold); }
+.gk-b-sade { color: var(--ivory); opacity: 0.74; }
+.gk-not {
+  font-size: 10px; color: var(--ivory); opacity: 0.6; margin: 9px 0 0;
+  line-height: 1.5;
+}

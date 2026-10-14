@@ -159,7 +159,8 @@ const VIEWS = {
                 hafiza: 'viewHafiza', ekip: 'viewEkip',
                 sistem: 'viewSistem', isler: 'viewIsler',
                 saha: 'viewSaha', katalog: 'viewKatalog',
-                uretilenler: 'viewUretilenler' };
+                uretilenler: 'viewUretilenler',
+                gelenkutusu: 'viewGelenKutusu' };
 
 function setView(name) {
   if (!VIEWS[name]) return;
@@ -181,6 +182,7 @@ function setView(name) {
   if (name === 'saha') loadSaha();
   if (name === 'katalog') { loadKatalog(); loadIgPlan(); }
   if (name === 'uretilenler') loadUretilenler();
+  if (name === 'gelenkutusu') loadGelenKutusu();
   if (name === 'kreatifParti') loadKreatifParti();
   if (name === 'tasarim') tasarimYukle();
   if (name === 'asistan') asistanYukle();
@@ -7348,3 +7350,155 @@ function urTasarim(t) {
     + '<span class="ur-rozet">' + escapeHtml(t.durum) + '</span>'
     + '</article>';
 }
+
+
+/* ===================== GELEN KUTUSU =====================================
+ * Musteri konusmalari ve her birinin KIMDE oldugu.
+ *
+ * Panel hicbir mesaj GONDERMEZ. Devir durumunu degistirir ve kapinin
+ * kararini GOSTERIR -- sessizce uygulamaz. Gonderme ayri bir ucun ve ayri
+ * bir sahip eyleminin isidir.
+ *
+ * Musteri metni GUVENILMEZ girdidir: her yerde escapeHtml()'den gecer.
+ */
+let gkDurum = '';
+let gkSecili = null;
+
+function gkEtiket(durum) {
+  if (durum === 'JARVIS') return '<span class="gk-rozet gk-jarvis">JARVIS</span>';
+  if (durum === 'KAPALI') return '<span class="gk-rozet gk-kapali">KAPALI</span>';
+  return '<span class="gk-rozet gk-insan">SENDE</span>';
+}
+
+function gkSatir(k) {
+  var son = (k.son_metin || '').slice(0, 90);
+  var cevapsiz = k.cevapsiz ? '<span class="gk-bekleyen">CEVAPSIZ</span>' : '';
+  var sinif = k.son_sinif
+    ? '<span class="gk-sinif">' + escapeHtml(k.son_sinif) + '</span>' : '';
+  return '<button type="button" class="gk-satir' +
+    (gkSecili === k.id ? ' is-secili' : '') + '" data-kid="' + k.id + '">' +
+    '<span class="gk-ust">' + gkEtiket(k.devir_durumu) + cevapsiz +
+    '<span class="gk-kanal">' + escapeHtml(k.kanal || '') + '</span>' + sinif +
+    '</span>' +
+    '<span class="gk-ad">' + escapeHtml(String(k.musteri || '')) + '</span>' +
+    '<span class="gk-son">' + escapeHtml(son) + '</span>' +
+    '</button>';
+}
+
+async function loadGelenKutusu() {
+  var liste = qs('gkListe');
+  if (liste && !gkSecili) liste.innerHTML = '<p class="fm-empty">Yukleniyor...</p>';
+  var yol = '/api/gelenkutusu' +
+    (gkDurum ? '?durum=' + encodeURIComponent(gkDurum) : '');
+  var r = await api(yol);
+  if (!r.ok || !r.body) {
+    if (liste) {
+      liste.innerHTML = '<p class="fm-empty">Gelen kutusu okunamadi' +
+        (r.body && r.body.error ? ': ' + escapeHtml(r.body.error) : '') + '</p>';
+    }
+    return;
+  }
+  var o = r.body.ozet || {};
+  var sayac = qs('gkSayac');
+  if (sayac) {
+    sayac.innerHTML =
+      '<span class="gk-s"><b>' + (o.cevapsiz || 0) + '</b> cevapsiz</span>' +
+      '<span class="gk-s"><b>' + (o.insanda || 0) + '</b> sende</span>' +
+      '<span class="gk-s"><b>' + (o.jarviste || 0) + '</b> Jarviste</span>' +
+      '<span class="gk-s gk-s-sade">' + (o.toplam || 0) + ' konusma</span>';
+  }
+  var kayitlar = r.body.konusmalar || [];
+  if (liste) {
+    liste.innerHTML = kayitlar.length
+      ? kayitlar.map(gkSatir).join('')
+      : '<p class="fm-empty">Bu suzgecte konusma yok.</p>';
+  }
+}
+
+async function gkKonusmaAc(kid) {
+  gkSecili = kid;
+  var kutu = qs('gkDetay');
+  if (kutu) kutu.innerHTML = '<p class="fm-empty">Yukleniyor...</p>';
+  var r = await api('/api/gelenkutusu/konusma?id=' + encodeURIComponent(kid));
+  if (!r.ok || !r.body) {
+    if (kutu) kutu.innerHTML = '<p class="fm-empty">Konusma acilamadi.</p>';
+    return;
+  }
+  var k = r.body;
+  var oneri = k.oneri || {};
+  var mesajlar = (k.mesajlar || []).map(function (m) {
+    var yon = m.yon === 'gelen' ? 'gk-m-gelen' : 'gk-m-giden';
+    var kim = m.yon === 'gelen' ? 'Musteri' : 'Biz';
+    return '<div class="gk-m ' + yon + '">' +
+      '<span class="gk-m-kim">' + kim + '</span>' +
+      '<span class="gk-m-metin">' + escapeHtml(m.metin || '') + '</span></div>';
+  }).join('');
+
+  var oneriMetni = oneri.devir
+    ? 'Devir kapisi bu konusmayi <b>sana</b> veriyor &mdash; ' +
+      escapeHtml(oneri.sebep_metni || '')
+    : 'Devir kapisina gore <b>Jarvis</b> cevaplayabilir.';
+
+  kutu.innerHTML =
+    '<div class="gk-d-bas"><b>' + escapeHtml(String(k.musteri || '')) + '</b>' +
+    '<span class="gk-kanal">' + escapeHtml(k.kanal || '') + '</span>' +
+    gkEtiket(k.devir_durumu) + '</div>' +
+    '<p class="gk-oneri">' + oneriMetni + '</p>' +
+    '<div class="gk-akis">' +
+      (mesajlar || '<p class="fm-empty">Mesaj yok.</p>') + '</div>' +
+    '<div class="gk-eylem">' +
+      '<button type="button" class="gk-b" data-devir="INSANDA" data-kid="' +
+        k.id + '">BANA AL</button>' +
+      '<button type="button" class="gk-b" data-devir="JARVIS" data-kid="' +
+        k.id + '">JARVISE VER</button>' +
+      '<button type="button" class="gk-b gk-b-sade" data-devir="KAPALI" data-kid="' +
+        k.id + '">KAPAT</button>' +
+    '</div>' +
+    '<p class="gk-not">Bu panel mesaj gondermez. Devir durumunu degistirir.</p>';
+}
+
+function gkUyari(mesaj) {
+  var kutu = qs('gkDetay');
+  if (!kutu) return;
+  var p = document.createElement('p');
+  p.className = 'fm-empty';
+  p.textContent = mesaj;
+  kutu.prepend(p);
+}
+
+async function gkDevret(kid, durum) {
+  var r = await api('/api/gelenkutusu/devir', {
+    method: 'POST',
+    body: JSON.stringify({ id: kid, durum: durum })
+  });
+  if (!r.ok) {
+    gkUyari('Devir degistirilemedi' +
+      (r.body && r.body.error ? ': ' + r.body.error : ''));
+    return;
+  }
+  await loadGelenKutusu();
+  await gkKonusmaAc(kid);
+}
+
+document.addEventListener('click', function (ev) {
+  var suz = ev.target.closest ? ev.target.closest('#gkSuzgec .gk-f') : null;
+  if (suz) {
+    gkDurum = suz.dataset.durum || '';
+    document.querySelectorAll('#gkSuzgec .gk-f').forEach(function (b) {
+      b.classList.toggle('is-active', b === suz);
+    });
+    gkSecili = null;
+    var d = qs('gkDetay');
+    if (d) d.innerHTML = '<p class="fm-empty">Soldan bir konusma sec.</p>';
+    loadGelenKutusu();
+    return;
+  }
+  var satir = ev.target.closest ? ev.target.closest('.gk-satir') : null;
+  if (satir) {
+    gkKonusmaAc(Number(satir.dataset.kid));
+    loadGelenKutusu();
+    return;
+  }
+  var btn = ev.target.closest ? ev.target.closest('.gk-eylem .gk-b') : null;
+  if (btn) gkDevret(Number(btn.dataset.kid), btn.dataset.devir);
+});

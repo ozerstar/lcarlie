@@ -63,6 +63,7 @@ import meta_webhook  # noqa: E402
 import isler  # noqa: E402
 import katalog
 import uretilenler  # noqa: E402
+import gelen_kutusu  # noqa: E402
 import harita  # noqa: E402
 import saha  # noqa: E402
 import sistem  # noqa: E402
@@ -1510,6 +1511,32 @@ class Handler(BaseHTTPRequestHandler):
             except saha.SahaHatasi as hata:
                 self._send_json(400, {"error": str(hata)})
             return
+        if path == "/api/gelenkutusu":
+            # Musteri konusmalari + devir durumu. YALNIZ OKUR.
+            try:
+                self._send_json(200, {
+                    "ozet": gelen_kutusu.ozet(),
+                    "konusmalar": gelen_kutusu.konusmalar(
+                        durum=(query.get("durum") or [None])[0],
+                        limit=int((query.get("limit") or [60])[0])),
+                })
+            except (gelen_kutusu.KutuHatasi, ValueError) as hata:
+                self._send_json(503, {"error": str(hata)})
+            return
+        if path == "/api/gelenkutusu/konusma":
+            kid = (query.get("id") or [""])[0]
+            if not kid.isdigit():
+                self._send_json(400, {"error": "gecersiz konusma id"})
+                return
+            try:
+                kayit = gelen_kutusu.konusma(int(kid))
+                # Devir kapisinin karari AYRI alanda doner: panel neyi
+                # neden onerdigimizi gostersin, sessizce uygulamasin.
+                kayit["oneri"] = gelen_kutusu.devir_onerisi(int(kid))
+                self._send_json(200, kayit)
+            except gelen_kutusu.KutuHatasi as hata:
+                self._send_json(404, {"error": str(hata)})
+            return
         if path == "/api/uretilenler":
             # Uretilen her sey tek yerde: sekme sekme aramaya son.
             try:
@@ -1745,6 +1772,20 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(403, {"error": "csrf token missing or invalid"})
             return
 
+        if path == "/api/gelenkutusu/devir":
+            # Devir durumunu DEGISTIRIR. Mesaj GONDERMEZ.
+            body = _read_json_body(self)
+            kid = str(body.get("id", ""))
+            durum = str(body.get("durum", ""))
+            if not kid.isdigit():
+                self._send_json(400, {"error": "gecersiz konusma id"})
+                return
+            try:
+                self._send_json(200, gelen_kutusu.durum_yaz(
+                    int(kid), durum, (body.get("sebep") or None)))
+            except gelen_kutusu.KutuHatasi as hata:
+                self._send_json(400, {"error": str(hata)})
+            return
         if path == "/api/voice/synthesize":
             # Browser audio comes through the authenticated console. Piper itself
             # listens on loopback and never receives browser credentials.

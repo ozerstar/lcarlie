@@ -70,6 +70,7 @@
           <button type="button" class="nav-item" data-view="eticaret">E-TİCARET</button>
           <button type="button" class="nav-item" data-view="satislar">SATIŞLAR</button>
           <button type="button" class="nav-item" data-view="kargo">KARGO</button>
+          <button type="button" class="nav-item" data-view="gelenkutusu">GELEN KUTUSU</button>
           <button type="button" class="nav-item" data-view="musteri">MÜŞTERİLER</button>
         </div>
       </div>
@@ -1128,6 +1129,33 @@
             Satıra tıklayınca o müşterinin bütün siparişleri ve kargoları
             açılır. Altta iade, değişim ve iptaller üç ayrı kaynaktan.</p>
             <div id="musteriGovde"><p class="fm-empty">Yükleniyor…</p></div>
+          </div>
+        </section>
+      </main>
+
+      <main class="stage stage-single view-panel" id="viewGelenKutusu" hidden
+            aria-label="GELEN KUTUSU">
+        <section class="panel" aria-label="GELEN KUTUSU">
+          <div class="panel-head">
+            <h2 class="panel-title">GELEN KUTUSU</h2>
+            <div class="gk-sayac" id="gkSayac"></div>
+          </div>
+          <div class="panel-body sect-body">
+            <p class="fm-sub">Müşteri konuşmaları ve her birinin kimde olduğu.
+            <strong>Jarvis</strong> işaretli konuşmalara Jarvis cevap verebilir;
+            <strong>sende</strong> olanları yalnız sen cevaplarsın. Devir kuralı
+            sağlık/şikâyet, sipariş/ödeme/iade, ürün belirsizliği ve mevzuat
+            için konuşmayı sana getirir — tanımadığı bir durumu tahmin etmez.</p>
+            <div class="gk-suzgec" id="gkSuzgec" role="group" aria-label="Süzgeç">
+              <button type="button" class="gk-f is-active" data-durum="">HEPSİ</button>
+              <button type="button" class="gk-f" data-durum="INSANDA">SENDE</button>
+              <button type="button" class="gk-f" data-durum="JARVIS">JARVIS'TE</button>
+              <button type="button" class="gk-f" data-durum="KAPALI">KAPALI</button>
+            </div>
+            <div class="gk-duzen">
+              <div class="gk-liste" id="gkListe"><p class="fm-empty">Yükleniyor…</p></div>
+              <div class="gk-detay" id="gkDetay"><p class="fm-empty">Soldan bir konuşma seç.</p></div>
+            </div>
           </div>
         </section>
       </main>

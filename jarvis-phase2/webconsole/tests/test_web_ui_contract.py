@@ -59,6 +59,11 @@ def _fonksiyon_govdeleri(js: str, onek: str):
 # Every path the frontend may call, and the reason each one is legitimate.
 KNOWN_ROUTES = {
     "/api/session", "/api/login", "/api/logout", "/api/status",
+    # GELEN KUTUSU: musteri konusmalari, devir durumu ve kapinin
+    # onerisi. Ucuncu uc devir durumunu YAZAR; mesaj gondermez.
+    "/api/gelenkutusu",
+    "/api/gelenkutusu/konusma",
+    "/api/gelenkutusu/devir",
     # URETILENLER: uretilen her seyi tek yerde toplar (26.09.2026).
     "/api/uretilenler",
     "/api/activity", "/api/proposals", "/api/chat", "/api/chat/stream",
@@ -131,7 +136,8 @@ KNOWN_ROUTES = {
 
 # Arka ucu olan bolumler. Bu kume, navigasyonun neyi sunabilecegini belirler:
 # bir sekme ancak buraya girdikten sonra etkinlestirilebilir.
-BACKED_VIEWS = {"home", "analiz", "gorevler", "veri", "ajanlar", "raporlar",
+BACKED_VIEWS = {
+    "gelenkutusu","home", "analiz", "gorevler", "veri", "ajanlar", "raporlar",
                 "ayarlar", "fiyat", "eticaret", "reklam", "hafiza", "ekip",
                 # 🔴 22.09.2026: bu besinin de arka ucu var ve app.py'de
                 #    tanimli. Kural degismedi -- kume disinda kalan her
