@@ -65,3 +65,4 @@ desktop.ini
 # ki yarin baska bir ornek dosya da sessizce disarida kalmasin.
 !*.env.example
 !.env.example
+*.backup-*
