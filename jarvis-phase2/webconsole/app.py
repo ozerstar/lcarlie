@@ -79,6 +79,7 @@ import personal_chat  # noqa: E402
 import mobile_features  # noqa: E402
 import google_workspace  # noqa: E402
 import unified_actions  # noqa: E402
+import voice_bridge  # noqa: E402
 import personal_planner  # noqa: E402
 
 STATE_DIR = Path(os.environ.get("JARVIS_STATE_DIR", "/opt/lcarlie/jarvis-phase2/state"))
@@ -1897,6 +1898,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/login":
             self._handle_login()
             return
+        if path == "/api/voice/agent-turn":
+            self._handle_voice_agent_turn()
+            return
 
         session = self._current_session()
         if session is None:
@@ -1904,6 +1908,16 @@ class Handler(BaseHTTPRequestHandler):
             return
         if not self._require_csrf(session):
             self._send_json(403, {"error": "csrf token missing or invalid"})
+            return
+
+        if path == "/api/voice/realtime/session":
+            mode = _read_json_body(self).get("mode", "work")
+            try:
+                self._send_json(200, voice_bridge.issue_session(session.username, mode))
+            except ValueError as exc:
+                self._send_json(400, {"error": str(exc)})
+            except RuntimeError as exc:
+                self._send_json(503, {"error": str(exc)})
             return
 
         if path == "/api/devices/revoke":
@@ -2640,6 +2654,61 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         self._send_json(404, {"error": "not found"})
+
+    def _handle_voice_agent_turn(self) -> None:
+        """The local media worker uses the same durable chat turn as the web UI."""
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            length = 0
+        if length <= 0 or length > 4096:
+            self._send_json(400, {"error": "Geçersiz sesli konuşma isteği."})
+            return
+        raw = self.rfile.read(length)
+        if not voice_bridge.verify_agent(raw, self.headers.get("X-Voice-Time", ""),
+                                         self.headers.get("X-Voice-Signature", ""),
+                                         self.client_address[0]):
+            self._send_json(403, {"error": "Sesli konuşma yetkisi doğrulanamadı."})
+            return
+        try:
+            body = json.loads(raw)
+            owner = body["owner"]
+            mode = body["mode"]
+            message = body["message"]
+            turn_id = body["turn_id"]
+            if not isinstance(owner, str) or not owner or len(owner) > 100:
+                raise ValueError("Geçersiz kullanıcı.")
+            if mode not in ("work", "personal") or not isinstance(message, str) or not message.strip() or len(message) > 2000:
+                raise ValueError("Geçersiz konuşma.")
+
+            def make_events():
+                if mode == "personal":
+                    return personal_chat.stream(message, owner)
+                return chat.stream(message, _shadow_runner, _operator)
+
+            chat_turns.start_or_resume(turn_id, owner, mode, message, make_events)
+            after = 0
+            deadline = time.monotonic() + 70
+            while time.monotonic() < deadline:
+                frames, state = chat_turns.read_after(turn_id, owner, after)
+                for frame in frames:
+                    after = frame["seq"]
+                    if frame["type"] == "done":
+                        result = frame.get("result") or {}
+                        self._send_json(200, {"text": result.get("answer") or result.get("text") or
+                                              result.get("message") or "Yanıt tamamlanamadı.",
+                                              "turn_id": turn_id})
+                        return
+                    if frame["type"] == "error":
+                        self._send_json(503, {"error": frame.get("message") or "Yanıt tamamlanamadı."})
+                        return
+                if state != "RUNNING":
+                    break
+                time.sleep(0.15)
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+            self._send_json(400, {"error": str(exc)[:160]})
+            return
+        self._send_json(503, {"error": "Sohbet sonucu belirsiz. İşlem durumunu kontrol edin."})
 
     def _handle_chat_stream(self) -> None:
         """Streams {"type":"stage"|"done", ...} frames as newline-delimited

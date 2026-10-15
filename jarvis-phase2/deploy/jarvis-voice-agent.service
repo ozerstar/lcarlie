@@ -1,0 +1,28 @@
+[Unit]
+Description=Jarvis local WebRTC voice agent
+After=network-online.target jarvis-web.service jarvis-voice.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=jarvis-web
+Group=jarvis-web
+WorkingDirectory=/opt/lcarlie/jarvis-voice-agent
+EnvironmentFile=/etc/lcarlie/livekit/agent.env
+Environment=XDG_CACHE_HOME=/opt/lcarlie/jarvis-voice-agent/cache
+Environment=JARVIS_WHISPER_MODEL=/opt/lcarlie/jarvis-voice-agent/models/small
+ExecStart=/opt/lcarlie/jarvis-voice-agent/.venv/bin/python /opt/lcarlie/jarvis-voice-agent/agent.py start
+Restart=on-failure
+RestartSec=5
+MemoryMax=2G
+CPUQuota=200%
+TasksMax=128
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/opt/lcarlie/jarvis-voice-agent/cache
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target
