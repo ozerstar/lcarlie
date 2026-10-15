@@ -20,6 +20,7 @@ framework, no new package install.
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import json
 import re
 import os
@@ -95,7 +96,7 @@ META_KUYRUK = STATE_DIR / "meta_webhook" / "gelen.jsonl"
 SESSION_COOKIE = "jarvis_session"
 CSRF_COOKIE = "jarvis_csrf"
 
-sessions = auth.SessionStore()
+sessions = auth.DurableSessionStore()
 throttle = auth.LoginThrottle()
 
 _memory = CompanyMemory(host=memory_host())
@@ -262,10 +263,17 @@ def _host_metrics() -> dict:
 
 
 def _client_ip(handler: "Handler") -> str:
-    # Trusted only because Caddy sets it (header_up SET, matches the existing
-    # X-Gercek-IP convention this project already relies on elsewhere).
-    forwarded = handler.headers.get("X-Gercek-IP")
-    return forwarded or handler.client_address[0]
+    # Only the explicitly named reverse proxy may supply the client IP.
+    # Another container on the bridge must not choose its own login rate-limit key.
+    peer = handler.client_address[0]
+    trusted = {ip.strip() for ip in os.environ.get("JARVIS_TRUSTED_PROXY_IPS", "").split(",") if ip.strip()}
+    forwarded = handler.headers.get("X-Gercek-IP") if peer in trusted else None
+    if forwarded:
+        try:
+            return str(ipaddress.ip_address(forwarded.strip()))
+        except ValueError:
+            pass
+    return peer
 
 
 def _read_json_body(handler: "Handler") -> dict:
@@ -1451,6 +1459,10 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(401, {"error": "authentication required"})
             return
 
+        if path == "/api/devices":
+            self._send_json(200, {"devices": sessions.list_devices(session.username, session.session_id)})
+            return
+
         if path == "/api/mobile/reminders":
             self._send_json(200, {"reminders": mobile_features.reminders(session.username)})
             return
@@ -1865,6 +1877,19 @@ class Handler(BaseHTTPRequestHandler):
             return
         if not self._require_csrf(session):
             self._send_json(403, {"error": "csrf token missing or invalid"})
+            return
+
+        if path == "/api/devices/revoke":
+            device_id = _read_json_body(self).get("id")
+            if not sessions.revoke_device(session.username, device_id):
+                self._send_json(404, {"error": "Cihaz oturumu bulunamadı"})
+                return
+            own = device_id == sessions._hash(session.session_id)
+            self._send_json(200, {"ok": True}, self._clear_session_cookies() if own else None)
+            return
+        if path == "/api/devices/revoke-all":
+            sessions.destroy_user(session.username)
+            self._send_json(200, {"ok": True}, self._clear_session_cookies())
             return
 
         if path == "/api/mobile/upload":
@@ -2638,7 +2663,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(401, {"error": "invalid credentials"})
             return
         throttle.record_success(source)
-        session = sessions.create(username)
+        session = sessions.create(username, self.headers.get("User-Agent", ""), _client_ip(self))
         self._send_json(200, {"ok": True, "username": username, "csrf_token": session.csrf_token},
                         self._set_session_cookies(session))
 
