@@ -8,6 +8,7 @@ from jarvis import conversation_memory
 from jarvis.model_layer import ModelRouter, ModelUnavailable
 import mobile_features
 import google_workspace
+import turkish_reply
 
 PERSONAL_SYSTEM = (
     "Sen kullanıcının kişisel Jarvis asistanısın. Her zaman sade ve kısa Türkçe yaz. "
@@ -87,11 +88,18 @@ def stream(message: str, username: str, router: Any | None = None,
                     f"Dosya: {meta['name']}\nİçerik:\n{meta['text'][:9000]}\n\nKullanıcı sorusu: {text}")
     yield {"type": "stage", "label": "Kişisel yanıt hazırlanıyor"}
     chunks: list[str] = []
+    streaming_turkish = False
     try:
         model = router if router is not None else PersonalLocalRouter()
         for delta in model.stream_text(question, system, max_tokens=380, history=history):
             chunks.append(delta)
-            yield {"type": "token", "delta": delta}
+            if streaming_turkish:
+                yield {"type": "token", "delta": delta}
+            else:
+                sample = "".join(chunks)
+                if len(sample) >= 140 and not turkish_reply.is_english_prose(sample):
+                    streaming_turkish = True
+                    yield {"type": "token", "delta": sample}
     except (ModelUnavailable, OSError, ValueError):
         yield {"type": "error", "message": "Şu anda yanıt veremiyorum. Biraz sonra tekrar deneyin."}
         return
@@ -99,5 +107,12 @@ def stream(message: str, username: str, router: Any | None = None,
     if not answer:
         yield {"type": "error", "message": "Yanıt tamamlanamadı. Tekrar deneyin."}
         return
+    if turkish_reply.is_english_prose(answer):
+        def rewrite(draft: str) -> str:
+            return "".join(model.stream_text(draft, turkish_reply.REWRITE_SYSTEM,
+                                             max_tokens=500, history=[]))
+        answer = turkish_reply.ensure(answer, rewrite)
+    if not streaming_turkish:
+        yield {"type": "token", "delta": answer}
     conversation_memory.record(text, answer, intent="PERSONAL", thread=thread)
     yield {"type": "done", "result": {"kind": "ANSWER", "source": "personal.chat", "text": answer}}

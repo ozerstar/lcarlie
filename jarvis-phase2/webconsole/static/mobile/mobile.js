@@ -1,7 +1,8 @@
 'use strict';
 
 const $ = (id) => document.getElementById(id);
-const state = { csrf: null, busy: false, audio: null, audioUrl: null, audioGeneration: 0, action: null,
+const state = { csrf: null, busy: false, audio: null, audioUrl: null, audioGeneration: 0,
+  audioRequest: null, audioWait: null, audioButton: null, action: null,
   chatMode: 'work', personalTab: 'today', chatRows: { work: [], personal: [] }, attachment: null, googleProposal: null,
   contactEditId: null };
 let voiceMode = false;
@@ -248,12 +249,19 @@ document.querySelectorAll('[data-starter]').forEach((button) => button.addEventL
 
 function stopAudio() {
   state.audioGeneration += 1;
+  state.audioRequest?.abort();
+  state.audioRequest = null;
   if (state.audio) {
     state.audio.pause();
-    if (typeof state.audio.onended === 'function') state.audio.onended();
+    state.audio.onended = null;
+    state.audio.onerror = null;
     state.audio = null;
   }
+  state.audioWait?.();
+  state.audioWait = null;
   if (state.audioUrl) { URL.revokeObjectURL(state.audioUrl); state.audioUrl = null; }
+  if (state.audioButton) { state.audioButton.textContent = 'Dinle'; state.audioButton.disabled = false; }
+  state.audioButton = null;
 }
 
 function speechChunks(text) {
@@ -270,34 +278,39 @@ function speechChunks(text) {
 }
 
 async function playAnswer(text, button) {
-  if (state.audio && button.textContent === 'Durdur') { stopAudio(); button.textContent = 'Dinle'; return; }
+  if (state.audioButton === button) { stopAudio(); return; }
   stopAudio();
   const generation = state.audioGeneration;
-  button.textContent = 'Yükleniyor';
-  button.disabled = true;
+  state.audioButton = button;
+  button.textContent = 'Durdur';
   try {
     for (const chunk of speechChunks(text)) {
-      const response = await request('/api/voice/synthesize', { method: 'POST', body: JSON.stringify({ text: chunk }) });
+      const controller = new AbortController();
+      state.audioRequest = controller;
+      const response = await request('/api/voice/synthesize', { method: 'POST',
+        body: JSON.stringify({ text: chunk }), signal: controller.signal });
       if (!response.ok) throw new Error('Ses servisine bağlanılamadı.');
-      state.audioUrl = URL.createObjectURL(await response.blob());
+      const blob = await response.blob();
+      if (generation !== state.audioGeneration) return;
+      state.audioRequest = null;
+      state.audioUrl = URL.createObjectURL(blob);
       state.audio = new Audio(state.audioUrl);
-      button.textContent = 'Durdur';
-      button.disabled = false;
       await new Promise((resolve, reject) => {
-        state.audio.onended = resolve;
-        state.audio.onerror = reject;
+        state.audioWait = resolve;
+        state.audio.onended = () => { state.audioWait = null; resolve(); };
+        state.audio.onerror = () => { state.audioWait = null; reject(new Error('Ses açılamadı.')); };
         state.audio.play().catch(reject);
       });
       if (generation !== state.audioGeneration) return;
       state.audio = null;
       URL.revokeObjectURL(state.audioUrl);
       state.audioUrl = null;
-      button.disabled = true;
     }
-  } catch (_) { status('Ses açılamadı'); }
-  stopAudio();
-  button.textContent = 'Dinle';
-  button.disabled = false;
+  } catch (error) {
+    if (generation === state.audioGeneration && error?.name !== 'AbortError') status('Ses açılamadı');
+  } finally {
+    if (generation === state.audioGeneration) stopAudio();
+  }
 }
 
 function addPlayButton(row, text) {
@@ -1435,16 +1448,31 @@ document.querySelectorAll('[data-tab]').forEach((button) => button.addEventListe
 const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 if (Recognition) {
   const recognizer = new Recognition(); recognizer.lang = 'tr-TR'; recognizer.continuous = false;
+  let listening = false;
+  const closeMicrophone = () => {
+    if (listening) { listening = false; recognizer.abort(); }
+    $('mic').classList.remove('listening');
+  };
   $('mic').addEventListener('click', () => {
-    try { $('mic').classList.add('listening'); status('Dinliyor'); recognizer.start(); }
-    catch (_) { $('mic').classList.remove('listening'); }
+    if (listening) { closeMicrophone(); status('Dinleme durduruldu'); return; }
+    if (state.busy) { status('Önce mevcut yanıt tamamlansın'); return; }
+    stopAudio();
+    try { recognizer.start(); listening = true; $('mic').classList.add('listening'); status('Dinliyor'); }
+    catch (_) { closeMicrophone(); status('Mikrofon açılamadı; yazarak devam edebilirsiniz'); }
   });
   recognizer.onresult = (event) => {
     const text = event.results[0][0].transcript.trim();
     if (text) { voiceMode = true; if (!commandAction(text)) sendMessage(text); else voiceMode = false; }
   };
-  recognizer.onerror = () => status('Ses algılanamadı; klavye mikrofonunu kullanabilirsin');
-  recognizer.onend = () => $('mic').classList.remove('listening');
+  recognizer.onerror = (event) => {
+    listening = false; voiceMode = false;
+    if (event.error === 'aborted') return;
+    status(event.error === 'not-allowed' ? 'Mikrofon izni gerekli; yazarak devam edebilirsiniz'
+      : 'Ses algılanamadı; yazarak devam edebilirsiniz');
+  };
+  recognizer.onend = () => { listening = false; $('mic').classList.remove('listening'); };
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { closeMicrophone(); stopAudio(); } });
+  window.addEventListener('pagehide', () => { closeMicrophone(); stopAudio(); });
 } else $('mic').hidden = true;
 
 checkSession();

@@ -30,6 +30,7 @@ from typing import Any, Iterator
 
 import intents
 import conversation
+import turkish_reply
 
 from jarvis import conversation_memory
 
@@ -37,11 +38,11 @@ ACTION_ID_RE = re.compile(r"\b(\d{1,10})\b")
 
 STAGE_LABELS = {
     "PROPOSALS": ("Bekleyen öneriler kontrol ediliyor",),
-    "WHY": ("İlgili proposal aranıyor", "Kanıtlar okunuyor"),
-    "JUDGEMENT_GROUNDED": ("Company Memory okunuyor", "Kanıtlar değerlendiriliyor"),
+    "WHY": ("İlgili öneri aranıyor", "Kanıtlar okunuyor"),
+    "JUDGEMENT_GROUNDED": ("Şirket kayıtları okunuyor", "Kanıtlar değerlendiriliyor"),
     "JUDGEMENT_UNGROUNDED": (),
-    "INSPECT_OR_STATUS": ("Company Memory okunuyor", "Kanıtlar doğrulanıyor"),
-    "UNCLASSIFIED": ("Company Memory okunuyor",),
+    "INSPECT_OR_STATUS": ("Şirket kayıtları okunuyor", "Kanıtlar doğrulanıyor"),
+    "UNCLASSIFIED": ("Şirket kayıtları okunuyor",),
     "TASARIM": ("Şablon kütüğü okunuyor", "Üretilebilirlik denetleniyor"),
 }
 
@@ -124,7 +125,7 @@ def route(message: str, runtime, operator) -> dict[str, Any]:
     """runtime: jarvis.shadow.ShadowRunner instance. operator: jarvis.operator.OperatorSession."""
     text = (message or "").strip()
     if not text:
-        return _answer("ERROR", message="empty message")
+        return _answer("ERROR", message="Bir mesaj yazın.")
 
     capability = intents.classify(text)
 
@@ -137,21 +138,21 @@ def route(message: str, runtime, operator) -> dict[str, Any]:
     if capability == "WHY":
         match = ACTION_ID_RE.search(text)
         if not match:
-            return _answer("ERROR", message="proposal id not found in message")
+            return _answer("ERROR", message="Öneri numarası bulunamadı.")
         proposal = operator.inspect(int(match.group(1)))
         if proposal is None:
             return _answer("ANSWER", source="operator.inspect", data=None,
-                           text=f"Proposal {match.group(1)} bekleyenler arasında bulunamadı "
+                           text=f"{match.group(1)} numaralı öneri bekleyenler arasında bulunamadı "
                                 "(zaten karara bağlanmış olabilir).")
         return _answer("ANSWER", source="operator.inspect", data=proposal,
-                       text=(f"Proposal {proposal['action_id']} ({proposal['action_type']}, "
-                            f"risk {proposal['risk_class']}): {proposal['payload'].get('reason', '')}"))
+                       text=(f"{proposal['action_id']} numaralı öneri: "
+                            f"{proposal['payload'].get('reason') or 'Açıklama bulunamadı.'}"))
 
     if capability == "PROPOSALS":
         pending = operator.list_pending()
         return _answer("ANSWER", source="operator.list_pending", data=pending,
-                       text=(f"{len(pending)} bekleyen proposal var." if pending
-                             else "Bekleyen proposal yok."))
+                       text=(f"{len(pending)} öneri onayınızı bekliyor." if pending
+                             else "Bekleyen öneri yok."))
 
     # Every intent goes to the conversational router, GENERAL_REASONING
     # included. It used to be the one exception, and it fell through to the
@@ -159,6 +160,7 @@ def route(message: str, runtime, operator) -> dict[str, Any]:
     # Company Memory happened to return -- "Naber" came back as
     # "1 kayıt bulundu (kaynak: postgres:decision_summary)".
     result = conversation.route(text, runtime)
+    result = _turkish_result(result)
     _remember(text, result)
     return result
 
@@ -210,6 +212,21 @@ def _remember(message: str, result: dict[str, Any]) -> None:
                                intent=str(result.get("intent") or ""))
 
 
+def _turkish_result(result: dict[str, Any]) -> dict[str, Any]:
+    """Repair English model prose before it enters the UI or conversation history."""
+    answer = result.get("answer") or result.get("text")
+    if not isinstance(answer, str) or not turkish_reply.is_english_prose(answer):
+        return result
+
+    def rewrite(draft: str) -> str:
+        reply = conversation._router().synthesize(
+            draft, (), system=turkish_reply.REWRITE_SYSTEM, max_tokens=900)
+        return reply.answer
+
+    cleaned = turkish_reply.ensure(answer, rewrite)
+    return {**result, "answer": cleaned, "text": cleaned}
+
+
 def stream(message: str, runtime, operator) -> Iterator[dict[str, Any]]:
     """Yields {"type": "stage", "label": ...} events, then exactly one
     {"type": "done", "result": <route() output>} event.
@@ -230,12 +247,29 @@ def stream(message: str, runtime, operator) -> Iterator[dict[str, Any]]:
     decision = conversation.classify(text)
     if decision.intent in (conversation.SIMPLE_CONVERSATION,
                            conversation.GENERAL_REASONING):
-        # Conversation streams: the reply appears word by word instead of
-        # after the whole thing is generated.
+        # Inspect the opening passage before releasing tokens. Turkish answers
+        # keep streaming; English drafts remain private until rewritten.
+        opening: list[str] = []
+        streaming_turkish = False
         for frame in conversation.stream_chat(text, decision.intent):
+            if frame.get("type") == "token":
+                if streaming_turkish:
+                    yield frame
+                else:
+                    opening.append(frame.get("delta") or "")
+                    sample = "".join(opening)
+                    if len(sample) >= 140 and not turkish_reply.is_english_prose(sample):
+                        streaming_turkish = True
+                        yield {"type": "token", "delta": sample}
+                continue
             if frame.get("type") == "done":
-                _remember(text, frame.get("result") or {})
-            yield frame
+                result = _turkish_result(frame.get("result") or {})
+                _remember(text, result)
+                if not streaming_turkish:
+                    yield {"type": "token", "delta": result.get("answer") or result.get("text") or ""}
+                yield {**frame, "result": result}
+            else:
+                yield frame
         return
     for label in STAGE_LABELS.get(capability, STAGE_LABELS["UNCLASSIFIED"]):
         yield {"type": "stage", "label": label}
