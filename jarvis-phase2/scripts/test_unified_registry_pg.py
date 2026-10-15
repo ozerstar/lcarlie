@@ -11,6 +11,7 @@ sys.path.insert(0, str(ROOT / "webconsole"))
 
 from jarvis.operator import OperatorSession  # noqa: E402
 import personal_action_store as store  # noqa: E402
+import unified_actions  # noqa: E402
 
 
 def main() -> None:
@@ -25,6 +26,8 @@ def main() -> None:
     os.environ["JARVIS_MEMORY_TRANSPORT"] = "direct-pg"
     pending = OperatorSession(host=None).list_pending()
     assert all(row.get("fingerprint") for row in pending)
+    visible = unified_actions.list_pending("registry-readonly-check")
+    assert all(item["source"] == "company" for item in visible)
     print(f"Unified registry OK: {counts}; {len(pending)} pending company action(s)")
 
 
