@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -15,6 +16,11 @@ import unified_actions  # noqa: E402
 
 
 def main() -> None:
+    sql = (Path(__file__).with_name("check_unified_registry.sql")).read_text(encoding="utf-8")
+    subprocess.run(
+        ["docker", "exec", "-i", "lcarlie-postgres", "psql", "-X", "-q",
+         "-v", "ON_ERROR_STOP=1", "-U", "n8n", "-d", "n8n"],
+        input=sql, text=True, check=True, capture_output=True)
     with store._connect() as conn, conn.cursor() as cur:
         cur.execute("SELECT source,count(*) AS total FROM core.jarvis_action_registry GROUP BY source")
         counts = {row["source"]: row["total"] for row in cur.fetchall()}

@@ -27,7 +27,7 @@ class OperatorAuthorityTests(unittest.TestCase):
     def test_decide_runs_as_human_approver_only_never_ai_writer(self):
         session = OperatorSession(host=None)
         with patch.object(session, "_run", return_value=[]) as run_mock:
-            result = session.decide(1, "APPROVED", "test reason")
+            result = session.decide(1, "APPROVED", "test reason", "a" * 32)
         sql = run_mock.call_args[0][0]
         self.assertIn("SET SESSION AUTHORIZATION human_approver", sql)
         self.assertNotIn("ai_writer", sql)
@@ -37,7 +37,7 @@ class OperatorAuthorityTests(unittest.TestCase):
     def test_decide_reports_unconfirmed_if_still_pending(self):
         session = OperatorSession(host=None)
         with patch.object(session, "_run", return_value=[{"action_id": 1}]):
-            result = session.decide(1, "APPROVED", "test reason")
+            result = session.decide(1, "APPROVED", "test reason", "a" * 32)
         self.assertFalse(result["confirmed"])
         self.assertTrue(result["still_pending"])
 
@@ -63,14 +63,14 @@ class OperatorAuthorityTests(unittest.TestCase):
     def test_decide_rejects_unknown_decision(self):
         session = OperatorSession(host=None)
         with self.assertRaises(ValueError):
-            session.decide(1, "MAYBE", "reason")
+            session.decide(1, "MAYBE", "reason", "a" * 32)
 
     def test_decide_requires_a_reason(self):
         session = OperatorSession(host=None)
         with self.assertRaises(ValueError):
-            session.decide(1, "APPROVED", "")
+            session.decide(1, "APPROVED", "", "a" * 32)
         with self.assertRaises(ValueError):
-            session.decide(1, "APPROVED", "   ")
+            session.decide(1, "APPROVED", "   ", "a" * 32)
 
     def test_create_task_rejects_unknown_intent(self):
         session = OperatorSession(host=None)
@@ -91,12 +91,12 @@ class OperatorAuthorityTests(unittest.TestCase):
     def test_decide_rejects_non_integer_action_id(self):
         session = OperatorSession(host=None)
         with self.assertRaises((ValueError, TypeError)):
-            session.decide("1 OR 1=1", "APPROVED", "reason")
+            session.decide("1 OR 1=1", "APPROVED", "reason", "a" * 32)
 
     def test_reason_is_sql_escaped(self):
         session = OperatorSession(host=None)
         with patch.object(session, "_run", return_value=[{}]) as run_mock:
-            session.decide(1, "APPROVED", "it's a test")
+            session.decide(1, "APPROVED", "it's a test", "a" * 32)
         sql = run_mock.call_args[0][0]
         self.assertIn("it''s a test", sql)
 

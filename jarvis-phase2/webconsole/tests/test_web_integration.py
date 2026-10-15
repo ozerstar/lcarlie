@@ -272,21 +272,22 @@ class WebConsoleIntegrationTests(unittest.TestCase):
         self.assertEqual(resp.status, 200)
         app._operator.inspect.assert_called_with(5)
 
-    def test_approve_goes_through_operator_decide_never_raw_sql(self):
+    def test_legacy_approval_endpoint_is_closed(self):
         csrf, sid = self._login()
         app._operator.decide.return_value = {"action_id": 5, "decision": "APPROVED", "confirmed": True}
         resp, body = self._post("/api/proposals/5/decide", {"decision": "APPROVED", "reason": "test"},
                                 headers={"Cookie": f"{app.SESSION_COOKIE}={sid}", "X-CSRF-Token": csrf})
-        self.assertEqual(resp.status, 200)
-        app._operator.decide.assert_called_once_with(5, "APPROVED", "test")
+        self.assertEqual(resp.status, 410)
+        self.assertIn("Onaylar", body["error"])
+        app._operator.decide.assert_not_called()
 
-    def test_reject_goes_through_operator_decide(self):
+    def test_legacy_rejection_endpoint_is_closed(self):
         csrf, sid = self._login()
         app._operator.decide.return_value = {"action_id": 5, "decision": "REJECTED", "confirmed": True}
         resp, body = self._post("/api/proposals/5/decide", {"decision": "REJECTED", "reason": "no"},
                                 headers={"Cookie": f"{app.SESSION_COOKIE}={sid}", "X-CSRF-Token": csrf})
-        self.assertEqual(resp.status, 200)
-        app._operator.decide.assert_called_once_with(5, "REJECTED", "no")
+        self.assertEqual(resp.status, 410)
+        app._operator.decide.assert_not_called()
 
     def test_decide_requires_authentication(self):
         resp, _ = self._post("/api/proposals/5/decide", {"decision": "APPROVED", "reason": "x"})
@@ -299,7 +300,7 @@ class WebConsoleIntegrationTests(unittest.TestCase):
         # write path by checking no other operator method is invoked.
         csrf, sid = self._login()
         app._operator.decide.return_value = {"action_id": 5, "decision": "APPROVED", "confirmed": True}
-        self._post("/api/proposals/5/decide", {"decision": "APPROVED", "reason": "test"},
+        self._post("/api/actions/company:5/decide", {"decision": "APPROVED", "reason": "test", "fingerprint": "a" * 32},
                   headers={"Cookie": f"{app.SESSION_COOKIE}={sid}", "X-CSRF-Token": csrf})
         called_methods = [c[0] for c in app._operator.method_calls]
         # 🔴 Olculen niyet: decide TEK YAZMA YOLU olsun. Salt okur

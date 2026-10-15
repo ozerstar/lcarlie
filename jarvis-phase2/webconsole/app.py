@@ -2609,21 +2609,7 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if path.startswith("/api/proposals/") and path.endswith("/decide"):
-            action_id = path.split("/")[-2]
-            body = _read_json_body(self)
-            decision = str(body.get("decision", ""))
-            reason = str(body.get("reason", ""))[:2000]
-            try:
-                konu = self._kreatif_konusu(int(action_id))
-                result = _operator.decide(int(action_id), decision, reason)
-                baslatilan = self._kreatif_uretimi_baslat(konu, result)
-                if baslatilan:
-                    result = {**result, "kreatif_uretimi": baslatilan}
-                self._send_json(200, result)
-            except ValueError as exc:
-                self._send_json(400, {"error": str(exc)})
-            except JarvisMemoryError as exc:
-                self._send_json(502, {"error": str(exc)})
+            self._send_json(410, {"error": "Bu eski onay yolu kapatıldı. İşlemi Onaylar ekranında yeniden açın."})
             return
 
         if path.startswith("/api/actions/") and path.endswith("/decide"):

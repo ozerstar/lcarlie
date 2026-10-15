@@ -1287,7 +1287,7 @@ $('refresh-system').addEventListener('click', loadSystem);
 async function loadDailySummary() {
   const container = $('daily-summary');
   const results = await Promise.allSettled([
-    readApi('/api/isler'), readApi('/api/proposals'), readApi('/api/mobile/reminders'), readApi('/api/satislar')]);
+    readApi('/api/isler'), readApi('/api/actions'), readApi('/api/mobile/reminders'), readApi('/api/satislar')]);
   container.replaceChildren();
   const jobs = results[0].status === 'fulfilled' ? results[0].value : null;
   const proposals = results[1].status === 'fulfilled' ? results[1].value : null;

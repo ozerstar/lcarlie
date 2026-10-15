@@ -3,8 +3,8 @@
 Usage:
   jarvis-operator list
   jarvis-operator inspect <action_id>
-  jarvis-operator approve <action_id> "<reason>"
-  jarvis-operator reject  <action_id> "<reason>"
+  jarvis-operator approve <action_id> "<reason>" <fingerprint>
+  jarvis-operator reject  <action_id> "<reason>" <fingerprint>
   jarvis-operator create-task <INTERNAL_INTENT> <slug>
   jarvis-operator create-coding-task <slug> <spec.json>
 
@@ -59,11 +59,11 @@ def main() -> int:
         return 0
 
     if command in ("approve", "reject"):
-        if len(args) < 3:
-            print(f"usage: jarvis-operator {command} <action_id> \"<reason>\"")
+        if len(args) != 4:
+            print(f"usage: jarvis-operator {command} <action_id> \"<reason>\" <fingerprint>")
             return 1
         decision = "APPROVED" if command == "approve" else "REJECTED"
-        result = session.decide(args[1], decision, args[2])
+        result = session.decide(args[1], decision, args[2], expected_hash=args[3])
         _print(result)
         return 0
 
