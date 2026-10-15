@@ -473,9 +473,14 @@ async function refreshStatus() {
  * into one line -- a presentation-only fold, nothing is dropped from
  * state/audit.jsonl. */
 const SIGNAL_TAG = {
-  red_team_objection: ['KANIT İTİRAZI', 'f-redteam'],
-  approval_backlog: ['ONAY', 'f-onay'],
-  open_work_aging: ['OPERASYON', 'f-operasyon'],
+  red_team_objection: ['KARAR RİSKİ', 'f-redteam'],
+  approval_backlog: ['ONAY BEKLİYOR', 'f-onay'],
+  open_work_aging: ['GECİKEN İŞLER', 'f-operasyon'],
+  open_work_concentration: ['İŞ YÜKÜ', 'f-operasyon'],
+  agenda_aging: ['GÜNDEM', 'f-onay'],
+  site_erisim: ['SİTE ERİŞİMİ', 'f-operasyon'],
+  site_gerileme: ['SİTE HIZI', 'f-operasyon'],
+  site_seo: ['ARAMA GÖRÜNÜRLÜĞÜ', 'f-onay'],
 };
 const AUDIT_TAG = {
   PROPOSED: ['ÖNERİ', 'f-oneri'],
@@ -489,25 +494,76 @@ const AUDIT_TAG = {
 function auditText(row) {
   const detail = row.task_detail || {};
   switch (row.result) {
-    case 'NOOP': return 'Company Memory kontrol edildi — değişiklik yok';
-    case 'PROPOSED': return `Öneri oluşturuldu (${detail.action_type || '—'})`;
-    case 'SKIPPED_NOT_MINE': return 'Farklı bir görev tipi tespit edildi, dokunulmadı';
-    case 'FIREWALL_REJECTED': return 'Bir görev firewall tarafından reddedildi';
-    case 'CLAIM_FAILED': return 'Görev alma başarısız';
-    case 'CODING_TASK_DENIED': return 'Kodlama görevi reddedildi';
-    default: return row.result || '—';
+    case 'PROPOSED': return 'İncelemeniz için yeni bir öneri hazırlandı; henüz uygulanmadı.';
+    case 'SKIPPED_NOT_MINE': return 'Bu iş farklı bir ekibe ait olduğu için işlem yapılmadı.';
+    case 'FIREWALL_REJECTED': return 'Güvenlik kuralı bu işlemi durdurdu; işlem uygulanmadı.';
+    case 'CLAIM_FAILED': return 'İş alınamadı; yeniden kontrol edilmesi gerekiyor.';
+    case 'CODING_TASK_DENIED': return 'Kod değişikliği yetki sınırına takıldı; uygulanmadı.';
+    default: return 'Bir sistem işlemi kaydedildi.';
   }
 }
 function auditSub(row) {
   const detail = row.task_detail || {};
   const bits = [];
-  if (detail.task_id) bits.push(`görev ${detail.task_id}`);
-  if (detail.proposal_id) bits.push(`öneri ${detail.proposal_id}`);
-  if (detail.error) bits.push(detail.error);
-  if (row.business && row.business.codes && row.business.codes.length) {
-    bits.push(`sinyal: ${row.business.codes.join(', ')}`);
-  }
+  if (detail.task_id) bits.push(`İş #${detail.task_id}`);
+  if (detail.proposal_id) bits.push(`Öneri #${detail.proposal_id}`);
   return bits.join(' · ');
+}
+
+function findingText(finding) {
+  const evidence = finding.evidence || {};
+  const address = evidence.url ? String(evidence.url).replace(/^https?:\/\//, '') : '';
+  if (finding.signal_code === 'red_team_objection' && evidence.red_team_itirazi) {
+    return `${evidence.red_team_itirazi} denetim itirazı açık; ilgili kararlar bu itirazlar incelenmeden uygulanmamalı.`;
+  }
+  if (finding.signal_code === 'approval_backlog' && evidence.insan_onayi_bekleyen) {
+    return `${evidence.insan_onayi_bekleyen} karar sizin onayınızı bekliyor. Onaylanmadan dışarı dönük işlem yapılmayacak.`;
+  }
+  if (finding.signal_code === 'open_work_aging' && evidence.stale_count) {
+    return `${evidence.stale_count} iş bir haftadan uzun süredir açık. En eskisi yaklaşık ${Math.round(Number(evidence.oldest_days) || 0)} gündür bekliyor.`;
+  }
+  if (finding.signal_code === 'agenda_aging' && evidence.stale_count) {
+    return `${evidence.stale_count} gündem maddesi iki haftadan uzun süredir açık; karar verilmesi gerekebilir.`;
+  }
+  if (finding.signal_code === 'site_gerileme' && address) {
+    const current = Number(evidence.sure);
+    const previous = Number(evidence.onceki_sure);
+    if (Number.isFinite(current) && Number.isFinite(previous)) {
+      return `${address} sayfası yavaşladı: açılış süresi ${Math.round(previous * 10) / 10} saniyeden ${Math.round(current * 10) / 10} saniyeye çıktı.`;
+    }
+  }
+  if (finding.signal_code === 'site_erisim' && address) {
+    if (String(finding.reason || '').startsWith('Önceki HTTP hatası kapandı')) {
+      return `${address} sayfası yeniden açılıyor; önceki erişim hatası giderilmiş görünüyor.`;
+    }
+    return `${address} sayfasına erişimde hata görüldü; bağlantı kontrol edilmeli.`;
+  }
+  if (finding.signal_code === 'site_seo' && address) {
+    if (evidence.meta_refresh !== undefined) {
+      return `${address} adresi kalıcı yönlendirme yerine sayfa içi yönlendirme kullanıyor; arama görünürlüğü etkilenebilir.`;
+    }
+    if (String(finding.reason || '').includes('meta description')) {
+      return `${address} sayfasının arama sonuçlarında görünen açıklaması eksik.`;
+    }
+  }
+  if (finding.signal_code === 'open_work_concentration') {
+    const count = Number(evidence.count);
+    const kinds = {
+      CEVAPSIZ_MESAJ: 'yanıt bekleyen mesajlarda',
+      URUN_GORSELSIZ: 'görseli eksik ürünlerde',
+      ODENMEMIS_SIPARIS: 'ödenmemiş siparişlerde',
+      FILIGRANLI_KARANTINA: 'inceleme bekleyen görsellerde',
+      SINIFI_BILINMEYEN_GONDERI: 'sınıflandırılmamış gönderilerde',
+    };
+    const area = kinds[evidence.kind] || 'tek bir alanda';
+    if (Number.isFinite(count) && count > 0) return `${count} açık iş ${area} birikmiş; görev dağılımı gözden geçirilmeli.`;
+  }
+  return String(finding.reason || 'Yeni bir bulgu kaydedildi.').replace(/red-team/gi, 'denetim ekibi');
+}
+
+function findingSub(finding) {
+  const importance = { CRITICAL: 'Acil', WARN: 'Dikkat', WARNING: 'Dikkat', INFO: 'Bilgi' };
+  return importance[finding.severity] ? `Önem: ${importance[finding.severity]}` : '';
 }
 
 function feedItem({ cls, tag, meta, text, sub }) {
@@ -518,53 +574,38 @@ function feedItem({ cls, tag, meta, text, sub }) {
 }
 
 function buildFindingItems(findings) {
-  return findings.slice().reverse().map((f) => {
+  const seen = new Set();
+  return findings.slice().reverse().filter((finding) => {
+    const code = finding.signal_code || finding.signature || finding.reason;
+    if (seen.has(code)) return false;
+    seen.add(code);
+    return true;
+  }).slice(0, 10).map((f) => {
     const [tag, cls] = SIGNAL_TAG[f.signal_code]
-      || [f.severity === 'CRITICAL' ? 'KRİTİK' : 'BULGU', f.severity === 'CRITICAL' ? 'f-redteam' : 'f-onay'];
+      || [f.severity === 'CRITICAL' ? 'ACİL BULGU' : 'YENİ BULGU', f.severity === 'CRITICAL' ? 'f-redteam' : 'f-onay'];
     return feedItem({
       cls, tag,
       meta: fmtDateTime(f.observed_at),
-      text: f.reason || f.signature || '—',
-      sub: f.severity ? `önem: ${f.severity}` : '',
+      text: findingText(f),
+      sub: findingSub(f),
     });
   });
 }
 
 function buildAuditItems(audit) {
-  const rows = audit.slice().reverse();  // newest cycle first
-  const items = [];
-  let i = 0;
-  while (i < rows.length) {
-    const row = rows[i];
-    if (row.result === 'NOOP') {
-      let j = i;
-      while (j < rows.length && rows[j].result === 'NOOP') j += 1;
-      const run = rows.slice(i, j);
-      const newest = run[0].cycle;
-      const oldest = run[run.length - 1].cycle;
-      items.push(feedItem({
-        cls: 'f-sistem', tag: 'SİSTEM',
-        meta: run.length > 1 ? `DÖNGÜ #${oldest}–#${newest}` : `DÖNGÜ #${newest}`,
-        text: auditText(run[0]),
-        sub: run.length > 1 ? `${run.length} döngü tek satırda toplandı` : auditSub(run[0]),
-      }));
-      i = j;
-      continue;
-    }
+  return audit.slice().reverse().filter((row) => row.result !== 'NOOP').slice(0, 5).map((row) => {
     const [tag, cls] = AUDIT_TAG[row.result] || ['SİSTEM', 'f-sistem'];
-    items.push(feedItem({
+    return feedItem({
       cls, tag,
       meta: `DÖNGÜ #${row.cycle}`,
       text: auditText(row),
       sub: auditSub(row),
-    }));
-    i += 1;
-  }
-  return items;
+    });
+  });
 }
 
 async function refreshActivity() {
-  const { ok, body } = await api('/api/activity?limit=60');
+  const { ok, body } = await api('/api/activity?limit=200');
   if (!ok || !body) return;
   state.lastActivity = body;
 
@@ -573,14 +614,14 @@ async function refreshActivity() {
   const all = findingItems.concat(auditItems);
 
   const feed = qs('activityFeed');
-  feed.innerHTML = all.length ? all.join('') : '<li class="f-sistem"><div class="f-text">Henüz kayıtlı etkinlik yok.</div></li>';
-  qs('feedCount').textContent = `${(body.findings || []).length} bulgu · ${(body.audit || []).length} döngü`;
+  feed.innerHTML = all.length ? all.join('') : '<li class="f-sistem"><div class="f-text">Şu anda dikkat gerektiren yeni bir bulgu yok.</div></li>';
+  qs('feedCount').textContent = `${findingItems.length} konu`;
 
   const cycleList = qs('taskCycleList');
   if (cycleList) {
     cycleList.innerHTML = auditItems.length ? auditItems.join('')
-      : '<li class="f-sistem"><div class="f-text">Henüz döngü kaydı yok.</div></li>';
-    qs('taskCycleCount').textContent = `${(body.audit || []).length} kayıt`;
+      : '<li class="f-sistem"><div class="f-text">Son kontrollerde işlem gerektiren kayıt yok.</div></li>';
+    qs('taskCycleCount').textContent = `${auditItems.length} işlem`;
   }
 }
 
@@ -5548,6 +5589,8 @@ async function musteriKartAc(kimlik, btn) {
      çalışmamalı, yoksa iki mekanizma birbirini iptal eder. */
   nav.addEventListener('click', function (e) {
     if (!masaustu.matches) return;
+    // Sidebar headings use the accordion handler instead of the old dropdown.
+    if (document.querySelector('.ed-dashboard')) return;
     var bas = e.target.closest('.nav-head');
     if (!bas || !nav.contains(bas)) return;
     e.preventDefault();
