@@ -97,8 +97,10 @@ class OperatorSession:
     def list_pending(self) -> list[dict[str, Any]]:
         sql = ("BEGIN; SET SESSION AUTHORIZATION human_approver; "
                "SELECT row_to_json(x) FROM ("
-               "SELECT action_id,task_id,action_type,payload,risk_class,"
-               "policy_version,proposed_at,expires_at FROM core.ai_get_pending_actions() "
+               "SELECT p.action_id,p.task_id,p.action_type,p.payload,p.risk_class,"
+               "p.policy_version,p.proposed_at,p.expires_at,"
+               "r.payload_hash AS fingerprint FROM core.ai_get_pending_actions() p "
+               "JOIN core.jarvis_action_registry r ON r.action_key='company:'||p.action_id "
                "ORDER BY proposed_at) x; ROLLBACK;")
         return self._run(sql)
 
@@ -113,20 +115,31 @@ class OperatorSession:
         return None
 
     # -- the only write path, and only as human_approver ------------------
-    def decide(self, action_id: int, decision: str, reason: str) -> dict[str, Any]:
+    def decide(self, action_id: int, decision: str, reason: str,
+               expected_hash: str | None = None) -> dict[str, Any]:
         if decision not in ("APPROVED", "REJECTED"):
             raise ValueError("decision must be APPROVED or REJECTED")
         action_id = int(action_id)
         if not reason or not reason.strip():
             raise ValueError("a reason is required")
+        if expected_hash is not None and not re.fullmatch(r"[0-9a-f]{32,64}", expected_hash):
+            raise ValueError("invalid action fingerprint")
         escaped_reason = reason.replace("'", "''")
         # ai_action_proposal cannot be read back directly (owner-only table
         # grant), so the decision is confirmed by re-checking the pending
         # list in the SAME session: a successful APPROVE/REJECT always
         # removes the action_id from it.
+        if expected_hash is None:
+            # Trusted CLI and older desktop clients keep their current path.
+            # The unified mobile surface passes the fingerprint explicitly.
+            function_call = (f"core.ai_decide_action({action_id}, '{decision}', "
+                             f"'{escaped_reason}')")
+        else:
+            function_call = (f"core.jarvis_decide_company_action({action_id}, '{decision}', "
+                             f"'{escaped_reason}', '{expected_hash}')")
         sql = (
             "BEGIN; SET SESSION AUTHORIZATION human_approver; "
-            f"SELECT core.ai_decide_action({action_id}, '{decision}', '{escaped_reason}'); "
+            f"SELECT {function_call}; "
             "SELECT row_to_json(x) FROM (SELECT action_id FROM core.ai_get_pending_actions() "
             f"WHERE action_id={action_id}) x; COMMIT;"
         )

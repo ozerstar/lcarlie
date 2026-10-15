@@ -1176,17 +1176,18 @@ $('job-form').addEventListener('submit', async (event) => {
 
 async function loadApprovals() {
   try {
-    const data = await readApi('/api/proposals');
+    const data = await readApi('/api/actions');
     const list = $('approval-list'); list.replaceChildren();
     const pending = data.pending || [];
     $('approval-count').textContent = String(pending.length);
     $('approval-count').hidden = pending.length === 0;
     $('home-approval-count').textContent = String(pending.length);
     for (const proposal of pending) {
-      const card = mobileCard(approvalTitle(proposal), 'Ayrıntıları inceleyip karar verin.',
+      const card = mobileCard(approvalTitle(proposal), proposal.status === 'UNCERTAIN'
+        ? 'Sonuç belirsiz. Dış hesapta kontrol edin.' : 'Ayrıntıları inceleyip karar verin.',
         `Risk: ${approvalRisk(proposal.risk_class)} · ${approvalDate(proposal.proposed_at)}`);
       const button = document.createElement('button'); button.textContent = 'Öneriyi incele';
-      button.addEventListener('click', () => openMobileProposal(proposal.action_id));
+      button.addEventListener('click', () => openMobileProposal(proposal.key));
       card.append(button); list.append(card);
     }
     if (!pending.length) empty(list, 'Bekleyen onay yok.');
@@ -1199,7 +1200,7 @@ async function loadApprovals() {
 
 async function openMobileProposal(id) {
   try {
-    const proposal = await readApi(`/api/proposals/${id}`);
+    const proposal = await readApi(`/api/actions/${id}`);
     selectedProposal = proposal;
     const title = approvalTitle(proposal);
     const reason = String(proposal.payload?.reason || '').trim();
@@ -1231,7 +1232,8 @@ async function openMobileProposal(id) {
     const summary = document.createElement('summary'); summary.textContent = 'Teknik kayıt';
     const raw = document.createElement('pre'); raw.textContent = JSON.stringify(proposal.payload || {}, null, 2);
     technical.append(summary, raw); detail.append(technical);
-    $('approval-approve').disabled = !reason;
+    $('approval-approve').disabled = !reason || proposal.status !== 'AWAITING_APPROVAL';
+    $('approval-reject').disabled = proposal.status !== 'AWAITING_APPROVAL';
     $('approval-reason').value = '';
     $('approval-dialog').showModal();
   } catch (error) { status(friendlyMessage(error.message)); }
@@ -1240,12 +1242,14 @@ async function openMobileProposal(id) {
 $('approval-close').addEventListener('click', () => $('approval-dialog').close());
 async function decideMobile(decision) {
   if (!selectedProposal) return;
-  const id = selectedProposal.action_id;
+  if (selectedProposal.status !== 'AWAITING_APPROVAL') return;
+  const id = selectedProposal.key;
   const title = approvalTitle(selectedProposal);
   if (!window.confirm(`#${id} · ${title}\n\n${decision === 'APPROVED' ? 'Bu öneriyi onaylayıp kabul etmek istiyor musun?' : 'Bu öneriyi reddetmek istiyor musun?'}`)) return;
   const reason = $('approval-reason').value.trim() || (decision === 'APPROVED' ? 'Mobil operatör onayı' : 'Mobil operatör reddi');
   try {
-    await readApi(`/api/proposals/${id}/decide`, { method: 'POST', body: JSON.stringify({ decision, reason }) });
+    await readApi(`/api/actions/${id}/decide`, { method: 'POST', body: JSON.stringify({
+      decision, reason, fingerprint:selectedProposal.fingerprint }) });
     selectedProposal = null; $('approval-dialog').close();
     await loadApprovals(); status(decision === 'APPROVED' ? 'Onay kaydedildi' : 'Ret kaydedildi');
   } catch (error) { status(friendlyMessage(error.message)); }

@@ -41,6 +41,16 @@ class OperatorAuthorityTests(unittest.TestCase):
         self.assertFalse(result["confirmed"])
         self.assertTrue(result["still_pending"])
 
+    def test_displayed_fingerprint_uses_bound_company_decision(self):
+        session = OperatorSession(host=None)
+        with patch.object(session, "_run", return_value=[]) as run_mock:
+            session.decide(5, "APPROVED", "reviewed", expected_hash="a" * 32)
+        sql = run_mock.call_args[0][0]
+        self.assertIn("core.jarvis_decide_company_action", sql)
+        self.assertIn("'" + "a" * 32 + "'", sql)
+        with self.assertRaises(ValueError):
+            session.decide(5, "APPROVED", "reviewed", expected_hash="wrong")
+
     def test_create_task_runs_as_human_approver_never_ai_writer(self):
         session = OperatorSession(host=None)
         with patch.object(session, "_run", return_value=[42]) as run_mock:

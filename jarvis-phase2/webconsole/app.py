@@ -77,6 +77,7 @@ import chat  # noqa: E402
 import personal_chat  # noqa: E402
 import mobile_features  # noqa: E402
 import google_workspace  # noqa: E402
+import unified_actions  # noqa: E402
 import personal_planner  # noqa: E402
 
 STATE_DIR = Path(os.environ.get("JARVIS_STATE_DIR", "/opt/lcarlie/jarvis-phase2/state"))
@@ -1847,6 +1848,25 @@ class Handler(BaseHTTPRequestHandler):
                 return
             self._send_json(200, builder())
             return
+        if path == "/api/actions":
+            try:
+                self._send_json(200, {"pending": unified_actions.list_pending(
+                    _operator, session.username)})
+            except (JarvisMemoryError, google_workspace.GoogleError, OSError):
+                self._send_json(503, {"error": "İşlem listesi şu anda yüklenemedi."})
+            return
+        if path.startswith("/api/actions/"):
+            try:
+                action = unified_actions.inspect(_operator, session.username,
+                                                 path.removeprefix("/api/actions/"))
+            except ValueError as exc:
+                self._send_json(400, {"error": str(exc)})
+                return
+            except (JarvisMemoryError, google_workspace.GoogleError, OSError):
+                self._send_json(503, {"error": "İşlem şu anda okunamadı."})
+                return
+            self._send_json(200, action) if action else self._send_json(404, {"error": "İşlem bulunamadı."})
+            return
         if path == "/api/proposals":
             try:
                 pending = _operator.list_pending()
@@ -2586,6 +2606,33 @@ class Handler(BaseHTTPRequestHandler):
                         "görevi alınca ÖNERİLER'de görünecek. Onay, "
                         "değişikliğin yapılmasına karar verildiğini kaydeder; "
                         "Wix/Trendyol tarafında değişikliği insan uygular.")})
+            return
+
+        if path.startswith("/api/actions/") and path.endswith("/decide"):
+            body = _read_json_body(self)
+            decision = str(body.get("decision") or "")
+            reason = str(body.get("reason") or "")[:2000]
+            fingerprint = body.get("fingerprint")
+            try:
+                source, identifier = unified_actions.parse_key(
+                    path[len("/api/actions/"):-len("/decide")])
+                if not fingerprint:
+                    raise ValueError("Onay ayrıntılarını yeniden açın.")
+                if source == "company":
+                    subject = self._kreatif_konusu(int(identifier))
+                    result = _operator.decide(int(identifier), decision, reason,
+                                              expected_hash=fingerprint)
+                    started = self._kreatif_uretimi_baslat(subject, result)
+                    if started:
+                        result = {**result, "kreatif_uretimi": started}
+                else:
+                    result = google_workspace.decide(session.username, identifier,
+                                                     decision, fingerprint)
+                self._send_json(200, result)
+            except (ValueError, google_workspace.GoogleError) as exc:
+                self._send_json(400, {"error": str(exc)})
+            except JarvisMemoryError:
+                self._send_json(409, {"error": "Onay kaydedilemedi. İşlemin güncel durumunu kontrol edin."})
             return
 
         if path.startswith("/api/proposals/") and path.endswith("/decide"):

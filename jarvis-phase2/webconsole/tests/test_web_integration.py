@@ -229,6 +229,37 @@ class WebConsoleIntegrationTests(unittest.TestCase):
         self.assertIn(resp.status, (404, 400))
 
     # -- proposals / human approval boundary --------------------------------
+    def test_unified_actions_lists_both_sources(self):
+        csrf, sid = self._login()
+        app._operator.list_pending.return_value = [{"action_id": 5, "action_type": "REQUEST_HUMAN_REVIEW",
+            "payload": {"reason": "Şirket önerisi"}, "fingerprint": "a" * 32}]
+        with patch.object(app.google_workspace, "pending_actions", return_value=[{
+                "id": "b" * 32, "kind": "gmail.send", "description": "E-posta",
+                "details": "Alıcı ve içerik", "status": "AWAITING_APPROVAL",
+                "fingerprint": "c" * 64}]):
+            resp, body = self._get("/api/actions", headers={"Cookie": f"{app.SESSION_COOKIE}={sid}"})
+        self.assertEqual(resp.status, 200)
+        self.assertEqual([item["key"] for item in body["pending"]], ["company:5", "personal:" + "b" * 32])
+
+    def test_unified_company_decision_binds_fingerprint(self):
+        csrf, sid = self._login()
+        app._operator.decide.return_value = {"action_id": 5, "decision": "REJECTED", "confirmed": True}
+        with patch.object(app.Handler, "_kreatif_konusu", return_value=""):
+            resp, _ = self._post("/api/actions/company:5/decide", {
+                "decision": "REJECTED", "reason": "Uygun değil", "fingerprint": "a" * 32},
+                headers={"Cookie": f"{app.SESSION_COOKIE}={sid}", "X-CSRF-Token": csrf})
+        self.assertEqual(resp.status, 200)
+        app._operator.decide.assert_called_once_with(5, "REJECTED", "Uygun değil",
+                                                     expected_hash="a" * 32)
+
+    def test_unified_decision_rejects_missing_fingerprint(self):
+        csrf, sid = self._login()
+        resp, _ = self._post("/api/actions/company:5/decide", {
+            "decision": "APPROVED", "reason": "Evet"},
+            headers={"Cookie": f"{app.SESSION_COOKIE}={sid}", "X-CSRF-Token": csrf})
+        self.assertEqual(resp.status, 400)
+        app._operator.decide.assert_not_called()
+
     def test_proposal_list_reaches_operator_not_raw_db(self):
         csrf, sid = self._login()
         app._operator.list_pending.return_value = [{"action_id": 1, "action_type": "REQUEST_HUMAN_REVIEW"}]
