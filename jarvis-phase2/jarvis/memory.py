@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-import subprocess
+from jarvis.db_transport import run as db_run
 from dataclasses import dataclass
 from time import perf_counter
 from typing import Any
@@ -486,7 +486,7 @@ class CompanyMemory:
             ["docker exec lcarlie-postgres psql -X -q -v ON_ERROR_STOP=1 -U n8n -d n8n -Atc", f'"{sql}"']
         )] if self.host else psql)
         started = perf_counter()
-        result = subprocess.run(
+        result = db_run(
             command, capture_output=True, text=True,
             timeout=self.timeout_s, check=False,
         )

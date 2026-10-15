@@ -33,7 +33,7 @@ from __future__ import annotations
 
 import json
 import secrets
-import subprocess
+from jarvis.db_transport import run as db_run
 from typing import Any
 
 from jarvis.basitkargo import Kargo, KargoHatasi
@@ -62,7 +62,7 @@ def _psql(sql: str, zaman: int = 20) -> tuple[int, str]:
     etiketli dolar-tırnak.
     """
     try:
-        r = subprocess.run(
+        r = db_run(
             ["docker", "exec", "-i", "lcarlie-postgres", "psql", "-X", "-q",
              "-U", "n8n", "-d", "n8n", "-f", "-"],
             input=sql, capture_output=True, text=True, timeout=zaman, check=False)
@@ -88,7 +88,7 @@ def _sayi(x: Any) -> float | None:
 
 
 def _oku(sql: str) -> list[dict]:
-    r = subprocess.run(
+    r = db_run(
         ["docker", "exec", "-i", "lcarlie-postgres", "psql", "-X", "-A", "-t",
          "-U", "n8n", "-d", "n8n", "-c", sql],
         capture_output=True, text=True, timeout=25, check=False)
@@ -389,7 +389,7 @@ def _karar_yaz(siparis_id: str, tasiyici: str, ucret: float | None,
            f"  FROM (SELECT ${etiket}${yuk}${etiket}$::jsonb AS j) t\n"
            "RETURNING karar_id;\n"
            "COMMIT;\n")
-    r = subprocess.run(
+    r = db_run(
         ["docker", "exec", "-i", "lcarlie-postgres", "psql", "-X", "-q",
          "-U", "n8n", "-d", "n8n", "-f", "-"],
         input=sql, capture_output=True, text=True, timeout=20, check=False)

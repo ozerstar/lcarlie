@@ -22,11 +22,11 @@ yere düşmez. Panel bu ayrımı açıkça yazar.
 from __future__ import annotations
 
 import json
-import subprocess
+from jarvis.db_transport import run as db_run
 
 
 def _oku(sql: str, zaman: int = 25) -> list[dict]:
-    r = subprocess.run(
+    r = db_run(
         ["docker", "exec", "-i", "lcarlie-postgres", "psql", "-X", "-A", "-t",
          "-U", "n8n", "-d", "n8n", "-c", sql],
         capture_output=True, text=True, timeout=zaman, check=False)

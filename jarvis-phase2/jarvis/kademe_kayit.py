@@ -12,7 +12,7 @@ ortası.
 from __future__ import annotations
 
 import json
-import subprocess
+from jarvis.db_transport import run as db_run
 import time
 
 ONBELLEK_SN = 60.0
@@ -39,7 +39,7 @@ _onbellek_kaynak = "henuz-okunmadi"
 
 def _tablodan_oku() -> dict[str, str] | None:
     try:
-        r = subprocess.run(
+        r = db_run(
             ["docker", "exec", "-i", "lcarlie-postgres", "psql", "-X", "-A", "-t",
              "-U", "n8n", "-d", "n8n", "-c",
              "SELECT row_to_json(x) FROM (SELECT is_anahtari, kademe"

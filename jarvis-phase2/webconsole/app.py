@@ -41,6 +41,8 @@ JARVIS_ROOT = HERE.parent
 sys.path.insert(0, str(JARVIS_ROOT))
 sys.path.insert(0, str(HERE))
 
+from jarvis.db_transport import run as db_run  # noqa: E402
+
 os.environ.setdefault("JARVIS_ENABLED", "true")
 os.environ.setdefault("JARVIS_MODE", "SHADOW")
 os.environ.setdefault("EXTERNAL_ACTIONS", "false")
@@ -411,7 +413,7 @@ def _sql_oku(sql: str, rol: str = "ai_reader", zaman: int = 25) -> list[dict]:
     """Salt okuma. row_to_json satirlarini dict listesine cevirir."""
     tam = (f"\\set ON_ERROR_STOP on\nBEGIN;\n"
            f"SET SESSION AUTHORIZATION {rol};\n{sql}\nCOMMIT;\n")
-    p = subprocess.run(
+    p = db_run(
         ["docker", "exec", "-i", "lcarlie-postgres", "psql", "-X", "-q", "-At",
          "-U", "n8n", "-d", "n8n", "-f", "-"],
         input=tam, capture_output=True, text=True, timeout=zaman, check=False)
@@ -576,7 +578,7 @@ def _gonderi_notu_ekle(siparis_ref: str, tur: str, alici: str, urun_adi: str,
         f"  FROM (SELECT ${etiket}${yuk}${etiket}$::jsonb AS j) t;\n"
         "COMMIT;\n")
     try:
-        r = subprocess.run(
+        r = db_run(
             ["docker", "exec", "-i", "lcarlie-postgres", "psql", "-X", "-q",
              "-U", "n8n", "-d", "n8n", "-f", "-"],
             input=sql, capture_output=True, text=True, timeout=20, check=False)
@@ -620,7 +622,7 @@ def _stok_sayim_ekle(urun_adi: str, adet, nerede: str, not_metni: str,
         f"  FROM (SELECT ${etiket}${yuk}${etiket}$::jsonb AS j) t;\n"
         "COMMIT;\n")
     try:
-        r = subprocess.run(
+        r = db_run(
             ["docker", "exec", "-i", "lcarlie-postgres", "psql", "-X", "-q",
              "-U", "n8n", "-d", "n8n", "-f", "-"],
             input=sql, capture_output=True, text=True, timeout=20, check=False)
@@ -642,7 +644,7 @@ def _etiket_belgesi(siparisler: list) -> dict:
     if not idler:
         return {"hata": "etiketi alınacak gönderi seçilmedi"}
     try:
-        r = subprocess.run(
+        r = db_run(
             ["/opt/lcarlie/jarvis-phase2/venv/bin/python",
              "/opt/lcarlie/jarvis-phase2/scripts/kargo-etiket.py", *idler],
             capture_output=True, text=True, timeout=180, check=False,
@@ -1121,7 +1123,7 @@ class Handler(BaseHTTPRequestHandler):
                 subprocess.Popen(
                     ["/bin/bash", str(betik), parti],
                     cwd=str(betik.parent.parent),
-                    env={**os.environ, "JARVIS_MEMORY_TRANSPORT": "local-docker"},
+                    env=os.environ.copy(),
                     stdout=f, stderr=f, stdin=subprocess.DEVNULL,
                     start_new_session=True)
         except OSError as hata:
@@ -2007,7 +2009,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(400, {"error": "device not registered"})
                 return
             try:
-                result = subprocess.run([
+                result = db_run([
                     str(JARVIS_ROOT / "venv-push/bin/python"),
                     str(JARVIS_ROOT / "scripts/push-send.py"), "--test",
                     push_store.subscription_id(endpoint),
@@ -3202,7 +3204,7 @@ def _pazar_bulgu_ekle(kod: str, seviye: str, bulgu: str, kaynak: str,
         "COMMIT;\n"
     )
     try:
-        sonuc = subprocess.run(
+        sonuc = db_run(
             ["docker", "exec", "-i", "lcarlie-postgres", "psql", "-X", "-q",
              "-U", "n8n", "-d", "n8n", "-f", "-"],
             input=sql, capture_output=True, text=True, timeout=20, check=False)

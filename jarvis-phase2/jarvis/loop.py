@@ -40,7 +40,7 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
+from jarvis.db_transport import run as db_run
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from hashlib import sha256
@@ -134,7 +134,7 @@ def _psql(sql: str, host: str | None, role: str | None = None, timeout_s: int = 
         ["docker exec lcarlie-postgres psql -X -q -v ON_ERROR_STOP=1 -U n8n -d n8n -Atc",
          f'"{wrapped}"']
     )] if host else psql)
-    result = subprocess.run(command, capture_output=True, text=True, timeout=timeout_s, check=False)
+    result = db_run(command, capture_output=True, text=True, timeout=timeout_s, check=False)
     if result.returncode:
         raise MemoryError(result.stderr.strip() or "loop query failed")
     rows = []

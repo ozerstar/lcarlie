@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
+from jarvis.db_transport import run as db_run
 from pathlib import Path
 
 KAP = "lcarlie-postgres"
@@ -51,7 +51,7 @@ def _yol() -> Path:
 
 
 def _oku(sql: str, zaman: int = 30) -> list[dict]:
-    p = subprocess.run(
+    p = db_run(
         ["docker", "exec", "-i", KAP, "psql", "-X", "-q", "-At",
          "-U", "n8n", "-d", "n8n", "-f", "-"],
         input="\\set ON_ERROR_STOP on\n" + sql + "\n",
@@ -76,7 +76,7 @@ def _yaz(sql: str, degiskenler: dict, zaman: int = 30) -> list[dict]:
     for ad, deger in degiskenler.items():
         komut += ["-v", "%s=%s" % (ad, "" if deger is None else str(deger))]
     komut += ["-f", "-"]
-    p = subprocess.run(komut, input="\\set ON_ERROR_STOP on\n" + sql + "\n",
+    p = db_run(komut, input="\\set ON_ERROR_STOP on\n" + sql + "\n",
                        capture_output=True, text=True, timeout=zaman, check=False)
     if p.returncode:
         raise KatalogHatasi((p.stderr or p.stdout).strip()[:300])

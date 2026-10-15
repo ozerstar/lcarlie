@@ -23,7 +23,7 @@ kaynak_url'si var; panelde bağlantısıyla birlikte veriliyor ki sahip
 from __future__ import annotations
 
 import json
-import subprocess
+from jarvis.db_transport import run as db_run
 from typing import Any
 
 
@@ -32,7 +32,7 @@ class AsistanHatasi(Exception):
 
 
 def _oku(sql: str) -> list[dict]:
-    r = subprocess.run(
+    r = db_run(
         ["docker", "exec", "-i", "lcarlie-postgres", "psql", "-X", "-A", "-t",
          "-U", "n8n", "-d", "n8n", "-c", sql],
         capture_output=True, text=True, timeout=25, check=False)
@@ -51,7 +51,7 @@ def _oku(sql: str) -> list[dict]:
 
 
 def _yaz(sql: str) -> None:
-    r = subprocess.run(
+    r = db_run(
         ["docker", "exec", "-i", "lcarlie-postgres", "psql", "-X", "-q",
          "-v", "ON_ERROR_STOP=1", "-U", "n8n", "-d", "n8n", "-f", "-"],
         input=sql, capture_output=True, text=True, timeout=25, check=False)

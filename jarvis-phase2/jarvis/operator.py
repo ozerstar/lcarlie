@@ -36,7 +36,7 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
+from jarvis.db_transport import run as db_run
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -80,7 +80,7 @@ class OperatorSession:
             [f"docker exec lcarlie-postgres psql -X -q {remote_flags} -U n8n -d n8n -Atc",
              f'"{sql}"']
         )] if self.host else psql)
-        result = subprocess.run(command, capture_output=True, text=True,
+        result = db_run(command, capture_output=True, text=True,
                                 timeout=self.timeout_s, check=False)
         if result.returncode:
             raise MemoryError(result.stderr.strip() or "operator query failed")

@@ -24,6 +24,7 @@ from __future__ import annotations
 import datetime
 import json
 import subprocess
+from jarvis.db_transport import run as db_run
 from pathlib import Path
 
 KAP = "lcarlie-postgres"
@@ -39,7 +40,7 @@ class UretimHatasi(RuntimeError):
 
 def _oku(sql: str) -> list:
     try:
-        p = subprocess.run(
+        p = db_run(
             ["docker", "exec", "-i", KAP, "psql", "-X", "-q", "-At",
              "-U", "n8n", "-d", "n8n", "-f", "-"],
             input=sql, capture_output=True, text=True, timeout=45, check=False)

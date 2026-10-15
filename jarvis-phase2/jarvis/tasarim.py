@@ -35,7 +35,7 @@ giden varligin oranini KONTROL EDER ve sapma buyukse uyari defterler.
 from __future__ import annotations
 
 import json
-import subprocess
+from jarvis.db_transport import run as db_run
 from typing import Any
 
 from jarvis import canva, compliance
@@ -70,7 +70,7 @@ class TasarimHatasi(Exception):
 
 # ─────────────────────────────────────────────────────── veritabani
 def _yaz(sql: str) -> str:
-    r = subprocess.run(
+    r = db_run(
         ["docker", "exec", "-i", "lcarlie-postgres", "psql", "-X", "-q",
          "-U", "n8n", "-d", "n8n", "-f", "-"],
         input=sql, capture_output=True, text=True, timeout=25, check=False)
@@ -78,7 +78,7 @@ def _yaz(sql: str) -> str:
 
 
 def _oku(sql: str) -> list[dict]:
-    r = subprocess.run(
+    r = db_run(
         ["docker", "exec", "-i", "lcarlie-postgres", "psql", "-X", "-A", "-t",
          "-U", "n8n", "-d", "n8n", "-c", sql],
         capture_output=True, text=True, timeout=25, check=False)

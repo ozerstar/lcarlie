@@ -21,7 +21,7 @@ from __future__ import annotations
 import base64
 import binascii
 import json
-import subprocess
+from jarvis.db_transport import run as db_run
 import time
 from pathlib import Path
 
@@ -87,7 +87,7 @@ class SahaHatasi(ValueError):
 
 def _oku(sql: str, zaman: int = 30) -> list[dict]:
     tam = "\\set ON_ERROR_STOP on\n" + sql + "\n"
-    p = subprocess.run(
+    p = db_run(
         ["docker", "exec", "-i", KAP, "psql", "-X", "-q", "-At",
          "-U", "n8n", "-d", "n8n", "-f", "-"],
         input=tam, capture_output=True, text=True, timeout=zaman, check=False)
@@ -112,7 +112,7 @@ def _yaz(sql: str, degiskenler: dict, zaman: int = 30) -> list[dict]:
     for ad, deger in degiskenler.items():
         komut += ["-v", "%s=%s" % (ad, "" if deger is None else str(deger))]
     komut += ["-f", "-"]
-    p = subprocess.run(komut, input="\\set ON_ERROR_STOP on\n" + sql + "\n",
+    p = db_run(komut, input="\\set ON_ERROR_STOP on\n" + sql + "\n",
                        capture_output=True, text=True, timeout=zaman, check=False)
     if p.returncode:
         raise SahaHatasi((p.stderr or p.stdout).strip()[:300])
@@ -250,7 +250,7 @@ def _facet(alan: str, parcalar: dict, eleme=None) -> str:
 
 def _calistir(sql: str, zaman: int = 180) -> None:
     """Çıktı beklemeyen komut. Her deyim kendi işleminde çalışır."""
-    p = subprocess.run(
+    p = db_run(
         ["docker", "exec", "-i", KAP, "psql", "-X", "-q",
          "-v", "ON_ERROR_STOP=1", "-U", "n8n", "-d", "n8n", "-f", "-"],
         input=sql, capture_output=True, text=True, timeout=zaman, check=False)

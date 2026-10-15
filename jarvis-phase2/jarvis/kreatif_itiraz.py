@@ -23,7 +23,7 @@ from __future__ import annotations
 import json
 import os
 import secrets
-import subprocess
+from jarvis.db_transport import run as db_run
 from pathlib import Path
 from typing import Any
 
@@ -119,7 +119,7 @@ def muhatap_bul(parti: str, dosya: str | None, konu: str) -> dict:
 
 
 def _yaz(sql: str) -> str:
-    r = subprocess.run(
+    r = db_run(
         ["docker", "exec", "-i", "lcarlie-postgres", "psql", "-X", "-q",
          "-U", "n8n", "-d", "n8n", "-f", "-"],
         input=sql, capture_output=True, text=True, timeout=20, check=False)
@@ -127,7 +127,7 @@ def _yaz(sql: str) -> str:
 
 
 def _oku(sql: str) -> list[dict]:
-    r = subprocess.run(
+    r = db_run(
         ["docker", "exec", "-i", "lcarlie-postgres", "psql", "-X", "-A", "-t",
          "-U", "n8n", "-d", "n8n", "-c", sql],
         capture_output=True, text=True, timeout=20, check=False)
