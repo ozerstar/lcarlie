@@ -12,9 +12,19 @@ let startListening = () => {};
 let selectedProposal = null;
 const PENDING_CHAT_KEY = 'jarvis-pending-chat-v1';
 
+function chatId(mode) {
+  const key = `jarvis-${mode}-chat-id`;
+  let id = sessionStorage.getItem(key);
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(id || '')) {
+    id = crypto.randomUUID();
+    sessionStorage.setItem(key, id);
+  }
+  return id;
+}
+
 function rememberChatTurn(turn) {
   try { sessionStorage.setItem(PENDING_CHAT_KEY, JSON.stringify({id: turn.id, mode: turn.mode,
-    text: turn.text, attachmentId: turn.attachmentId, at: Date.now()})); } catch (_) { /* private mode */ }
+    text: turn.text, attachmentId: turn.attachmentId, chatId: turn.chatId, at: Date.now()})); } catch (_) { /* private mode */ }
 }
 function forgetChatTurn() {
   try { sessionStorage.removeItem(PENDING_CHAT_KEY); } catch (_) { /* private mode */ }
@@ -117,6 +127,18 @@ $('logout').addEventListener('click', async () => {
   try { await request('/api/logout', { method: 'POST' }); } catch (_) { /* session still expires */ }
   state.csrf = null;
   showLogin();
+});
+
+$('chat-new').addEventListener('click', () => {
+  if (state.busy) return;
+  const mode = state.chatMode;
+  sessionStorage.setItem(`jarvis-${mode}-chat-id`, crypto.randomUUID());
+  forgetChatTurn();
+  state.chatRows[mode] = [];
+  $('messages').replaceChildren();
+  $('chat-input').value = '';
+  if (mode === 'personal') clearAttachment();
+  $('chat-input').focus();
 });
 
 $('password-form').addEventListener('submit', async (event) => {
@@ -337,6 +359,7 @@ function addPlayButton(row, text) {
 async function sendMessage(text, previous = null) {
   if (!state.csrf || state.busy || !text) return;
   const turn = previous || {id: crypto.randomUUID(), mode: state.chatMode, text,
+    chatId: chatId(state.chatMode),
     attachmentId: state.chatMode === 'personal' ? state.attachment?.id : null};
   state.busy = true;
   $('send').disabled = true;
@@ -355,7 +378,8 @@ async function sendMessage(text, previous = null) {
       if (attempt) { status('Bağlantı yenileniyor'); await new Promise((resolve) => setTimeout(resolve, attempt * 700)); }
       try {
       const response = await request('/api/chat/stream', { method: 'POST', body: JSON.stringify({
-        turn_id: turn.id, message: turn.text, mode, attachment_id: turn.attachmentId, after }) });
+        turn_id: turn.id, message: turn.text, mode, chat_id: turn.chatId || chatId(mode),
+        attachment_id: turn.attachmentId, after }) });
       if (!response.ok) {
         let detail = '';
         try { detail = (await response.json()).error || ''; } catch (_) { /* proxy response */ }
@@ -1489,7 +1513,7 @@ async function startRealtimeVoice() {
   try {
     const microphone = realtimeVoice.prepare();
     const response = await request('/api/voice/realtime/session', { method: 'POST',
-      body: JSON.stringify({ mode: state.chatMode }) });
+      body: JSON.stringify({ mode: state.chatMode, chat_id: chatId(state.chatMode) }) });
     if (!response.ok) throw new Error('Ses oturumu kullanılamıyor');
     const session = await response.json();
     await microphone;

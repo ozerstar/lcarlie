@@ -30,6 +30,7 @@ import threading
 import time
 import pathlib
 import traceback
+from types import SimpleNamespace
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -785,6 +786,19 @@ def _messenger_panel_anahtari() -> str:
         except OSError:
             continue
     return ""
+
+
+def _chat_thread(session, mode: str, chat_id: str | None) -> str:
+    if chat_id is not None and not chat_turns.TURN_ID.fullmatch(chat_id):
+        raise ValueError("Geçersiz sohbet kimliği.")
+    identity = chat_id or getattr(session, "session_id", session.username)
+    digest = hashlib.sha256(f"{session.username}:{mode}:{identity}".encode()).hexdigest()[:32]
+    return f"{mode}_{digest}"
+
+
+def _scoped_events(events, thread: str):
+    with _cmem.thread_scope(thread):
+        yield from events
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -1911,9 +1925,11 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/voice/realtime/session":
-            mode = _read_json_body(self).get("mode", "work")
+            body = _read_json_body(self)
+            mode = body.get("mode", "work")
             try:
-                self._send_json(200, voice_bridge.issue_session(session.username, mode))
+                self._send_json(200, voice_bridge.issue_session(session.username, mode,
+                                                               body.get("chat_id")))
             except ValueError as exc:
                 self._send_json(400, {"error": str(exc)})
             except RuntimeError as exc:
@@ -2441,7 +2457,12 @@ class Handler(BaseHTTPRequestHandler):
             body = _read_json_body(self)
             message = str(body.get("message", ""))[:2000]
             try:
-                result = chat.route(message, _shadow_runner, _operator)
+                thread = _chat_thread(self._current_session(), "work", body.get("chat_id"))
+                with _cmem.thread_scope(thread):
+                    result = chat.route(message, _shadow_runner, _operator)
+            except (ValueError, TypeError) as exc:
+                self._send_json(400, {"error": str(exc)})
+                return
             except JarvisMemoryError as exc:
                 self._send_json(502, {"error": str(exc)})
                 return
@@ -2676,15 +2697,19 @@ class Handler(BaseHTTPRequestHandler):
             mode = body["mode"]
             message = body["message"]
             turn_id = body["turn_id"]
+            chat_id = body.get("chat_id")
             if not isinstance(owner, str) or not owner or len(owner) > 100:
                 raise ValueError("Geçersiz kullanıcı.")
             if mode not in ("work", "personal") or not isinstance(message, str) or not message.strip() or len(message) > 2000:
                 raise ValueError("Geçersiz konuşma.")
+            thread = _chat_thread(SimpleNamespace(username=owner, session_id=owner), mode, chat_id)
 
             def make_events():
                 if mode == "personal":
-                    return personal_chat.stream(message, owner)
-                return chat.stream(message, _shadow_runner, _operator)
+                    events = personal_chat.stream(message, owner)
+                else:
+                    events = chat.stream(message, _shadow_runner, _operator)
+                return _scoped_events(events, thread)
 
             chat_turns.start_or_resume(turn_id, owner, mode, message, make_events)
             after = 0
@@ -2724,8 +2749,13 @@ class Handler(BaseHTTPRequestHandler):
         message = str(body.get("message", ""))[:2000]
         mode = body.get("mode", "work")
         turn_id = body.get("turn_id")
+        session = self._current_session()
+        try:
+            thread = _chat_thread(session, mode, body.get("chat_id"))
+        except (ValueError, TypeError) as exc:
+            self._send_json(400, {"error": str(exc)})
+            return
         if turn_id is not None:
-            session = self._current_session()
             attachment_id = body.get("attachment_id")
             try:
                 after = int(body.get("after", 0))
@@ -2734,9 +2764,11 @@ class Handler(BaseHTTPRequestHandler):
 
                 def make_events():
                     if mode == "personal":
-                        return (personal_chat.stream(message, session.username, attachment_id=attachment_id)
-                                if attachment_id else personal_chat.stream(message, session.username))
-                    return chat.stream(message, _shadow_runner, _operator)
+                        events = (personal_chat.stream(message, session.username, attachment_id=attachment_id)
+                                  if attachment_id else personal_chat.stream(message, session.username))
+                    else:
+                        events = chat.stream(message, _shadow_runner, _operator)
+                    return _scoped_events(events, thread)
 
                 chat_turns.start_or_resume(turn_id, session.username, mode,
                                            message if message else None, make_events)
@@ -2787,13 +2819,12 @@ class Handler(BaseHTTPRequestHandler):
             if mode not in ("work", "personal"):
                 events = ({"type": "error", "message": "Geçerli bir sohbet alanı seçin."},)
             elif mode == "personal":
-                session = self._current_session()
                 attachment_id = body.get("attachment_id")
                 events = (personal_chat.stream(message, session.username, attachment_id=attachment_id)
                           if attachment_id else personal_chat.stream(message, session.username))
             else:
                 events = chat.stream(message, _shadow_runner, _operator)
-            for event in events:
+            for event in _scoped_events(events, thread):
                 line = json.dumps(event, ensure_ascii=False, default=str) + "\n"
                 self.wfile.write(line.encode("utf-8"))
                 self.wfile.flush()
