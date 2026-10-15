@@ -851,7 +851,13 @@ function fillProposalList(listEl, emptyEl, pending) {
 
 async function refreshProposals() {
   const { ok, body } = await api('/api/actions');
-  if (!ok || !body) return;
+  if (!ok || !body) {
+    for (const id of ['proposalEmpty', 'taskProposalEmpty']) {
+      const notice = qs(id);
+      if (notice) { notice.textContent = 'Onaylar şu anda yüklenemedi.'; notice.hidden = false; }
+    }
+    return;
+  }
   const pending = body.pending || [];
   fillProposalList(qs('proposalList'), qs('proposalEmpty'), pending);
   fillProposalList(qs('taskProposalList'), qs('taskProposalEmpty'), pending);
@@ -4485,8 +4491,10 @@ async function asistanYukle() {
   var ok = qs('asOneri');
   if (ok) {
     var op = d.oneriler || [];
-    ok.innerHTML = op.length ? op.map(oneriOnayKarti).join('')
-      : '<p class="fm-sub">Bekleyen öneri yok.</p>';
+    ok.innerHTML = d.hatalar && d.hatalar.oneriler
+      ? '<p class="fm-sub">Onaylar şu anda yüklenemedi.</p>'
+      : (op.length ? op.map(oneriOnayKarti).join('')
+        : '<p class="fm-sub">Bekleyen öneri yok.</p>');
   }
   var tk2 = qs('asTasarimOnay');
   if (tk2) {
