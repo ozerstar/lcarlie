@@ -175,6 +175,56 @@ class YeniYonlendirmeTaslaklari(unittest.TestCase):
         self.assertTrue(sonuc["gonderilebilir"])
         self.assertNotIn("https://", sonuc["metin"])
 
+    def test_yanlis_yazilan_urun_odeme_baglaminda_eslesir(self):
+        kayit = {"urun_id": "u1", "urun_adi": "KINESIS + (Sporcu Bakım Kremi)",
+                 "slug": "kinesis-plus", "wix_yayinda": True, "gorunur": True,
+                 "wix_stok": 3, "wix_satis": 100, "wix_liste": 100,
+                 "aciklama_duz": ""}
+        def sorgu(sql):
+            if "mart.urun_karti" in sql:
+                return [kayit]
+            return [{"metin": "Kimesis ile ilgileniorm", "sinif": None,
+                     "mevzuat": None, "urun": None,
+                     "onceki_gelenler": ["Ürünleri nasıl satın alabilirim?"]}]
+        GK._calistir = sorgu
+        sonuc = GK.taslak(1)
+        self.assertEqual(sonuc["sinif"], "ODEME_YONLENDIR")
+        self.assertFalse(sonuc["devredilmeli"])
+        self.assertIn("product-page/kinesis-plus", sonuc["metin"])
+
+    def test_urun_sozu_odeme_baglami_yokken_devredilir(self):
+        GK._calistir = lambda sql: [{"metin": "Kimesis", "sinif": None,
+                                     "mevzuat": None, "urun": None,
+                                     "onceki_gelenler": []}]
+        sonuc = GK.taslak(1)
+        self.assertTrue(sonuc["devredilmeli"])
+        self.assertNotIn("https://", sonuc["metin"])
+
+    def test_urun_sozu_birkac_tur_onceki_odeme_sorusunu_bulur(self):
+        kayit = {"urun_id": "u1", "urun_adi": "KINESIS + (Sporcu Bakım Kremi)",
+                 "slug": "kinesis-plus", "wix_yayinda": True, "gorunur": True,
+                 "wix_stok": 3, "wix_satis": 100, "wix_liste": 100,
+                 "aciklama_duz": ""}
+        def sorgu(sql):
+            if "mart.urun_karti" in sql:
+                return [kayit]
+            return [{"metin": "Kimesis", "sinif": None,
+                     "mevzuat": None, "urun": None,
+                     "onceki_gelenler": ["Kimesis", "Kimesis ile ilgileniorm",
+                                          "Ürünleri nasıl satın alabilirim?"]}]
+        GK._calistir = sorgu
+        sonuc = GK.taslak(1)
+        self.assertFalse(sonuc["devredilmeli"])
+        self.assertIn("product-page/kinesis-plus", sonuc["metin"])
+
+    def test_olumsuz_urun_mesaji_odeme_linkine_donmez(self):
+        GK._calistir = lambda sql: [{"metin": "Kimesis kötü", "sinif": None,
+                                     "mevzuat": None, "urun": None,
+                                     "onceki_gelenler": ["Nasıl satın alabilirim?"]}]
+        sonuc = GK.taslak(1)
+        self.assertTrue(sonuc["devredilmeli"])
+        self.assertNotIn("https://", sonuc["metin"])
+
 
 if __name__ == "__main__":
     unittest.main()

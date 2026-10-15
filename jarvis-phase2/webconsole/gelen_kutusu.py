@@ -274,15 +274,11 @@ def _urun_sayfasi(kayitlar: list[dict], urun_id: str) -> str:
 
 
 def _mesajdaki_urun(kayitlar: list[dict], mesaj: str):
-    from jarvis.satis_dialog import _sade, kart_olustur
+    from jarvis import satis_dialog, urun_atama
 
-    metin = _sade(mesaj)
-    eslesen = []
-    for kayit in kayitlar:
-        ad = _sade(str(kayit.get("urun_adi") or "")).split(" ")[0]
-        if len(ad) >= 5 and re.search(r"(?<!\w)" + re.escape(ad) + r"(?!\w)", metin):
-            eslesen.append(kayit)
-    return kart_olustur(eslesen[0]) if len(eslesen) == 1 else None
+    sozluk = urun_atama.anahtarlar(kayit.get("urun_adi") for kayit in kayitlar)
+    ad = urun_atama.metinde_urun(mesaj, sozluk)
+    return satis_dialog.urun_bul(kayitlar, ad) if ad else None
 
 
 def _etkin_sinif(saklanan: str | None, mesaj: str) -> str:
@@ -303,7 +299,14 @@ def taslak(konusma_id: int) -> dict:
     kid = int(konusma_id)
     satir = _calistir(f"""
     SELECT row_to_json(x) FROM (
-      SELECT m.metin, m.sinif, m.mevzuat, (k.notlar->>'urun') AS urun
+      SELECT m.metin, m.sinif, m.mevzuat, (k.notlar->>'urun') AS urun,
+             ARRAY(
+               SELECT p.metin FROM lcarlie.mesaj p
+               WHERE p.konusma_id = m.konusma_id AND p.yon = 'gelen'
+                 AND (p.zaman, p.id) < (m.zaman, m.id)
+                 AND p.zaman >= m.zaman - interval '23 hours'
+               ORDER BY p.zaman DESC, p.id DESC LIMIT 5
+             ) AS onceki_gelenler
       FROM lcarlie.mesaj m JOIN lcarlie.konusma k ON k.id = m.konusma_id
       WHERE m.konusma_id = {kid} AND m.yon = 'gelen'
       ORDER BY m.zaman DESC LIMIT 1
@@ -318,9 +321,24 @@ def taslak(konusma_id: int) -> dict:
 
     kayitlar = []
     kart = None
+    if sinif == mesaj_sinifi.ANLASILMADI:
+        kelimeler = re.findall(r"[a-z]+", satis_dialog._sade(mesaj))
+        urun_yaniti = (0 < len(kelimeler) <= 5 and
+                       (len(kelimeler) == 1 or any(
+                           kelime.startswith(("ilgilen", "istiy")) for kelime in kelimeler)))
+        odeme_baglami = any(
+            mesaj_sinifi.siniflandir(onceki) == mesaj_sinifi.ODEME_YONLENDIR
+            for onceki in son.get("onceki_gelenler") or [])
+        if urun_yaniti and odeme_baglami:
+            kayitlar = urun_kayitlari()
+            kart = _mesajdaki_urun(kayitlar, mesaj)
+            if kart:
+                sinif = mesaj_sinifi.ODEME_YONLENDIR
     if sinif == mesaj_sinifi.ODEME_YONLENDIR or urun_adi:
-        kayitlar = urun_kayitlari()
-        kart = satis_dialog.urun_bul(kayitlar, urun_adi) if urun_adi else None
+        if not kayitlar:
+            kayitlar = urun_kayitlari()
+        if kart is None:
+            kart = satis_dialog.urun_bul(kayitlar, urun_adi) if urun_adi else None
         if kart is None and sinif == mesaj_sinifi.ODEME_YONLENDIR:
             kart = _mesajdaki_urun(kayitlar, mesaj)
 
