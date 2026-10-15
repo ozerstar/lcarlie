@@ -40,6 +40,39 @@ STATE_DIR = Path(os.environ.get("JARVIS_STATE_DIR",
                                 "/opt/lcarlie/jarvis-phase2/state"))
 KUYRUK = STATE_DIR / "meta_webhook" / "gelen.jsonl"
 ARSIV = STATE_DIR / "meta_webhook" / "arsiv"
+KARANTINA = STATE_DIR / "meta_webhook" / "karantina.jsonl"
+
+# 🔴 TEST TRAFIGI VERITABANINA GIRMEZ — CR-002.5 sozlesmesi.
+# Sentetik/duman/sinav trafigi `test-` onekiyle baslamak ZORUNDA. Bu
+# yukleyici veritabanina yazan TEK nokta oldugu icin kapi burada duruyor:
+# kaynak ne olursa olsun test kaydi `lcarlie.konusma`/`lcarlie.mesaj`'a
+# giremez, karantina dosyasina yazilir.
+#
+# 🔴 GOVDEDEN GELEN `is_test` OKUNMAZ. Webhook govdesi istemci
+# kontrolundedir; okunsaydi herkes kendi mesajini "test" isaretleyip
+# panelden gizleyebilirdi. Canlida kanitlandi: `is_test:true` tasiyan
+# istek production olarak kaydedilmisti. Sinif YALNIZ kimlik onekinden
+# hesaplanir.
+TEST_ONEKI = "test-"
+
+
+def trafik_sinifi(olay: dict) -> str:
+    """production | test — yalniz KIMLIK onekine bakar, govdeye DEGIL."""
+    for alan in ("mesaj_id", "gonderen_id", "alici_id"):
+        deger = str(olay.get(alan) or "").strip().lower()
+        if deger.startswith(TEST_ONEKI):
+            return "test"
+    return "production"
+
+
+def karantinaya_yaz(olay: dict, sebep: str) -> None:
+    """Test kaydi SILINMEZ, ayri dosyada saklanir -- iz surulebilsin."""
+    KARANTINA.parent.mkdir(parents=True, exist_ok=True)
+    kayit = dict(olay)
+    kayit["_karantina_sebep"] = sebep
+    kayit["_karantina_zaman"] = datetime.now(tz=timezone.utc).isoformat()
+    with KARANTINA.open("a", encoding="utf-8") as dosya:
+        dosya.write(json.dumps(kayit, ensure_ascii=False) + "\n")
 
 PSQL = ["docker", "exec", "-i", "lcarlie-postgres",
         "psql", "-U", "n8n", "-d", "n8n", "-tA", "-v", "ON_ERROR_STOP=1"]
@@ -83,11 +116,18 @@ def _zaman(olay: dict) -> str:
 
 def yukle(olaylar: list[dict], kuru: bool) -> dict[str, int]:
     sayac = {"konusma": 0, "mesaj": 0, "urunlu": 0, "yanki": 0, "atlanan": 0,
-             "zaten_vardi": 0}
+             "zaten_vardi": 0, "karantina": 0}
     for olay in olaylar:
         kanal = olay.get("kanal") or "messenger"
         if kanal not in {"messenger", "whatsapp"}:
             sayac["atlanan"] += 1
+            continue
+
+        # 🔴 KARANTINA KAPISI — veritabanina yazmadan ONCE.
+        if trafik_sinifi(olay) == "test":
+            sayac["karantina"] += 1
+            if not kuru:
+                karantinaya_yaz(olay, "test- oneki")
             continue
         psid = (olay.get("gonderen_id") or "").strip()
         mesaj_id = (olay.get("mesaj_id") or "").strip()
@@ -196,7 +236,8 @@ def main() -> None:
         sayac = yukle(olaylar, kuru)
         print(f"yazılan mesaj: {sayac['mesaj']} · zaten vardı: {sayac['zaten_vardi']} "
               f"· reklam referanslı: {sayac['urunlu']} · kendi yankımız: {sayac['yanki']} "
-              f"· kimliksiz atlanan: {sayac['atlanan']}")
+              f"· kimliksiz atlanan: {sayac['atlanan']} "
+              f"· KARANTINA: {sayac['karantina']}")
         if not kuru:
             hedef = dosya.with_suffix(".jsonl")
             dosya.replace(hedef)

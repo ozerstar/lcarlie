@@ -130,9 +130,26 @@ sleep 5
 durum=$(systemctl is-active "$SERVIS" || true)
 [ "$durum" = "active" ] || die "servis ayağa kalkmadı: $durum"
 
-kod=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 http://127.0.0.1:8091/ || echo "000")
-say "     servis: $durum, panel HTTP $kod"
-[ "$kod" = "200" ] || say "     UYARI: panel 200 dönmedi"
+# 🔴 BEKLE, TEK ATIŞ YAPMA — 15.10.2026'da ölçüldü.
+# Önceki hâli `sleep 5` sonrası TEK curl atıyordu. Servis 12:36:20'de
+# başlayıp 12:36:25'te dinlemeye geçiyor; kontrol arada koşunca
+# "panel 200 dönmedi" diye YANLIŞ ALARM veriyordu -- panel çalışıyordu.
+# Yanlış alarm üreten bir kapı, kapıya olan güveni aşındırır.
+#
+# Ayrıca `|| echo "000"` curl'ün kendi "000" çıktısıyla birleşip
+# "HTTP 000000" gibi anlamsız bir kod basıyordu; curl artık `-f` ile
+# değil, çıktısı doğrudan okunuyor.
+kod="000"
+bekleme=0
+for deneme in $(seq 1 20); do
+  kod=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://127.0.0.1:8091/ 2>/dev/null)
+  [ -n "$kod" ] || kod="000"
+  [ "$kod" = "200" ] && break
+  sleep 1
+  bekleme=$((bekleme + 1))
+done
+say "     servis: $durum, panel HTTP $kod (${bekleme}s beklendi)"
+[ "$kod" = "200" ] || say "     UYARI: panel 20 saniyede 200 dönmedi"
 
 hata=$(journalctl -u "$SERVIS" -n 30 --no-pager 2>/dev/null | grep -ciE "traceback|importerror" || true)
 say "     son 30 satırda hata: $hata"
