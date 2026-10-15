@@ -20,6 +20,8 @@ def main() -> None:
         assert counts.get("company", 0) > 0 and counts.get("personal", 0) > 0
         cur.execute("SELECT count(*) AS total FROM core.jarvis_action_registry_event")
         assert cur.fetchone()["total"] >= sum(counts.values())
+        cur.execute("SELECT count(*) AS total FROM core.jarvis_action_registry WHERE payload IS NULL OR idempotency_key IS NULL")
+        assert cur.fetchone()["total"] == 0
     os.environ["JARVIS_MEMORY_TRANSPORT"] = "direct-pg"
     pending = OperatorSession(host=None).list_pending()
     assert all(row.get("fingerprint") for row in pending)

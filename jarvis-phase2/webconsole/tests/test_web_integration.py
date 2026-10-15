@@ -231,15 +231,12 @@ class WebConsoleIntegrationTests(unittest.TestCase):
     # -- proposals / human approval boundary --------------------------------
     def test_unified_actions_lists_both_sources(self):
         csrf, sid = self._login()
-        app._operator.list_pending.return_value = [{"action_id": 5, "action_type": "REQUEST_HUMAN_REVIEW",
-            "payload": {"reason": "Şirket önerisi"}, "fingerprint": "a" * 32}]
-        with patch.object(app.google_workspace, "pending_actions", return_value=[{
-                "id": "b" * 32, "kind": "gmail.send", "description": "E-posta",
-                "details": "Alıcı ve içerik", "status": "AWAITING_APPROVAL",
-                "fingerprint": "c" * 64}]):
+        with patch.object(app.unified_actions, "list_pending", return_value=[
+                {"key": "company:5"}, {"key": "personal:" + "b" * 32}]) as pending:
             resp, body = self._get("/api/actions", headers={"Cookie": f"{app.SESSION_COOKIE}={sid}"})
         self.assertEqual(resp.status, 200)
         self.assertEqual([item["key"] for item in body["pending"]], ["company:5", "personal:" + "b" * 32])
+        pending.assert_called_once_with(TEST_USER)
 
     def test_unified_company_decision_binds_fingerprint(self):
         csrf, sid = self._login()

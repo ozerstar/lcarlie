@@ -813,7 +813,8 @@ function oneriGorseller(payload) {
 }
 
 function disaDonukOneri(proposal) {
-  return ['WHATSAPP_SEND_TEMPLATE', 'META_CAMPAIGN_CHANGE', 'PRICE_CHANGE', 'WIX_PUBLISH']
+  return ['WHATSAPP_SEND_TEMPLATE', 'META_CAMPAIGN_CHANGE', 'PRICE_CHANGE', 'WIX_PUBLISH',
+    'calendar.create', 'gmail.send', 'drive.upload']
     .includes(String(proposal.action_type || ''));
 }
 
@@ -823,7 +824,7 @@ function proposalCardHtml(p) {
   // durunca hangisinin ne oldugu ANLASILMIYORDU.
   const baslik = oneriBaslik((p.payload || {}).reason);
   const external = disaDonukOneri(p);
-  return `<div class="p-type">Onay bekliyor <span class="risk-badge risk-${escapeHtml(p.risk_class)}">${escapeHtml(oneriRisk(p.risk_class))}</span></div>
+  return `<div class="p-type">${p.status === 'UNCERTAIN' ? 'Sonucu kontrol edin' : 'Onay bekliyor'} <span class="risk-badge risk-${escapeHtml(p.risk_class)}">${escapeHtml(oneriRisk(p.risk_class))}</span></div>
     ${external ? '<div class="external-approval-warning">🔴 DIŞA DÖNÜK İŞLEM · SİZ ONAYLAMADAN UYGULANMAZ</div>' : ''}
     ${baslik ? `<div class="p-konu">${escapeHtml(baslik)}</div>` : ''}
     <div class="p-meta">${escapeHtml(fmtDateTime(p.proposed_at))}</div>
@@ -840,16 +841,16 @@ function fillProposalList(listEl, emptyEl, pending) {
     li.innerHTML = proposalCardHtml(p);
     li.tabIndex = 0;
     li.setAttribute('role', 'button');
-    li.addEventListener('click', () => openProposal(p.action_id));
+    li.addEventListener('click', () => openProposal(p.key));
     li.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openProposal(p.action_id); }
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openProposal(p.key); }
     });
     listEl.appendChild(li);
   });
 }
 
 async function refreshProposals() {
-  const { ok, body } = await api('/api/proposals');
+  const { ok, body } = await api('/api/actions');
   if (!ok || !body) return;
   const pending = body.pending || [];
   fillProposalList(qs('proposalList'), qs('proposalEmpty'), pending);
@@ -859,7 +860,7 @@ async function refreshProposals() {
 }
 
 async function openProposal(actionId) {
-  const { ok, body } = await api('/api/proposals/' + actionId);
+  const { ok, body } = await api('/api/actions/' + actionId);
   if (!ok || !body) return;
   qs('modalBody').innerHTML = `
     <h3>${escapeHtml(oneriBaslik((body.payload || {}).reason) || 'Öneriyi incele')}</h3>
@@ -876,15 +877,17 @@ async function openProposal(actionId) {
       <button class="btn-reject" id="btnReject" type="button">Öneriyi reddet</button>
     </div>
   `;
-  qs('btnApprove').addEventListener('click', () => decide(actionId, 'APPROVED'));
-  qs('btnReject').addEventListener('click', () => decide(actionId, 'REJECTED'));
+  qs('btnApprove').disabled = body.status !== 'AWAITING_APPROVAL';
+  qs('btnReject').disabled = body.status !== 'AWAITING_APPROVAL';
+  qs('btnApprove').addEventListener('click', () => decide(actionId, 'APPROVED', body.fingerprint));
+  qs('btnReject').addEventListener('click', () => decide(actionId, 'REJECTED', body.fingerprint));
   qs('proposalModal').hidden = false;
 }
 
-async function decide(actionId, decision) {
+async function decide(actionId, decision, fingerprint) {
   const reason = qs('decisionReason').value.trim() || (decision === 'APPROVED' ? 'Operatör onayı' : 'Operatör reddi');
-  const { ok, body } = await api(`/api/proposals/${actionId}/decide`, {
-    method: 'POST', body: JSON.stringify({ decision, reason }),
+  const { ok, body } = await api(`/api/actions/${actionId}/decide`, {
+    method: 'POST', body: JSON.stringify({ decision, reason, fingerprint }),
   });
   qs('proposalModal').hidden = true;
   if (ok) {
@@ -4337,7 +4340,7 @@ function onaySatiri(baslik, detay, kaynak, ek) {
  * action_id · action_type · payload · risk_class · proposed_at · expires_at
  * (Eski kod p.title/p.summary/p.reason/p.id okuyordu; hicbiri yok.) */
 function oneriOnayKarti(p) {
-  var id = String(p.action_id);
+  var id = String(p.key);
   var baslik = oneriBaslik((p.payload || {}).reason)
     || p.action_type || ('Öneri #' + id);
   return '<details class="detail-block" data-oneri="' + escapeHtml(id) + '">'
@@ -4355,9 +4358,13 @@ function oneriOnayKarti(p) {
     + ' placeholder="isteğe bağlı — karar kaydına yazılır"></label>'
     + '<div class="oo-dugmeler">'
     + '<button type="button" class="btn-approve" data-oo-karar="APPROVED"'
-    + ' data-oo-id="' + escapeHtml(id) + '">ONAYLA</button>'
+    + ' data-oo-id="' + escapeHtml(id) + '" data-oo-fingerprint="'
+    + escapeHtml(p.fingerprint || '') + '"'
+    + (p.status === 'UNCERTAIN' ? ' disabled' : '') + '>ONAYLA</button>'
     + '<button type="button" class="btn-reject" data-oo-karar="REJECTED"'
-    + ' data-oo-id="' + escapeHtml(id) + '">REDDET</button>'
+    + ' data-oo-id="' + escapeHtml(id) + '" data-oo-fingerprint="'
+    + escapeHtml(p.fingerprint || '') + '"'
+    + (p.status === 'UNCERTAIN' ? ' disabled' : '') + '>REDDET</button>'
     + '</div>'
     + '<p class="oo-durum" data-oo-durum="' + escapeHtml(id) + '"></p>'
     + '</div></details>';
@@ -4371,6 +4378,7 @@ document.addEventListener('click', async function (e) {
   if (!btn) return;
   var id = btn.dataset.ooId;
   var karar = btn.dataset.ooKarar;
+  var fingerprint = btn.dataset.ooFingerprint;
 
   /* 🔴 IKI ADIM. Bir is karari tek yanlis dokunusla onaylanmamali.
    * Ayni karttaki diger dugme onaylama halinden cikarilir. */
@@ -4397,8 +4405,8 @@ document.addEventListener('click', async function (e) {
   btn.disabled = true;
   if (durumEl) { durumEl.className = 'oo-durum'; durumEl.textContent = 'Gönderiliyor…'; }
   try {
-    await postJSON('/api/proposals/' + id + '/decide',
-                   { decision: karar, reason: gerekce });
+    await postJSON('/api/actions/' + id + '/decide',
+                   { decision: karar, reason: gerekce, fingerprint: fingerprint });
     if (durumEl) {
       durumEl.className = 'oo-durum oo-ok';
       durumEl.textContent = karar === 'APPROVED' ? 'Onaylandı.' : 'Reddedildi.';

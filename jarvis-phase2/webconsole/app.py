@@ -1743,7 +1743,7 @@ class Handler(BaseHTTPRequestHandler):
                     cevap[ad] = []
                     hatalar[ad] = str(exc)[:160]
             try:
-                cevap["oneriler"] = _operator.list_pending()
+                cevap["oneriler"] = unified_actions.list_pending(session.username)
             except Exception as exc:  # noqa: BLE001
                 cevap["oneriler"] = []
                 hatalar["oneriler"] = str(exc)[:160]
@@ -1851,18 +1851,18 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/actions":
             try:
                 self._send_json(200, {"pending": unified_actions.list_pending(
-                    _operator, session.username)})
-            except (JarvisMemoryError, google_workspace.GoogleError, OSError):
+                    session.username)})
+            except Exception:  # fail closed if the shared record cannot be read
                 self._send_json(503, {"error": "İşlem listesi şu anda yüklenemedi."})
             return
         if path.startswith("/api/actions/"):
             try:
-                action = unified_actions.inspect(_operator, session.username,
+                action = unified_actions.inspect(session.username,
                                                  path.removeprefix("/api/actions/"))
             except ValueError as exc:
                 self._send_json(400, {"error": str(exc)})
                 return
-            except (JarvisMemoryError, google_workspace.GoogleError, OSError):
+            except Exception:
                 self._send_json(503, {"error": "İşlem şu anda okunamadı."})
                 return
             self._send_json(200, action) if action else self._send_json(404, {"error": "İşlem bulunamadı."})
