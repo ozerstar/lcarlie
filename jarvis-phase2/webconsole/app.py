@@ -74,6 +74,7 @@ import chat  # noqa: E402
 import personal_chat  # noqa: E402
 import mobile_features  # noqa: E402
 import google_workspace  # noqa: E402
+import personal_planner  # noqa: E402
 
 STATE_DIR = Path(os.environ.get("JARVIS_STATE_DIR", "/opt/lcarlie/jarvis-phase2/state"))
 STATIC_DIR = HERE / "static"
@@ -1460,6 +1461,15 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(200, mobile_features.memory_search(
                 session.username, (query.get("q") or [""])[0]))
             return
+        if path == "/api/mobile/contacts":
+            self._send_json(200, {"contacts": mobile_features.contacts(session.username)})
+            return
+        if path == "/api/mobile/personal/overview":
+            self._send_json(200, personal_planner.overview(session.username))
+            return
+        if path == "/api/mobile/personal/notifications":
+            self._send_json(200, mobile_features.notification_settings(session.username))
+            return
         if path == "/api/mobile/google/status":
             self._send_json(200, google_workspace.status(session.username))
             return
@@ -1868,7 +1878,8 @@ class Handler(BaseHTTPRequestHandler):
             except (ValueError, OSError) as exc:
                 self._send_json(400, {"error": str(exc)[:200]})
             return
-        if path in ("/api/mobile/reminders", "/api/mobile/memory", "/api/mobile/vision"):
+        if path in ("/api/mobile/reminders", "/api/mobile/memory", "/api/mobile/contacts",
+                    "/api/mobile/personal/notifications", "/api/mobile/vision"):
             try:
                 body = _read_json_body(self)
                 if path == "/api/mobile/reminders":
@@ -1879,20 +1890,39 @@ class Handler(BaseHTTPRequestHandler):
                         mobile_features.update_reminder(session.username, body.get("id"), body.get("text"),
                                                         body.get("due_at"), body.get("repeat", "none"))
                     elif body.get("action") == "delete":
-                        mobile_features.delete_reminder(session.username, body.get("id"))
+                        if not mobile_features.delete_reminder(session.username, body.get("id")):
+                            raise ValueError("Hatırlatıcı bulunamadı.")
                     else:
                         raise ValueError("Geçersiz işlem.")
                     result = {"reminders": mobile_features.reminders(session.username)}
+                    mobile_features.record_activity(session.username, "reminder", "Hatırlatıcı değiştirildi")
                 elif path == "/api/mobile/memory":
                     if body.get("action") == "add":
                         mobile_features.add_note(session.username, body.get("text"))
                     elif body.get("action") == "update":
                         mobile_features.update_note(session.username, body.get("id"), body.get("text"))
                     elif body.get("action") == "delete":
-                        mobile_features.delete_note(session.username, body.get("id"))
+                        if not mobile_features.delete_note(session.username, body.get("id")):
+                            raise ValueError("Kişisel bilgi bulunamadı.")
                     else:
                         raise ValueError("Geçersiz işlem.")
                     result = {"notes": mobile_features.personal_notes(session.username)}
+                    mobile_features.record_activity(session.username, "memory", "Kişisel bilgi değiştirildi")
+                elif path == "/api/mobile/contacts":
+                    if body.get("action") == "save":
+                        mobile_features.save_contact(session.username, body.get("name"), body.get("relationship"),
+                                                     body.get("detail", ""), body.get("special_day", ""),
+                                                     body.get("occasion", ""), body.get("id", ""))
+                    elif body.get("action") == "delete":
+                        if not mobile_features.delete_contact(session.username, body.get("id")):
+                            raise ValueError("Kişi bulunamadı.")
+                    else:
+                        raise ValueError("Geçersiz işlem.")
+                    result = {"contacts": mobile_features.contacts(session.username)}
+                    mobile_features.record_activity(session.username, "contact", "Kişi kaydı değiştirildi")
+                elif path == "/api/mobile/personal/notifications":
+                    result = mobile_features.save_notification_settings(
+                        session.username, body.get("morning"), body.get("evening"))
                 else:
                     if body.get("consent") is not True:
                         raise ValueError("Görsel analizi için açık onay gerekiyor.")
@@ -1910,6 +1940,8 @@ class Handler(BaseHTTPRequestHandler):
                     result = google_workspace.prepare(session.username, body.get("kind"), body.get("fields") or {})
                 elif path.endswith("/decide"):
                     result = google_workspace.decide(session.username, body.get("id"), body.get("decision"))
+                    if result.get("status") == "DONE":
+                        mobile_features.record_activity(session.username, "google", "Onaylanan Google işlemi tamamlandı")
                 elif path.endswith("/drive/import"):
                     result = google_workspace.import_drive_file(session.username, body.get("id"))
                 else:

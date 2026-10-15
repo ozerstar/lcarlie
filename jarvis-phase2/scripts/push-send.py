@@ -16,6 +16,7 @@ sys.path.insert(0, str(ROOT / "webconsole"))
 import push_store  # noqa: E402
 import mobile_features  # noqa: E402
 import google_workspace  # noqa: E402
+import personal_planner  # noqa: E402
 from datetime import datetime  # noqa: E402
 from zoneinfo import ZoneInfo  # noqa: E402
 
@@ -120,11 +121,11 @@ def notify_birthdays() -> None:
     seen = json.loads(seen_path.read_text(encoding="utf-8")) if seen_path.exists() else {}
     seen = {key: value for key, value in seen.items() if key.startswith(today + ":")}
     for owner in owners - {None, ""}:
+        events = []
         try:
             events = google_workspace.birthday_events_today(owner)
         except Exception:  # noqa: BLE001 - Google hatasi diger bildirimleri engellemez
             print("birthday calendar unavailable", file=sys.stderr)
-            continue
         for event in events:
             identifier = event.get("id") or event.get("summary") or "birthday"
             title = event.get("summary") or "Bugün doğum günü var"
@@ -136,6 +137,54 @@ def notify_birthdays() -> None:
                                             f"birthday-{today}-{identifier}"):
                     seen[key] = True
                     save_seen(seen, seen_path)
+        for contact in mobile_features.special_days(owner, datetime.now(ZoneInfo("Europe/Istanbul")).date()):
+            if any(contact["name"].casefold() in (event.get("summary") or "").casefold() for event in events):
+                continue
+            for subscription_id, subscription in subscriptions.items():
+                if subscription.get("owner") != owner:
+                    continue
+                key = f"{today}:{owner}:contact-{contact['id']}:{subscription_id}"
+                body = f"{contact['name']} · {contact.get('occasion') or 'Doğum günü'}"
+                if key not in seen and send(subscription, "Jarvis · Özel gün", body,
+                                            f"special-{today}-{contact['id']}"):
+                    seen[key] = True
+                    save_seen(seen, seen_path)
+
+
+def notify_daily_digest(now: datetime | None = None) -> None:
+    now = (now or datetime.now(ZoneInfo("Europe/Istanbul"))).astimezone(ZoneInfo("Europe/Istanbul"))
+    kind = "morning" if now.hour == 8 and now.minute < 15 else "evening" if now.hour == 20 and now.minute < 15 else None
+    if not kind:
+        return
+    today = now.date().isoformat()
+    subscriptions = push_store.all_subscriptions()
+    seen_path = push_store.STATE_DIR / "daily-digest-seen.json"
+    seen = json.loads(seen_path.read_text(encoding="utf-8")) if seen_path.exists() else {}
+    seen = {key: value for key, value in seen.items() if key.startswith(today + ":")}
+    for owner in {row.get("owner") for row in subscriptions.values()} - {None, ""}:
+        if not mobile_features.notification_settings(owner)[kind]:
+            continue
+        targets = [(identifier, subscription) for identifier, subscription in subscriptions.items()
+                   if subscription.get("owner") == owner and f"{today}:{kind}:{identifier}" not in seen]
+        if not targets:
+            continue
+        try:
+            data = personal_planner.overview(owner, now)
+        except Exception:  # noqa: BLE001 - bir kaynagin hatasi diger bildirimleri engellemez
+            print("daily digest unavailable", file=sys.stderr)
+            continue
+        if kind == "morning":
+            title = "Jarvis · Sabah planı"
+            body = (f"{len(data['today_events'])} takvim, {len(data['today_reminders'])} hatırlatıcı, "
+                    f"{len(data['special_days'])} özel gün, {len(data['pending'])} onay.")
+        else:
+            title = "Jarvis · Gün sonu"
+            tomorrow = len(data["tomorrow_events"]) + len(data["tomorrow_reminders"])
+            body = f"{len(data['activities'])} kişisel işlem, yarın {tomorrow} plan, {len(data['pending'])} onay."
+        for identifier, subscription in targets:
+            if send(subscription, title, body, f"digest-{today}-{kind}"):
+                seen[f"{today}:{kind}:{identifier}"] = True
+                save_seen(seen, seen_path)
 
 
 if __name__ == "__main__":
@@ -148,5 +197,6 @@ if __name__ == "__main__":
         notify_due_reminders()
         notify_new_approvals()
         notify_birthdays()
+        notify_daily_digest()
     else:
         raise SystemExit(2)

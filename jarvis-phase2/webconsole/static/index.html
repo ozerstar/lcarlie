@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="/app.css">
   <link rel="stylesheet" href="/experience.css?v=2">
   <link rel="stylesheet" href="/leadership.css?v=3">
+  <link rel="stylesheet" href="/desktop-editorial.css?v=2">
 </head>
 <body>
 
@@ -46,8 +47,9 @@
       <span></span><span></span><span></span>
     </button>
     <div class="tb-brand">
+      <strong class="ed-wordmark">JARVIS</strong>
       <img class="brand-logo" src="img/lcarlie-mark-light.png" alt="L’CARLIÉ" width="1400" height="194" decoding="async">
-      <span class="brand-sub">KURUMSAL YÖNETİM SİSTEMİ</span>
+      <span class="brand-sub">L’CARLIÉ · YÖNETİM ALANI</span>
     </div>
 
     <nav class="tb-nav" id="mainNav" aria-label="Ana gezinme">
@@ -124,6 +126,33 @@
 
   <!-- ------------------------- ANA SAYFA ------------------------- -->
   <main class="stage view-panel" id="viewHome">
+
+    <div class="ed-dashboard">
+      <section class="ed-hero" aria-label="Günlük karşılama">
+        <div class="ed-hero-copy"><p id="edDate">Bugün</p><h1 id="edGreeting">Günaydın.</h1><p>Günün önemli işlerini tek yerden yönet.</p></div>
+        <button type="button" class="ed-hero-ask" data-ed-view="asistan">✦ <span>Jarvis’e sor</span></button>
+      </section>
+      <div class="ed-main-grid">
+        <div class="ed-main-column">
+          <div class="ed-stat-row" aria-label="Güncel sayılar">
+            <button type="button" class="ed-stat" data-ed-view="gorevler"><span>Bekleyen işler</span><strong id="edWaiting">—</strong><small>İş kuyruğundaki kayıtlar</small></button>
+            <button type="button" class="ed-stat" data-ed-view="gorevler"><span>Tamamlanan</span><strong id="edDone">—</strong><small>Bitmiş işler</small></button>
+            <button type="button" class="ed-stat" data-ed-view="gorevler"><span>Onay bekleyen</span><strong id="edApprovals">—</strong><small>Kararını isteyen öneriler</small></button>
+            <button type="button" class="ed-stat" data-ed-view="satislar"><span>Bugünkü sipariş</span><strong id="edOrders">—</strong><small>Satış kayıtlarından</small></button>
+          </div>
+          <section class="ed-card ed-focus" aria-label="Öncelikli konu"><div class="ed-section-title"><h2>Bugünün odağı</h2><span id="edUpdated">Canlı veriler</span></div><h3 id="edFocusTitle">Günlük durum hazırlanıyor</h3><p id="edFocusDetail">İşler, kararlar ve hatırlatıcılar kontrol ediliyor.</p><button type="button" id="edFocusAction" data-ed-view="asistan">Asistanı aç <span aria-hidden="true">↗</span></button></section>
+          <div class="ed-lower-grid">
+            <section class="ed-card"><div class="ed-section-title"><h2>İş akışı</h2><button type="button" data-ed-view="isler">Tüm işler <span aria-hidden="true">↗</span></button></div><div id="edJobs" class="ed-list"><p>İşler yükleniyor…</p></div></section>
+            <section class="ed-card"><div class="ed-section-title"><h2>Jarvis ile devam et</h2><button type="button" data-ed-view="asistan">Asistanı aç <span aria-hidden="true">↗</span></button></div><div class="ed-shortcuts"><button type="button" data-ed-ask="Bugün hangi işler öncelikli?">Bugünün öncelikleri</button><button type="button" data-ed-ask="Bekleyen önerileri sade bir dille özetle.">Kararları açıkla</button><button type="button" data-ed-view="uretilenler">Görselleri gör</button><button type="button" data-ed-view="raporlar">Raporlara bak</button></div></section>
+          </div>
+        </div>
+        <aside class="ed-rail" aria-label="Plan ve kararlar">
+          <section class="ed-card ed-calendar"><div class="ed-section-title"><h2 id="edMonth">Takvim</h2><span id="edToday">Bugün</span></div><div class="ed-weekdays"><span>Pt</span><span>Sa</span><span>Ça</span><span>Pe</span><span>Cu</span><span>Ct</span><span>Pz</span></div><div id="edCalendar" class="ed-calendar-grid"></div><div class="ed-rail-divider"></div><div class="ed-section-title"><h2>Hatırlatıcılarım</h2><span id="edReminderCount">—</span></div><div id="edReminders" class="ed-rail-list"><p>Yükleniyor…</p></div></section>
+          <section class="ed-card ed-decision"><div class="ed-section-title"><h2>Karar bekleyenler</h2><span id="edDecisionCount">—</span></div><div id="edDecisions" class="ed-rail-list"><p>Yükleniyor…</p></div><button type="button" data-ed-view="gorevler">Onayları incele <span aria-hidden="true">↗</span></button></section>
+          <section class="ed-card ed-system"><span class="ed-system-light"></span><div><strong id="edSystemState">Bağlantı kontrol ediliyor</strong><small>Jarvis sistem durumu</small></div><button type="button" data-ed-view="sistem">Aç</button></section>
+        </aside>
+      </div>
+      <details class="ed-technical"><summary>Ayrıntılı sistem görünümü <span>Canlı akış, haberler ve kaynak bilgileri</span></summary>
 
     <section class="panel p-left" aria-label="Canlı zekâ akışı">
       <div class="panel-head">
@@ -337,7 +366,8 @@
         </div>
       </div>
     </aside>
-
+      </details>
+    </div>
   </main>
 
   <!-- -------------------------- ANALİZ --------------------------- -->
@@ -1202,5 +1232,6 @@
 
 <script src="/vendor/leaflet/leaflet.js"></script>
   <script src="/app.js?v=11"></script>
+  <script src="/desktop-editorial.js?v=1"></script>
 </body>
 </html>

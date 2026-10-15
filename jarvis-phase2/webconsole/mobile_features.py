@@ -11,6 +11,7 @@ import threading
 import uuid
 import urllib.request
 from datetime import datetime, timedelta, timezone
+from datetime import date
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 
@@ -163,6 +164,97 @@ def personal_notes(username: str) -> list[dict]:
         return _read(STATE / "notes" / (_user(username) + ".json"))[-60:]
 
 
+def contacts(username: str) -> list[dict]:
+    with _LOCK:
+        return _read(STATE / "contacts" / (_user(username) + ".json"))[-100:]
+
+
+def save_contact(username: str, name: str, relationship: str, detail: str = "",
+                 special_day: str = "", occasion: str = "", identifier: str = "") -> dict:
+    name = " ".join((name or "").split())[:80]
+    relationship = " ".join((relationship or "").split())[:80]
+    detail = " ".join((detail or "").split())[:220]
+    occasion = " ".join((occasion or "").split())[:80] or "Doğum günü"
+    special_day = (special_day or "").strip()
+    if not name or not relationship:
+        raise ValueError("Kişinin adını ve yakınlığını yazın.")
+    if special_day:
+        try:
+            day, month = [int(part) for part in special_day.split(".")]
+            date(2000, month, day)
+        except (TypeError, ValueError):
+            raise ValueError("Özel gün için GG.AA biçimini kullanın.") from None
+        special_day = f"{month:02d}-{day:02d}"
+    path = STATE / "contacts" / (_user(username) + ".json")
+    with _LOCK:
+        rows = _read(path)
+        if any(row.get("name", "").casefold() == name.casefold() and row.get("id") != identifier for row in rows):
+            raise ValueError("Bu kişi zaten kayıtlı.")
+        if identifier:
+            row = next((item for item in rows if item.get("id") == identifier), None)
+            if row is None:
+                raise ValueError("Kişi bulunamadı.")
+            row.update(name=name, relationship=relationship, detail=detail,
+                       special_day=special_day, occasion=occasion)
+        else:
+            row = {"id": uuid.uuid4().hex, "name": name, "relationship": relationship,
+                   "detail": detail, "special_day": special_day, "occasion": occasion}
+            rows.append(row)
+        _atomic(path, rows[-100:])
+    return dict(row)
+
+
+def delete_contact(username: str, identifier: str) -> bool:
+    path = STATE / "contacts" / (_user(username) + ".json")
+    with _LOCK:
+        rows = _read(path)
+        kept = [row for row in rows if row.get("id") != identifier]
+        if len(kept) == len(rows):
+            return False
+        _atomic(path, kept)
+    return True
+
+
+def special_days(username: str, day: date) -> list[dict]:
+    key = day.strftime("%m-%d")
+    return [row for row in contacts(username) if row.get("special_day") == key]
+
+
+def record_activity(username: str, kind: str, summary: str) -> None:
+    if kind not in {"reminder", "memory", "contact", "google"}:
+        raise ValueError("Geçersiz etkinlik türü.")
+    row = {"at": datetime.now(timezone.utc).isoformat(), "kind": kind,
+           "summary": " ".join((summary or "").split())[:180]}
+    path = STATE / "activity" / (_user(username) + ".json")
+    with _LOCK:
+        _atomic(path, (_read(path) + [row])[-100:])
+
+
+def activities(username: str, day: date) -> list[dict]:
+    from zoneinfo import ZoneInfo
+    local = ZoneInfo("Europe/Istanbul")
+    return [row for row in _read(STATE / "activity" / (_user(username) + ".json"))
+            if datetime.fromisoformat(row["at"]).astimezone(local).date() == day]
+
+
+def notification_settings(username: str) -> dict:
+    path = STATE / "notifications" / (_user(username) + ".json")
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        data = {}
+    return {"morning": data.get("morning", True) is True,
+            "evening": data.get("evening", True) is True}
+
+
+def save_notification_settings(username: str, morning: bool, evening: bool) -> dict:
+    if type(morning) is not bool or type(evening) is not bool:
+        raise ValueError("Bildirim seçimlerini kontrol edin.")
+    data = {"morning": morning, "evening": evening}
+    _atomic(STATE / "notifications" / (_user(username) + ".json"), data)
+    return data
+
+
 def _memory_thread(username: str) -> str:
     return "personal_" + _user(username)
 
@@ -223,11 +315,11 @@ def memory_search(username: str, query: str, limit: int = 8) -> dict:
             "method": method}
 
 
-def add_note(username: str, text: str) -> dict:
+def add_note(username: str, text: str, source: str = "Kullanıcı") -> dict:
     text = " ".join((text or "").split())[:400]
     if not text:
         raise ValueError("Hatırlanacak bilgiyi yazın.")
-    row = {"id": uuid.uuid4().hex, "text": text,
+    row = {"id": uuid.uuid4().hex, "text": text, "source": source[:80],
            "created_at": datetime.now(timezone.utc).isoformat()}
     path = STATE / "notes" / (_user(username) + ".json")
     with _LOCK:
@@ -260,6 +352,7 @@ def update_note(username: str, identifier: str, text: str) -> dict:
             if row.get("id") == identifier:
                 old_text = row["text"]
                 row["text"] = text
+                row["source"] = "Kullanıcı tarafından düzeltildi"
                 _atomic(path, rows)
                 break
         else:

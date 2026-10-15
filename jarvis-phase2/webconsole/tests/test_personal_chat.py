@@ -36,6 +36,13 @@ class PersonalChatTests(unittest.TestCase):
         history.assert_not_called()
         self.assertEqual(events[0]["type"], "error")
 
+    def test_drive_search_uses_requested_file_name(self):
+        with patch.object(personal_chat.google_workspace, "status", return_value={"connected": True}), \
+             patch.object(personal_chat.google_workspace, "drive_files", return_value=[]) as finder:
+            events = list(personal_chat.stream("Drive'da bul katalog", "owner"))
+        finder.assert_called_once_with("owner", "katalog")
+        self.assertEqual(events[-1]["result"]["source"], "personal.google_drive")
+
     def test_personal_api_never_invokes_work_router(self):
         class FakeHandler:
             wfile = io.BytesIO()
