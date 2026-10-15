@@ -6,6 +6,7 @@ const state = { csrf: null, busy: false, audio: null, audioUrl: null, audioGener
   chatMode: 'work', personalTab: 'today', chatRows: { work: [], personal: [] }, attachment: null, googleProposal: null,
   contactEditId: null };
 let voiceMode = false;
+let closeMicrophone = () => {};
 let selectedProposal = null;
 const PENDING_CHAT_KEY = 'jarvis-pending-chat-v1';
 
@@ -52,7 +53,10 @@ function approvalSummary(reason) {
     return 'Yeni bir öneri var. Ayrıntıları inceleyip karar verin.';
   return JarvisMetin.safeTitle(summary.slice(0, 180), 'Yeni bir öneri var. Ayrıntıları inceleyip karar verin.');
 }
-function showLogin() { $('login').hidden = false; $('app').hidden = true; $('logout').hidden = true; status('Giriş gerekli'); }
+function showLogin() {
+  closeMicrophone(); stopAudio(); voiceMode = false;
+  $('login').hidden = false; $('app').hidden = true; $('logout').hidden = true; status('Giriş gerekli');
+}
 function showApp() {
   $('login').hidden = true; $('app').hidden = false; $('logout').hidden = false;
   status('Bağlı'); refreshMobile(); refreshPushStatus();
@@ -104,6 +108,7 @@ $('login-form').addEventListener('submit', async (event) => {
 });
 
 $('logout').addEventListener('click', async () => {
+  closeMicrophone();
   stopAudio();
   forgetChatTurn();
   state.chatRows = {work: [], personal: []};
@@ -448,6 +453,7 @@ async function sendMessage(text, previous = null) {
 
 document.querySelectorAll('[data-chat-mode]').forEach((button) => button.addEventListener('click', () => {
   if (state.busy || button.dataset.chatMode === state.chatMode) return;
+  closeMicrophone();
   stopAudio();
   state.chatMode = button.dataset.chatMode;
   document.querySelectorAll('[data-chat-mode]').forEach((item) => {
@@ -1428,6 +1434,7 @@ $('device-revoke-all').addEventListener('click', async () => {
   } catch (error) { status(error.message); }
 });
 document.querySelectorAll('[data-tab]').forEach((button) => button.addEventListener('click', () => {
+  closeMicrophone();
   const tab = button.dataset.tab;
   const mainTab = ['system', 'settings', 'creative'].includes(tab) ? 'more' : tab;
   document.querySelectorAll('.tab-nav [data-tab]').forEach((item) => {
@@ -1449,7 +1456,7 @@ const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 if (Recognition) {
   const recognizer = new Recognition(); recognizer.lang = 'tr-TR'; recognizer.continuous = false;
   let listening = false;
-  const closeMicrophone = () => {
+  closeMicrophone = () => {
     if (listening) { listening = false; recognizer.abort(); }
     $('mic').classList.remove('listening');
   };
