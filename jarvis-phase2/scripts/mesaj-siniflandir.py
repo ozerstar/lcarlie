@@ -24,7 +24,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from jarvis import devir, mesaj_sinifi  # noqa: E402
+from jarvis import devir, mesaj_sinifi, urun_atama  # noqa: E402
 
 PSQL = ["docker", "exec", "-i", "lcarlie-postgres", "psql", "-X", "-q", "-At",
         "-v", "ON_ERROR_STOP=1", "-U", "n8n", "-d", "n8n", "-f", "-"]
@@ -71,6 +71,56 @@ def yaz(atamalar: list[tuple[int, str]]) -> int:
     return len(cikti)
 
 
+def urun_ata(kuru: bool) -> dict[str, int]:
+    """Müşterinin kendi söylediği ürünü konuşmaya yazar.
+
+    🔴 NEDEN BU YOL. Ürün ataması üç kaynaktan gelebilirdi, ikisi ölçümle
+    kapandı (15.10.2026): reklam referansı YOK (WhatsApp CTA'sı olan reklam
+    hiç yok, hepsi duraklatılmış) ve mesaj metninden çıkarım %1,1. Geriye
+    müşterinin Jarvis'in sorusuna verdiği cevap kalıyor; bu geçiş onu
+    yakalar, böylece aynı konuşmada bir daha sorulmaz.
+
+    🔴 ÜZERİNE YAZMAZ. Ürünü zaten atanmış konuşmaya dokunulmaz.
+    """
+    adlar = [k.get("urun_adi") for k in _psql_json("""
+        SELECT row_to_json(x) FROM (SELECT urun_adi FROM mart.urun_karti) x;""")]
+    sozluk = urun_atama.anahtarlar(adlar)
+    if not sozluk:
+        return {"aday": 0, "atanan": 0}
+
+    konusmalar = _psql_json("""
+    SELECT row_to_json(x) FROM (
+      SELECT k.id,
+             json_agg(json_build_object('yon', m.yon, 'metin', m.metin)
+                      ORDER BY m.zaman) AS mesajlar
+      FROM lcarlie.konusma k JOIN lcarlie.mesaj m ON m.konusma_id = k.id
+      WHERE k.notlar->>'urun' IS NULL
+      GROUP BY k.id
+    ) x;
+    """)
+    atamalar = []
+    for k in konusmalar:
+        urun = urun_atama.konusmada_urun(k.get("mesajlar") or [], sozluk)
+        if urun:
+            atamalar.append((int(k["id"]), urun))
+
+    if atamalar and not kuru:
+        degerler = ", ".join("(%d, %s)" % (kid, _tirnak(u)) for kid, u in atamalar)
+        _psql(f"""
+        WITH g(id, urun) AS (VALUES {degerler})
+        UPDATE lcarlie.konusma k
+           SET notlar = k.notlar || jsonb_build_object('urun', g.urun,
+                                                       'urun_kaynagi', 'konusma'),
+               guncelleme = now()
+          FROM g WHERE k.id = g.id AND k.notlar->>'urun' IS NULL;
+        """)
+    return {"aday": len(konusmalar), "atanan": len(atamalar)}
+
+
+def _psql_json(sql: str) -> list[dict]:
+    return [json.loads(s) for s in _psql(sql)]
+
+
 def main() -> None:
     kuru = "--kuru" in sys.argv
     tumu = "--tumu" in sys.argv
@@ -78,7 +128,13 @@ def main() -> None:
     kayitlar = oku(tumu)
     print("siniflanacak mesaj: %d%s" % (len(kayitlar), " (TUMU)" if tumu else ""))
     if not kayitlar:
-        print("yapilacak is yok")
+        # 🔴 ERKEN DONULMEZ. Siniflanacak yeni mesaj olmamasi, urun
+        # atamasinin da yapilacagi is olmadigi anlamina GELMEZ: musteri
+        # onceki turda urun adini yazmis ve konusma hala atamasiz olabilir.
+        print("siniflanacak yeni mesaj yok")
+        u = urun_ata(kuru)
+        print("urun atama: %d konusma tarandi, %d tanesine urun yazildi%s"
+              % (u["aday"], u["atanan"], " (kuru)" if kuru else ""))
         return
 
     atamalar: list[tuple[int, str]] = []
@@ -104,9 +160,14 @@ def main() -> None:
 
     if kuru:
         print("--kuru: veritabanina YAZILMADI")
-        return
-    yazilan = yaz(atamalar)
-    print("guncellenen satir: %d" % yazilan)
+    else:
+        yazilan = yaz(atamalar)
+        print("guncellenen satir: %d" % yazilan)
+
+    # Ikinci gecis: musterinin soyledigi urunu konusmaya yaz.
+    u = urun_ata(kuru)
+    print("urun atama: %d konusma tarandi, %d tanesine urun yazildi%s"
+          % (u["aday"], u["atanan"], " (kuru)" if kuru else ""))
 
 
 if __name__ == "__main__":

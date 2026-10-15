@@ -32,7 +32,7 @@ import traceback
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlparse, unquote
 from urllib.request import Request, urlopen
 
 HERE = Path(__file__).resolve().parent
@@ -71,6 +71,9 @@ import saha  # noqa: E402
 import sistem  # noqa: E402
 
 import chat  # noqa: E402
+import personal_chat  # noqa: E402
+import mobile_features  # noqa: E402
+import google_workspace  # noqa: E402
 
 STATE_DIR = Path(os.environ.get("JARVIS_STATE_DIR", "/opt/lcarlie/jarvis-phase2/state"))
 STATIC_DIR = HERE / "static"
@@ -980,6 +983,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._route_messenger_pilot()
             elif path.startswith("/canva/"):
                 self._route_canva(path, parse_qs(parsed.query))
+            elif path.startswith("/google/"):
+                self._route_google(path, parse_qs(parsed.query))
             else:
                 self._route_static(path)
         except Exception:  # noqa: BLE001
@@ -1379,6 +1384,33 @@ class Handler(BaseHTTPRequestHandler):
 
         self._send_json(404, {"error": "not found"})
 
+    def _route_google(self, path: str, query: dict) -> None:
+        if path == "/google/start":
+            session = self._current_session()
+            if session is None:
+                self._send_json(401, {"error": "Oturum gerekli."})
+                return
+            try:
+                destination = google_workspace.start(session.username)
+            except google_workspace.GoogleError as exc:
+                self._send_json(400, {"error": str(exc)})
+                return
+        elif path == "/google/callback":
+            try:
+                google_workspace.callback((query.get("code") or [""])[0],
+                                          (query.get("state") or [""])[0])
+                destination = "/mobile/index.html?tab=chat&mode=personal&google=connected"
+            except google_workspace.GoogleError:
+                destination = "/mobile/index.html?tab=chat&mode=personal&google=error"
+        else:
+            self._send_json(404, {"error": "not found"})
+            return
+        self.send_response(302)
+        self.send_header("Location", destination)
+        self.send_header("Content-Length", "0")
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+
     # -- static frontend --------------------------------------------------
     def _route_static(self, path: str) -> None:
         if path == "/":
@@ -1416,6 +1448,47 @@ class Handler(BaseHTTPRequestHandler):
 
         if session is None:
             self._send_json(401, {"error": "authentication required"})
+            return
+
+        if path == "/api/mobile/reminders":
+            self._send_json(200, {"reminders": mobile_features.reminders(session.username)})
+            return
+        if path == "/api/mobile/memory":
+            self._send_json(200, {"notes": mobile_features.personal_notes(session.username)})
+            return
+        if path == "/api/mobile/memory/search":
+            self._send_json(200, mobile_features.memory_search(
+                session.username, (query.get("q") or [""])[0]))
+            return
+        if path == "/api/mobile/google/status":
+            self._send_json(200, google_workspace.status(session.username))
+            return
+        if path == "/api/mobile/google/pending":
+            self._send_json(200, {"pending": google_workspace.pending_actions(session.username)})
+            return
+        if path == "/api/mobile/google/creative":
+            self._send_json(200, {"files": google_workspace.creative_files()})
+            return
+        if path in ("/api/mobile/google/calendar", "/api/mobile/google/drive"):
+            try:
+                if path.endswith("/calendar"):
+                    result = {"events": google_workspace.calendar_events(session.username)}
+                else:
+                    result = {"files": google_workspace.drive_files(
+                        session.username, (query.get("q") or [""])[0])}
+                self._send_json(200, result)
+            except google_workspace.GoogleError as exc:
+                self._send_json(400, {"error": str(exc)})
+            return
+        if path.startswith("/api/mobile-attachment/"):
+            try:
+                meta, target = mobile_features.attachment(session.username, path.rsplit("/", 1)[-1])
+                if meta["kind"] != "image":
+                    raise ValueError("Görsel bulunamadı.")
+            except ValueError:
+                self._send_json(404, {"error": "Görsel bulunamadı."})
+                return
+            self._send_file(target, "image/jpeg")
             return
 
         if path == "/api/push/config":
@@ -1784,9 +1857,72 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(403, {"error": "csrf token missing or invalid"})
             return
 
+        if path == "/api/mobile/upload":
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if not 0 < length <= mobile_features.MAX_UPLOAD:
+                    raise ValueError("Dosya en fazla 5 MB olabilir.")
+                filename = unquote(self.headers.get("X-File-Name", "dosya"))
+                result = mobile_features.upload(session.username, filename, self.rfile.read(length))
+                self._send_json(200, result)
+            except (ValueError, OSError) as exc:
+                self._send_json(400, {"error": str(exc)[:200]})
+            return
+        if path in ("/api/mobile/reminders", "/api/mobile/memory", "/api/mobile/vision"):
+            try:
+                body = _read_json_body(self)
+                if path == "/api/mobile/reminders":
+                    if body.get("action") == "add":
+                        mobile_features.add_reminder(session.username, body.get("text"), body.get("due_at"),
+                                                     body.get("repeat", "none"))
+                    elif body.get("action") == "update":
+                        mobile_features.update_reminder(session.username, body.get("id"), body.get("text"),
+                                                        body.get("due_at"), body.get("repeat", "none"))
+                    elif body.get("action") == "delete":
+                        mobile_features.delete_reminder(session.username, body.get("id"))
+                    else:
+                        raise ValueError("Geçersiz işlem.")
+                    result = {"reminders": mobile_features.reminders(session.username)}
+                elif path == "/api/mobile/memory":
+                    if body.get("action") == "add":
+                        mobile_features.add_note(session.username, body.get("text"))
+                    elif body.get("action") == "update":
+                        mobile_features.update_note(session.username, body.get("id"), body.get("text"))
+                    elif body.get("action") == "delete":
+                        mobile_features.delete_note(session.username, body.get("id"))
+                    else:
+                        raise ValueError("Geçersiz işlem.")
+                    result = {"notes": mobile_features.personal_notes(session.username)}
+                else:
+                    if body.get("consent") is not True:
+                        raise ValueError("Görsel analizi için açık onay gerekiyor.")
+                    result = {"answer": mobile_features.vision_answer(
+                        session.username, body.get("attachment_id"), body.get("question"))}
+                self._send_json(200, result)
+            except ValueError as exc:
+                self._send_json(400, {"error": str(exc)[:200]})
+            return
+        if path in ("/api/mobile/google/prepare", "/api/mobile/google/decide",
+                    "/api/mobile/google/disconnect", "/api/mobile/google/drive/import"):
+            try:
+                body = _read_json_body(self)
+                if path.endswith("/prepare"):
+                    result = google_workspace.prepare(session.username, body.get("kind"), body.get("fields") or {})
+                elif path.endswith("/decide"):
+                    result = google_workspace.decide(session.username, body.get("id"), body.get("decision"))
+                elif path.endswith("/drive/import"):
+                    result = google_workspace.import_drive_file(session.username, body.get("id"))
+                else:
+                    google_workspace.disconnect(session.username)
+                    result = {"connected": False}
+                self._send_json(200, result)
+            except google_workspace.GoogleError as exc:
+                self._send_json(400, {"error": str(exc)})
+            return
+
         if path == "/api/push/subscribe":
             try:
-                push_store.save(_read_json_body(self))
+                push_store.save(_read_json_body(self), owner=mobile_features._user(session.username))
             except ValueError:
                 self._send_json(400, {"error": "invalid push subscription"})
             else:
@@ -1798,14 +1934,15 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(body, dict) or not isinstance(body.get("endpoint"), str):
                 self._send_json(400, {"error": "invalid request"})
                 return
-            push_store.remove(body["endpoint"])
+            push_store.remove(body["endpoint"], owner=mobile_features._user(session.username))
             self._send_json(200, {"ok": True})
             return
 
         if path == "/api/push/test":
             body = _read_json_body(self)
             endpoint = body.get("endpoint") if isinstance(body, dict) else None
-            if not isinstance(endpoint, str) or not push_store.get(push_store.subscription_id(endpoint)):
+            subscription = push_store.get(push_store.subscription_id(endpoint)) if isinstance(endpoint, str) else None
+            if not subscription or subscription.get("owner") != mobile_features._user(session.username):
                 self._send_json(400, {"error": "device not registered"})
                 return
             try:
@@ -1845,6 +1982,19 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(200, {"ok": True}, self._clear_session_cookies())
             return
 
+        if path == "/api/gelenkutusu/taslak":
+            # Jarvis taslagi URETIR, GONDERMEZ. Devir kapisi modelden once
+            # isler: devredilmesi gereken konusmada model hic cagrilmaz.
+            body = _read_json_body(self)
+            kid = str(body.get("id", ""))
+            if not kid.isdigit():
+                self._send_json(400, {"error": "gecersiz konusma id"})
+                return
+            try:
+                self._send_json(200, gelen_kutusu.taslak(int(kid)))
+            except gelen_kutusu.KutuHatasi as hata:
+                self._send_json(400, {"error": str(hata)})
+            return
         if path == "/api/gelenkutusu/cevap":
             # 🔴 MUSTERIYE MESAJ GONDERIR. Kapilar jarvis.whatsapp icinde:
             # onay kaynagi, metin siniri, MEVZUAT, gonderme anahtari, kimlik.
@@ -2403,6 +2553,7 @@ class Handler(BaseHTTPRequestHandler):
         """
         body = _read_json_body(self)
         message = str(body.get("message", ""))[:2000]
+        mode = body.get("mode", "work")
         self.send_response(200)
         self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
@@ -2410,13 +2561,28 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Connection", "close")
         self.end_headers()
         try:
-            for event in chat.stream(message, _shadow_runner, _operator):
+            if mode not in ("work", "personal"):
+                events = ({"type": "error", "message": "Geçerli bir sohbet alanı seçin."},)
+            elif mode == "personal":
+                session = self._current_session()
+                attachment_id = body.get("attachment_id")
+                events = (personal_chat.stream(message, session.username, attachment_id=attachment_id)
+                          if attachment_id else personal_chat.stream(message, session.username))
+            else:
+                events = chat.stream(message, _shadow_runner, _operator)
+            for event in events:
                 line = json.dumps(event, ensure_ascii=False, default=str) + "\n"
                 self.wfile.write(line.encode("utf-8"))
                 self.wfile.flush()
         except (JarvisMemoryError, BrokenPipeError, ConnectionResetError) as exc:
             try:
                 line = json.dumps({"type": "error", "message": str(exc)}, ensure_ascii=False) + "\n"
+                self.wfile.write(line.encode("utf-8"))
+            except OSError:
+                pass
+        except Exception:  # noqa: BLE001 - always finish with a valid stream frame
+            try:
+                line = json.dumps({"type": "error", "message": "Yanıt tamamlanamadı. Tekrar deneyin."}, ensure_ascii=False) + "\n"
                 self.wfile.write(line.encode("utf-8"))
             except OSError:
                 pass
@@ -3040,13 +3206,13 @@ def _arastirma_bulgulari(tavan: int = 3000) -> dict:
 
 
 def _panel_ekip() -> dict:
-    """EKIP PANOSU: departman departman kim var, kim calisiyor, kim calismiyor.
+    """EKIP PANOSU: kadro, veri okuma sonucu ve kanitli faaliyet ayridir.
 
     🔴 IKI AYRI 'CALISIYOR' VAR, KARISTIRMA:
       departman.durum  -- birimin veri kaynagi var mi (core.departman alani)
-      uye.status       -- o uye SU AN veriden konusabildi mi (canli olcum)
-    Bir departman 'CALISIYOR' isaretli olup uyesi o an okuyamiyor olabilir
-    (sorgu dustu). Pano ikisini de gosterir; birini digerinin yerine koymak
+      uye.status       -- son ekip dongusunde veriden konusabildi mi
+    Bir departman 'CALISIYOR' isaretli olup uyesi son olcumde okuyamamis olabilir.
+    Pano ikisini de gosterir; birini digerinin yerine koymak
     yesil bir panoda olu bir birimi gizlerdi.
 
     Renk KURALI -- tahmin degil, sayim:
@@ -3067,13 +3233,23 @@ def _panel_ekip() -> dict:
     except Exception as exc:  # noqa: BLE001
         return {"error": f"departman tablosu okunamadi: {exc}", "departmanlar": []}
 
-    # 2) Canli uye durumu. Tek cagri, sorgular icerde onbellege aliniyor.
     try:
-        from jarvis.role_activity import latest
-        gorusler = roster.opinions(_memory, activity=latest())
+        from jarvis.role_activity import latest_report
+        report = latest_report()
+        cached = report.get("data_opinions", [])
+        data_keys = {member.key for member in roster.ROSTER if member.mode == "data"}
+        if isinstance(cached, list) and {row.get("key") for row in cached if isinstance(row, dict)} == data_keys:
+            other_keys = tuple(member.key for member in roster.ROSTER if member.mode != "data")
+            gorusler = cached + roster.opinions(_memory, only=other_keys,
+                                                activity=report.get("roles", {}))
+            olcum_kaynagi = "son ekip döngüsü"
+        else:
+            gorusler = roster.opinions(_memory, activity=report.get("roles", {}))
+            olcum_kaynagi = "canlı sorgu"
     except Exception as exc:  # noqa: BLE001
         gorusler = []
         uye_hatasi = str(exc)
+        olcum_kaynagi = "okunamadı"
     else:
         uye_hatasi = ""
     gorus_by_key = {g["key"]: g for g in gorusler}
@@ -3144,8 +3320,11 @@ def _panel_ekip() -> dict:
     for s in satirlar:
         sayim[s["renk"]] = sayim.get(s["renk"], 0) + 1
 
+    from jarvis.team_lead import load_brief
+
     return {
         "departmanlar": satirlar,
+        "yonetim": load_brief(satirlar),
         "ozet": {
             "departman": len(satirlar),
             "kadrosu_olan": sum(1 for s in satirlar if s["uye_sayisi"]),
@@ -3158,8 +3337,8 @@ def _panel_ekip() -> dict:
             (s["arastirma_son"] for s in satirlar if s["arastirma_son"]), default=""),
         "arastirma_toplam": sum(s["arastirma_toplam"] for s in satirlar),
         "uyari": uye_hatasi,
-        "not": ("Renk, o departmanin uyelerinin SU ANKI okuma sonucudur; "
-                "birim_durumu ise core.departman alanidir. Ikisi ayri seydir."),
+        "not": (f"Renk, üyelerin {olcum_kaynagi} veri okuma sonucudur; "
+                "birim_durumu ise core.departman alanıdır. İkisi ayrı şeydir."),
     }
 
 

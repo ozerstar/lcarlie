@@ -76,8 +76,10 @@ def _write(data: dict) -> None:
             os.unlink(temporary_path)
 
 
-def save(subscription: dict) -> str:
+def save(subscription: dict, owner: str | None = None) -> str:
     clean = _validate(subscription)
+    if owner is not None and not re.fullmatch(r"[A-Za-z0-9_-]{1,60}", owner):
+        raise ValueError("invalid owner")
     identifier = subscription_id(clean["endpoint"])
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     with LOCK_FILE.open("a+") as lock:
@@ -86,17 +88,22 @@ def save(subscription: dict) -> str:
         data = _read()
         if identifier not in data and len(data) >= 10:
             raise ValueError("too many devices")
-        data[identifier] = {**clean, "created_at": time.time()}
+        previous = data.get(identifier, {})
+        if owner is not None and previous.get("owner") not in (None, owner):
+            raise ValueError("device belongs to another user")
+        data[identifier] = {**clean, "created_at": previous.get("created_at", time.time()),
+                            "owner": owner if owner is not None else previous.get("owner")}
         _write(data)
     return identifier
 
 
-def remove(endpoint: str) -> None:
+def remove(endpoint: str, owner: str | None = None) -> None:
     identifier = subscription_id(endpoint)
     with LOCK_FILE.open("a+") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         data = _read()
-        data.pop(identifier, None)
+        if owner is None or data.get(identifier, {}).get("owner") == owner:
+            data.pop(identifier, None)
         _write(data)
 
 

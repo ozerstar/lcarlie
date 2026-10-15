@@ -124,3 +124,19 @@ class TirnakKACISI(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class YonSOZLESMESI(unittest.TestCase):
+    """🔴 Veritabaninda TEK bir yon sozlesmesi olmali: gelen/giden.
+
+    Bu betik bir ara "in"/"out" yaziyordu. Hicbir hata vermedi; yalnizca
+    siniflandirici ve panelin cevapsiz sayaci webhook'tan gelen mesajlari
+    GORMEDI. Sessiz veri ayrismasi, gurultulu bir cokmeden pahalidir.
+    """
+
+    def test_kaynak_in_out_YAZMAZ(self):
+        self.assertNotIn('yon = "out" if yanki else "in"', KAYNAK,
+                         "in/out sozlesmesi geri gelmis")
+
+    def test_kaynak_gelen_giden_yazar(self):
+        self.assertIn('yon = "giden" if yanki else "gelen"', KAYNAK)

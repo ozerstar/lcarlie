@@ -4,6 +4,7 @@ Sınanan asıl davranış: verisi olmayan üye SUSMALI, uydurmamalı. Paneli dol
 göstermek için yazılmış bir cümle, boş bir satırdan kötüdür.
 """
 import unittest
+from unittest.mock import patch
 
 from jarvis import roster
 
@@ -58,6 +59,28 @@ class ListeTests(unittest.TestCase):
 
 
 class DurustlukTests(unittest.TestCase):
+    def test_canonical_data_source_is_attached_as_evidence(self):
+        class CanonicalMemory(SahteMemory):
+            def _fetch(self, query):
+                records = self.veri.get(query, [])
+                return type("Evidence", (), {"records": records, "source": f"postgres:{query}",
+                                             "authority": "CANONICAL_COMPANY_MEMORY"})()
+
+        opinion = roster.opinions(CanonicalMemory(SATIS), only=("ecommerce_sales",))[0]
+        self.assertEqual(roster.SPEAKS, opinion["status"])
+        self.assertEqual({"postgres:sales_orders", "postgres:sales_items"}, set(opinion["evidence_refs"]))
+
+    def test_one_speaker_failure_does_not_hide_other_members(self):
+        def broken(rows):
+            raise RuntimeError("not for display")
+
+        with patch.dict(roster.SPEAKERS, {"ecommerce_sales": broken}):
+            opinions = roster.opinions(SahteMemory(SATIS), only=("ecommerce_sales", "field_b2b_sales"))
+        by_key = {opinion["key"]: opinion for opinion in opinions}
+        self.assertEqual(roster.ISLEM_HATASI, by_key["ecommerce_sales"]["status"])
+        self.assertEqual("RuntimeError", by_key["ecommerce_sales"]["statement"])
+        self.assertEqual(roster.SPEAKS, by_key["field_b2b_sales"]["status"])
+
     def test_arastirma_uyesi_veriden_konusmaz(self):
         """Dış kaynak gerektiren üye şirket verisinden konuşuyormuş gibi
         yapmamalı."""

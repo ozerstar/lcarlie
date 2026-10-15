@@ -119,6 +119,24 @@ def olaylari_ayristir(yuk: dict[str, Any]) -> list[dict[str, Any]]:
                 telefon_id = str(metadata.get("phone_number_id") or "")
                 for mesaj in (deger.get("messages") or []):
                     icerik = mesaj.get("text") or {}
+                    # 🔴 REKLAM REFERANSI OKUNUYOR -- onceden `None` YAZILIYDU.
+                    # Click-to-WhatsApp reklamindan gelen musterinin hangi
+                    # urune baktigini SOYLEYEN TEK ALAN budur; musteri mesajin
+                    # icinde urun adini yazmiyor (olculdu: 540 mesajin
+                    # hicbirinde gecmiyor, ama 183'u fiyat soruyor).
+                    #
+                    # WhatsApp'in alan adlari Messenger'inkinden FARKLI:
+                    # Messenger `referral.ad_id` ve `referral.source`,
+                    # WhatsApp `referral.source_id` ve `referral.source_type`
+                    # diyor. Messenger'in adlarini aramak sessizce bos doner.
+                    referral = mesaj.get("referral") or {}
+                    ek = {"type": mesaj.get("type")}
+                    # Tiklama kimligi reklam raporlamasiyla eslestirmeyi
+                    # saglar; varsa saklanir, yoksa UYDURULMAZ.
+                    if referral.get("ctwa_clid"):
+                        ek["ctwa_clid"] = referral["ctwa_clid"]
+                    if referral.get("source_url"):
+                        ek["referral_url"] = referral["source_url"]
                     olaylar.append({
                         "kanal": "whatsapp",
                         "sayfa_id": telefon_id,
@@ -128,10 +146,10 @@ def olaylari_ayristir(yuk: dict[str, Any]) -> list[dict[str, Any]]:
                         "metin": icerik.get("body") or "",
                         "yanki": False,
                         "zaman_ms": int(mesaj.get("timestamp") or 0) * 1000,
-                        "ad_id": None,
-                        "referral_ref": None,
-                        "referral_kaynak": None,
-                        "ek": {"type": mesaj.get("type")},
+                        "ad_id": referral.get("source_id") or None,
+                        "referral_ref": referral.get("headline") or None,
+                        "referral_kaynak": referral.get("source_type") or None,
+                        "ek": ek,
                     })
         return olaylar
     for giris in (yuk.get("entry") or []):

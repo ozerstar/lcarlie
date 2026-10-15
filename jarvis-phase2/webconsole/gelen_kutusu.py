@@ -228,3 +228,72 @@ def cevap_gonder(konusma_id: int, metin: str, *, kuru: bool = False) -> dict:
                                konusma_id=int(konusma_id), kuru=kuru)
     except whatsapp.GondermeReddedildi as hata:
         raise KutuHatasi(str(hata)) from None
+
+
+# ══════════════════════════════════════════════════════════════════════
+# JARVİS TASLAĞI
+#
+# 🔴 TASLAK GÖNDERİLMEZ. Üretilir, denetlenir, panele konur. Sahip okur,
+# isterse değiştirir, GÖNDER'e basar. "Üret" ile "gönder" aynı düğme
+# olsaydı, modelin her çıktısı bir yayın kararı olurdu.
+#
+# 🔴 DEVİR KAPISI MODELDEN ÖNCE İŞLER. Sağlık/şikâyet, sipariş, iddia
+# sorusu ya da tanınmayan sınıf ise model HİÇ ÇAĞRILMAZ -- para da
+# harcanmaz, uygunsuz bir taslak da üretilmez.
+
+_URUN_SQL = """
+SELECT row_to_json(x) FROM (
+  SELECT urun_id, urun_adi, aciklama_duz, wix_satis, wix_liste,
+         wix_stok, wix_yayinda
+  FROM mart.urun_karti
+) x;
+"""
+
+
+def urun_kayitlari() -> list[dict]:
+    """mart.urun_karti satırları. Fiyatın TEK kaynağı burasıdır."""
+    return _calistir(_URUN_SQL)
+
+
+def taslak(konusma_id: int) -> dict:
+    """Son gelen mesaja Jarvis taslağı. HİÇBİR ŞEY GÖNDERMEZ."""
+    from jarvis import devir, mesaj_sinifi, satis_dialog
+    from jarvis.model_layer import ModelRouter
+
+    kid = int(konusma_id)
+    satir = _calistir(f"""
+    SELECT row_to_json(x) FROM (
+      SELECT m.metin, m.sinif, m.mevzuat, (k.notlar->>'urun') AS urun
+      FROM lcarlie.mesaj m JOIN lcarlie.konusma k ON k.id = m.konusma_id
+      WHERE m.konusma_id = {kid} AND m.yon = 'gelen'
+      ORDER BY m.zaman DESC LIMIT 1
+    ) x;
+    """)
+    if not satir:
+        raise KutuHatasi("konusmada gelen mesaj yok")
+    son = satir[0]
+    mesaj = son.get("metin") or ""
+    sinif = son.get("sinif") or mesaj_sinifi.siniflandir(mesaj)
+    urun_adi = son.get("urun")
+
+    gerek, sebep = devir.devir_gerekir(
+        sinif, urun_bilindi=bool(urun_adi), mevzuat=son.get("mevzuat"))
+    if gerek:
+        # Model cagrilmaz: uygunsuz taslak da uretilmez, jeton da yanmaz.
+        return {"uretildi": False, "devredilmeli": True, "sinif": sinif,
+                "sebep": sebep, "sebep_metni": devir.sebep_aciklamasi(sebep),
+                "metin": "", "bulgular": []}
+
+    kart = None
+    if urun_adi:
+        kart = satis_dialog.urun_bul(urun_kayitlari(), urun_adi)
+
+    cevap = satis_dialog.cevap_uret(mesaj, kart, ModelRouter())
+    sonuc = cevap.to_dict()
+    sonuc.update({
+        "uretildi": bool(cevap.metin),
+        "devredilmeli": False,
+        "sinif": sinif,
+        "urun_soruluyor": devir.urun_sorulmali(sinif, urun_bilindi=bool(urun_adi)),
+    })
+    return sonuc

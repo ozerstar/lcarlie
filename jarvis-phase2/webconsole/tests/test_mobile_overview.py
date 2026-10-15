@@ -25,7 +25,7 @@ class MobileOverviewTests(unittest.TestCase):
 
     def test_approvals_show_reason_and_block_empty_approval(self):
         self.assertIn("proposal.payload?.reason", MOBILE_JS)
-        self.assertIn("addApprovalLine(detail, reason", MOBILE_JS)
+        self.assertIn("addApprovalLine(detail, approvalSummary(reason)", MOBILE_JS)
         self.assertIn("$('approval-approve').disabled = !reason", MOBILE_JS)
         self.assertIn("approvalRisk(proposal.risk_class)", MOBILE_JS)
 

@@ -45,6 +45,16 @@ class PushStoreTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             push_store.save(subscription)
 
+    def test_subscription_owner_limits_removal(self):
+        subscription = self.subscription()
+        identifier = push_store.save(subscription, owner="alice")
+        with self.assertRaises(ValueError):
+            push_store.save(subscription, owner="bob")
+        push_store.remove(subscription["endpoint"], owner="bob")
+        self.assertEqual(push_store.get(identifier)["owner"], "alice")
+        push_store.remove(subscription["endpoint"], owner="alice")
+        self.assertIsNone(push_store.get(identifier))
+
 
 if __name__ == "__main__":
     unittest.main()

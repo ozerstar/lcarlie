@@ -66,6 +66,8 @@ KNOWN_ROUTES = {
     "/api/gelenkutusu/devir",
     # Musteriye cevap gonderir; kapilar jarvis.whatsapp icinde.
     "/api/gelenkutusu/cevap",
+    # Jarvis taslagi uretir; gondermez.
+    "/api/gelenkutusu/taslak",
     # URETILENLER: uretilen her seyi tek yerde toplar (26.09.2026).
     "/api/uretilenler",
     "/api/activity", "/api/proposals", "/api/chat", "/api/chat/stream",

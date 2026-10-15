@@ -14,6 +14,10 @@ from pywebpush import WebPushException, webpush
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "webconsole"))
 import push_store  # noqa: E402
+import mobile_features  # noqa: E402
+import google_workspace  # noqa: E402
+from datetime import datetime  # noqa: E402
+from zoneinfo import ZoneInfo  # noqa: E402
 
 
 def send(subscription: dict, title: str, body: str, tag: str) -> bool:
@@ -40,7 +44,7 @@ def send(subscription: dict, title: str, body: str, tag: str) -> bool:
 
 def pending_approvals() -> list[dict]:
     sql = ("BEGIN; SET SESSION AUTHORIZATION human_approver; "
-           "SELECT row_to_json(x) FROM (SELECT action_id,payload FROM core.ai_get_pending_actions()) x; "
+           "SELECT row_to_json(x) FROM (SELECT action_id,action_type,payload FROM core.ai_get_pending_actions()) x; "
            "ROLLBACK;")
     result = subprocess.run(
         ["docker", "exec", "lcarlie-postgres", "psql", "-X", "-q", "-v", "ON_ERROR_STOP=1",
@@ -50,7 +54,8 @@ def pending_approvals() -> list[dict]:
     return [json.loads(line) for line in result.stdout.splitlines() if line.strip()]
 
 
-def save_seen(seen: dict) -> None:
+def save_seen(seen: dict, path: Path | None = None) -> None:
+    path = path or push_store.SEEN_FILE
     descriptor, temporary_path = tempfile.mkstemp(prefix=".push-seen-", dir=push_store.STATE_DIR)
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
@@ -58,7 +63,7 @@ def save_seen(seen: dict) -> None:
             handle.flush()
             os.fsync(handle.fileno())
         os.chmod(temporary_path, 0o600)
-        os.replace(temporary_path, push_store.SEEN_FILE)
+        os.replace(temporary_path, path)
     finally:
         if os.path.exists(temporary_path):
             os.unlink(temporary_path)
@@ -80,10 +85,57 @@ def notify_new_approvals() -> None:
             if action_id in delivered:
                 continue
             reason = str((proposal.get("payload") or {}).get("reason") or "Yeni bir öneri var.")
-            if send(subscription, "Jarvis · Onay bekliyor", f"#{action_id} · {reason}", f"approval-{action_id}"):
+            external = proposal.get("action_type") in {
+                "WHATSAPP_SEND_TEMPLATE", "META_CAMPAIGN_CHANGE", "PRICE_CHANGE", "WIX_PUBLISH"
+            }
+            title = "🔴 Jarvis · Dış işlem onayı" if external else "Jarvis · Onay bekliyor"
+            if send(subscription, title, f"#{action_id} · {reason}", f"approval-{action_id}"):
                 delivered.add(action_id)
         seen[identifier] = list(delivered & set(current))
     save_seen(seen)
+
+
+def notify_due_reminders() -> None:
+    subscriptions = push_store.all_subscriptions()
+    for reminder in mobile_features.due_reminders():
+        targets = {identifier: subscription for identifier, subscription in subscriptions.items()
+                   if subscription.get("owner") == reminder.get("user")}
+        sent = set(reminder.get("sent_to") or [])
+        for identifier, subscription in targets.items():
+            if identifier in sent:
+                continue
+            if send(subscription, "Jarvis · Hatırlatıcı", reminder["text"],
+                    f"reminder-{reminder['id']}-{reminder['due_at']}"):
+                mobile_features.mark_sent(reminder["id"], identifier)
+                sent.add(identifier)
+        if targets and set(targets).issubset(sent):
+            mobile_features.advance_reminder(reminder["id"], set(targets))
+
+
+def notify_birthdays() -> None:
+    subscriptions = push_store.all_subscriptions()
+    owners = {subscription.get("owner") for subscription in subscriptions.values()}
+    today = datetime.now(ZoneInfo("Europe/Istanbul")).date().isoformat()
+    seen_path = push_store.STATE_DIR / "birthday-seen.json"
+    seen = json.loads(seen_path.read_text(encoding="utf-8")) if seen_path.exists() else {}
+    seen = {key: value for key, value in seen.items() if key.startswith(today + ":")}
+    for owner in owners - {None, ""}:
+        try:
+            events = google_workspace.birthday_events_today(owner)
+        except Exception:  # noqa: BLE001 - Google hatasi diger bildirimleri engellemez
+            print("birthday calendar unavailable", file=sys.stderr)
+            continue
+        for event in events:
+            identifier = event.get("id") or event.get("summary") or "birthday"
+            title = event.get("summary") or "Bugün doğum günü var"
+            for subscription_id, subscription in subscriptions.items():
+                if subscription.get("owner") != owner:
+                    continue
+                key = f"{today}:{owner}:{identifier}:{subscription_id}"
+                if key not in seen and send(subscription, "Jarvis · Doğum günü", title,
+                                            f"birthday-{today}-{identifier}"):
+                    seen[key] = True
+                    save_seen(seen, seen_path)
 
 
 if __name__ == "__main__":
@@ -93,6 +145,8 @@ if __name__ == "__main__":
                                         "Telefon bildirim bağlantısı hazır.", "jarvis-test"):
             raise SystemExit(1)
     elif len(sys.argv) == 1:
+        notify_due_reminders()
         notify_new_approvals()
+        notify_birthdays()
     else:
         raise SystemExit(2)

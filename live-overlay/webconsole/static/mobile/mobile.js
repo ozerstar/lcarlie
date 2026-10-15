@@ -1,7 +1,8 @@
 'use strict';
 
 const $ = (id) => document.getElementById(id);
-const state = { csrf: null, busy: false, audio: null, audioUrl: null, audioGeneration: 0, action: null };
+const state = { csrf: null, busy: false, audio: null, audioUrl: null, audioGeneration: 0, action: null,
+  chatMode: 'work', personalTab: 'chat', chatRows: { work: [], personal: [] }, attachment: null, googleProposal: null };
 let voiceMode = false;
 let selectedProposal = null;
 
@@ -35,7 +36,13 @@ function showApp() {
   $('login').hidden = true; $('app').hidden = false; $('logout').hidden = false;
   status('Bağlı'); refreshMobile(); refreshPushStatus();
   const tab = new URLSearchParams(location.search).get('tab');
-  if (['approvals', 'creative'].includes(tab)) document.querySelector(`[data-tab="${tab}"]`).click();
+  if (['approvals', 'creative', 'jobs', 'chat'].includes(tab)) document.querySelector(`[data-tab="${tab}"]`).click();
+  if (tab === 'chat' && new URLSearchParams(location.search).get('mode') === 'personal')
+    document.querySelector('[data-chat-mode="personal"]').click();
+  if (new URLSearchParams(location.search).has('google')) {
+    status(new URLSearchParams(location.search).get('google') === 'connected' ? 'Google hesabı bağlandı' : 'Google hesabı bağlanamadı');
+    history.replaceState(null, '', '/mobile/index.html?tab=chat&mode=personal');
+  }
 }
 
 async function request(path, options = {}) {
@@ -118,6 +125,9 @@ async function refreshPushStatus() {
     const registration = await navigator.serviceWorker.register('/mobile/sw.js', { scope: '/mobile/' });
     const subscription = await registration.pushManager.getSubscription();
     const active = Boolean(subscription && Notification.permission === 'granted');
+    if (active && state.csrf) await readApi('/api/push/subscribe', {
+      method: 'POST', body: JSON.stringify(subscription.toJSON()),
+    });
     $('push-enable').hidden = active;
     $('push-test').hidden = !active;
     $('push-disable').hidden = !active;
@@ -185,6 +195,7 @@ function bubble(kind, text) {
   const content = document.createElement('div');
   content.textContent = text;
   node.append(content);
+  state.chatRows[state.chatMode].push(node);
   $('messages').append(node);
   node.scrollIntoView({ block: 'end', behavior: 'smooth' });
   return { node, content };
@@ -266,9 +277,11 @@ async function sendMessage(text) {
   status('Düşünüyor');
   bubble('user', text);
   const row = bubble('jarvis', 'Yanıt hazırlanıyor…');
+  const mode = state.chatMode;
   let answer = '';
   try {
-    const response = await request('/api/chat/stream', { method: 'POST', body: JSON.stringify({ message: text }) });
+    const response = await request('/api/chat/stream', { method: 'POST', body: JSON.stringify({ message: text, mode,
+      attachment_id: mode === 'personal' ? state.attachment?.id : undefined }) });
     if (!response.ok || !response.body) throw new Error('Sohbet bağlantısı açılamadı.');
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -296,7 +309,7 @@ async function sendMessage(text) {
           }
           answer = friendlyMessage(answer, 'Jarvis yanıt veremedi. Lütfen tekrar deneyin.');
           row.content.textContent = answer;
-          if (item.result?.source === 'kreatif.inceleme') {
+          if (mode === 'work' && item.result?.source === 'kreatif.inceleme') {
             const open = document.createElement('button');
             open.className = 'chat-open-creative'; open.textContent = 'Görselleri aç';
             open.addEventListener('click', () => document.querySelector('[data-tab="creative"]').click());
@@ -331,8 +344,386 @@ async function sendMessage(text) {
     if (voiceMode && playButton) { voiceMode = false; playAnswer(answer, playButton); }
     status('Bağlı');
   } catch (error) { row.content.textContent = friendlyMessage(error.message, 'Bağlantı kesildi. Tekrar deneyin.'); status('Bağlantı hatası'); voiceMode = false; }
-  finally { state.busy = false; $('send').disabled = false; }
+  finally { state.busy = false; $('send').disabled = false; if (mode === 'personal') clearAttachment(); }
 }
+
+document.querySelectorAll('[data-chat-mode]').forEach((button) => button.addEventListener('click', () => {
+  if (state.busy || button.dataset.chatMode === state.chatMode) return;
+  stopAudio();
+  state.chatMode = button.dataset.chatMode;
+  document.querySelectorAll('[data-chat-mode]').forEach((item) => {
+    const active = item.dataset.chatMode === state.chatMode;
+    item.classList.toggle('active', active);
+    item.setAttribute('aria-pressed', String(active));
+  });
+  $('messages').replaceChildren(...state.chatRows[state.chatMode]);
+  $('chat-mode-help').textContent = state.chatMode === 'personal'
+    ? 'Kişisel konuşmalar ayrı saklanır. Jarvis burada şirket kayıtlarını ve iş onaylarını kullanmaz.'
+    : 'Şirket verileri, görevler ve onaylar bu alandadır. İşlemler için onayınız gerekir.';
+  $('chat-input').placeholder = state.chatMode === 'personal' ? 'Kişisel asistana yaz…' : 'İş için Jarvis’e yaz…';
+  $('personal-tools').hidden = state.chatMode !== 'personal';
+  showPersonalTab(state.personalTab);
+  clearAttachment();
+  if (state.chatMode === 'personal') { loadReminders(); loadMemory(); loadGoogle(); }
+}));
+
+function showPersonalTab(name) {
+  state.personalTab = name;
+  document.querySelectorAll('[data-personal-tab]').forEach((button) => {
+    const active = button.dataset.personalTab === name;
+    button.classList.toggle('active', active);
+    if (active) button.setAttribute('aria-current', 'page');
+    else button.removeAttribute('aria-current');
+  });
+  document.querySelectorAll('[data-personal-pane]').forEach((pane) => {
+    pane.hidden = pane.dataset.personalPane !== name;
+  });
+  const showChat = state.chatMode !== 'personal' || name === 'chat';
+  for (const id of ['messages', 'chat-form', 'chat-actions', 'chat-help']) $(id).hidden = !showChat;
+}
+document.querySelectorAll('[data-personal-tab]').forEach((button) => button.addEventListener('click', () => {
+  showPersonalTab(button.dataset.personalTab);
+}));
+
+function clearAttachment() {
+  state.attachment = null;
+  $('personal-file').value = '';
+  $('file-status').textContent = 'JPG, PNG, PDF veya metin · En fazla 5 MB';
+  $('file-preview').hidden = true;
+  $('vision-button').hidden = true;
+}
+
+$('personal-file').addEventListener('change', async () => {
+  const file = $('personal-file').files[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) { clearAttachment(); status('Dosya en fazla 5 MB olabilir.'); return; }
+  $('file-status').textContent = 'Dosya yükleniyor…';
+  try {
+    const result = await readApi('/api/mobile/upload', { method: 'POST', body: file,
+      headers: { 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name) } });
+    state.attachment = result;
+    $('file-status').textContent = `${result.name} hazır. ${result.kind === 'image' ? 'Analiz et düğmesine dokun.' : 'Sorunu yazıp gönder.'}`;
+    if (result.kind === 'image') { $('file-preview').src = result.url; $('file-preview').hidden = false; $('vision-button').hidden = false; }
+  } catch (error) { clearAttachment(); status(friendlyMessage(error.message)); }
+});
+
+$('vision-button').addEventListener('click', async () => {
+  if (!state.attachment || state.busy) return;
+  const button = $('vision-button'); button.disabled = true; button.textContent = 'İnceleniyor…';
+  const question = $('chat-input').value.trim() || 'Bu görselde ne var? Sorunları sade anlat.';
+  try {
+    const result = await readApi('/api/mobile/vision', { method: 'POST', body: JSON.stringify({
+      attachment_id: state.attachment.id, question, consent: true }) });
+    bubble('user', `${state.attachment.name}: ${question}`);
+    const row = bubble('jarvis', result.answer); addPlayButton(row, result.answer);
+    $('chat-input').value = ''; clearAttachment();
+  } catch (error) { status(friendlyMessage(error.message)); }
+  finally { button.disabled = false; button.textContent = 'Görseli analiz et'; }
+});
+
+async function loadReminders() {
+  try {
+    const data = await readApi('/api/mobile/reminders'); const list = $('reminder-list'); list.replaceChildren();
+    const rows = data.reminders || [];
+    if (!rows.length) { empty(list, 'Henüz hatırlatıcı yok.'); return; }
+    for (const item of rows.slice().reverse()) {
+      const repeatLabel = {none: 'Bir kez', daily: 'Her gün', weekly: 'Her hafta', monthly: 'Her ay'}[item.repeat || 'none'];
+      const card = mobileCard(item.text, `${new Date(item.due_at).toLocaleString('tr-TR')} · ${repeatLabel}`,
+        new Date(item.due_at) <= new Date() ? 'Zamanı geldi' : 'Bekliyor');
+      const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'secondary'; edit.textContent = 'Düzenle';
+      edit.addEventListener('click', () => {
+        state.reminderEditId = item.id;
+        $('reminder-text').value = item.text;
+        const local = new Date(new Date(item.due_at).getTime() - new Date(item.due_at).getTimezoneOffset() * 60000);
+        $('reminder-time').value = local.toISOString().slice(0, 16);
+        $('reminder-repeat').value = item.repeat || 'none';
+        $('reminder-save').textContent = 'Değişiklikleri kaydet';
+        $('reminder-cancel').hidden = false;
+        $('reminder-text').focus();
+      });
+      const del = document.createElement('button'); del.type = 'button'; del.className = 'secondary'; del.textContent = 'Sil';
+      del.addEventListener('click', async () => { try { await readApi('/api/mobile/reminders', {method:'POST', body:JSON.stringify({action:'delete', id:item.id})}); loadReminders(); loadDailySummary(); } catch (error) { status(friendlyMessage(error.message)); } });
+      card.append(edit, del); list.append(card);
+    }
+  } catch (_) { empty($('reminder-list'), 'Hatırlatıcılar yüklenemedi.'); }
+}
+$('reminder-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  try {
+    const when = new Date($('reminder-time').value);
+    if (Number.isNaN(when.getTime())) throw new Error('Geçerli bir tarih ve saat seç.');
+    await readApi('/api/mobile/reminders', {method:'POST', body:JSON.stringify({action:state.reminderEditId ? 'update' : 'add',
+      id:state.reminderEditId, text:$('reminder-text').value, due_at:when.toISOString(), repeat:$('reminder-repeat').value})});
+    $('reminder-form').reset(); state.reminderEditId = null; $('reminder-save').textContent = 'Hatırlatıcı ekle';
+    $('reminder-cancel').hidden = true; loadReminders(); loadDailySummary(); status('Hatırlatıcı kaydedildi');
+  } catch (error) { status(friendlyMessage(error.message)); }
+});
+$('reminder-cancel').addEventListener('click', () => {
+  state.reminderEditId = null; $('reminder-form').reset();
+  $('reminder-save').textContent = 'Hatırlatıcı ekle'; $('reminder-cancel').hidden = true;
+});
+
+async function loadMemory() {
+  try {
+    const query = $('memory-query').value.trim();
+    const data = await readApi(query ? `/api/mobile/memory/search?q=${encodeURIComponent(query)}` : '/api/mobile/memory');
+    $('memory-search-method').textContent = query ? (data.method === 'meaning' ? 'Anlamına göre bulunan kayıtlar' : 'Metinle bulunan kayıtlar') : '';
+    const list = $('memory-list'); list.replaceChildren();
+    if (!data.notes?.length) { empty(list, 'Kayıtlı kişisel bilgi yok.'); return; }
+    for (const item of (query ? data.notes : data.notes.slice().reverse())) {
+      const card = mobileCard(item.text);
+      const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'secondary'; edit.textContent = 'Düzenle';
+      edit.addEventListener('click', async () => {
+        const changed = window.prompt('Jarvis’in hatırlamasını istediğin bilgi', item.text);
+        if (changed === null || changed.trim() === item.text) return;
+        try { await readApi('/api/mobile/memory', {method:'POST', body:JSON.stringify({action:'update', id:item.id, text:changed})}); loadMemory(); status('Bilgi güncellendi'); }
+        catch (error) { status(friendlyMessage(error.message)); }
+      });
+      const del = document.createElement('button'); del.type = 'button'; del.className = 'secondary'; del.textContent = 'Unut';
+      del.addEventListener('click', async () => { try { await readApi('/api/mobile/memory', {method:'POST', body:JSON.stringify({action:'delete', id:item.id})}); loadMemory(); } catch (error) { status(friendlyMessage(error.message)); } });
+      card.append(edit, del); list.append(card);
+    }
+  } catch (_) { empty($('memory-list'), 'Kişisel bilgiler yüklenemedi.'); }
+}
+$('memory-query').addEventListener('input', () => { clearTimeout(state.memorySearchTimer); state.memorySearchTimer = setTimeout(loadMemory, 350); });
+$('memory-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  try { await readApi('/api/mobile/memory', {method:'POST', body:JSON.stringify({action:'add', text:$('memory-text').value})});
+    $('memory-form').reset(); loadMemory(); status('Bilgi kaydedildi');
+  } catch (error) { status(friendlyMessage(error.message)); }
+});
+$('person-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const name = $('person-name').value.trim();
+  const relationship = $('person-relationship').value.trim();
+  const detail = $('person-detail').value.trim();
+  const text = `Tanıdığım kişi: ${name}. Yakınlığı: ${relationship}.${detail ? ` Hatırlanacak bilgi: ${detail}.` : ''}`;
+  try {
+    await readApi('/api/mobile/memory', {method:'POST', body:JSON.stringify({action:'add', text})});
+    $('person-form').reset(); loadMemory(); status('Kişi kaydedildi');
+  } catch (error) { status(friendlyMessage(error.message)); }
+});
+
+async function loadGoogle() {
+  try {
+    const account = await readApi('/api/mobile/google/status');
+    $('google-status').textContent = account.connected ? (account.drive_write
+      ? 'Google hesabın bağlı. Takvim, e-posta ve Drive hazır.'
+      : 'Google hesabın bağlı. Drive’a kaydetmek için yeniden bağlanıp ek izin vermelisin.')
+      : account.configured ? 'Google hesabın henüz bağlı değil.' : 'Google bağlantısı için kurulum bekleniyor.';
+    $('google-connect').hidden = account.connected && account.drive_write;
+    $('google-connect').textContent = account.connected ? 'Drive yazma izni için yeniden bağla' : 'Google hesabını bağla';
+    $('google-connect').disabled = !account.configured;
+    $('drive-save').disabled = !account.drive_write;
+    $('google-disconnect').hidden = !account.connected;
+    for (const id of ['calendar-form', 'email-form', 'drive-section']) $(id).hidden = !account.connected;
+    if (account.connected) { loadCalendar(); loadGooglePending(); }
+    else { $('google-pending').hidden = true; $('google-approval').hidden = true; }
+  } catch (_) { $('google-status').textContent = 'Google bağlantısı kontrol edilemedi.'; }
+}
+$('google-connect').addEventListener('click', () => { window.location.href = '/google/start'; });
+$('google-disconnect').addEventListener('click', async () => {
+  if (!window.confirm('Google bağlantısını Jarvis’ten kaldırayım mı?')) return;
+  try { await readApi('/api/mobile/google/disconnect', {method:'POST', body:'{}'}); loadGoogle(); }
+  catch (error) { status(friendlyMessage(error.message)); }
+});
+
+async function loadCalendar() {
+  const list = $('calendar-list');
+  try {
+    const data = await readApi('/api/mobile/google/calendar'); list.replaceChildren();
+    if (!data.events?.length) { empty(list, 'Yaklaşan etkinlik görünmüyor.'); return; }
+    for (const item of data.events) list.append(mobileCard(item.title,
+      item.start ? new Date(item.start).toLocaleString('tr-TR') : 'Tarih yok'));
+  } catch (_) { empty(list, 'Takvim şu anda okunamadı.'); }
+}
+
+function showGoogleProposal(proposal) {
+  state.googleProposal = proposal;
+  showPersonalTab('google');
+  $('google-actions-details').open = true;
+  $('google-approval-text').textContent = proposal.description;
+  const external = ['calendar.create', 'gmail.send', 'drive.upload'].includes(proposal.kind);
+  $('google-approval').classList.toggle('external-warning', external);
+  const preview = $('google-approval-preview-link');
+  const previewUrl = proposal.preview_url;
+  preview.hidden = !/^\/kreatif\/[\w./-]+\.(?:jpe?g|png|webp)$/i.test(previewUrl || '');
+  if (!preview.hidden) { preview.href = previewUrl; $('google-approval-preview').src = previewUrl; }
+  else { preview.removeAttribute('href'); $('google-approval-preview').removeAttribute('src'); }
+  $('google-approval').hidden = false;
+  $('google-approval').scrollIntoView({block:'center'});
+}
+async function loadGooglePending() {
+  try {
+    const data = await readApi('/api/mobile/google/pending');
+    const list = $('google-pending-list'); list.replaceChildren();
+    $('google-pending').hidden = !data.pending?.length;
+    for (const proposal of data.pending || []) {
+      const card = mobileCard(proposal.kind === 'gmail.send' ? 'E-posta gönderme'
+        : proposal.kind === 'drive.upload' ? 'Drive’a kaydetme' : 'Takvime ekleme',
+        proposal.description.split('\n')[0]);
+      if (['calendar.create', 'gmail.send', 'drive.upload'].includes(proposal.kind)) card.classList.add('external-warning');
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'secondary';
+      button.textContent = 'İncele'; button.addEventListener('click', () => showGoogleProposal(proposal));
+      card.append(button); list.append(card);
+    }
+  } catch (_) { $('google-pending').hidden = true; }
+}
+$('calendar-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  try {
+    const proposal = await readApi('/api/mobile/google/prepare', {method:'POST', body:JSON.stringify({
+      kind:'calendar.create', fields:{title:$('calendar-title').value,
+        start:new Date($('calendar-start').value).toISOString(),
+        end:new Date($('calendar-end').value).toISOString()}})});
+    showGoogleProposal(proposal);
+    loadGooglePending();
+  } catch (error) { status(friendlyMessage(error.message)); }
+});
+$('email-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  try {
+    const proposal = await readApi('/api/mobile/google/prepare', {method:'POST', body:JSON.stringify({
+      kind:'gmail.send', fields:{to:$('email-to').value, subject:$('email-subject').value,
+        body:$('email-body').value}})});
+    showGoogleProposal(proposal);
+    loadGooglePending();
+  } catch (error) { status(friendlyMessage(error.message)); }
+});
+async function decideGoogle(decision) {
+  const proposal = state.googleProposal;
+  if (!proposal) return;
+  $('google-approve').disabled = true; $('google-reject').disabled = true;
+  try {
+    const result = await readApi('/api/mobile/google/decide', {method:'POST',
+      body:JSON.stringify({id:proposal.id, decision})});
+    $('google-approval').hidden = true; state.googleProposal = null;
+    loadGooglePending();
+    status(result.status === 'UNCERTAIN' ? 'İşlem sonucu belirsiz. Google hesabında kontrol edin.' : result.message);
+    if (result.status === 'DONE' && proposal.kind === 'calendar.create') { $('calendar-form').reset(); loadCalendar(); }
+    if (result.status === 'DONE' && proposal.kind === 'gmail.send') $('email-form').reset();
+  } catch (error) { status(friendlyMessage(error.message)); }
+  finally { $('google-approve').disabled = false; $('google-reject').disabled = false; }
+}
+$('google-approve').addEventListener('click', () => decideGoogle('APPROVED'));
+$('google-reject').addEventListener('click', () => decideGoogle('REJECTED'));
+function driveFolderId() {
+  const folder = $('drive-folder').value.trim();
+  return folder.includes('/folders/') ? folder.split('/folders/')[1].split(/[?/#]/)[0] : folder;
+}
+function creativeFeedbackForm(group, filename) {
+  const wrapper = document.createElement('div'); wrapper.className = 'creative-feedback';
+  const open = document.createElement('button'); open.type = 'button'; open.className = 'secondary';
+  open.textContent = 'Düzeltme / yeni sürüm iste';
+  const form = document.createElement('form'); form.hidden = true;
+  const label = document.createElement('label'); label.textContent = 'Neyi değiştirelim?';
+  const topic = document.createElement('select');
+  for (const [value, name] of [
+    ['LOGO', 'Logo, yazı tipi, yerleşim veya renk'], ['URUN', 'Ürün, şişe veya ambalaj'],
+    ['METIN', 'Yazının içeriği'], ['MARKA', 'Marka dili'], ['MEVZUAT', 'Mevzuat'],
+    ['DIGER', 'Daha iyi bir alternatif'],
+  ]) { const option = document.createElement('option'); option.value = value; option.textContent = name; topic.append(option); }
+  const note = document.createElement('textarea'); note.rows = 3; note.maxLength = 2000; note.required = true;
+  note.placeholder = 'Örn. Şişe yamuk; dikleştir. Yazı tipini sadeleştir ve daha okunur yap.';
+  const submit = document.createElement('button'); submit.type = 'submit'; submit.className = 'secondary';
+  submit.textContent = 'Düzeltme isteğini kaydet';
+  const result = document.createElement('p'); result.setAttribute('role', 'status');
+  label.append(topic, note); form.append(label, submit, result);
+  open.addEventListener('click', () => { form.hidden = !form.hidden; if (!form.hidden) note.focus(); });
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault(); submit.disabled = true;
+    try {
+      const answer = await readApi('/api/kreatif-itiraz', {method:'POST', body:JSON.stringify({
+        parti:group, dosya:filename, konu:topic.value, aciklama:note.value.trim(),
+      })});
+      result.textContent = `İstek ${answer.muhatap || 'ilgili ekibe'} kaydedildi. Sonraki kreatif üretiminde dikkate alınacak; yeni görsel henüz üretilmedi.`;
+      note.value = '';
+    } catch (error) { result.textContent = friendlyMessage(error.message); }
+    finally { submit.disabled = false; }
+  });
+  wrapper.append(open, form); return wrapper;
+}
+$('drive-save').addEventListener('click', async () => {
+  if (!state.attachment?.id) { status('Önce bir dosya seç veya Drive’dan Jarvis’e ekle.'); return; }
+  try {
+    const proposal = await readApi('/api/mobile/google/prepare', {method:'POST', body:JSON.stringify({
+      kind:'drive.upload', fields:{attachment_id:state.attachment.id, folder_id:driveFolderId()}})});
+    showGoogleProposal(proposal);
+    loadGooglePending();
+  } catch (error) { status(friendlyMessage(error.message)); }
+});
+$('creative-refresh').addEventListener('click', async () => {
+  const list = $('drive-creative-list');
+  try {
+    const data = await readApi('/api/mobile/google/creative');
+    list.replaceChildren();
+    if (!data.files?.length) { empty(list, 'Kreatif görsel bulunamadı.'); return; }
+    for (const item of data.files) {
+      const card = mobileCard(item.name, item.group);
+      const preview = document.createElement('a'); preview.href = item.preview_url;
+      preview.target = '_blank'; preview.rel = 'noopener'; preview.setAttribute('aria-label', `${item.name} büyüt`);
+      const image = document.createElement('img'); image.src = item.preview_url; image.alt = `${item.group} · ${item.name}`;
+      image.className = 'drive-creative-preview'; image.loading = 'lazy'; preview.append(image); card.append(preview);
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'secondary';
+      button.textContent = 'Drive’a kaydetme onayı hazırla';
+      button.addEventListener('click', async () => {
+        button.disabled = true;
+        try {
+          const proposal = await readApi('/api/mobile/google/prepare', {method:'POST', body:JSON.stringify({
+            kind:'drive.upload', fields:{creative_id:item.id, folder_id:driveFolderId()}})});
+          showGoogleProposal(proposal); loadGooglePending();
+        } catch (error) { status(friendlyMessage(error.message)); }
+        finally { button.disabled = false; }
+      });
+      card.append(button, creativeFeedbackForm(item.group, item.name)); list.append(card);
+    }
+  } catch (error) { empty(list, friendlyMessage(error.message)); }
+});
+$('drive-search').addEventListener('click', async () => {
+  const list = $('drive-list');
+  const readableTypes = new Set([
+    'application/vnd.google-apps.document', 'application/vnd.google-apps.spreadsheet',
+    'application/vnd.google-apps.presentation', 'application/pdf', 'text/plain',
+    'text/csv', 'text/markdown', 'image/jpeg', 'image/png', 'image/webp',
+  ]);
+  try {
+    const data = await readApi(`/api/mobile/google/drive?q=${encodeURIComponent($('drive-query').value.trim())}`);
+    list.replaceChildren();
+    if (!data.files?.length) { empty(list, 'Dosya bulunamadı.'); return; }
+    for (const item of data.files) {
+      const card = mobileCard(item.name || 'Adsız dosya');
+      if (item.id && readableTypes.has(item.mime_type)) {
+        const attach = document.createElement('button'); attach.type = 'button'; attach.className = 'secondary';
+        attach.textContent = 'Jarvis’e ekle';
+        attach.addEventListener('click', async () => {
+          attach.disabled = true;
+          try {
+            const result = await readApi('/api/mobile/google/drive/import', {
+              method: 'POST', body: JSON.stringify({id: item.id}),
+            });
+            state.attachment = result;
+            $('file-status').textContent = `${result.name} hazır. Kişisel sohbette sorunu yazıp gönder.`;
+            $('file-preview').hidden = true;
+            $('vision-button').hidden = result.kind !== 'image';
+            if (result.kind === 'image') { $('file-preview').src = result.url; $('file-preview').hidden = false; }
+            status('Drive dosyası kişisel sohbete eklendi.');
+            $('chat-input').focus();
+          } catch (error) { status(friendlyMessage(error.message)); }
+          finally { attach.disabled = false; }
+        });
+        card.append(attach);
+      }
+      try {
+        const url = new URL(item.url);
+        if (url.protocol === 'https:' && ['drive.google.com', 'docs.google.com'].includes(url.hostname)) {
+          const link = document.createElement('a'); link.href = url.href; link.target = '_blank'; link.rel = 'noopener';
+          link.textContent = 'Drive’da aç'; card.append(link);
+        }
+      } catch (_) { /* invalid link is simply not opened */ }
+      list.append(card);
+    }
+  } catch (error) { empty(list, friendlyMessage(error.message)); }
+});
 
 function openAction(kind, target = '', message = '') {
   state.action = kind;
@@ -463,9 +854,32 @@ async function loadCreative() {
           why.textContent = `İnceleme nedeni: ${friendlyMessage(frame.gerekce, 'Ayrıntı belirtilmedi.')}`;
           tile.append(why);
         }
+        tile.append(creativeFeedbackForm(batch.parti_klasor || `${batch.parti}-gorseller`, frame.dosya));
         gallery.append(tile);
       }
       section.append(heading, count, gallery); list.append(section);
+      const objections = batch.red_team?.itirazlar || batch.red_team || [];
+      if (Array.isArray(objections) && objections.length) {
+        const review = document.createElement('details'); review.className = 'creative-red-team';
+        const summary = document.createElement('summary'); summary.textContent = `İncelemede bulunan ${objections.length} sorun · Dokunup aç`;
+        review.append(summary);
+        for (const item of objections) {
+          const card = mobileCard(friendlyMessage(item.alinti || 'İnceleme notu'),
+            `Neden önemli? ${friendlyMessage(item.itiraz || 'Açıklama yok.')}`,
+            `Nasıl düzeltilir? ${friendlyMessage(item.duzeltme || 'Öneri yok.')}`);
+          review.append(card);
+        }
+        const assign = document.createElement('button'); assign.type = 'button'; assign.className = 'secondary';
+        assign.textContent = 'Düzeltme görevi ver';
+        assign.addEventListener('click', async () => {
+          if (!window.confirm('İncelemede bulunan sorunları düzeltme görevi olarak kaydedeyim mi?')) return;
+          assign.disabled = true;
+          try { const result = await readApi('/api/kreatif-gorev', {method:'POST', body:JSON.stringify({tur:'en_iyileri_sec_ve_duzelt'})});
+            assign.textContent = friendlyMessage(result.message, 'Görev kaydedildi'); }
+          catch (error) { assign.disabled = false; status(friendlyMessage(error.message)); }
+        });
+        review.append(assign); section.append(review);
+      }
     }
     if (waiting.length) {
       const heading = document.createElement('h2'); heading.className = 'creative-waiting-title'; heading.textContent = 'Görseli henüz hazırlanmayanlar';
@@ -693,7 +1107,37 @@ async function loadSystem() {
 }
 $('refresh-system').addEventListener('click', loadSystem);
 
-function refreshMobile() { loadJobs(); loadApprovals(); loadSystem(); }
+async function loadDailySummary() {
+  const container = $('daily-summary');
+  const results = await Promise.allSettled([
+    readApi('/api/isler'), readApi('/api/proposals'), readApi('/api/mobile/reminders'), readApi('/api/satislar')]);
+  container.replaceChildren();
+  const jobs = results[0].status === 'fulfilled' ? results[0].value : null;
+  const proposals = results[1].status === 'fulfilled' ? results[1].value : null;
+  const reminderData = results[2].status === 'fulfilled' ? results[2].value : null;
+  const sales = results[3].status === 'fulfilled' ? results[3].value : null;
+  const approvalCount = Array.isArray(proposals?.pending) ? proposals.pending.length : 0;
+  const completed = jobs?.sayilar?.biten || 0;
+  const upcoming = (reminderData?.reminders || []).filter((item) => new Date(item.due_at) > new Date()).length;
+  const today = new Date().toLocaleDateString('sv-SE');
+  const visibleOrders = Array.isArray(sales?.siparisler) ? sales.siparisler.filter((order) => String(order.gun || '').slice(0, 10) === today).length : null;
+  const items = [
+    [visibleOrders === null ? 'Satış verisi alınamadı' : `Bugün kayıtlı ${visibleOrders} sipariş (bağlı kanallar)`, 'home'],
+    [`${approvalCount} onay bekliyor`, 'approvals'],
+    [`${upcoming} yaklaşan hatırlatıcı`, 'chat'],
+    [`${completed} toplam tamamlanan iş`, 'jobs'],
+  ];
+  for (const [label, tab] of items) {
+    const button = document.createElement('button'); button.type = 'button'; button.className = 'daily-item';
+    button.textContent = label + '  ›'; button.addEventListener('click', () => {
+      if (tab === 'home') { window.location.href = '/?view=satislar'; return; }
+      document.querySelector(`[data-tab="${tab}"]`).click();
+      if (tab === 'chat') document.querySelector('[data-chat-mode="personal"]').click();
+    }); container.append(button);
+  }
+  if (!jobs && !proposals && !reminderData) container.textContent = 'Özet yüklenemedi. Sayfayı yenileyin.';
+}
+function refreshMobile() { loadJobs(); loadApprovals(); loadSystem(); loadDailySummary(); }
 document.querySelectorAll('[data-tab]').forEach((button) => button.addEventListener('click', () => {
   const tab = button.dataset.tab;
   const mainTab = ['system', 'settings', 'creative'].includes(tab) ? 'more' : tab;
@@ -704,7 +1148,7 @@ document.querySelectorAll('[data-tab]').forEach((button) => button.addEventListe
     else item.removeAttribute('aria-current');
   });
   for (const name of ['home', 'chat', 'jobs', 'approvals', 'creative', 'system', 'settings', 'more']) $(`${name}-panel`).hidden = name !== tab;
-  if (tab === 'home') loadSystem();
+  if (tab === 'home') { loadSystem(); loadDailySummary(); }
   if (tab === 'jobs') loadJobs();
   if (tab === 'approvals') loadApprovals();
   if (tab === 'creative') loadCreative();
