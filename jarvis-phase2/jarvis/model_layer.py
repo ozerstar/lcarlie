@@ -788,26 +788,71 @@ class ModelRouter:
         )
 
     def stream_text(self, question: str, system: str, max_tokens: int = 160,
-                    history: list[dict[str, str]] | None = None):
-        """Stream a conversational reply. Falls back to a single block when the
-        local provider is not the one answering."""
+                    history: list[dict[str, str]] | None = None,
+                    escalate: bool = False):
+        """Stream a conversational reply.
+
+        🔴 DIŞ SAĞLAYICI ÖNCE — DEĞİŞTİ 16.10.2026.
+        Önceki hâli yalnız GPU/yerel sağlayıcıyı akıtabiliyordu ve dış
+        sağlayıcı akış bilmediği için sohbet SESSİZCE yerel 4B modele
+        düşüyordu. Panelde ölçüldü: 98 token çerçevesi geliyordu ama cevabı
+        `Qwen3-4B` veriyordu, Claude değil. Sahibin "cevaplar kötü" ve
+        "yavaş" şikâyetlerinin tek sebebi buydu; `_chat` yolundaki kademe
+        düzeltmesi buraya hiç uğramıyordu.
+
+        Sıra zincirin geri kalanıyla aynı: API önce, yerel yedek
+        (24.09.2026 sahip kararı). Hangi modelin cevapladığı
+        `son_akis_modeli`'ne yazılır -- çağıran tahmin etmesin.
+        """
         messages = ([{"role": "system", "content": system}]
                     + list(history or [])
                     + [{"role": "user", "content": question}])
+        self.son_akis_modeli = None
+
+        # 1. DIŞ SAĞLAYICI (akıtabilen)
+        try:
+            from . import providers as _prov
+        except Exception:  # noqa: BLE001 - modul yoklugu bir durumdur
+            _prov = None
+        if _prov is not None:
+            uretildi = False
+            kademe = "muhakeme" if escalate else None
+            try:
+                for parca in _prov.stream(messages, max_tokens=max_tokens,
+                                          kademe=kademe):
+                    if not uretildi:
+                        self.son_akis_modeli = _prov.son_akis_modeli()
+                    uretildi = True
+                    yield parca
+            except Exception:  # noqa: BLE001 - dis akis dusunce yerele inilir
+                if uretildi:
+                    return  # yarim cevabi baska modelle TAMAMLAMA
+            else:
+                if uretildi:
+                    return
+
+        # 2. GPU / YEREL
         streamer = (self.gpu if self.gpu.state() == AdapterState.AVAILABLE
                     else self.local)
         if streamer.state() == AdapterState.AVAILABLE:
             produced = False
             try:
                 for delta in streamer.stream(messages, max_tokens):
+                    if not produced:
+                        self.son_akis_modeli = getattr(streamer, "model", None)
                     produced = True
                     yield delta
             except (urllib.error.URLError, TimeoutError, OSError, ValueError):
                 if produced:
                     return
             else:
-                return
-        result, _tier, _calls = self.generate(messages, max_tokens)
+                if produced:
+                    return
+
+        # 3. AKIŞSIZ SON ÇARE
+        result, _tier, _calls = self.generate(messages, max_tokens,
+                                              escalate=escalate)
+        self.son_akis_modeli = result.get("model")
         yield result["text"]
 
     def decompose_query(self, request: str, count: int = 3) -> list[str]:

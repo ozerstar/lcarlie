@@ -1622,21 +1622,44 @@ def stream_chat(message: str, intent: str):
     chunks: list[str] = []
     model = None
     calls = 0
+    yonlendirici = _router()
     try:
-        for delta in _router().stream_text(_dil_notlu(message), _system_for(message), max_tokens=CHAT_MAX_TOKENS,
-                                           history=conversation_memory.history()):
+        # 🔴 KADEME YÜKSELTMESİ BURAYA DA GEÇER — EKLENDİ 16.10.2026.
+        # `_chat` 1602'de `ESCALATE_REASONING or needs_escalation(message)`
+        # geçiyordu ama AKAN yol onu hiç geçirmiyordu. Panel sıradan sohbette
+        # bu yolu kullanıyor, yani düzeltme sahibin gerçekte kullandığı
+        # yere hiç uğramamıştı.
+        for delta in yonlendirici.stream_text(
+                _dil_notlu(message), _system_for(message),
+                max_tokens=CHAT_MAX_TOKENS,
+                history=conversation_memory.history(),
+                escalate=ESCALATE_REASONING or needs_escalation(message)):
             chunks.append(delta)
             yield {"type": "token", "delta": delta}
-        model, calls = LOCAL_MODEL_NAME, 1
+        # 🔴 MODEL ADI ARTIK UYDURULMUYOR. Önceki hâli cevabı kim verirse
+        # versin `LOCAL_MODEL_NAME` yazıyordu; panel yanlış model bildiriyordu.
+        model = getattr(yonlendirici, "son_akis_modeli", None) or LOCAL_MODEL_NAME
+        calls = 1
     except ModelUnavailable:
         chunks = []
 
     answer = "".join(chunks).strip()
     if not answer:
         answer, model, calls = FALLBACK_INTRO, "deterministic-local", 0
-    yield {"type": "done",
-           "result": _response(message, intent, "ANSWERED", answer, started=started,
-                               model=model, model_calls=calls)}
+
+    # 🔴 UYDURMA KAPISI AKAN YOLDA DA İŞLER. `_chat` `_guarded` çağırıyordu,
+    # bu yol çağırmıyordu: akan sohbette uydurma ürün adı süzülmeden
+    # geçiyordu. ⚠️ Sınır: akarken gösterilen metin süzülmemiş olabilir;
+    # `done` çerçevesindeki ve kaydedilen metin süzülmüştür.
+    uyari: dict = {}
+    if answer and answer != FALLBACK_INTRO:
+        answer, uyari = _guarded(answer, None)
+
+    sonuc = _response(message, intent, "ANSWERED", answer, started=started,
+                      model=model, model_calls=calls)
+    if uyari:
+        sonuc.setdefault("meta", {}).update(uyari)
+    yield {"type": "done", "result": sonuc}
 
 
 _AGENCY: AgencyCapability | None = None

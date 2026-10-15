@@ -157,6 +157,95 @@ def _anthropic(key: str, model: str, messages: list[dict[str, str]],
             usage.get("input_tokens"), usage.get("output_tokens"))
 
 
+def _anthropic_stream(key: str, model: str, messages: list[dict[str, str]],
+                      max_tokens: int):
+    """Anthropic yanitini parca parca akitir.
+
+    🔴 NEDEN GEREKLI — OLCULDU 15.10.2026.
+    `model_layer.stream_text` yalniz YEREL/GPU saglayiciyi akitabiliyordu;
+    dis saglayici akis bilmedigi icin sohbet sessizce 4B yerel modele
+    dusuyordu. Panelde olculdu: 98 token cercevesi geldi ama cevabi veren
+    `Qwen3-4B` idi, Claude degil. Yani sahibin hem "cevaplar kotu" hem
+    "yavas" sikayetinin tek sebebi buydu.
+
+    Akis SSE: her `content_block_delta` olayinda bir metin parcasi gelir.
+    """
+    system = "\n".join(m["content"] for m in messages if m.get("role") == "system")
+    turns = [m for m in messages if m.get("role") != "system"]
+    body: dict[str, Any] = {"model": model, "max_tokens": max_tokens,
+                            "messages": turns, "stream": True}
+    if system:
+        body["system"] = system
+    request = urllib.request.Request(
+        "https://api.anthropic.com/v1/messages",
+        data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+        headers={"x-api-key": key, "anthropic-version": "2023-06-01",
+                 "Content-Type": "application/json"})
+    with urllib.request.urlopen(request, timeout=TIMEOUT_S) as yanit:
+        for ham in yanit:
+            satir = ham.decode("utf-8", "replace").strip()
+            if not satir.startswith("data:"):
+                continue
+            yuk = satir[5:].strip()
+            if not yuk or yuk == "[DONE]":
+                continue
+            try:
+                olay = json.loads(yuk)
+            except json.JSONDecodeError:
+                continue
+            if olay.get("type") == "content_block_delta":
+                parca = (olay.get("delta") or {}).get("text")
+                if parca:
+                    yield parca
+
+
+# Akis yalniz bu saglayicilar icin yazildi; digerleri tek blok doner.
+AKITABILEN = {"claude": _anthropic_stream}
+
+# Akiti BASLATAN saglayici/model. Cagiran tahmin etmesin diye yazilir;
+# panelde "hangi model cevapladi" bu degerden okunur.
+_SON_AKIS_MODELI: str | None = None
+
+
+def son_akis_modeli() -> str | None:
+    return _SON_AKIS_MODELI
+
+
+def stream(messages: list[dict[str, str]], max_tokens: int = 400,
+           kademe: str | None = None, env: dict[str, str] | None = None):
+    """İŞ KADEMESİNE göre akitabilen ilk saglayicidan parca parca dondurur.
+
+    🔴 AKITAMAYAN SAGLAYICIYA DUSULMEZ. Cagiran, akis olmadiginda ne
+    yapacagini kendi bilir; buradan sessizce tek blok dondurmek
+    "akiyor" gorunup akmamak olurdu.
+    """
+    cfg = env if env is not None else load_env()
+    for provider in _kademe_sirasi(kademe or VARSAYILAN_KADEME):
+        akitici = AKITABILEN.get(provider.name)
+        if not akitici:
+            continue
+        key = cfg.get(provider.env_key)
+        if not key:
+            continue
+        model = cfg.get(f"{provider.name.upper()}_MODEL") or provider.default_model
+        butce = max(max_tokens, provider.min_tokens)
+        uretildi = False
+        try:
+            for parca in akitici(key, model, messages, butce):
+                if not uretildi:
+                    global _SON_AKIS_MODELI
+                    _SON_AKIS_MODELI = "%s/%s" % (provider.name, model)
+                uretildi = True
+                yield parca
+        except Exception:  # noqa: BLE001 - bir saglayici dusse de sira devam eder
+            if uretildi:
+                return  # yarim cevabi ikinci saglayiciyla BIRLESTIRME
+            continue
+        if uretildi:
+            return
+    raise NoProvider("akitabilen saglayici yok")
+
+
 @dataclass(frozen=True)
 class Provider:
     name: str
