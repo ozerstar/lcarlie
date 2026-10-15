@@ -42,6 +42,17 @@ class PushSenderTests(unittest.TestCase):
             push_send.notify_new_approvals()
             sender.assert_called_once()
 
+    def test_external_approval_uses_red_push_title(self):
+        push_store.save({"endpoint": "https://web.push.apple.com/example",
+                         "keys": {"p256dh": "a" * 87, "auth": "b" * 22}})
+        proposal = {"action_id": 110, "action_type": "WHATSAPP_SEND_TEMPLATE",
+                    "payload": {"reason": "Approval needed"}}
+        with patch.object(push_send, "pending_approvals", side_effect=[[], [proposal]]), \
+             patch.object(push_send, "send", return_value=True) as sender:
+            push_send.notify_new_approvals()
+            push_send.notify_new_approvals()
+        self.assertTrue(sender.call_args.args[1].startswith("🔴"))
+
 
 if __name__ == "__main__":
     unittest.main()

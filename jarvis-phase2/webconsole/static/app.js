@@ -339,7 +339,8 @@ function renderServices(body) {
       ? ['BİLİNMİYOR', 's-warn'] : (contract ? ['SÖZLEŞME GEÇERLİ', 's-ok'] : ['GEÇERSİZ', 's-error'])],
     ['AI Worker', flag(health && health.ai_worker_enabled, 'AÇIK', 'KAPALI', 's-ok', 's-off')],
     ['Action Worker', flag(health && health.action_worker_enabled, 'AÇIK', 'KAPALI', 's-ok', 's-off')],
-    ['Dış Eylemler', body.external_actions_enabled ? ['AÇIK', 's-warn'] : ['KAPALI', 's-off']],
+    ['Dış İşlem Önerileri', body.external_proposals_enabled ? ['ONAYA AÇIK', 's-warn'] : ['KAPALI', 's-off']],
+    ['Otomatik Dış İşlem', body.external_actions_enabled ? ['AÇIK', 's-error'] : ['KAPALI', 's-ok']],
   ];
   qs('svcList').innerHTML = rows.map(([label, [text, cls]]) =>
     `<li><span>${escapeHtml(label)}</span><span class="svc-state ${cls}">${escapeHtml(text)}</span></li>`
@@ -472,7 +473,7 @@ async function refreshStatus() {
  * into one line -- a presentation-only fold, nothing is dropped from
  * state/audit.jsonl. */
 const SIGNAL_TAG = {
-  red_team_objection: ['RED TEAM', 'f-redteam'],
+  red_team_objection: ['KANIT İTİRAZI', 'f-redteam'],
   approval_backlog: ['ONAY', 'f-onay'],
   open_work_aging: ['OPERASYON', 'f-operasyon'],
 };
@@ -770,12 +771,19 @@ function oneriGorseller(payload) {
       <img src="${escapeHtml(url)}" alt="Onaylanacak reklam görseli" loading="lazy"><span>Görseli büyüt</span></a>`).join('')}</section>`;
 }
 
+function disaDonukOneri(proposal) {
+  return ['WHATSAPP_SEND_TEMPLATE', 'META_CAMPAIGN_CHANGE', 'PRICE_CHANGE', 'WIX_PUBLISH']
+    .includes(String(proposal.action_type || ''));
+}
+
 function proposalCardHtml(p) {
   // 🔴 Liste kartinda artik ONERININ KONUSU var. Eskiden yalniz
   // "REQUEST_HUMAN_REVIEW #28" yaziyordu; ayni tipte on oneri yan yana
   // durunca hangisinin ne oldugu ANLASILMIYORDU.
   const baslik = oneriBaslik((p.payload || {}).reason);
+  const external = disaDonukOneri(p);
   return `<div class="p-type">Onay bekliyor <span class="risk-badge risk-${escapeHtml(p.risk_class)}">${escapeHtml(oneriRisk(p.risk_class))}</span></div>
+    ${external ? '<div class="external-approval-warning">🔴 DIŞA DÖNÜK İŞLEM · SİZ ONAYLAMADAN UYGULANMAZ</div>' : ''}
     ${baslik ? `<div class="p-konu">${escapeHtml(baslik)}</div>` : ''}
     <div class="p-meta">${escapeHtml(fmtDateTime(p.proposed_at))}</div>
     <span class="p-open">Öneriyi incele</span>`;
@@ -815,6 +823,7 @@ async function openProposal(actionId) {
   qs('modalBody').innerHTML = `
     <h3>${escapeHtml(oneriBaslik((body.payload || {}).reason) || 'Öneriyi incele')}</h3>
     <p><span class="risk-badge risk-${escapeHtml(body.risk_class)}">${escapeHtml(oneriRisk(body.risk_class))}</span> · Son karar tarihi: ${escapeHtml(fmtDateTime(body.expires_at))}</p>
+    ${disaDonukOneri(body) ? '<div class="external-approval-warning">🔴 DIŞA DÖNÜK İŞLEM · Alıcı, içerik ve etkiyi kontrol edin. Onay, tek başına gönderim kanıtı değildir.</div>' : ''}
     ${oneriGovdesi(body.payload)}
     ${oneriGorseller(body.payload)}
     ${oneriHamJson(body.payload)}
@@ -1228,6 +1237,23 @@ document.querySelectorAll('.qa-btn[data-ask]').forEach((btn) => {
     sendMessage(btn.dataset.ask);
   });
 });
+document.addEventListener('click', (event) => {
+  const button = event.target.closest('.lead-ask[data-ask]');
+  if (!button) return;
+  setView('home');
+  sendMessage(button.dataset.ask);
+});
+document.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-team-filter]');
+  if (!button) return;
+  const desk = button.closest('.lead-members');
+  desk.querySelectorAll('[data-team-filter]').forEach(item =>
+    item.setAttribute('aria-pressed', String(item === button)));
+  desk.querySelectorAll('[data-team-state]').forEach(item => {
+    item.hidden = button.dataset.teamFilter !== 'HEPSİ' &&
+      item.dataset.teamState !== button.dataset.teamFilter;
+  });
+});
 
 /* ==================================================================
  * EXECUTION SURFACE
@@ -1265,7 +1291,7 @@ const EXEC_STAGES = [
   { id: 'domains', label: '5 DOMAIN', caps: DOMAIN_CAPS.concat(['internal_data_analysis']) },
   { id: 'fusion', label: 'KANIT BİRLEŞTİRME', caps: ['evidence_fusion'] },
   { id: 'signals', label: 'PROBLEM / FIRSAT', caps: ['problem_opportunity_analysis'] },
-  { id: 'redteam', label: 'RED TEAM', caps: ['red_team_review'] },
+  { id: 'redteam', label: 'KANIT DENETİMİ', caps: ['red_team_review'] },
   { id: 'proposal', label: 'YÖNETİM ÖNERİSİ', caps: ['human_review_proposal', 'action_plan'] },
 ];
 
@@ -1346,7 +1372,7 @@ function deriveExecState() {
     return ['ANALİZ EDİLİYOR', 'st-run', 'proposing'];
   }
   if (anyRunning(['red_team_review']) || anyPending(['red_team_review'])) {
-    return ['RED TEAM', 'st-run', 'proposing'];
+    return ['KANIT DENETİMİ', 'st-run', 'proposing'];
   }
   if (statusOf(['human_review_proposal', 'action_plan']).includes('PROPOSED')) {
     return ['ONAY BEKLİYOR', 'st-wait', 'waiting_approval'];
@@ -1590,6 +1616,34 @@ function listBlock(title, items, emptyText) {
   return `<div class="pr-block"><h4>${escapeHtml(title)}</h4>${body}</div>`;
 }
 
+function yonetimKodu(code) {
+  return ({ approval_backlog: 'Onay birikimi', decision_stall: 'Karar gecikmesi',
+    red_team_objection: 'Denetim itirazı', agenda_aging: 'Eski gündem',
+    agenda_without_source_plan: 'Kaynağı belirsiz gündem', open_work_aging: 'Geciken iş',
+    open_work_concentration: 'İş yükü yoğunluğu', EVIDENCE_MISSING: 'Kanıt eksik',
+    CONTRADICTION: 'Çelişkili veri', THIN_SOURCING: 'Az kaynak',
+    INPUT_UNAVAILABLE: 'Veri alınamadı', REQUEST_HUMAN_REVIEW: 'İnsan incelemesi',
+    WHATSAPP_SEND_TEMPLATE: 'WhatsApp gönderim önerisi',
+    META_CAMPAIGN_CHANGE: 'Reklam kampanyası değişikliği',
+    PRICE_CHANGE: 'Fiyat değişikliği', WIX_PUBLISH: 'Site yayını',
+    DATA_UNAVAILABLE: 'Veri yok', SKIPPED: 'Değerlendirilemedi' })[code] || 'Diğer teknik kayıt';
+}
+
+function yonetimAciklama(raw) {
+  const value = String(raw || '');
+  const plan = value.match(/^Execution plan .+ completed read-only analysis; (\d+) red-team objection\(s\)\. Advisory only, awaiting human approval\. No action was taken\.$/);
+  if (plan) return `Yalnızca okuma ve analiz tamamlandı. ${plan[1]} kanıt itirazı var. İnsan kararı bekleniyor; hiçbir işlem yapılmadı.`;
+  const sources = value.match(/^independent sources = (\d+)$/);
+  if (sources) return `Bağımsız kaynak sayısı: ${sources[1]}.`;
+  if (value === 'fused evidence contradicts itself') return 'Birleştirilen kanıtlar birbiriyle çelişiyor.';
+  if (value.startsWith('no Company Memory data contract')) return 'Bu alan için bağlı şirket verisi yok.';
+  if (value === 'no rows returned') return 'Kaynakta kayıt bulunamadı.';
+  if (value.startsWith('value is not a number')) return 'Gerekli sayısal değer okunamadı.';
+  if (value === 'agenda is empty') return 'Gündem kaydı yok.';
+  if (value === 'no open work rows') return 'Açık iş kaydı yok.';
+  return value;
+}
+
 function renderProposed() {
   const target = qs('proposedBody');
   if (!state.lastRun) {
@@ -1608,39 +1662,39 @@ function renderProposed() {
     ? String(s.kind || s.type).toUpperCase().includes('OPPORT')
     : s.severity === 'INFO');
   const signalItem = (s) => `<li><span class="pr-sev sev-${escapeHtml(s.severity || 'INFO')}">`
-    + `${escapeHtml(s.severity || '—')}</span><span class="pr-code">${escapeHtml(s.code || '')}</span>`
+    + `${escapeHtml(({ CRITICAL: 'ACİL', WARN: 'UYARI', INFO: 'BİLGİ' })[s.severity] || 'BİLGİ')}</span><span class="pr-code">${escapeHtml(yonetimKodu(s.code))}</span>`
     + `${escapeHtml(s.summary || '')}</li>`;
 
   const objections = outputsByCapability('red_team_review')
     .flatMap((output) => output.objections || [])
-    .map((o) => `<li><span class="pr-code">${escapeHtml(o.code || '')}</span>`
-      + `${escapeHtml(o.detail || '')}<span class="dom-meta">${escapeHtml(o.step_id || '')}</span></li>`);
+    .map((o) => `<li><span class="pr-code">${escapeHtml(yonetimKodu(o.code))}</span>`
+      + `${escapeHtml(yonetimAciklama(o.detail))}<span class="dom-meta">${escapeHtml(o.step_id || '')}</span></li>`);
 
   const actions = ['human_review_proposal', 'action_plan']
     .flatMap((cap) => outputsByCapability(cap))
     .map((output) => {
       const payload = output.payload || {};
       const applied = output.submitted === true;
-      return `<li><span class="pr-code">${escapeHtml(output.action_type || output.internal_intent || '—')}</span>`
-        + `${escapeHtml(payload.reason || '')}`
+      return `<li><span class="pr-code">${escapeHtml(yonetimKodu(output.action_type || output.internal_intent))}</span>`
+        + `${escapeHtml(yonetimAciklama(payload.reason))}`
         + `<span class="dom-meta">${applied ? 'gönderildi' : 'ÖNERİ — uygulanmadı, gönderilmedi'}`
-        + `${output.submit_with ? ' · ' + escapeHtml(output.submit_with) : ''}</span></li>`;
+        + '</span></li>';
     });
 
   const gaps = [];
   outputsByCapability('evidence_fusion').forEach((output) => {
     (output.missing_inputs || []).forEach((entry) => gaps.push(
-      `<li><span class="pr-code">${escapeHtml(entry.status || '')}</span>`
-      + `${escapeHtml(entry.reason || entry.capability || '')}`
+      `<li><span class="pr-code">${escapeHtml(yonetimKodu(entry.status))}</span>`
+      + `${escapeHtml(yonetimAciklama(entry.reason || entry.capability))}`
       + `<span class="dom-meta">${escapeHtml(entry.step_id || '')}</span></li>`));
     if (output.needs_more_sources) {
-      gaps.push(`<li><span class="pr-code">THIN_SOURCING</span>`
+      gaps.push(`<li><span class="pr-code">Az kaynak</span>`
         + `bağımsız kaynak sayısı ${escapeHtml(String(output.independent_sources))}</li>`);
     }
   });
   outputsByCapability('problem_opportunity_analysis').forEach((output) => {
     (output.skipped || []).forEach((entry) => gaps.push(
-      `<li><span class="pr-code">SKIPPED</span>${escapeHtml(entry.reason || entry.rule || '')}</li>`));
+      `<li><span class="pr-code">Değerlendirilemedi</span>${escapeHtml(entry.reason || entry.rule || '')}</li>`));
   });
   Object.entries(state.lastRun.steps || {}).forEach(([stepId, record]) => {
     if (record.status === 'DATA_UNAVAILABLE') {
@@ -1653,10 +1707,10 @@ function renderProposed() {
   target.innerHTML = [
     listBlock('PROBLEMLER', signals.filter((s) => !isOpportunity(s)).map(signalItem),
       'Problem sinyali yok.'),
-    listBlock(hasKind ? 'FIRSATLAR' : 'FIRSATLAR (INFO seviyeli sinyaller)',
-      signals.filter(isOpportunity).map(signalItem), 'Fırsat sinyali yok.'),
-    listBlock('RED TEAM İTİRAZLARI', objections, 'İtiraz kaydedilmedi.'),
-    listBlock('ÖNERİLEN AKSİYONLAR', actions, 'Önerilen aksiyon yok.'),
+    listBlock(hasKind ? 'FIRSATLAR' : 'BİLGİ NOTLARI (fırsat olduğu doğrulanmadı)',
+      signals.filter(isOpportunity).map(signalItem), 'Bilgi notu yok.'),
+    listBlock('KANIT DENETİMİ', objections, 'İtiraz kaydedilmedi.'),
+    listBlock('ÖNERİLEN ADIMLAR', actions, 'Önerilen adım yok.'),
     listBlock('VERİ EKSİKLERİ', gaps, 'Bildirilen veri eksiği yok.'),
   ].join('');
 }
@@ -1671,7 +1725,7 @@ function renderExecutionSurface() {
   if (execOverride()) applyCoreState(coreKey, label);
   else applyLoopCoreState();
 
-  const source = state.lastRun ? 'yürütme kaydı (run)' : (state.lastPlan ? 'plan (/api/plan)' : '—');
+  const source = state.lastRun ? 'son analiz kaydı' : (state.lastPlan ? 'hazırlanan plan' : '—');
   ['execSrc', 'domainGridSrc', 'evidenceSrc', 'proposedSrc'].forEach((id) => {
     const el = qs(id);
     if (el) el.textContent = 'kaynak: ' + source;
@@ -2040,14 +2094,81 @@ function renderAyarlar(d) {
    ================================================================== */
 
 const EKIP_RENK = {
-  yesil:  { sinif: 'ek-yesil',  etiket: 'konuşuyor' },
-  sari:   { sinif: 'ek-sari',   etiket: 'girdi/araştırma bekliyor' },
+  yesil:  { sinif: 'ek-yesil',  etiket: 'veri okuyor' },
+  sari:   { sinif: 'ek-sari',   etiket: 'veri veya görev bekliyor' },
   kirmizi:{ sinif: 'ek-kirmizi',etiket: 'okuması gereken veri açık değil' },
   gri:    { sinif: 'ek-gri',    etiket: 'kadrosu yok' },
 };
 
+function ekipKaynakAdi(ref) {
+  const names = {
+    sales_orders: 'siparişler', sales_items: 'sipariş kalemleri',
+    ecommerce_profitability: 'ürün kârlılığı', ecommerce_price: 'ürün fiyatları',
+    ecommerce_funnel: 'satış yolu', advertising_performance: 'reklam performansı',
+    advertising_spend: 'reklam harcaması', crm_customers: 'müşteriler',
+    crm_unanswered: 'yanıtsız görüşmeler', operations_shipments: 'gönderiler',
+    open_work: 'açık işler', system: 'sistem durumu',
+  };
+  if (String(ref).startsWith('http')) return 'dış kaynak bağlantısı';
+  return names[String(ref).replace(/^postgres:/, '')] || 'şirket veri kaynağı';
+}
+
+function ekipSorumluAdi(owner) {
+  return ({ operations: 'Operasyon ekibi', sales: 'Satış ekibi',
+    ecommerce: 'E-ticaret ekibi', advertising: 'Reklam ekibi',
+    crm: 'Müşteri ilişkileri ekibi', strategy: 'Strateji ekibi',
+    research: 'Araştırma ekibi' })[owner] || owner;
+}
+
 function renderEkip(data) {
   let deps = data.departmanlar || [];
+  const yonetim = data.yonetim || {};
+  const uyeler = yonetim.uyeler || [];
+  const acikSonuclar = new Map(uyeler.map(member => [member.key, member.son_is_acik || member.sonuc_acik]));
+  const sonIsler = uyeler.filter(u => u.durum === 'ÇALIŞTI')
+    .sort((left, right) => (left.gorev_turu === 'VERİ KONTROLÜ') - (right.gorev_turu === 'VERİ KONTROLÜ'));
+  const durumSayilari = yonetim.durum_sayilari || {};
+  const oncelikler = yonetim.oncelikler || [];
+  const mudur = uyeler.find(u => u.key === 'managing_director');
+  const yonetimMasasi = `<div class="lead-desk">
+    <div class="lead-intro">
+      <div><span class="lead-eyebrow">L’CARLIÉ / Organizasyon</span>
+        <h3>Yönetim masası</h3>
+        <p>Ekip faaliyetleri ve takip gerektiren işler. Son kontrol: ${escapeHtml(fmtDateTime(yonetim.uretim_zamani) || 'kayıt yok')} · ${yonetim.guncel ? 'güncel' : 'güncel kayıt yok'}.</p></div>
+      <button type="button" class="lead-ask" data-ask="Ekipteki son kanıtlı çıktıları ve geciken işleri özetle; kaynakları ve eksikleri ayır.">Jarvis’le konuş</button>
+    </div>
+    <div class="lead-metrics">
+      <div><strong>${durumSayilari['ÇALIŞTI'] || 0}</strong><span>son kontrolde kayıt üretti · ${yonetim.rutin_kontrol || 0} yalnızca veri okudu</span></div>
+      <div><strong>${durumSayilari['GÖREV BEKLİYOR'] || 0}</strong><span>veri veya görev bekliyor</span></div>
+      <div><strong>${durumSayilari['HATA'] || 0}</strong><span>son kontrolde hata aldı</span></div>
+      <div><strong>${durumSayilari['İZLENMİYOR'] || 0}</strong><span>bu kontrolde izlenmedi</span></div>
+    </div>
+    <div class="lead-director"><strong>Genel müdürün önerisi</strong><p>${mudur && mudur.son_is_acik
+      ? escapeHtml(mudur.son_is_acik) : 'Son kontrolde genel müdür önerisi kaydedilmedi.'}</p></div>
+    <div class="lead-columns">
+      <section><h4>Son kayıtlı çıktılar</h4>${sonIsler.length ? sonIsler.slice(0, 8).map(u =>
+        `<article class="lead-row"><div><b>${escapeHtml(u.ad)}</b><span>${escapeHtml(u.gorev_turu || u.birim)}</span></div><p>${escapeHtml(u.son_is_acik || u.son_is)}</p></article>`).join('')
+        : '<p class="lead-empty">Güncel döngüde kanıtlı çıktı kaydı yok.</p>'}</section>
+      <section><h4>Yönetim takibi</h4>${oncelikler.length ? oncelikler.map(item =>
+        `<article class="lead-row"><div><b>${escapeHtml(ekipSorumluAdi(item.sorumlu))}</b><span>${escapeHtml(item.durum === 'UYGULAMA KANITI BEKLER' ? 'Yapıldığını gösteren kayıt bekleniyor' : item.durum)}</span></div><p>${escapeHtml(item.hedef)}</p><small>Son tarih: ${escapeHtml(String(item.son_tarih).slice(0, 10))}</small></article>`).join('')
+        : '<p class="lead-empty">Takip gerektiren açık iş kaydı yok.</p>'}</section>
+    </div>
+    <details class="lead-members"><summary>Tüm ekip · ${uyeler.length} üye · görev ve kanıt kayıtları</summary>
+      <div class="lead-filters">${['HEPSİ', 'ÇALIŞTI', 'GÖREV BEKLİYOR', 'HATA', 'İZLENMİYOR'].map((status, index) =>
+        `<button type="button" data-team-filter="${escapeHtml(status)}" aria-pressed="${index === 0}">${escapeHtml(({ 'ÇALIŞTI': 'KAYIT ÜRETTİ', 'GÖREV BEKLİYOR': 'BEKLİYOR', 'İZLENMİYOR': 'İZLENMEDİ' })[status] || status)}</button>`).join('')}</div>
+      <div class="lead-member-list">${uyeler.map(u => `<div data-team-state="${escapeHtml(u.durum)}">
+        <b>${escapeHtml(u.ad)}</b><span>${escapeHtml(u.birim)}</span><em>${escapeHtml(({ 'ÇALIŞTI': 'Kayıt üretti', 'GÖREV BEKLİYOR': 'Bekliyor', 'İZLENMİYOR': 'İzlenmedi' })[u.durum] || u.durum)}</em>
+        <small>Rol: ${escapeHtml(u.rol_tanimi || '—')}</small>
+        <small>Görev türü: ${escapeHtml(u.gorev_turu || '—')}</small>
+        <small>Son yürütülen görev: ${escapeHtml(u.gorev || 'bu döngüye bağlı değil')}</small>
+        <small>Sonuç: ${escapeHtml(u.sonuc_acik || u.sonuc || 'henüz kayıt yok')}</small>
+        <small>Kullanılan kaynaklar: ${escapeHtml((u.kanitlar || []).map(ekipKaynakAdi).join(' · ') || 'kayıt yok')}</small>
+        <small>Son kontrol: ${escapeHtml(fmtDateTime(u.zaman) || 'kayıt yok')}</small>
+        <small>Veri erişimi: ${escapeHtml(({ 'KONUŞTU': 'Veri okundu', 'VERİ YOK': 'Veri yok' })[u.veri_durumu] || u.veri_durumu)}</small>
+      </div>`).join('')}</div>
+    </details>
+    <p class="lead-disclaimer">${escapeHtml(yonetim.not || '')}</p>
+  </div>`;
 
   /* Çemberden bir küme seçildiyse yalnız o küme gösterilir.
      🔴 Sahip "şu anki halinde çok karmaşık duruyor" dedi: 45 departman
@@ -2063,7 +2184,7 @@ function renderEkip(data) {
       <div class="ek-filtre">
         <div>
           <strong>${escapeHtml(ekipFiltre.ad)}</strong>
-          <span> · ${deps.length}/${tumu} departman · ${konusan} birim veriden konuştu
+          <span> · ${deps.length}/${tumu} departman · ${konusan} birim veri okudu
             · ${bulgu} dış bulgu</span>
         </div>
         <button type="button" id="ekFiltreKaldir">TÜMÜNÜ GÖSTER</button>
@@ -2076,7 +2197,7 @@ function renderEkip(data) {
     <div class="ek-ozet">
       <div class="ek-tile"><span class="ek-n">${oz.departman ?? 0}</span><span class="ek-k">departman</span></div>
       <div class="ek-tile"><span class="ek-n">${oz.kadrosu_olan ?? 0}</span><span class="ek-k">kadrosu var</span></div>
-      <div class="ek-tile"><span class="ek-n">${oz.konusan_uye ?? 0}/${oz.uye ?? 0}</span><span class="ek-k">üye konuşuyor</span></div>
+      <div class="ek-tile"><span class="ek-n">${oz.konusan_uye ?? 0}/${oz.uye ?? 0}</span><span class="ek-k">üye veri okuyor</span></div>
       <div class="ek-tile ${data.arastirma_var ? '' : 'ek-tile-uyari'}">
         <span class="ek-n">${data.arastirma_toplam ?? 0}</span>
         <span class="ek-k">dış bulgu</span>
@@ -2085,7 +2206,7 @@ function renderEkip(data) {
           : 'araştırma hiç koşmadı'}</span>
       </div>
       <div class="ek-tile ek-legend">
-        <span class="ek-lg"><i class="ek-dot ek-yesil"></i>${renk.yesil ?? 0} konuşuyor</span>
+        <span class="ek-lg"><i class="ek-dot ek-yesil"></i>${renk.yesil ?? 0} veri okuyor</span>
         <span class="ek-lg"><i class="ek-dot ek-sari"></i>${renk.sari ?? 0} bekliyor</span>
         <span class="ek-lg"><i class="ek-dot ek-kirmizi"></i>${renk.kirmizi ?? 0} veri yok</span>
         <span class="ek-lg"><i class="ek-dot ek-gri"></i>${renk.gri ?? 0} kadrosuz</span>
@@ -2105,17 +2226,17 @@ function renderEkip(data) {
   const bloklar = aileler.map(aile => {
     const liste = kova[aile];
     const konusan = liste.filter(d => d.renk === 'yesil').length;
-    const satirlar = liste.map(d => ekipSatir(d)).join('');
+    const satirlar = liste.map(d => ekipSatir(d, acikSonuclar)).join('');
     return `<section class="ek-aile">
       <div class="ek-aile-head">
         <span class="ek-aile-ad">${escapeHtml(aile)}</span>
-        <span class="ek-aile-say">${liste.length} birim · ${konusan} konuşuyor</span>
+        <span class="ek-aile-say">${liste.length} birim · ${konusan} veri okuyor</span>
       </div>
       ${satirlar}
     </section>`;
   }).join('');
 
-  return ozet + bloklar;
+  return yonetimMasasi + ozet + bloklar;
 }
 
 
@@ -2159,7 +2280,7 @@ function ekipBugun(d) {
     parcalar.push('bugün ve dün yeni dış bulgu yok');
   }
   if (uyeler.length) {
-    parcalar.push(`<b>${konusan.length}/${uyeler.length}</b> üye veriden konuştu`);
+    parcalar.push(`<b>${konusan.length}/${uyeler.length}</b> üye veri okudu`);
   } else {
     parcalar.push('kadrosu kurulmamış');
   }
@@ -2186,7 +2307,7 @@ function ekipBugun(d) {
     </div>`;
 }
 
-function ekipSatir(d) {
+function ekipSatir(d, acikSonuclar = new Map()) {
   const r = EKIP_RENK[d.renk] || EKIP_RENK.gri;
   const uyeler = d.uyeler || [];
 
@@ -2194,12 +2315,12 @@ function ekipSatir(d) {
     <div class="ek-uye ${u.durum === 'KONUŞTU' ? 'is-konustu' : ''}">
       <div class="ek-uye-ust">
         <span class="ek-uye-ad">${escapeHtml(u.ad || '')}</span>
-        <span class="ek-uye-durum">${escapeHtml(u.durum || '')}</span>
+        <span class="ek-uye-durum">${escapeHtml(({ 'KONUŞTU': 'Veri okudu', 'VERİ YOK': 'Veri yok' })[u.durum] || u.durum || '')}</span>
       </div>
       <div class="ek-uye-gorev">${escapeHtml(u.gorev || '')}</div>
-      ${u.soyledigi ? `<div class="ek-uye-soz">${escapeHtml(u.soyledigi)}</div>` : ''}
-      ${(u.eksik && u.eksik.length) ? `<div class="ek-uye-eksik">okunamayan: ${escapeHtml(u.eksik.join(', '))}</div>` : ''}
-      ${(u.okur && u.okur.length) ? `<div class="ek-uye-okur">okur: ${escapeHtml(u.okur.join(' · '))}</div>` : ''}
+      ${u.soyledigi ? `<div class="ek-uye-soz">${escapeHtml(acikSonuclar.get(u.key) || u.soyledigi)}</div>` : ''}
+      ${(u.eksik && u.eksik.length) ? `<div class="ek-uye-eksik">okunamayan: ${escapeHtml(u.eksik.map(ekipKaynakAdi).join(', '))}</div>` : ''}
+      ${(u.okur && u.okur.length) ? `<div class="ek-uye-okur">okuduğu kaynaklar: ${escapeHtml(u.okur.map(ekipKaynakAdi).join(' · '))}</div>` : ''}
     </div>`).join('') : '<p class="ek-bos">Bu birimin kadrosu kurulmamış; sorulacak bir sorumlu yok.</p>';
 
   /* Dış araştırma bulguları.
@@ -2240,7 +2361,7 @@ function ekipSatir(d) {
       </div>
       ${pb.map(b => `
         <div class="ek-pz-item">
-          <span class="ek-pz-sev ek-sev-${escapeHtml(String(b.seviye || '').toLowerCase())}">${escapeHtml(b.seviye || '')}</span>
+          <span class="ek-pz-sev ek-sev-${escapeHtml(String(b.seviye || '').toLowerCase())}">${escapeHtml(({ FACT: 'Gözlem', INTERPRETATION: 'Yorum', HYPOTHESIS: 'Tahmin', NOT_CONNECTED: 'Kaynak bağlı değil' })[b.seviye] || b.seviye || '')}</span>
           <span class="ek-pz-metin">${escapeHtml(b.bulgu || '')}</span>
           <div class="ek-ar-meta">${escapeHtml(b.kaynak || '')}${b.tarih ? ' · ' + escapeHtml(b.tarih) : ''}</div>
         </div>`).join('')}
@@ -2248,10 +2369,10 @@ function ekipSatir(d) {
         <summary>+ gözlem ekle</summary>
         <div class="ek-pz-form">
           <select class="ek-pz-in" id="pzs-${escapeHtml(d.kod)}" aria-label="Seviye">
-            <option value="FACT">FACT — gördüğüm olgu</option>
-            <option value="INTERPRETATION">INTERPRETATION — benim yorumum</option>
-            <option value="HYPOTHESIS">HYPOTHESIS — tahmin, sınanmalı</option>
-            <option value="NOT_CONNECTED">NOT_CONNECTED — kaynak bağlı değil</option>
+            <option value="FACT">Gördüğüm olgu</option>
+            <option value="INTERPRETATION">Benim yorumum</option>
+            <option value="HYPOTHESIS">Tahmin; sınanmalı</option>
+            <option value="NOT_CONNECTED">Kaynak bağlı değil</option>
           </select>
           <input class="ek-pz-in" id="pzb-${escapeHtml(d.kod)}" type="text" placeholder="Ne gördün? (ör. rakip X 890 TL listeliyor)">
           <input class="ek-pz-in" id="pzk-${escapeHtml(d.kod)}" type="text" placeholder="Kaynak — zorunlu (ör. cimri.com, ekran görüntüsü)">
@@ -2276,18 +2397,12 @@ function ekipSatir(d) {
   return `<details class="ek-dep ${r.sinif}">
     <summary class="ek-dep-head">
       <i class="ek-dot ${r.sinif}" title="${escapeHtml(r.etiket)}"></i>
-      <span class="ek-kod">${escapeHtml(d.kod || '')}</span>
       <span class="ek-ad">${escapeHtml(d.ad || '')}</span>
       <span class="ek-rozet ek-rz-${escapeHtml(String(d.birim_durumu || '').toLowerCase())}">${escapeHtml(d.birim_durumu || '')}</span>
       <span class="ek-say">${d.konusan || 0}/${d.uye_sayisi || 0}</span>
     </summary>
     <div class="ek-dep-govde">
       <div class="ek-misyon">${escapeHtml(d.misyon || '')}</div>
-      <div class="ek-meta">
-        <span>veri: ${escapeHtml(d.veri_kaynagi || '—')}</span>
-        <span>otonomi: ${escapeHtml(d.otonomi_tavani || '—')}</span>
-        <span>eskalasyon: ${escapeHtml(d.escalation || '—')}</span>
-      </div>
       ${bugunBlok}
       ${uyeListe}
       ${arastirmaBlok}
@@ -3977,7 +4092,7 @@ function renderKreatifParti() {
         ${kareler ? `<h4>ÜRETİLEN GÖRSELLER</h4><div class="kp-kareler">${kareler}</div>` : ''}
         ${!kareler ? '<p>Bu çalışma için görsel henüz üretilmedi. Hazırlanan metinleri aşağıda görebilirsiniz.</p>' : ''}
         <h4>HAZIR PROMPTLAR (${(p.promptlar || []).length})</h4>${promptlar}
-        ${red ? `<h4>RED TEAM</h4><ul class="kp-red">${red}</ul>` : ''}
+        ${red ? `<h4>KANIT DENETİMİ</h4><ul class="kp-red">${red}</ul>` : ''}
         ${kurul ? `<details><summary>EKİBİN GÖRÜŞÜ (${(p.kurul || []).length} departman)</summary>
           <ul class="kp-kurul">${kurul}</ul></details>` : ''}
       </div>` : ''}
@@ -4188,6 +4303,7 @@ function oneriOnayKarti(p) {
     + '<summary><strong>' + escapeHtml(baslik) + '</strong>'
     + '<span class="pill">' + escapeHtml(p.action_type || 'ÖNERİ') + '</span></summary>'
     + '<div class="oo-govde">'
+    + (disaDonukOneri(p) ? '<div class="external-approval-warning">🔴 DIŞA DÖNÜK İŞLEM · Alıcı, içerik ve etkiyi kontrol edin. Onay, tek başına gönderim kanıtı değildir.</div>' : '')
     + '<p class="oo-kunye">#' + escapeHtml(id)
     + ' · risk ' + escapeHtml(p.risk_class || '-')
     + ' · ' + escapeHtml(fmtDateTime(p.proposed_at))

@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Any
 from .agency import AgencyCapability
 from .specialist_pool import SpecialistPool
+from .agency import classify_task, select_roles
+from . import roster
 
 RESEARCH_TERMS = {
     "market_intelligence": ("pazar", "pazaryeri", "sektor", "sektör", "marka"),
@@ -19,12 +21,15 @@ def state_dir() -> Path:
     return Path(os.environ.get("JARVIS_STATE_DIR", "/opt/lcarlie/jarvis-phase2/state"))
 
 def latest() -> dict[str, dict]:
+    return latest_report().get("roles", {})
+
+def latest_report() -> dict:
     try:
         data = json.loads((state_dir()/"team-cycle"/"latest.json").read_text())
         stamp = datetime.fromisoformat(data["generated_at"])
-        if datetime.now(timezone.utc)-stamp > timedelta(hours=24):
+        if stamp.tzinfo is None or not timedelta(0) <= datetime.now(timezone.utc)-stamp <= timedelta(hours=24):
             return {}
-        return data.get("roles", {})
+        return data
     except (OSError, ValueError, TypeError, KeyError):
         return {}
 
@@ -57,35 +62,128 @@ def research_outputs(rows: list[dict], now: datetime) -> dict[str, dict]:
 
 def build(memory: Any, research_rows: list[dict], now: datetime | None=None) -> dict:
     now=now or datetime.now(timezone.utc)
-    roles=research_outputs(research_rows,now)
-    specialist=SpecialistPool(memory).execute(
-        "Şirketin güncel satış, reklam, müşteri ve operasyon bulgularını değerlendir.",
-        ("sales","ecommerce","advertising","crm","operations"))
-    for finding in specialist["findings"]:
-        key=finding["specialist_id"]
-        if key in ("red_team","strategy","managing_director") and finding["claim"] and finding["evidence_refs"]:
-            roles[key]={"status":"PRODUCED", "items":1,
-                "statement":finding["claim"], "evidence_refs":finding["evidence_refs"],
-                "contradictions":finding.get("contradictions",[]),"model_calls":0}
+    roles={}
+    activity={}
+
+    def record(key, task, status, result, refs, started, finished, kind="ANALİZ / TASLAK"):
+        if activity.get(key, {}).get("status") == "WORKED" and status == "WAITING":
+            return
+        activity[key] = {
+            "status": status, "task": task, "kind": kind, "result": str(result)[:300],
+            "evidence_refs": list(refs)[:12],
+            "started_at": started.isoformat(), "finished_at": finished.isoformat(),
+            "duration_ms": round((finished-started).total_seconds()*1000, 2),
+        }
+
+    started=datetime.now(timezone.utc)
+    try:
+        roles.update(research_outputs(research_rows,now))
+        finished=datetime.now(timezone.utc)
+        for key in RESEARCH_TERMS:
+            output=roles.get(key, {})
+            refs=output.get("evidence_refs", [])
+            record(key,"Kayıtlı dış kaynakları yeniden değerlendir",
+                   "WORKED" if refs else "WAITING",
+                   output.get("statement") if refs else "Uygun kaynak kaydı bulunmadı.",
+                   refs,started,finished,kind="KAYIT TARAMASI")
+    except Exception as exc:  # noqa: BLE001
+        finished=datetime.now(timezone.utc)
+        for key in RESEARCH_TERMS:
+            record(key,"Kayıtlı dış kaynakları yeniden değerlendir","ERROR",
+                   type(exc).__name__,[],started,finished,kind="KAYIT TARAMASI")
+
+    specialist={}
+    domains=("sales","ecommerce","advertising","crm","operations")
+    pool=SpecialistPool(memory)
+    selected=pool.router.route(domains).selected
+    started=datetime.now(timezone.utc)
+    try:
+        specialist=pool.execute(
+            "Şirketin güncel satış, reklam, müşteri ve operasyon bulgularını değerlendir.", domains)
+        finished=datetime.now(timezone.utc)
+        findings={finding["specialist_id"]: finding for finding in specialist["findings"]}
+        for key in selected:
+            finding=findings.get(key, {})
+            refs=finding.get("evidence_refs", [])
+            claim=finding.get("claim", "")
+            record(key,"Şirket verilerinden alan analizi üret",
+                   "WORKED" if claim and refs else "WAITING",
+                   claim if claim and refs else "Kanıta bağlı sonuç üretilemedi.",
+                   refs,started,finished)
+            if key in ("red_team","strategy","managing_director") and claim and refs:
+                roles[key]={"status":"PRODUCED", "items":1,
+                    "statement":claim, "evidence_refs":refs,
+                    "contradictions":finding.get("contradictions",[]),"model_calls":0}
+    except Exception as exc:  # noqa: BLE001
+        finished=datetime.now(timezone.utc)
+        for key in selected:
+            record(key,"Şirket verilerinden alan analizi üret","ERROR",
+                   type(exc).__name__,[],started,finished)
+
     agency=AgencyCapability(memory)
-    deliveries=[agency.run("VIREON için kampanya önerisi hazırla",synthesize=False),
-                agency.run("Şirket için haftalık sosyal içerik planı hazırla",synthesize=False)]
-    for delivery in deliveries:
-        for contribution in delivery["role_contributions"]:
-            if contribution["status"]!="PRODUCED":
-                continue
-            key=contribution["role"]
-            if key=="COMPETITOR_CREATIVE":
-                continue  # a research request is not completed research
+    deliveries=[]
+    for task in ("VIREON için kampanya önerisi hazırla",
+                 "Şirket için haftalık sosyal içerik planı hazırla"):
+        selected_roles=select_roles(classify_task(task),task)
+        started=datetime.now(timezone.utc)
+        try:
+            delivery=agency.run(task,synthesize=False)
+            deliveries.append(delivery)
+            finished=datetime.now(timezone.utc)
             refs=delivery.get("current_evidence",{}).get("refs",[])
-            if not refs:
+            contributions={item["role"]:item for item in delivery["role_contributions"]}
+            for key in selected_roles:
+                contribution=contributions.get(key,{})
+                produced=contribution.get("status")=="PRODUCED" and bool(refs)
+                fields=contribution.get("items",{})
+                details=", ".join(f"{field}: {count}" for field,count in fields.items() if count)
+                statement=f"{task} — {details}. Taslak üretildi; yayımlanmadı."
+                record(key,task,"WORKED" if produced else "WAITING",
+                       statement if produced else "Kanıta bağlı katkı üretilmedi.",
+                       refs if produced else [],started,finished)
+                if produced and key!="COMPETITOR_CREATIVE":
+                    roles[key]={"status":"PRODUCED", "items":contribution["produced"],
+                        "statement":statement,"evidence_refs":list(refs),"model_calls":0}
+        except Exception as exc:  # noqa: BLE001
+            finished=datetime.now(timezone.utc)
+            for key in selected_roles:
+                record(key,task,"ERROR",type(exc).__name__,[],started,finished)
+
+    data_keys=tuple(member.key for member in roster.ROSTER if member.mode=="data")
+    data_opinions=[]
+    started=datetime.now(timezone.utc)
+    try:
+        data_opinions=roster.opinions(memory,only=data_keys)
+        observations={item["key"]:item for item in data_opinions}
+        finished=datetime.now(timezone.utc)
+        for key in data_keys:
+            if key in activity:
                 continue
-            fields=contribution["items"]
-            details=", ".join(f"{field}: {count}" for field,count in fields.items() if count)
-            roles[key]={"status":"PRODUCED", "items":contribution["produced"],
-                "statement":f"{delivery['task']} — {details}. Taslak üretildi; yayımlanmadı.",
-                "evidence_refs":list(refs),"model_calls":0}
+            observation=observations.get(key,{})
+            refs=observation.get("evidence_refs",[])
+            missing=observation.get("missing",[])
+            if observation.get("status") in (roster.NO_DATA,roster.ISLEM_HATASI) or missing:
+                status="ERROR"
+                result=("Okunamayan kaynak: "+", ".join(missing)) if missing else observation.get("statement","İşlem hatası")
+            elif observation.get("status")==roster.SPEAKS and refs and observation.get("statement"):
+                status="WORKED"
+                result=observation["statement"]
+            else:
+                status="WAITING"
+                result="Kanıta bağlı veri değerlendirmesi üretilemedi."
+            record(key,"Şirket verisini oku ve rol değerlendirmesi üret",
+                   status,result,refs if status=="WORKED" else [],started,finished,
+                   kind="VERİ KONTROLÜ")
+    except Exception as exc:  # noqa: BLE001
+        finished=datetime.now(timezone.utc)
+        for key in data_keys:
+            if key in activity:
+                continue
+            record(key,"Şirket verisini oku ve rol değerlendirmesi üret",
+                   "ERROR",type(exc).__name__,[],started,finished,
+                   kind="VERİ KONTROLÜ")
     return {"generated_at":now.isoformat(),"roles":roles,
+            "activity":activity,"data_opinions":data_opinions,
             "specialist_result":specialist,"agency_deliveries":deliveries,
             "external_actions":0,"model_calls":0}
 
@@ -106,6 +204,7 @@ def run(memory: Any) -> dict:
     target.parent.mkdir(parents=True,exist_ok=True)
     tmp=target.with_suffix(".tmp")
     tmp.write_text(json.dumps(result,ensure_ascii=False,indent=1,default=str))
+    os.chmod(tmp,0o600)
     tmp.replace(target)
     return {"generated_at":result["generated_at"],"roles_produced":len(result["roles"]),
             "role_keys":sorted(result["roles"]),"model_calls":0,"external_actions":0}

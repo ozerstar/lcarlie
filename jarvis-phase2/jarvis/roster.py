@@ -44,6 +44,7 @@ NEEDS_INPUT = "GİRDİ BEKLER"           # baskalarinin bulgusunu girdi alir
 # oysa yazilmasi gereken sey koddur. Ayni tuzagin baska adlari:
 # "bulamadi != bakamadi", "soramadim != veri yok".
 ISLEV_YOK = "İŞLEV YAZILMADI"          # veri okunuyor, konusma islevi yok
+ISLEM_HATASI = "İŞLEM HATASI"
 
 
 @dataclass(frozen=True)
@@ -2167,6 +2168,7 @@ def opinions(memory: Any, only: tuple[str, ...] = (), *, activity: dict | None =
     yalan olurdu.
     """
     cache: dict[str, list] = {}
+    source_refs: dict[str, str] = {}
     out: list[dict[str, Any]] = []
 
     for member in ROSTER:
@@ -2205,13 +2207,20 @@ def opinions(memory: Any, only: tuple[str, ...] = (), *, activity: dict | None =
                 rows[query] = cache[query]
                 continue
             try:
-                kayitlar = list(memory._fetch(query).records)
+                evidence = memory._fetch(query)
+                kayitlar = list(evidence.records)
             except Exception:  # noqa: BLE001 - okunamayan sorgu bir durumdur
                 eksik.append(query)
                 continue
             cache[query] = kayitlar
+            source = str(getattr(evidence, "source", ""))
+            source_refs[query] = (source if source.startswith("postgres:") and
+                                  getattr(evidence, "authority", "") == "CANONICAL_COMPANY_MEMORY" else "")
             rows[query] = kayitlar
 
+        kayit["evidence_refs"] = list(dict.fromkeys(
+            source_refs.get(query, "") for query in rows
+            if rows[query] and source_refs.get(query)))
         konusmaci = SPEAKERS.get(member.key)
         if eksik and not rows:
             kayit.update(status=NO_DATA, missing=eksik,
@@ -2227,9 +2236,12 @@ def opinions(memory: Any, only: tuple[str, ...] = (), *, activity: dict | None =
                     "eksik olan veri değil, bu üyenin o satırlara bakınca ne "
                     "söyleyeceğini tanımlayan işlev. Yazılana kadar susuyor."))
         else:
-            kayit.update(status=SPEAKS, statement=konusmaci(rows),
-                         rows={q: len(r) for q, r in rows.items()})
-            if eksik:
-                kayit["missing"] = eksik
+            try:
+                kayit.update(status=SPEAKS, statement=konusmaci(rows),
+                             rows={q: len(r) for q, r in rows.items()})
+                if eksik:
+                    kayit["missing"] = eksik
+            except Exception as exc:  # noqa: BLE001
+                kayit.update(status=ISLEM_HATASI, statement=type(exc).__name__)
         out.append(kayit)
     return out

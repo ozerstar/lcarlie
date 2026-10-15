@@ -796,6 +796,19 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
 .risk-HIGH { color: #d98a4f; }
 .risk-CRITICAL { color: var(--crit); }
 
+.external-approval-warning {
+  margin: 10px 0;
+  padding: 9px 11px;
+  border: 1px solid var(--crit);
+  border-left: 4px solid var(--crit);
+  border-radius: var(--radius);
+  background: rgba(180, 40, 40, 0.12);
+  color: var(--crit);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
 .empty-note { color: var(--ivory-4); font-size: 0.90rem; margin: 6px 0 0; }
 
 .qa-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }

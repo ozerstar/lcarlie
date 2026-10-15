@@ -103,7 +103,15 @@ def yukle(olaylar: list[dict], kuru: bool) -> dict[str, int]:
         konusma_ref = (olay.get("alici_id") if yanki else psid) or psid
         ad_id = olay.get("ad_id")
         gonderen = "isletme" if yanki else "musteri"
-        yon = "out" if yanki else "in"
+        # 🔴 YON SOZLESMESI: "gelen"/"giden". Bu betik "in"/"out" yaziyordu
+        # ve veritabaninda iki ayri sozlesme olusmustu: Meta konusma ice
+        # aktaricisi 3.300 satiri "gelen"/"giden", bu betik ise yeni
+        # gelenleri "in"/"out" yaziyordu. Sonuc sessizdi ve kotuydu --
+        # siniflandirici `yon='gelen'` ariyor, panel cevapsizi `yon='gelen'`
+        # sayiyor; webhook'tan gelen her WhatsApp mesaji IKISINE DE
+        # gorunmuyordu. 15.10.2026'da ilk gercek WhatsApp mesaji geldiginde
+        # uctan uca testle yakalandi.
+        yon = "giden" if yanki else "gelen"
         if yanki:
             sayac["yanki"] += 1
 

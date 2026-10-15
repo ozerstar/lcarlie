@@ -32,7 +32,7 @@ import traceback
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlparse, unquote
 from urllib.request import Request, urlopen
 
 HERE = Path(__file__).resolve().parent
@@ -71,6 +71,8 @@ import saha  # noqa: E402
 import sistem  # noqa: E402
 
 import chat  # noqa: E402
+import personal_chat  # noqa: E402
+import mobile_features  # noqa: E402
 
 STATE_DIR = Path(os.environ.get("JARVIS_STATE_DIR", "/opt/lcarlie/jarvis-phase2/state"))
 STATIC_DIR = HERE / "static"
@@ -1418,6 +1420,23 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(401, {"error": "authentication required"})
             return
 
+        if path == "/api/mobile/reminders":
+            self._send_json(200, {"reminders": mobile_features.reminders(session.username)})
+            return
+        if path == "/api/mobile/memory":
+            self._send_json(200, {"notes": mobile_features.personal_notes(session.username)})
+            return
+        if path.startswith("/api/mobile-attachment/"):
+            try:
+                meta, target = mobile_features.attachment(session.username, path.rsplit("/", 1)[-1])
+                if meta["kind"] != "image":
+                    raise ValueError("Görsel bulunamadı.")
+            except ValueError:
+                self._send_json(404, {"error": "Görsel bulunamadı."})
+                return
+            self._send_file(target, "image/jpeg")
+            return
+
         if path == "/api/push/config":
             try:
                 self._send_json(200, {"public_key": push_store.public_key()})
@@ -1782,6 +1801,46 @@ class Handler(BaseHTTPRequestHandler):
             return
         if not self._require_csrf(session):
             self._send_json(403, {"error": "csrf token missing or invalid"})
+            return
+
+        if path == "/api/mobile/upload":
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if not 0 < length <= mobile_features.MAX_UPLOAD:
+                    raise ValueError("Dosya en fazla 5 MB olabilir.")
+                filename = unquote(self.headers.get("X-File-Name", "dosya"))
+                result = mobile_features.upload(session.username, filename, self.rfile.read(length))
+                self._send_json(200, result)
+            except (ValueError, OSError) as exc:
+                self._send_json(400, {"error": str(exc)[:200]})
+            return
+        if path in ("/api/mobile/reminders", "/api/mobile/memory", "/api/mobile/vision"):
+            try:
+                body = _read_json_body(self)
+                if path == "/api/mobile/reminders":
+                    if body.get("action") == "add":
+                        mobile_features.add_reminder(session.username, body.get("text"), body.get("due_at"))
+                    elif body.get("action") == "delete":
+                        mobile_features.delete_reminder(session.username, body.get("id"))
+                    else:
+                        raise ValueError("Geçersiz işlem.")
+                    result = {"reminders": mobile_features.reminders(session.username)}
+                elif path == "/api/mobile/memory":
+                    if body.get("action") == "add":
+                        mobile_features.add_note(session.username, body.get("text"))
+                    elif body.get("action") == "delete":
+                        mobile_features.delete_note(session.username, body.get("id"))
+                    else:
+                        raise ValueError("Geçersiz işlem.")
+                    result = {"notes": mobile_features.personal_notes(session.username)}
+                else:
+                    if body.get("consent") is not True:
+                        raise ValueError("Görsel analizi için açık onay gerekiyor.")
+                    result = {"answer": mobile_features.vision_answer(
+                        session.username, body.get("attachment_id"), body.get("question"))}
+                self._send_json(200, result)
+            except ValueError as exc:
+                self._send_json(400, {"error": str(exc)[:200]})
             return
 
         if path == "/api/push/subscribe":
@@ -2403,6 +2462,7 @@ class Handler(BaseHTTPRequestHandler):
         """
         body = _read_json_body(self)
         message = str(body.get("message", ""))[:2000]
+        mode = body.get("mode", "work")
         self.send_response(200)
         self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
@@ -2410,13 +2470,28 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Connection", "close")
         self.end_headers()
         try:
-            for event in chat.stream(message, _shadow_runner, _operator):
+            if mode not in ("work", "personal"):
+                events = ({"type": "error", "message": "Geçerli bir sohbet alanı seçin."},)
+            elif mode == "personal":
+                session = self._current_session()
+                attachment_id = body.get("attachment_id")
+                events = (personal_chat.stream(message, session.username, attachment_id=attachment_id)
+                          if attachment_id else personal_chat.stream(message, session.username))
+            else:
+                events = chat.stream(message, _shadow_runner, _operator)
+            for event in events:
                 line = json.dumps(event, ensure_ascii=False, default=str) + "\n"
                 self.wfile.write(line.encode("utf-8"))
                 self.wfile.flush()
         except (JarvisMemoryError, BrokenPipeError, ConnectionResetError) as exc:
             try:
                 line = json.dumps({"type": "error", "message": str(exc)}, ensure_ascii=False) + "\n"
+                self.wfile.write(line.encode("utf-8"))
+            except OSError:
+                pass
+        except Exception:  # noqa: BLE001 - always finish with a valid stream frame
+            try:
+                line = json.dumps({"type": "error", "message": "Yanıt tamamlanamadı. Tekrar deneyin."}, ensure_ascii=False) + "\n"
                 self.wfile.write(line.encode("utf-8"))
             except OSError:
                 pass
@@ -2485,6 +2560,7 @@ class Handler(BaseHTTPRequestHandler):
             "visual_state": visual_state,
             "company_memory": {"healthy": health_error is None, "error": health_error, "health": health},
             "action_firewall": {"contract_valid": contract_valid},
+            "external_proposals_enabled": contract_valid is True,
             "pending_proposals": pending_count,
             "last_cycle": last_cycle,
             # Olculmus host kullanimi. Panelin CPU/RAM/DISK alanlari yalnizca
@@ -3040,13 +3116,13 @@ def _arastirma_bulgulari(tavan: int = 3000) -> dict:
 
 
 def _panel_ekip() -> dict:
-    """EKIP PANOSU: departman departman kim var, kim calisiyor, kim calismiyor.
+    """EKIP PANOSU: kadro, veri okuma sonucu ve kanitli faaliyet ayridir.
 
     🔴 IKI AYRI 'CALISIYOR' VAR, KARISTIRMA:
       departman.durum  -- birimin veri kaynagi var mi (core.departman alani)
-      uye.status       -- o uye SU AN veriden konusabildi mi (canli olcum)
-    Bir departman 'CALISIYOR' isaretli olup uyesi o an okuyamiyor olabilir
-    (sorgu dustu). Pano ikisini de gosterir; birini digerinin yerine koymak
+      uye.status       -- son ekip dongusunde veriden konusabildi mi
+    Bir departman 'CALISIYOR' isaretli olup uyesi son olcumde okuyamamis olabilir.
+    Pano ikisini de gosterir; birini digerinin yerine koymak
     yesil bir panoda olu bir birimi gizlerdi.
 
     Renk KURALI -- tahmin degil, sayim:
@@ -3067,13 +3143,23 @@ def _panel_ekip() -> dict:
     except Exception as exc:  # noqa: BLE001
         return {"error": f"departman tablosu okunamadi: {exc}", "departmanlar": []}
 
-    # 2) Canli uye durumu. Tek cagri, sorgular icerde onbellege aliniyor.
     try:
-        from jarvis.role_activity import latest
-        gorusler = roster.opinions(_memory, activity=latest())
+        from jarvis.role_activity import latest_report
+        report = latest_report()
+        cached = report.get("data_opinions", [])
+        data_keys = {member.key for member in roster.ROSTER if member.mode == "data"}
+        if isinstance(cached, list) and {row.get("key") for row in cached if isinstance(row, dict)} == data_keys:
+            other_keys = tuple(member.key for member in roster.ROSTER if member.mode != "data")
+            gorusler = cached + roster.opinions(_memory, only=other_keys,
+                                                activity=report.get("roles", {}))
+            olcum_kaynagi = "son ekip döngüsü"
+        else:
+            gorusler = roster.opinions(_memory, activity=report.get("roles", {}))
+            olcum_kaynagi = "canlı sorgu"
     except Exception as exc:  # noqa: BLE001
         gorusler = []
         uye_hatasi = str(exc)
+        olcum_kaynagi = "okunamadı"
     else:
         uye_hatasi = ""
     gorus_by_key = {g["key"]: g for g in gorusler}
@@ -3144,8 +3230,11 @@ def _panel_ekip() -> dict:
     for s in satirlar:
         sayim[s["renk"]] = sayim.get(s["renk"], 0) + 1
 
+    from jarvis.team_lead import load_brief
+
     return {
         "departmanlar": satirlar,
+        "yonetim": load_brief(satirlar),
         "ozet": {
             "departman": len(satirlar),
             "kadrosu_olan": sum(1 for s in satirlar if s["uye_sayisi"]),
@@ -3158,8 +3247,8 @@ def _panel_ekip() -> dict:
             (s["arastirma_son"] for s in satirlar if s["arastirma_son"]), default=""),
         "arastirma_toplam": sum(s["arastirma_toplam"] for s in satirlar),
         "uyari": uye_hatasi,
-        "not": ("Renk, o departmanin uyelerinin SU ANKI okuma sonucudur; "
-                "birim_durumu ise core.departman alanidir. Ikisi ayri seydir."),
+        "not": (f"Renk, üyelerin {olcum_kaynagi} veri okuma sonucudur; "
+                "birim_durumu ise core.departman alanıdır. İkisi ayrı şeydir."),
     }
 
 

@@ -40,7 +40,7 @@ def send(subscription: dict, title: str, body: str, tag: str) -> bool:
 
 def pending_approvals() -> list[dict]:
     sql = ("BEGIN; SET SESSION AUTHORIZATION human_approver; "
-           "SELECT row_to_json(x) FROM (SELECT action_id,payload FROM core.ai_get_pending_actions()) x; "
+           "SELECT row_to_json(x) FROM (SELECT action_id,action_type,payload FROM core.ai_get_pending_actions()) x; "
            "ROLLBACK;")
     result = subprocess.run(
         ["docker", "exec", "lcarlie-postgres", "psql", "-X", "-q", "-v", "ON_ERROR_STOP=1",
@@ -80,7 +80,11 @@ def notify_new_approvals() -> None:
             if action_id in delivered:
                 continue
             reason = str((proposal.get("payload") or {}).get("reason") or "Yeni bir öneri var.")
-            if send(subscription, "Jarvis · Onay bekliyor", f"#{action_id} · {reason}", f"approval-{action_id}"):
+            external = proposal.get("action_type") in {
+                "WHATSAPP_SEND_TEMPLATE", "META_CAMPAIGN_CHANGE", "PRICE_CHANGE", "WIX_PUBLISH"
+            }
+            title = "🔴 Jarvis · Dış işlem onayı" if external else "Jarvis · Onay bekliyor"
+            if send(subscription, title, f"#{action_id} · {reason}", f"approval-{action_id}"):
                 delivered.add(action_id)
         seen[identifier] = list(delivered & set(current))
     save_seen(seen)
