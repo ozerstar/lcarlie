@@ -70,7 +70,7 @@ KNOWN_ROUTES = {
     "/api/gelenkutusu/taslak",
     # URETILENLER: uretilen her seyi tek yerde toplar (26.09.2026).
     "/api/uretilenler",
-    "/api/activity", "/api/proposals", "/api/chat", "/api/chat/stream",
+    "/api/activity", "/api/proposals", "/api/actions", "/api/chat", "/api/chat/stream",
     "/api/plan", "/api/panel",
     # Yurutme: /api/plan planlar, /api/run planlar VE calistirir (yalniz
     # okuma analizi; eylem ureten adim PROPOSED zarfi olur). app.py sunuyor.
@@ -179,11 +179,16 @@ class FrontendCallsOnlyRealEndpoints(unittest.TestCase):
             base = path
             if base.startswith("/api/proposals/"):
                 base = "/api/proposals"
+            if base.startswith("/api/actions/"):
+                base = "/api/actions"
             base = base.rstrip("/") or "/"
             if base.startswith("/api/proposals") and path != "/api/proposals":
                 # /api/proposals/<id> and /api/proposals/<id>/decide are both
                 # routed by prefix in app.py; assert those handlers exist.
                 self.assertIn('path.startswith("/api/proposals/")', SERVER)
+                continue
+            if base.startswith("/api/actions") and path != "/api/actions":
+                self.assertIn('path.startswith("/api/actions/")', SERVER)
                 continue
             self.assertIn(base, KNOWN_ROUTES, f"frontend calls unserved path {raw!r}")
 

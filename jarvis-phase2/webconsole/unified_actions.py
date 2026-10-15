@@ -42,9 +42,10 @@ def _public(row: dict) -> dict:
 
 
 def list_pending(username: str) -> list[dict]:
+    personal_action_store.list_visible(username.strip().lower())
     with personal_action_store._connect() as conn, conn.cursor() as cur:
         cur.execute('''SELECT * FROM core.jarvis_action_registry
-            WHERE (owner='company' OR owner=%s)
+            WHERE (source='company' OR (source='personal' AND owner=%s))
               AND ((status='AWAITING_APPROVAL' AND expires_at>clock_timestamp())
                    OR status='UNCERTAIN')
             ORDER BY created_at DESC LIMIT 100''', (username.strip().lower(),))
@@ -54,10 +55,12 @@ def list_pending(username: str) -> list[dict]:
 
 def inspect(username: str, key: str) -> dict | None:
     source, identifier = parse_key(key)
+    if source == "personal":
+        personal_action_store.list_visible(username.strip().lower())
     with personal_action_store._connect() as conn, conn.cursor() as cur:
         cur.execute('''SELECT * FROM core.jarvis_action_registry
             WHERE action_key=%s AND source=%s
-              AND (owner='company' OR owner=%s)
+              AND (source='company' OR (source='personal' AND owner=%s))
               AND ((status='AWAITING_APPROVAL' AND expires_at>clock_timestamp())
                    OR status='UNCERTAIN')''',
             (f"{source}:{identifier}", source, username.strip().lower()))
