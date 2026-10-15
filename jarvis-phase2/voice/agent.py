@@ -26,7 +26,7 @@ from livekit.plugins import silero
 
 
 MODEL_PATH = Path(os.environ.get("JARVIS_WHISPER_MODEL", "/opt/lcarlie/jarvis-voice-agent/models/small"))
-BRIDGE_URL = "http://127.0.0.1:8091/api/voice/agent-turn"
+BRIDGE_URL = os.environ.get("JARVIS_VOICE_BRIDGE_URL", "http://127.0.0.1:8091/api/voice/agent-turn")
 PIPER_URL = "http://127.0.0.1:5000/synthesize"
 
 

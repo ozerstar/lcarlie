@@ -1465,6 +1465,47 @@ document.querySelectorAll('[data-tab]').forEach((button) => button.addEventListe
 
 const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 const voiceSession = { active: false, generation: 0 };
+const realtimeVoice = window.JarvisRTC?.createVoiceRoom({
+  onStatus: (message) => status(message),
+  onTranscript: (speaker, text) => bubble(speaker, text),
+  onEnded: (message) => { endVoiceSession(); status(message); },
+});
+let realtimeStarting = false;
+function closeVoiceControls() {
+  voiceSession.active = false;
+  voiceSession.generation += 1;
+  realtimeStarting = false;
+  voiceMode = false;
+  realtimeVoice?.stop();
+  $('voice-stop').hidden = true;
+  $('mic').classList.remove('listening');
+  $('mic').setAttribute('aria-label', 'Sesli görüşmeyi başlat');
+}
+async function startRealtimeVoice() {
+  if (!realtimeVoice) return false;
+  const generation = voiceSession.generation;
+  realtimeStarting = true;
+  status('Sesli görüşme bağlanıyor');
+  try {
+    const response = await request('/api/voice/realtime/session', { method: 'POST',
+      body: JSON.stringify({ mode: state.chatMode }) });
+    if (!response.ok) throw new Error('Ses oturumu kullanılamıyor');
+    const session = await response.json();
+    if (!voiceSession.active || generation !== voiceSession.generation) return true;
+    await realtimeVoice.start(session.url, session.token);
+    if (!voiceSession.active || generation !== voiceSession.generation) {
+      await realtimeVoice.stop(); return true;
+    }
+    $('mic').classList.add('listening');
+    $('mic').setAttribute('aria-label', 'Sesli görüşme sürüyor');
+    return true;
+  } catch (_) {
+    if (voiceSession.active && generation === voiceSession.generation)
+      status(Recognition ? 'Canlı ses kullanılamıyor; tarayıcı mikrofonuyla devam ediliyor'
+        : 'Ses bağlantısı kurulamadı; yazarak devam edebilirsiniz');
+    return false;
+  } finally { realtimeStarting = false; }
+}
 if (Recognition) {
   const recognizer = new Recognition(); recognizer.lang = 'tr-TR'; recognizer.continuous = false;
   recognizer.interimResults = false;
@@ -1479,14 +1520,10 @@ if (Recognition) {
     $('mic').classList.remove('listening');
   };
   endVoiceSession = () => {
-    voiceSession.active = false;
-    voiceSession.generation += 1;
-    voiceMode = false;
+    closeVoiceControls();
     clearTimeout(restartTimer);
     closeMicrophone();
     stopAudio();
-    $('voice-stop').hidden = true;
-    $('mic').setAttribute('aria-label', 'Sesli görüşmeyi başlat');
   };
   startListening = () => {
     if (!voiceSession.active || listening || state.busy || document.hidden) return;
@@ -1506,14 +1543,17 @@ if (Recognition) {
       status('Mikrofon yeniden açılamadı; yazarak devam edebilirsiniz');
     }
   };
-  $('mic').addEventListener('click', () => {
+  $('mic').addEventListener('click', async () => {
     if (state.busy) { status('Önce mevcut yanıt tamamlansın'); return; }
+    if (realtimeStarting || realtimeVoice?.active) return;
     if (!voiceSession.active) {
       voiceSession.active = true;
       voiceSession.generation += 1;
       idleRestarts = 0;
       $('voice-stop').hidden = false;
       $('mic').setAttribute('aria-label', 'Jarvis konuşurken söz al');
+      if (await startRealtimeVoice()) return;
+      if (!voiceSession.active) return;
     }
     if (listening) return;
     clearTimeout(restartTimer);
@@ -1561,6 +1601,18 @@ if (Recognition) {
       if (generation === voiceSession.generation) startListening();
     }, 700);
   };
+  document.addEventListener('visibilitychange', () => { if (document.hidden) endVoiceSession(); });
+  window.addEventListener('pagehide', () => endVoiceSession());
+} else if (realtimeVoice) {
+  endVoiceSession = () => { closeVoiceControls(); stopAudio(); };
+  $('mic').addEventListener('click', async () => {
+    if (realtimeStarting || realtimeVoice.active) return;
+    voiceSession.active = true;
+    voiceSession.generation += 1;
+    $('voice-stop').hidden = false;
+    if (!await startRealtimeVoice()) endVoiceSession();
+  });
+  $('voice-stop').addEventListener('click', () => { endVoiceSession(); status('Sesli görüşme bitti'); });
   document.addEventListener('visibilitychange', () => { if (document.hidden) endVoiceSession(); });
   window.addEventListener('pagehide', () => endVoiceSession());
 } else $('mic').hidden = true;
