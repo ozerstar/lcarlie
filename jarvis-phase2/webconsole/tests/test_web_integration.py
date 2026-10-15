@@ -6,6 +6,7 @@ import sys
 import tempfile
 import time
 import unittest
+import uuid
 from pathlib import Path
 from threading import Thread
 from unittest.mock import MagicMock, patch
@@ -339,6 +340,32 @@ class WebConsoleIntegrationTests(unittest.TestCase):
                         f"beklenmeyen operator metodu: {called_methods}")
 
     # -- chat ----------------------------------------------------------
+    def test_mobile_stream_reconnect_does_not_run_turn_twice(self):
+        csrf, sid = self._login()
+        turn_id = str(uuid.uuid4())
+        payload = json.dumps({"turn_id": turn_id, "message": "Merhaba", "mode": "work"})
+
+        def call_stream():
+            conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+            try:
+                conn.request("POST", "/api/chat/stream", body=payload, headers={
+                    "Content-Type": "application/json",
+                    "Cookie": f"{app.SESSION_COOKIE}={sid}", "X-CSRF-Token": csrf})
+                resp = conn.getresponse()
+                return resp.status, [json.loads(line) for line in resp.read().decode().splitlines() if line]
+            finally:
+                conn.close()
+
+        with patch.object(app.chat, "stream", return_value=iter([
+            {"type": "token", "delta": "Merhaba"},
+            {"type": "done", "result": {"text": "Merhaba"}}])) as stream:
+            first_status, first = call_stream()
+            second_status, second = call_stream()
+        self.assertEqual((first_status, second_status), (200, 200))
+        self.assertEqual(first, second)
+        self.assertEqual(first[-1]["type"], "done")
+        stream.assert_called_once()
+
     def _stub_model(self):
         """Chat reaches a real model now; these tests are about the HTTP
         boundary, so the model is stubbed rather than raced against a 5s

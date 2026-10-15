@@ -74,6 +74,7 @@ import saha  # noqa: E402
 import sistem  # noqa: E402
 
 import chat  # noqa: E402
+import chat_turns  # noqa: E402
 import personal_chat  # noqa: E402
 import mobile_features  # noqa: E402
 import google_workspace  # noqa: E402
@@ -2653,6 +2654,60 @@ class Handler(BaseHTTPRequestHandler):
         body = _read_json_body(self)
         message = str(body.get("message", ""))[:2000]
         mode = body.get("mode", "work")
+        turn_id = body.get("turn_id")
+        if turn_id is not None:
+            session = self._current_session()
+            attachment_id = body.get("attachment_id")
+            try:
+                after = int(body.get("after", 0))
+                if after < 0:
+                    raise ValueError("Geçersiz devam noktası.")
+
+                def make_events():
+                    if mode == "personal":
+                        return (personal_chat.stream(message, session.username, attachment_id=attachment_id)
+                                if attachment_id else personal_chat.stream(message, session.username))
+                    return chat.stream(message, _shadow_runner, _operator)
+
+                chat_turns.start_or_resume(turn_id, session.username, mode,
+                                           message if message else None, make_events)
+            except (ValueError, TypeError) as exc:
+                self._send_json(400, {"error": str(exc)})
+                return
+            except Exception:
+                self._send_json(503, {"error": "Sohbet kaydedilemedi. Mesaj otomatik yeniden gönderilmedi."})
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            last_activity = time.monotonic()
+            try:
+                while True:
+                    frames, state = chat_turns.read_after(turn_id, session.username, after)
+                    for event in frames:
+                        after = event["seq"]
+                        self.wfile.write((json.dumps(event, ensure_ascii=False, default=str) + "\n").encode("utf-8"))
+                        self.wfile.flush()
+                        last_activity = time.monotonic()
+                    if state != "RUNNING" and not frames:
+                        break
+                    if state == "RUNNING" and time.monotonic() - last_activity >= 10:
+                        self.wfile.write(b'{"type":"heartbeat"}\n')
+                        self.wfile.flush()
+                        last_activity = time.monotonic()
+                    time.sleep(0.15)
+            except (BrokenPipeError, ConnectionResetError, OSError):
+                pass  # the detached worker keeps the result for reconnection
+            except Exception:
+                try:
+                    self.wfile.write(b'{"type":"error","message":"Sohbet durumu okunamadi."}\n')
+                except OSError:
+                    pass
+            self.close_connection = True
+            return
         self.send_response(200)
         self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
         self.send_header("Cache-Control", "no-store")

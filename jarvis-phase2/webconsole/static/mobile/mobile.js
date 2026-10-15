@@ -6,6 +6,25 @@ const state = { csrf: null, busy: false, audio: null, audioUrl: null, audioGener
   contactEditId: null };
 let voiceMode = false;
 let selectedProposal = null;
+const PENDING_CHAT_KEY = 'jarvis-pending-chat-v1';
+
+function rememberChatTurn(turn) {
+  try { sessionStorage.setItem(PENDING_CHAT_KEY, JSON.stringify({id: turn.id, mode: turn.mode,
+    text: turn.text, attachmentId: turn.attachmentId, at: Date.now()})); } catch (_) { /* private mode */ }
+}
+function forgetChatTurn() {
+  try { sessionStorage.removeItem(PENDING_CHAT_KEY); } catch (_) { /* private mode */ }
+}
+function pendingChatTurn() {
+  try {
+    const turn = JSON.parse(sessionStorage.getItem(PENDING_CHAT_KEY) || 'null');
+    if (turn && Date.now() - turn.at < 24 * 60 * 60 * 1000 && /^[0-9a-f-]{36}$/.test(turn.id)
+        && ['work', 'personal'].includes(turn.mode) && typeof turn.text === 'string') return turn;
+  } catch (_) { /* no stored turn */ }
+  forgetChatTurn();
+  return null;
+}
+function responseWasRejected(error) { return error?.nonRetryable === true; }
 
 function status(message) {
   const shown = friendlyMessage(message);
@@ -43,6 +62,13 @@ function showApp() {
   if (new URLSearchParams(location.search).has('google')) {
     status(new URLSearchParams(location.search).get('google') === 'connected' ? 'Google hesabı bağlandı' : 'Google hesabı bağlanamadı');
     history.replaceState(null, '', '/mobile/index.html?tab=chat&mode=personal');
+  }
+  const unfinished = pendingChatTurn();
+  if (unfinished && !state.busy) {
+    document.querySelector('[data-tab="chat"]').click();
+    if (state.chatMode !== unfinished.mode)
+      document.querySelector(`[data-chat-mode="${unfinished.mode}"]`).click();
+    sendMessage(unfinished.text, unfinished);
   }
 }
 
@@ -286,38 +312,60 @@ function addPlayButton(row, text) {
   return button;
 }
 
-async function sendMessage(text) {
+async function sendMessage(text, previous = null) {
   if (!state.csrf || state.busy || !text) return;
+  const turn = previous || {id: crypto.randomUUID(), mode: state.chatMode, text,
+    attachmentId: state.chatMode === 'personal' ? state.attachment?.id : null};
   state.busy = true;
   $('send').disabled = true;
   status('Düşünüyor');
-  bubble('user', text);
-  const row = bubble('jarvis', 'Yanıt hazırlanıyor…');
-  const mode = state.chatMode;
+  if (!previous?.row) bubble('user', text);
+  const row = previous?.row || bubble('jarvis', 'Yanıt hazırlanıyor…');
+  row.content.textContent = 'Yanıt hazırlanıyor…';
+  rememberChatTurn(turn);
+  const mode = turn.mode;
   let answer = '';
+  let streamed = previous?.streamed || '';
+  let after = previous?.after || 0;
+  let terminal = false;
   try {
-    const response = await request('/api/chat/stream', { method: 'POST', body: JSON.stringify({ message: text, mode,
-      attachment_id: mode === 'personal' ? state.attachment?.id : undefined }) });
-    if (!response.ok || !response.body) throw new Error('Sohbet bağlantısı açılamadı.');
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let pending = '';
-    let streamed = '';
-    while (true) {
-      const part = await reader.read();
-      if (part.done) break;
-      pending += decoder.decode(part.value, { stream: true });
-      let end;
-      while ((end = pending.indexOf('\n')) >= 0) {
-        const line = pending.slice(0, end).trim();
-        pending = pending.slice(end + 1);
-        if (!line) continue;
-        let item;
-        try { item = JSON.parse(line); }
-        catch (_) { throw new Error('Yanıt tamamlanamadı. Lütfen tekrar deneyin.'); }
+    for (let attempt = 0; attempt < 3 && !terminal; attempt++) {
+      if (attempt) { status('Bağlantı yenileniyor'); await new Promise((resolve) => setTimeout(resolve, attempt * 700)); }
+      try {
+      const response = await request('/api/chat/stream', { method: 'POST', body: JSON.stringify({
+        turn_id: turn.id, message: turn.text, mode, attachment_id: turn.attachmentId, after }) });
+      if (!response.ok) {
+        let detail = '';
+        try { detail = (await response.json()).error || ''; } catch (_) { /* proxy response */ }
+        const error = new Error(response.status === 401 ? 'Oturum sona erdi. Giriş yaptıktan sonra yanıtı kontrol edin.'
+          : friendlyMessage(detail, 'Sohbet şu anda açılamadı. Yanıtı biraz sonra kontrol edin.'));
+        error.nonRetryable = response.status >= 400 && response.status < 500;
+        throw error;
+      }
+      if (!response.body || !response.headers.get('content-type')?.includes('application/x-ndjson'))
+        throw new Error('Sohbet yanıtı okunamadı. Yanıtı biraz sonra kontrol edin.');
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let pending = '';
+      try {
+      while (true) {
+        const part = await reader.read();
+        if (part.done) break;
+        pending += decoder.decode(part.value, { stream: true });
+        let end;
+        while ((end = pending.indexOf('\n')) >= 0) {
+          const line = pending.slice(0, end).trim();
+          pending = pending.slice(end + 1);
+          if (!line) continue;
+          let item;
+          try { item = JSON.parse(line); }
+          catch (_) { throw new Error('Yanıtın bir bölümü okunamadı. Aynı konuşmaya yeniden bağlanılıyor.'); }
+          if (item.seq && item.seq <= after) continue;
+          if (item.seq) after = item.seq;
         if (item.type === 'stage') row.content.textContent = `${item.label}…`;
         if (item.type === 'token') { streamed += item.delta || ''; row.content.textContent = streamed; }
         if (item.type === 'done') {
+          terminal = true;
           answer = item.result?.text || item.result?.message || streamed;
           if (item.result?.source === 'operator.list_pending') {
             const count = Array.isArray(item.result.data) ? item.result.data.length : 0;
@@ -351,15 +399,34 @@ async function sendMessage(text) {
             }
           }
         }
-        if (item.type === 'error') { answer = friendlyMessage(item.message, 'Yanıt tamamlanamadı. Tekrar deneyin.'); row.content.textContent = answer; }
+          if (item.type === 'error') {
+            terminal = true;
+            answer = friendlyMessage(item.message, 'Yanıt tamamlanamadı. İşlem durumunu kontrol edin.');
+            row.content.textContent = answer;
+          }
+        }
+        row.node.scrollIntoView({ block: 'end' });
       }
-      row.node.scrollIntoView({ block: 'end' });
+      } finally { reader.releaseLock(); }
+      } catch (error) {
+        if (attempt === 2 || responseWasRejected(error)) throw error;
+      }
     }
-    if (!answer) { answer = streamed || 'Yanıt alınamadı.'; row.content.textContent = answer; }
-    const playButton = addPlayButton(row, answer);
+    if (!terminal) throw new Error('Bağlantı kesildi. Yanıtı kontrol et; mesaj tekrar gönderilmedi.');
+    forgetChatTurn();
+    const playButton = answer && !/durumunu kontrol|tamamlanamadı/i.test(answer) ? addPlayButton(row, answer) : null;
     if (voiceMode && playButton) { voiceMode = false; playAnswer(answer, playButton); }
-    status('Bağlı');
-  } catch (error) { row.content.textContent = friendlyMessage(error.message, 'Bağlantı kesildi. Tekrar deneyin.'); status('Bağlantı hatası'); voiceMode = false; }
+    status(/tamamlanamadı|kontrol edin/i.test(answer) ? answer : 'Bağlı');
+  } catch (error) {
+    row.content.textContent = friendlyMessage(error.message, 'Bağlantı kesildi. Yanıtı kontrol et.');
+    if (!row.node.querySelector('.chat-resume')) {
+      const resume = document.createElement('button'); resume.type = 'button';
+      resume.className = 'chat-resume secondary'; resume.textContent = 'Yanıtı kontrol et';
+      resume.addEventListener('click', () => { resume.remove(); sendMessage(text, {...turn, row, after, streamed}); });
+      row.node.append(resume);
+    }
+    status('Bağlantı kesildi; mesaj tekrar gönderilmedi'); voiceMode = false;
+  }
   finally { state.busy = false; $('send').disabled = false; if (mode === 'personal') clearAttachment(); }
 }
 
@@ -906,6 +973,8 @@ function personalDraftCommand(text) {
 
 $('chat-form').addEventListener('submit', (event) => {
   event.preventDefault();
+  if (state.busy) { status('Önceki yanıt hazırlanıyor. Biraz bekle.'); return; }
+  if (!state.csrf) { status('Oturum açıp mesajı yeniden gönder.'); return; }
   const text = $('chat-input').value.trim();
   if (!text) return;
   $('chat-input').value = '';
@@ -940,7 +1009,11 @@ $('action-form').addEventListener('submit', async (event) => {
 
 async function readApi(path, options) {
   const response = await request(path, options);
-  const body = await response.json();
+  let body;
+  try { body = await response.json(); }
+  catch (_) { throw new Error(response.ok
+    ? 'Sunucudan okunabilir yanıt alınamadı. İşlem durumunu kontrol edin.'
+    : 'Sunucu şu anda yanıt veremiyor. Biraz sonra tekrar deneyin.'); }
   if (!response.ok) throw new Error(response.status >= 500 ? 'Jarvis şu anda yanıt veremiyor. Biraz sonra tekrar deneyin.' :
     response.status === 403 ? 'Bu işlem için yetkiniz yok.' :
     friendlyMessage(body.error, 'İşlem tamamlanamadı. Tekrar deneyin.'));
