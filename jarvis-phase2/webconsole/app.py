@@ -1968,9 +1968,13 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 body = _read_json_body(self)
                 if path.endswith("/prepare"):
-                    result = google_workspace.prepare(session.username, body.get("kind"), body.get("fields") or {})
+                    result = google_workspace.prepare(session.username, body.get("kind"),
+                                                      body.get("fields") or {},
+                                                      request_id=body.get("request_id"))
                 elif path.endswith("/decide"):
-                    result = google_workspace.decide(session.username, body.get("id"), body.get("decision"))
+                    result = google_workspace.decide(session.username, body.get("id"),
+                                                     body.get("decision"),
+                                                     body.get("fingerprint"))
                     if result.get("status") == "DONE":
                         mobile_features.record_activity(session.username, "google", "Onaylanan Google işlemi tamamlandı")
                 elif path.endswith("/drive/import"):

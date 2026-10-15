@@ -654,6 +654,16 @@ async function loadCalendar() {
 }
 
 function showGoogleProposal(proposal) {
+  if (proposal.status && proposal.status !== 'AWAITING_APPROVAL') {
+    state.googleProposal = null;
+    $('google-approval').hidden = true;
+    status(proposal.status === 'UNCERTAIN'
+      ? 'Sonuç belirsiz. Google hesabında kontrol edin; işlem tekrar gönderilmedi.'
+      : proposal.status === 'COMPLETED'
+        ? 'Bu işlem daha önce tamamlandı. Aynı içerik tekrar gönderilmedi.'
+        : 'Bu onay artık geçerli değil.');
+    return;
+  }
   state.googleProposal = proposal;
   showPersonalTab('google');
   $('google-actions-details').open = true;
@@ -674,15 +684,20 @@ async function loadGooglePending() {
     const list = $('google-pending-list'); list.replaceChildren();
     $('google-pending').hidden = !data.pending?.length;
     for (const proposal of data.pending || []) {
-      const card = mobileCard(proposal.kind === 'gmail.send' ? 'E-posta gönderme'
+      const card = mobileCard(proposal.status === 'UNCERTAIN' ? 'Sonuç kontrolü gerekiyor'
+        : proposal.kind === 'gmail.send' ? 'E-posta gönderme'
         : proposal.kind === 'drive.upload' ? 'Drive’a kaydetme' : 'Takvime ekleme',
         proposal.description.split('\n')[0]);
       if (['calendar.create', 'gmail.send', 'drive.upload'].includes(proposal.kind)) card.classList.add('external-warning');
       const button = document.createElement('button'); button.type = 'button'; button.className = 'secondary';
-      button.textContent = 'İncele'; button.addEventListener('click', () => showGoogleProposal(proposal));
+      button.textContent = proposal.status === 'UNCERTAIN' ? 'Durumu gör' : 'İncele';
+      button.addEventListener('click', () => showGoogleProposal(proposal));
       card.append(button); list.append(card);
     }
-  } catch (_) { $('google-pending').hidden = true; }
+  } catch (_) {
+    $('google-pending').hidden = false;
+    empty($('google-pending-list'), 'Onaylar şu anda yüklenemedi. İşlem tekrar gönderilmedi.');
+  }
 }
 $('calendar-form').addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -711,7 +726,7 @@ async function decideGoogle(decision) {
   $('google-approve').disabled = true; $('google-reject').disabled = true;
   try {
     const result = await readApi('/api/mobile/google/decide', {method:'POST',
-      body:JSON.stringify({id:proposal.id, decision})});
+      body:JSON.stringify({id:proposal.id, decision, fingerprint:proposal.fingerprint})});
     $('google-approval').hidden = true; state.googleProposal = null;
     loadGooglePending();
     status(result.status === 'UNCERTAIN' ? 'İşlem sonucu belirsiz. Google hesabında kontrol edin.' : result.message);

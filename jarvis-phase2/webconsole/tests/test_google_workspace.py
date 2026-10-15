@@ -37,18 +37,26 @@ class GoogleWorkspaceTests(unittest.TestCase):
 
     def test_drive_upload_requires_approval_and_preserves_original(self):
         attachment_id = "a" * 32
-        with tempfile.TemporaryDirectory() as folder, \
-                patch.object(google_workspace, "STATE", Path(folder)), \
-                patch.object(google_workspace, "status", return_value={"connected": True, "drive_write": True}), \
+        payload = {"attachment_id": attachment_id, "folder_id": "", "name": "art.jpg"}
+        with patch.object(google_workspace, "status", return_value={"connected": True, "drive_write": True}), \
                 patch("mobile_features.attachment", return_value=({"name": "art.png", "suffix": ".jpg"}, Path(__file__))), \
+                patch.object(google_workspace.action_store, "create", return_value={
+                    "id": "a" * 32, "kind": "drive.upload", "description": "Drive'a kaydet",
+                    "status": "AWAITING_APPROVAL", "fingerprint": "f" * 64}) as create, \
+                patch.object(google_workspace.action_store, "decide", return_value=(
+                    {"kind": "drive.upload"}, payload)) as decide, \
+                patch.object(google_workspace.action_store, "finish") as finish, \
                 patch.object(google_workspace, "_access_token", return_value="test-token"), \
                 patch.object(google_workspace, "_upload_drive_attachment", return_value={"id": "drive-id"}) as upload:
             proposal = google_workspace.prepare("alice", "drive.upload", {"attachment_id": attachment_id})
             upload.assert_not_called()
-            result = google_workspace.decide("alice", proposal["id"], "APPROVED")
+            result = google_workspace.decide("alice", proposal["id"], "APPROVED", proposal["fingerprint"])
             self.assertEqual(result["status"], "DONE")
-            upload.assert_called_once_with("alice", {"attachment_id": attachment_id,
-                                                   "folder_id": "", "name": "art.jpg"}, "test-token")
+            upload.assert_called_once_with("alice", payload, "test-token")
+            self.assertEqual(create.call_args.kwargs["idempotency_key"], None)
+            decide.assert_called_once_with("alice", "a" * 32, "APPROVED", "f" * 64)
+            finish.assert_called_once_with("alice", "a" * 32, "COMPLETED",
+                                           "Dosya Drive'a yeni kopya olarak kaydedildi.", "drive-id")
 
     def test_drive_upload_uses_new_file_endpoint(self):
         class Response:
@@ -100,12 +108,24 @@ class GoogleWorkspaceTests(unittest.TestCase):
                 send.assert_not_called()
 
     def test_pending_creative_upload_has_preview(self):
-        with tempfile.TemporaryDirectory() as folder, patch.object(google_workspace, "STATE", Path(folder)):
-            google_workspace._write(Path(folder) / "actions.json", [{"id": "one", "user": "alice",
-                "kind": "drive.upload", "payload": {"creative_id": "campaign-gorseller/art.jpg"},
-                "description": "Drive'a kaydet", "status": "PENDING", "expires": google_workspace.time.time() + 60}])
+        from datetime import datetime, timezone
+        with patch.object(google_workspace.action_store, "list_visible", return_value=[{
+                "action_id": "one", "kind": "drive.upload",
+                "payload": {"creative_id": "campaign-gorseller/art.jpg"},
+                "payload_hash": "f" * 64, "description": "Drive'a kaydet",
+                "status": "AWAITING_APPROVAL", "expires_at": datetime.now(timezone.utc)}]):
             pending = google_workspace.pending_actions("alice")
             self.assertEqual(pending[0]["preview_url"], "/kreatif/campaign-gorseller/art.jpg")
+            self.assertEqual(pending[0]["fingerprint"], "f" * 64)
+
+    def test_stale_approval_cannot_reach_google(self):
+        with patch.object(google_workspace.action_store, "decide",
+                          side_effect=google_workspace.action_store.ActionConflict(
+                              "İşlem ayrıntıları değişmiş.")), \
+                patch.object(google_workspace, "_access_token") as token:
+            with self.assertRaises(google_workspace.GoogleError):
+                google_workspace.decide("alice", "a" * 32, "APPROVED", "wrong")
+            token.assert_not_called()
 
     def test_invalid_identifier_is_rejected_without_network(self):
         with patch.object(google_workspace, "_access_token") as token:

@@ -18,6 +18,8 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from zoneinfo import ZoneInfo
 
+import personal_action_store as action_store
+
 STATE = Path(os.environ.get("JARVIS_STATE_DIR", "/opt/lcarlie/jarvis-phase2/state")) / "mobile" / "google"
 REDIRECT = "https://jarvis.lcarlie.shop/google/callback"
 SCOPES = (
@@ -330,18 +332,22 @@ def _upload_drive_attachment(username: str, payload: dict, token: str) -> dict:
 
 
 def pending_actions(username: str) -> list[dict]:
-    return [{"id": row["id"],
+    try:
+        rows = action_store.list_visible(_user(username))
+    except Exception as exc:
+        raise GoogleError("Onaylar şu anda okunamıyor. İşlem tekrar edilmedi.") from exc
+    return [{"id": row["action_id"],
              "description": row["description"].removeprefix("KIRMIZI UYARI · "),
-             "kind": row["kind"],
-             "expires_at": row["expires"],
+             "kind": row["kind"], "status": row["status"],
+             "fingerprint": row["payload_hash"],
+             "expires_at": row["expires_at"].timestamp(),
              "preview_url": "/kreatif/" + row["payload"]["creative_id"]
              if row["kind"] == "drive.upload" and row["payload"].get("creative_id") else None}
-            for row in _read(STATE / "actions.json", [])
-            if row.get("user") == _user(username) and row.get("status") == "PENDING"
-            and row.get("expires", 0) > time.time()][-20:]
+            for row in rows]
 
 
-def prepare(username: str, kind: str, fields: dict) -> dict:
+def prepare(username: str, kind: str, fields: dict,
+            request_id: str | None = None) -> dict:
     if not status(username)["connected"]:
         raise GoogleError("Önce Google hesabınızı bağlayın.")
     if kind == "calendar.create":
@@ -390,39 +396,39 @@ def prepare(username: str, kind: str, fields: dict) -> dict:
         description = f"Drive'a yeni dosya yüklenecek: {name} · " + ("Seçilen klasör" if folder_id else "Drive ana dizini")
     else:
         raise GoogleError("Bilinmeyen işlem.")
-    proposal = {"id": uuid.uuid4().hex, "user": _user(username), "kind": kind,
-                "payload": payload, "description": description, "status": "PENDING",
-                "expires": time.time() + 600}
-    with _LOCK:
-        rows = _read(STATE / "actions.json", [])
-        _write(STATE / "actions.json", (rows + [proposal])[-100:])
-    return {"id": proposal["id"], "description": description, "kind": kind,
-            "expires_at": proposal["expires"],
-            "preview_url": "/kreatif/" + payload["creative_id"]
+    try:
+        proposal = action_store.create(_user(username), kind, payload, description,
+                                       idempotency_key=request_id)
+    except action_store.ActionConflict as exc:
+        raise GoogleError(str(exc)) from exc
+    except Exception as exc:
+        raise GoogleError("İşlem kaydedilemedi; Google'a hiçbir şey gönderilmedi.") from exc
+    return {**proposal, "preview_url": "/kreatif/" + payload["creative_id"]
             if kind == "drive.upload" and payload.get("creative_id") else None}
 
 
-def decide(username: str, identifier: str, decision: str) -> dict:
+def decide(username: str, identifier: str, decision: str,
+           shown_fingerprint: str | None = None) -> dict:
     if decision not in ("APPROVED", "REJECTED"):
         raise GoogleError("Onayla veya reddet seçin.")
-    with _LOCK:
-        rows = _read(STATE / "actions.json", [])
-        proposal = next((row for row in rows if row.get("id") == identifier and
-                         row.get("user") == _user(username)), None)
-        if not proposal or proposal.get("status") != "PENDING" or proposal.get("expires", 0) < time.time():
-            raise GoogleError("Bu onay artık geçerli değil.")
-        proposal["status"] = "REJECTED" if decision == "REJECTED" else "EXECUTING"
-        _write(STATE / "actions.json", rows)
+    owner = _user(username)
+    try:
+        approved, payload = action_store.decide(owner, identifier, decision,
+                                                shown_fingerprint)
+    except action_store.ActionConflict as exc:
+        raise GoogleError(str(exc)) from exc
+    except Exception as exc:
+        raise GoogleError("Karar kaydedilemedi; Google'a hiçbir şey gönderilmedi.") from exc
     if decision == "REJECTED":
         return {"status": "REJECTED", "message": "İşlem iptal edildi."}
     try:
         token = _access_token(username)
-        if proposal["kind"] == "calendar.create":
+        if approved["kind"] == "calendar.create":
             result = _http_json("https://www.googleapis.com/calendar/v3/calendars/primary/events",
-                                data=proposal["payload"], bearer=token, method="POST")
+                                data=payload, bearer=token, method="POST")
             message = "Etkinlik takvime eklendi."
-        elif proposal["kind"] == "gmail.send":
-            data = proposal["payload"]
+        elif approved["kind"] == "gmail.send":
+            data = payload
             email = EmailMessage()
             email["To"] = data["to"]
             email["Subject"] = data["subject"]
@@ -431,18 +437,18 @@ def decide(username: str, identifier: str, decision: str) -> dict:
             result = _http_json("https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
                                 data={"raw": raw}, bearer=token, method="POST")
             message = "E-posta gönderildi."
-        elif proposal["kind"] == "drive.upload":
-            result = _upload_drive_attachment(username, proposal["payload"], token)
+        elif approved["kind"] == "drive.upload":
+            result = _upload_drive_attachment(username, payload, token)
             message = "Dosya Drive'a yeni kopya olarak kaydedildi."
         else:
             raise GoogleError("Bilinmeyen işlem.")
-        final = "DONE"
-    except (GoogleError, KeyError) as exc:
-        result, message, final = {}, str(exc), "UNCERTAIN"
-    with _LOCK:
-        rows = _read(STATE / "actions.json", [])
-        for row in rows:
-            if row.get("id") == identifier:
-                row["status"] = final
-        _write(STATE / "actions.json", rows)
-    return {"status": final, "message": message, "external_id": result.get("id")}
+        final = "COMPLETED"
+    except Exception:
+        result, message, final = {}, ("Sonuç belirsiz. Google hesabında kontrol edin; "
+                                      "otomatik tekrar yapılmadı."), "UNCERTAIN"
+    try:
+        action_store.finish(owner, identifier, final, message, result.get("id"))
+    except Exception as exc:
+        raise GoogleError("Sonuç kaydı doğrulanamadı; işlemi tekrar etmeyin, Google hesabında kontrol edin.") from exc
+    return {"status": "DONE" if final == "COMPLETED" else final,
+            "message": message, "external_id": result.get("id")}
