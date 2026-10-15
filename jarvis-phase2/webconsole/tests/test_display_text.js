@@ -13,4 +13,6 @@ assert.equal(m.jobTitle({istem:'Müşteriye taslak hazırla'}), 'Müşteriye tas
 assert.equal(m.jobTitle({id:'ktb-yuz', isteyen:'katalog/bolum-acilisi', istem:cases[0][0]}), 'Katalog görseli: Yüz');
 assert.equal(m.source({isteyen:'mobil-operator'}), 'Telefondan istendi');
 assert.equal(m.safeTitle('internal_data_analysis: SUCCEEDED', 'Planlı çalışma'), 'Planlı çalışma');
+assert.equal(m.errorText('HTTP 500 Internal Server Error', 'İşlem yapılamadı.'), 'İşlem yapılamadı.');
+assert.equal(m.errorText('Gerekli alan eksik.', 'İşlem yapılamadı.'), 'Gerekli alan eksik.');
 console.log('Görünen metin kontrolleri geçti.');

@@ -717,7 +717,7 @@ const ONERI_ROZET = {
 function oneriBaslik(reason) {
   const ilk = String(reason || '').split('\n')[0] || '';
   if (ilk.startsWith('CodingExecutor')) return 'Kod değişikliğini incele';
-  return ilk.replace(/^[A-ZÇĞİÖŞÜ ]+—\s*/, '').trim() || ilk.trim();
+  return JarvisMetin.safeTitle(ilk.replace(/^[A-ZÇĞİÖŞÜ ]+—\s*/, '').trim() || ilk.trim(), 'İncelenecek yeni karar');
 }
 
 function oneriRisk(risk) {
@@ -1800,7 +1800,7 @@ function renderProposed() {
     (output.missing_inputs || []).forEach((entry) => gaps.push(
       `<li><span class="pr-code">${escapeHtml(yonetimKodu(entry.status))}</span>`
       + `${escapeHtml(yonetimAciklama(entry.reason || entry.capability))}`
-      + `<span class="dom-meta">${escapeHtml(entry.step_id || '')}</span></li>`));
+      + '</li>'));
     if (output.needs_more_sources) {
       gaps.push(`<li><span class="pr-code">Az kaynak</span>`
         + `bağımsız kaynak sayısı ${escapeHtml(String(output.independent_sources))}</li>`);
@@ -1808,7 +1808,7 @@ function renderProposed() {
   });
   outputsByCapability('problem_opportunity_analysis').forEach((output) => {
     (output.skipped || []).forEach((entry) => gaps.push(
-      `<li><span class="pr-code">Değerlendirilemedi</span>${escapeHtml(entry.reason || entry.rule || '')}</li>`));
+      `<li><span class="pr-code">Değerlendirilemedi</span>${escapeHtml(yonetimAciklama(entry.reason || entry.rule || 'Bu bulgu için yeterli veri yok.'))}</li>`));
   });
   Object.entries(state.lastRun.steps || {}).forEach(([stepId, record]) => {
     if (record.status === 'DATA_UNAVAILABLE') {
@@ -2695,7 +2695,7 @@ document.addEventListener('click', async (ev) => {
   btn.textContent = eskiMetin;
 
   if (!ok) {
-    kutu.innerHTML = `<p class="ek-hata">Cevap alınamadı (HTTP ${status}). ${escapeHtml(String((body && body.error) || ''))}</p>`;
+    kutu.innerHTML = `<p class="ek-hata">${escapeHtml(JarvisMetin.errorText(body?.error, 'Cevap alınamadı. Biraz sonra tekrar deneyin.'))}</p>`;
     return;
   }
   if (body.hata) {
@@ -2745,7 +2745,7 @@ async function loadSection(name) {
   if (!ok) {
     body.innerHTML = status === 401
       ? '<p class="sect-empty">Oturum düştü. Giriş ekranına yönlendiriliyorsunuz…</p>'
-      : `<p class="sect-empty is-bad">Bölüm yüklenemedi (HTTP ${status}). ${escapeHtml(String((data && data.error) || ''))}</p>`;
+      : `<p class="sect-empty is-bad">${escapeHtml(JarvisMetin.errorText(data?.error, 'Bölüm şu anda yüklenemedi.'))}</p>`;
     if (count) count.textContent = status === 401 ? 'oturum yok' : 'hata';
     return;
   }
@@ -2828,8 +2828,7 @@ async function loadFiyatMatrisi() {
       foot.className = 'fm-foot is-bad';
       foot.textContent = status === 401
         ? 'Oturum düştü. Giriş ekranına yönlendiriliyorsunuz…'
-        : `Fiyat matrisi yüklenemedi (HTTP ${status}). ` +
-          String((data && data.error) || '');
+        : JarvisMetin.errorText(data?.error, 'Fiyat bilgileri şu anda yüklenemedi.');
     }
     return;
   }
@@ -2990,8 +2989,7 @@ async function fmOnizle() {
     fmState.preview = null;
     if (gonder) gonder.disabled = true;
     if (tally) {
-      tally.innerHTML = `<li class="fm-t-bad">Önizleme üretilemedi (HTTP ${status}). ` +
-        escapeHtml(String((body && body.error) || '')) + '</li>';
+      tally.innerHTML = `<li class="fm-t-bad">${escapeHtml(JarvisMetin.errorText(body?.error, 'Önizleme hazırlanamadı. Lütfen tekrar deneyin.'))}</li>`;
     }
     return;
   }
@@ -3136,8 +3134,7 @@ async function loadUrunAlanlari() {
       foot.className = 'fm-foot is-bad';
       foot.textContent = status === 401
         ? 'Oturum düştü. Giriş ekranına yönlendiriliyorsunuz…'
-        : `Ürün alanları yüklenemedi (HTTP ${status}). ` +
-          String((body && body.error) || '');
+        : JarvisMetin.errorText(body?.error, 'Ürün bilgileri şu anda yüklenemedi.');
     }
     return;
   }
@@ -3471,13 +3468,13 @@ const KR_SOZLUK = [
   ['Erişim', 'Reklamı gören FARKLI kişi sayısı. Gösterimden her zaman küçüktür.'],
   ['Frekans', 'Gösterim ÷ Erişim. Aynı kişinin reklamı ortalama kaç kez gördüğü. Reklamcılıkta 2,5–3 üstü "yorgunluk" eşiği olarak <strong>yaygın kabul görür</strong> — ama bu bizim hesabımızda ölçülmüş bir eşik değil, genel bir kuraldır. Kendi verinizle doğrulayana kadar kesin sayı gibi kullanmayın.'],
   ['Tıklama', 'Reklama yapılan her tıklama — beğeni, yorum, "devamını gör" dahil. Tek başına yanıltıcıdır.'],
-  ['Link tıklama', 'Siteye veya profile GİDEN gerçek tıklama. Asıl bakılması gereken budur.'],
-  ['CTR', '"Click Through Rate" — tıklama ÷ gösterim. Reklamın ilgi çekme oranı. Düşükse görsel ya da ilk üç saniye tutmuyordur.'],
-  ['CPM', '1000 gösterimin maliyeti. Kitleye ulaşmak ne kadara mal oluyor. Dar hedefleme CPM\'i yükseltir.'],
-  ['CPC / TL per tıklama', 'Bir tıklamanın maliyeti. Harcama ÷ tıklama. Yüksekse ya reklam ilgi çekmiyordur ya hedef kitle pahalıdır.'],
-  ['ROAS', '"Return On Ad Spend" — reklam harcamasının kaç katı ciro döndüğü. 3 ROAS = 1 TL harcayıp 3 TL ciro. <strong>Bizde şu an güvenilir hesaplanamıyor:</strong> Meta\'nın bildirdiği satışlar ticari olarak doğrulanmadı, GA4 verisi hiç akmıyor.'],
-  ['CRM', '"Customer Relationship Management" — müşteri ilişkileri yönetimi. Bizde: müşteri konuşmaları, cevapsız mesajlar, hangi müşteri ne sormuş.'],
-  ['CTA', '"Call To Action" — reklamın altındaki çağrı düğmesi. SHOP_NOW mağazaya, VIEW_INSTAGRAM_PROFILE profile, MESSAGE_PAGE mesaja götürür.'],
+  ['Bağlantı tıklaması', 'Siteye veya profile GİDEN gerçek tıklama. Asıl bakılması gereken budur.'],
+  ['Tıklama oranı', 'Tıklama ÷ gösterim. Reklamın ilgi çekme oranı. Düşükse görsel ya da ilk üç saniye tutmuyordur.'],
+  ['Bin gösterim maliyeti', 'Reklamın 1000 kez gösterilmesinin maliyeti. Dar hedefleme bu tutarı yükseltebilir.'],
+  ['Tıklama başına maliyet', 'Bir tıklamanın maliyeti. Harcama ÷ tıklama. Yüksekse reklam ilgi çekmiyor ya da hedef kitle pahalı olabilir.'],
+  ['Reklam harcamasının getirisi', 'Reklam harcamasının kaç katı ciro döndüğü. 1 TL harcayıp 3 TL ciro elde etmek üç kat getiri demektir. <strong>Bizde şu an güvenilir hesaplanamıyor:</strong> Reklam platformunun bildirdiği satışlar ticari olarak doğrulanmadı; site ölçüm verisi gelmiyor.'],
+  ['Müşteri ilişkileri', 'Müşteri konuşmaları, cevapsız mesajlar ve hangi müşterinin ne sorduğu.'],
+  ['Eylem düğmesi', 'Reklamdaki çağrı düğmesi. Kullanıcıyı mağazaya, profile veya mesajlaşmaya götürür.'],
   ['Kreatif', 'Reklamın kendisi: görsel/video + başlık + metin + düğme. "Hangi kreatif tutuyor" = hangi reklam işe yarıyor.'],
   ['Ölçülebilir örnek', 'Yeterince gösterim almış reklam. Az gösterimde oranlar rastlantıdır; bu panelde 1000 gösterim altı sıralamaya sokulmaz.'],
   ['Bu paneldeki sayılar', 'Hepsi kendi Meta verimizden, toplamlardan hesaplanır. <strong>Sektör ortalaması ya da "olması gereken" eşik yazılmaz</strong> — öyle rakamlar bizim hesabımız için ölçülmedi ve karar verirken yanıltır. Kıyaslamayı kendi geçmişinizle yapın.'],
@@ -3502,7 +3499,7 @@ async function loadKreatif() {
       foot.className = 'fm-foot is-bad';
       foot.textContent = status === 401
         ? 'Oturum düştü. Giriş ekranına yönlendiriliyorsunuz…'
-        : `Kreatif verisi yüklenemedi (HTTP ${status}).`;
+        : 'Görsel çalışmaları şu anda yüklenemedi.';
     }
     return;
   }
@@ -4028,7 +4025,7 @@ async function loadHafiza() {
     if (count) count.textContent = status === 401 ? 'oturum yok' : 'hata';
     liste.innerHTML = status === 401
       ? '<p class="sect-empty">Oturum düştü. Giriş ekranına yönlendiriliyorsunuz…</p>'
-      : `<p class="sect-empty is-bad">Hafıza okunamadı (HTTP ${status}). ${escapeHtml(String((data && data.error) || ''))}</p>`;
+      : `<p class="sect-empty is-bad">${escapeHtml(JarvisMetin.errorText(data?.error, 'Hafıza şu anda yüklenemedi.'))}</p>`;
     return;
   }
   hfState.notlar = data.notlar || [];
@@ -4063,8 +4060,7 @@ function hfBind() {
     });
     if (btn) btn.disabled = false;
     if (!ok) {
-      hfMesajGoster(`Not yazılamadı (HTTP ${status}). ` +
-                    String((body && body.error) || ''), true);
+      hfMesajGoster(JarvisMetin.errorText(body?.error, 'Not kaydedilemedi. Biraz sonra tekrar deneyin.'), true);
       return;
     }
     input.value = '';
@@ -4102,8 +4098,7 @@ function hfBind() {
     });
     if (!ok) {
       btn.disabled = false;
-      hfMesajGoster(`Silinemedi (HTTP ${status}). ` +
-                    String((body && body.error) || ''), true);
+      hfMesajGoster(JarvisMetin.errorText(body?.error, 'Not silinemedi. Biraz sonra tekrar deneyin.'), true);
       return;
     }
     const silinen = Number(body.silinen || 0);
@@ -6062,7 +6057,7 @@ async function sistemAnahtarCevir(anahtar, acik, ozelIzin) {
     const govde = qs('sistemGovde');
     if (govde) {
       govde.insertAdjacentHTML('afterbegin',
-        `<p class="sys-not is-bad">Anahtar çevrilemedi (HTTP ${status}). ${escapeHtml(String((body && body.error) || ''))}</p>`);
+        `<p class="sys-not is-bad">${escapeHtml(JarvisMetin.errorText(body?.error, 'Ayar değiştirilemedi. Biraz sonra tekrar deneyin.'))}</p>`);
     }
     return;
   }
@@ -6160,7 +6155,7 @@ async function loadSistem() {
   const { ok, status, body } = await api('/api/sistem');
   sistemState.yukleniyor = false;
   if (!ok) {
-    govde.innerHTML = `<p class="sect-empty is-bad">Sistem verisi okunamadı (HTTP ${status}).</p>`;
+    govde.innerHTML = '<p class="sect-empty is-bad">Sistem durumu şu anda yüklenemedi.</p>';
     return;
   }
   sistemState.veri = body;
@@ -6274,9 +6269,7 @@ document.addEventListener('submit', async function (e) {
     /* 400 = doğrulama reddi. Sebebi AYNEN gösterilir; "bir hata oluştu"
      * demek, sahibi aynı hatayı tekrar yapmaya davet eder. */
     sonuc.className = 'is-sonuc is-bad';
-    sonuc.textContent = (cevap.body && cevap.body.error)
-      ? cevap.body.error
-      : ('gönderilemedi (HTTP ' + cevap.status + ')');
+    sonuc.textContent = JarvisMetin.errorText(cevap.body?.error, 'İş gönderilemedi. Bilgileri kontrol edip tekrar deneyin.');
     return;
   }
   sonuc.className = 'is-sonuc is-ok';
@@ -6330,8 +6323,7 @@ async function loadKademe() {
   if (!govde) return;
   const { ok, status, body: d } = await api('/api/kademe');
   if (!ok) {
-    govde.innerHTML = '<p class="sect-empty is-bad">Kademe verisi okunamadı (HTTP '
-      + status + ').</p>';
+    govde.innerHTML = '<p class="sect-empty is-bad">Model bilgileri şu anda yüklenemedi.</p>';
     return;
   }
 
@@ -6482,8 +6474,7 @@ async function shFiltreYenile() {
 
   const cevap = await api('/api/saha/filtreler?' + p.toString());
   if (!cevap.ok) {
-    shDurum((cevap.body && cevap.body.error)
-      || ('filtreler okunamadı (HTTP ' + cevap.status + ')'), true);
+    shDurum(JarvisMetin.errorText(cevap.body?.error, 'Filtreler şu anda yüklenemedi.'), true);
     return;
   }
   SH.filtreler = cevap.body;
@@ -6556,8 +6547,7 @@ async function shListele(konum) {
   shDurum('yükleniyor…');
   const cevap = await api('/api/saha?' + shSorguDizesi(konum));
   if (!cevap.ok) {
-    shDurum((cevap.body && cevap.body.error)
-      || ('liste okunamadı (HTTP ' + cevap.status + ')'), true);
+    shDurum(JarvisMetin.errorText(cevap.body?.error, 'Liste şu anda yüklenemedi.'), true);
     return;
   }
   SH.hedefler = cevap.body.hedefler || [];
@@ -6655,7 +6645,7 @@ async function shRotaKur(konum) {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(govde),
   });
-  if (!ok) { shDurum('rota kurulamadı (HTTP ' + status + ')', true); return; }
+  if (!ok) { shDurum('Rota oluşturulamadı. Biraz sonra tekrar deneyin.', true); return; }
   if (body.durum === 'HEDEF_YOK') {
     shDurum('bu yarıçapta hedef yok — yarıçapı büyüt', true);
     return;
@@ -6809,8 +6799,7 @@ document.addEventListener('submit', async function (e) {
     });
     if (!cevap.ok) {
       sonucAlani.className = 'is-sonuc is-bad';
-      sonucAlani.textContent = (cevap.body && cevap.body.error)
-        ? cevap.body.error : ('kaydedilemedi (HTTP ' + cevap.status + ')');
+      sonucAlani.textContent = JarvisMetin.errorText(cevap.body?.error, 'Kayıt tamamlanamadı. Bilgileri kontrol edin.');
       return;
     }
     sonucAlani.className = 'is-sonuc is-ok';
@@ -7139,8 +7128,7 @@ async function loadKatalog() {
   katDurum('yükleniyor…');
   const cevap = await api('/api/katalog');
   if (!cevap.ok) {
-    katDurum((cevap.body && cevap.body.error)
-      || ('katalog okunamadı (HTTP ' + cevap.status + ')'), true);
+    katDurum(JarvisMetin.errorText(cevap.body?.error, 'Katalog şu anda yüklenemedi.'), true);
     return;
   }
   KAT.veri = cevap.body;

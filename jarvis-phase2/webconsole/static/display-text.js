@@ -5,8 +5,8 @@
     ritual: 'Ritüel', bebek: 'Bebek', mahrem: 'Mahrem bakım', bariyer: 'Cilt bariyeri',
     vucut: 'Vücut', yuz: 'Yüz', kapak: 'Kapak',
   };
-  const technical = /\b(?:extreme macro|editorial|texture|continuous surface|shallow focus|photorealistic|soft diffused light|soft even light|fine water film|matte silk|muslin weave|render|live capability|data contract|step\(s\))\b|\b(?:SUCCEEDED|PENDING|PROPOSED|FAILED|RUNNING)\b|\{\s*"/i;
-  function needsSummary(value) { return technical.test(String(value || '')) || /\b[a-z]+(?:_[a-z]+){2,}\b/.test(String(value || '')); }
+  const technical = /\b(?:extreme macro|editorial|texture|continuous surface|shallow focus|photorealistic|soft diffused light|soft even light|fine water film|matte silk|muslin weave|render|live capability|data contract|step\(s\)|internal server error|traceback|syntaxerror|typeerror|HTTP\s*\d+)\b|\b(?:SUCCEEDED|PENDING|PROPOSED|FAILED|RUNNING)\b|\{\s*"/i;
+  function needsSummary(value) { return technical.test(String(value || '')) || /\b[a-z]+(?:_[a-z]+)+\b/.test(String(value || '')); }
   function safeTitle(value, fallback) {
     const title = String(value || '').trim();
     return !title ? fallback : needsSummary(title) ? fallback : title;
@@ -31,5 +31,10 @@
     if (value === 'panel' || value === 'operator') return 'Panelden istendi';
     return value ? 'Otomatik çalışma' : '';
   }
-  root.JarvisMetin = Object.freeze({jobTitle, source, safeTitle, needsSummary});
+  function errorText(value, fallback) {
+    const message = String(value || '').trim();
+    return message && !needsSummary(message) && (/[çğıöşüİ]/i.test(message) || /\b(?:hatalı|eksik|geçersiz|bulunamadı|zorunlu|lütfen|izin|erişim|başarısız)\b/i.test(message))
+      ? message : fallback;
+  }
+  root.JarvisMetin = Object.freeze({jobTitle, source, safeTitle, needsSummary, errorText});
 })(globalThis);

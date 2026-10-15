@@ -49,7 +49,7 @@ function approvalSummary(reason) {
   const summary = first.replace(/^[A-ZÇĞİÖŞÜ _]+\s*[—:]\s*/, '').trim();
   if (!summary || /(?:\{|\}|\[[^\]]*\]|\/opt\/|postgres:|\.json\b|_[a-z]+_)/i.test(summary))
     return 'Yeni bir öneri var. Ayrıntıları inceleyip karar verin.';
-  return summary.slice(0, 180);
+  return JarvisMetin.safeTitle(summary.slice(0, 180), 'Yeni bir öneri var. Ayrıntıları inceleyip karar verin.');
 }
 function showLogin() { $('login').hidden = false; $('app').hidden = true; $('logout').hidden = true; status('Giriş gerekli'); }
 function showApp() {
