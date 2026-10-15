@@ -5,19 +5,21 @@ Requires=docker.service
 
 [Service]
 Type=simple
+User=jarvis-web
+Group=jarvis-web
 Environment=JARVIS_ENABLED=true
 Environment=JARVIS_MODE=SHADOW
 Environment=EXTERNAL_ACTIONS=false
-Environment=JARVIS_MEMORY_TRANSPORT=local-docker
+Environment=JARVIS_MEMORY_TRANSPORT=direct-pg
+Environment=JARVIS_DB_HOST=127.0.0.1
+Environment=JARVIS_DB_PORT=5433
+Environment=JARVIS_DB_PASSWORD_FILE=/etc/lcarlie/jarvis-web-db.pass
 Environment=JARVIS_STATE_DIR=/opt/lcarlie/jarvis-phase2/state
 Environment=JARVIS_WEB_STATE_DIR=/opt/lcarlie/jarvis-phase2/state/webconsole
 Environment=JARVIS_WEB_BIND=0.0.0.0
 Environment=JARVIS_WEB_PORT=8091
-# DOCKER_API_VERSION SABITLENMEZ (20.09.2026'da kaldirildi): daemon minimum
-# API'yi yukseltince sabitlenmis istemci sessizce patlar. Ayni gun 1.43 sabiti
-# n8n yayinlama hattini ve geri donus/kurtarma betiklerini oldurdu.
-Environment=DOCKER_CONFIG=/tmp
-ExecStart=/usr/bin/python3 /opt/lcarlie/jarvis-phase2/webconsole/app.py
+Environment=NLTK_DATA=/opt/lcarlie/jarvis-phase2/nltk_data
+ExecStart=/opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/webconsole/app.py
 Restart=on-failure
 RestartSec=5
 Nice=5
@@ -31,20 +33,20 @@ ProtectControlGroups=true
 RestrictSUIDSGID=true
 CapabilityBoundingSet=
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+InaccessiblePaths=/var/run/docker.sock
 ReadWritePaths=/opt/lcarlie/jarvis-phase2/state
 MemoryMax=256M
 CPUQuota=100%
 TasksMax=64
 
-# Runs as root for the same reason jarvis-phase2.service does (see that
-# unit's comment): reaching the docker socket requires root or docker-group
-# membership, and docker-group is root-equivalent anyway. This process binds
+# Runs under a dedicated unprivileged account and uses a restricted
+# PostgreSQL login over 127.0.0.1. The Docker socket is inaccessible.
+# This process binds
 # 0.0.0.0:8091 because Caddy reaches it from inside a container via the
 # docker bridge (host-gateway), not loopback -- public exposure is blocked
 # at the host firewall (ufw allow only from the docker web-network subnet),
-# not by this process. It never assumes ai_writer or human_approver itself;
-# every DB call happens inside jarvis.memory / jarvis.operator exactly as
-# already verified in Phase 2C/2D/Minimum-Operational.
+# not by this process. Database role switches are limited to ai_reader and
+# human_approver through explicit PostgreSQL membership, never superuser.
 
 [Install]
 WantedBy=multi-user.target
