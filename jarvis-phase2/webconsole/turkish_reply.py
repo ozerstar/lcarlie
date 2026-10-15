@@ -26,12 +26,46 @@ def is_english_prose(value: str) -> bool:
     return english >= 4 and english >= turkish + 2
 
 
+# Turkceye OZGU harfler. Ingilizce metinde bulunmazlar.
+_TR_HARF = set("ışğüöçİŞĞÜÖÇ")
+
+
+def looks_turkish(value: str) -> bool:
+    """POZITIF Turkce kaniti var mi?
+
+    🔴 NEDEN AYRI BIR ISLEV -- OLCULDU 16.10.2026.
+    Akis kapisi `not is_english_prose(ornek)` ile aciliyordu, ama
+    `is_english_prose` 8 kelimenin ALTINDA her zaman False doner: yani
+    kisa ornekte "Ingilizce bulunmadi" bir kanit degil, SESSIZLIKTIR.
+    Sonuc olculdu -- 70 ve 106 karakterlik iki cevap panelde HIC akmadi,
+    140 karakter esigine hic ulasmadiklari icin tek blok geldi.
+
+    Ustelik o tamponun kisa cevapta koruma degeri de YOKTU: `ensure()`
+    ayni esigi kullandigi icin 8 kelimenin altindaki Ingilizce yanit
+    zaten oldugu gibi gecerdi. Tampon korumuyordu, sadece geciktiriyordu.
+
+    Burada aranan sey Ingilizcenin YOKLUGU degil, Turkcenin VARLIGI:
+      - Turkce islev sozcugu (`_TURKISH`), veya
+      - kucuk harfli bir kelimede Turkceye ozgu harf.
+    Kucuk harf sarti bilincli: "Çankaya" veya "Müşteri Hizmetleri" gibi
+    OZEL ADLAR Ingilizce bir cumlede de gecebilir ve kapiyi yanlislikla
+    acardi; cekimli kucuk harfli kelime (`yardımcı`, `gidiyor`) gecmez.
+    """
+    without_links = re.sub(r"https?://\S+|`[^`]+`", " ", value or "")
+    words = _WORD.findall(without_links)
+    if any(word.casefold() in _TURKISH for word in words):
+        return True
+    return any(word == word.lower() and any(ch in _TR_HARF for ch in word)
+               for word in words)
+
+
 def ensure(value: str, rewrite: Callable[[str], str]) -> str:
     answer = (value or "").strip()
     if not is_english_prose(answer):
         return answer
     try:
         translated = rewrite(answer).strip()
-    except Exception:  # Model failure should not publish the English draft.
+    except Exception:  # noqa: BLE001 - model dusse de Ingilizce taslak
+        # yayinlanmaz; her hata turu UNAVAILABLE demektir.
         return UNAVAILABLE
     return translated if translated and not is_english_prose(translated) else UNAVAILABLE

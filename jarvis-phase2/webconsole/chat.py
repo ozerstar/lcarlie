@@ -249,6 +249,23 @@ def stream(message: str, runtime, operator) -> Iterator[dict[str, Any]]:
                            conversation.GENERAL_REASONING):
         # Inspect the opening passage before releasing tokens. Turkish answers
         # keep streaming; English drafts remain private until rewritten.
+        #
+        # 🔴 KAPI IKI AYRI KANITLA ACILIR -- DEGISTI 16.10.2026.
+        # Tek kural `len >= 140 and not is_english_prose(...)` idi ve kisa
+        # cevaplarda akisi TAMAMEN olduruyordu. Olculdu:
+        #   "selam nasil gidiyor" -> 106 karakter, panelde parca=1 (akmadi)
+        #   "merhaba"             ->  70 karakter, panelde parca=1 (akmadi)
+        # Ikisi de 140'a ulasmadigi icin tek blok geldi; ilk kelime
+        # 0,80 sn yerine 1,20 sn'de gorundu. Yani akis yazilmisti ama
+        # sahibin en cok yazdigi mesaj tipinde HIC calismiyordu.
+        #
+        # 1) POZITIF Turkce kaniti (`looks_turkish`) -> hemen akit.
+        #    Bir Turkce islev sozcugu gormek, 140 karakter boyunca
+        #    Ingilizce GORMEMEKTEN daha guclu bir kanittir.
+        # 2) Kanit gelmezse eski muhafazakar kural aynen durur: 140
+        #    karakter sonra Ingilizce degilse akit. Ingilizce taslak
+        #    hala kullaniciya sizmaz -- sizan taslak `done`'da
+        #    `_turkish_result` ile yeniden yazilir.
         opening: list[str] = []
         streaming_turkish = False
         for frame in conversation.stream_chat(text, decision.intent):
@@ -258,7 +275,9 @@ def stream(message: str, runtime, operator) -> Iterator[dict[str, Any]]:
                 else:
                     opening.append(frame.get("delta") or "")
                     sample = "".join(opening)
-                    if len(sample) >= 140 and not turkish_reply.is_english_prose(sample):
+                    if (turkish_reply.looks_turkish(sample)
+                            or (len(sample) >= 140
+                                and not turkish_reply.is_english_prose(sample))):
                         streaming_turkish = True
                         yield {"type": "token", "delta": sample}
                 continue
