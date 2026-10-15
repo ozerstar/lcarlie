@@ -356,7 +356,7 @@ def _approval_details(kind: str, payload: dict, description: str) -> str:
                 f"Bitiş: {end:%d.%m.%Y %H:%M} (İstanbul)")
     if kind == "drive.upload":
         folder = payload.get("folder_id") or "Drive ana dizini"
-        return f"Drive'a yüklenecek: {payload['name']}\nHedef klasör: {folder}"
+        return f"Drive'a yüklenecek: {payload.get('name') or 'Dosya'}\nHedef klasör: {folder}"
     return description
 
 
