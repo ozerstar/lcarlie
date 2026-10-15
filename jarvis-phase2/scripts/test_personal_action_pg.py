@@ -51,7 +51,10 @@ def main() -> None:
         assert actions.create(owner, 'calendar.create', payload, 'Synthetic calendar test')['id'] == first['id']
         print('PG action checks passed: dedupe, owner, fingerprint, single decision, uncertain')
     finally:
-        sql = ("DELETE FROM core.jarvis_personal_action_event WHERE action_id IN "
+        sql = ("DELETE FROM core.jarvis_action_registry_event WHERE action_key IN "
+               f"(SELECT action_key FROM core.jarvis_action_registry WHERE owner='{owner}'); "
+               f"DELETE FROM core.jarvis_action_registry WHERE owner='{owner}'; "
+               "DELETE FROM core.jarvis_personal_action_event WHERE action_id IN "
                f"(SELECT action_id FROM core.jarvis_personal_action WHERE owner='{owner}'); "
                f"DELETE FROM core.jarvis_personal_action WHERE owner='{owner}';")
         result = subprocess.run(['docker', 'exec', 'lcarlie-postgres', 'psql', '-X', '-q',
