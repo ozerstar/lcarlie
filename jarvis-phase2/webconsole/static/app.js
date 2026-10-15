@@ -818,11 +818,6 @@ function oneriGovdesi(payload) {
   return '<div class="o-govde">' + parcalar.join('') + '</div>';
 }
 
-function oneriHamJson(payload) {
-  return `<details class="o-ham"><summary>ham kayıt</summary>
-    <pre>${escapeHtml(JSON.stringify(payload, null, 2))}</pre></details>`;
-}
-
 function oneriGorseller(payload) {
   const reason = String((payload || {}).reason || '');
   const yollar = [...reason.matchAll(/\/kreatif\/[\w./-]+\.(?:jpe?g|png)/gi)].map((m) => m[0]);
@@ -895,7 +890,6 @@ async function openProposal(actionId) {
     ${disaDonukOneri(body) ? '<div class="external-approval-warning">🔴 DIŞA DÖNÜK İŞLEM · Alıcı, içerik ve etkiyi kontrol edin. Onay, tek başına gönderim kanıtı değildir.</div>' : ''}
     ${oneriGovdesi(body.payload)}
     ${oneriGorseller(body.payload)}
-    ${oneriHamJson(body.payload)}
     <label class="reason-label">Karar notu (isteğe bağlı)
       <input id="decisionReason" type="text" class="reason-input">
     </label>
@@ -1508,7 +1502,7 @@ function stageCell(stage) {
 
   if (stage.id === 'plan') {
     if (state.planInFlight) { text = 'PLANLANIYOR'; cls = 'st-run'; }
-    else if (plan) { text = 'HAZIR'; cls = 'st-ready'; meta = plan.plan_id || ''; }
+    else if (plan) { text = 'HAZIR'; cls = 'st-ready'; meta = 'İncelemeye hazır'; }
     else { text = 'PLAN YOK'; cls = 'st-absent'; }
     return { label, text, cls, meta };
   }
@@ -1517,7 +1511,7 @@ function stageCell(stage) {
   const steps = planSteps().filter((s) => stage.caps.includes(s.capability));
   if (!steps.length) return { label, text: 'PLANDA YOK', cls: 'st-absent', meta: '' };
   if (stage.id === 'domains') label = `${steps.length} İŞ ALANI`;
-  meta = steps.map((s) => s.step_id).join(' · ');
+  meta = `${steps.length} adım`;
 
   const runStatuses = steps.map((s) => runStep(s.step_id)).filter(Boolean).map((r) => r.status);
   if (runStatuses.length) {
@@ -1782,7 +1776,7 @@ function renderProposed() {
   const objections = outputsByCapability('red_team_review')
     .flatMap((output) => output.objections || [])
     .map((o) => `<li><span class="pr-code">${escapeHtml(yonetimKodu(o.code))}</span>`
-      + `${escapeHtml(yonetimAciklama(o.detail))}<span class="dom-meta">${escapeHtml(o.step_id || '')}</span></li>`);
+      + `${escapeHtml(yonetimAciklama(o.detail))}</li>`);
 
   const actions = ['human_review_proposal', 'action_plan']
     .flatMap((cap) => outputsByCapability(cap))
@@ -1864,7 +1858,7 @@ function renderExecutionSurface() {
   renderProposed();
 
   qs('execNote').textContent = state.lastRun
-    ? `Yürütme kaydı ${state.lastRun.run_id || ''} · durum ${state.lastRun.status || '—'}.`
+    ? `Son çalışma: ${ORCHESTRATION_STATUS[state.lastRun.status] || 'Durum belirlenemedi'}.`
     : (state.lastPlan
       ? 'Yürütme başlamadı: bu konsolda çalıştırma uç noktası yok. Aşamalar '
         + 'planın kendi kararlarını gösteriyor, ilerleme yüzdesi üretilmiyor.'
@@ -3564,19 +3558,19 @@ function krRender() {
   const kayitsiz = rows.filter((r) => r.olcum_durumu === 'PERFORMANS_KAYDI_YOK');
   const kartlar = [
     {
-      deger: '%' + krSayi(t.ctr, 2), ad: 'ORTALAMA LİNK CTR',
+      deger: '%' + krSayi(t.ctr, 2), ad: 'ORTALAMA BAĞLANTI TIKLAMA ORANI',
       // Sektor kiyasi YAZILMADI: elimizde olculmus bir referans yok ve
       // uydurulmus bir esik, karar verirken en tehlikeli seydir.
-      anlam: 'Reklamı gören her 100 kişiden kaçı linke tıkladı. Tek başına "iyi" ya da "kötü" denemez: tıklamaların bir kısmı profil görüntülemesi, bir kısmı mağaza ziyareti — ikisi aynı değer taşımaz.',
+      anlam: 'Reklamı gören her 100 kişiden kaçı bağlantıya tıkladı. Tek başına "iyi" ya da "kötü" denemez: tıklamaların bir kısmı profil görüntülemesi, bir kısmı mağaza ziyareti — ikisi aynı değer taşımaz.',
       yap: 'Mağazaya giden tıklamaları ayrı izleyin. Karşılaştırmayı kendi geçmişinizle yapın; sektör ortalaması diye dolaşan rakamlar bizim hesabımız için ölçülmedi.',
       sinif: 'notr',
     },
     {
       deger: krSayi(t.birim, 2) + ' TL', ad: 'TIKLAMA BAŞINA MALİYET',
-      anlam: 'Bir link tıklaması ortalama bu kadara mal oluyor. Harcama ÷ link tıklama.',
+      anlam: 'Bir bağlantı tıklaması ortalama bu kadara mal oluyor. Harcama ÷ bağlantı tıklaması.',
       // Donusum oranimiz BILINMIYOR (GA4 akmiyor, Meta satislari ticari
       // olarak dogrulanmadi). O yuzden "su kadara kadar mantikli" demiyoruz.
-      yap: 'Bunun makul olup olmadığını söylemek için kaç tıklamadan bir satış çıktığını bilmek gerekir — o veri bizde henüz yok (GA4 akmıyor, Meta satışları doğrulanmadı). Önce dönüşüm ölçümünü kurun.',
+      yap: 'Bunun makul olup olmadığını söylemek için kaç tıklamadan bir satış çıktığını bilmek gerekir — o veri bizde henüz yok (site ölçümü çalışmıyor, reklam satışları doğrulanmadı). Önce dönüşüm ölçümünü kurun.',
       sinif: 'notr',
     },
     {
@@ -3680,7 +3674,7 @@ function krRender() {
     foot.className = 'fm-foot';
     foot.textContent = 'Oranlar toplamlardan hesaplanır (günlük oranların ' +
       'ortalaması değil). Meta\'nın bildirdiği satışlar ticari olarak ' +
-      'doğrulanmadığı için ROAS burada hesaplanmıyor.';
+      'doğrulanmadığı için reklam harcamasının getirisi burada hesaplanmıyor.';
   }
 }
 
@@ -7562,8 +7556,8 @@ function igKart(p) {
     + igGorsel(p)
     + '<pre class="ig-caption">' + escapeHtml(p.caption) + '</pre>'
     + '<p class="ig-etiket">' + escapeHtml(etiketler) + '</p>'
-    + igSatir('CTA', escapeHtml(p.cta || '—') + ' — ' + escapeHtml(p.cta_gerekce || ''))
-    + igSatir('GÖRSEL BRİEFİ', escapeHtml(p.gorsel_brief || ''))
+    + igSatir('EYLEM DÜĞMESİ', escapeHtml(JarvisMetin.label(p.cta, 'Belirtilmedi')) + ' — ' + escapeHtml(p.cta_gerekce || ''))
+    + igSatir('GÖRSEL AÇIKLAMASI', escapeHtml(JarvisMetin.safeTitle(p.gorsel_brief, 'Görsel açıklaması hazırlanıyor.')))
     + igSatir('DAYANAK', escapeHtml(p.dayanak || ''))
     + igSatir('İTİRAZ', escapeHtml(p.itiraz || '—'), 'ig-itiraz')
     + igSatir('YANIT', escapeHtml(p.itiraza_yanit || '—'), 'ig-yanit')

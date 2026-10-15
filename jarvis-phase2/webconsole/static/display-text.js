@@ -45,6 +45,7 @@
     LOW:'Düşük', MEDIUM:'Orta', HIGH:'Yüksek', CRITICAL:'Kritik',
     ecommerce:'E-ticaret', advertising:'Reklam', crm:'Müşteri ilişkileri',
     operations:'Operasyon', finance:'Finans', sales:'Satış',
+    SHOP_NOW:'Mağazaya git', VIEW_INSTAGRAM_PROFILE:'Profili aç', MESSAGE_PAGE:'Mesaj gönder',
   };
   function label(value, fallback = 'Bilgi') {
     const raw = String(value || '').trim();
