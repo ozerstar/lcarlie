@@ -334,6 +334,37 @@ class WebConsoleIntegrationTests(unittest.TestCase):
         for forbidden in ("openai", "anthropic", "genai", "requests.post(", "urllib.request.urlopen"):
             self.assertNotIn(forbidden, source.casefold())
 
+    def test_device_session_can_be_revoked_and_survives_store_restart(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "sessions.sqlite3"
+            app.sessions = auth.DurableSessionStore(path)
+            csrf, first_id = self._login()
+            _, second_id = self._login()
+            app.sessions = auth.DurableSessionStore(path)
+            headers = {"Cookie": f"{app.SESSION_COOKIE}={first_id}", "X-CSRF-Token": csrf}
+            response, body = self._get("/api/devices", headers=headers)
+            self.assertEqual(response.status, 200)
+            self.assertEqual(len(body["devices"]), 2)
+            other = next(row["id"] for row in body["devices"] if not row["current"])
+            response, _ = self._post("/api/devices/revoke", {"id": other},
+                                     headers={"Cookie": f"{app.SESSION_COOKIE}={first_id}"})
+            self.assertEqual(response.status, 403)
+            response, _ = self._post("/api/devices/revoke", {"id": other}, headers=headers)
+            self.assertEqual(response.status, 200)
+            response, _ = self._get("/api/status", headers={"Cookie": f"{app.SESSION_COOKIE}={second_id}"})
+            self.assertEqual(response.status, 401)
+            response, _ = self._get("/api/session", headers={"Cookie": f"{app.SESSION_COOKIE}={first_id}"})
+            self.assertEqual(response.status, 200)
+
+    def test_untrusted_proxy_cannot_choose_login_rate_limit_address(self):
+        class Request:
+            client_address = ("172.18.0.9", 12345)
+            headers = {"X-Gercek-IP": "198.51.100.7"}
+        with patch.dict(os.environ, {"JARVIS_TRUSTED_PROXY_IPS": "172.18.0.2"}):
+            self.assertEqual(app._client_ip(Request()), "172.18.0.9")
+            Request.client_address = ("172.18.0.2", 12345)
+            self.assertEqual(app._client_ip(Request()), "198.51.100.7")
+
 
 if __name__ == "__main__":
     unittest.main()

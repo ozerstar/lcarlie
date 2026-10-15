@@ -16,6 +16,8 @@ import hmac
 import json
 import os
 import secrets
+import sqlite3
+from contextlib import contextmanager
 import tempfile
 import time
 from dataclasses import dataclass
@@ -117,7 +119,7 @@ class SessionStore:
         self._sessions: dict[str, Session] = {}
         self._lock = Lock()
 
-    def create(self, username: str) -> Session:
+    def create(self, username: str, device: str = "", source_ip: str = "") -> Session:
         now = time.time()
         session = Session(
             session_id=secrets.token_urlsafe(32), username=username,
@@ -153,6 +155,102 @@ class SessionStore:
             expired = [sid for sid, s in self._sessions.items() if s.expired(now)]
             for sid in expired:
                 del self._sessions[sid]
+
+
+class DurableSessionStore:
+    """Persistent, per-device sessions. Only SHA-256 hashes of bearer IDs reach disk."""
+
+    def __init__(self, path: str | Path | None = None) -> None:
+        self.path = Path(path) if path is not None else AUTH_FILE.parent / "sessions.sqlite3"
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._lock = Lock()
+        with self._connect() as db:
+            db.execute("""CREATE TABLE IF NOT EXISTS sessions (
+                id_hash TEXT PRIMARY KEY, username TEXT NOT NULL, csrf_token TEXT NOT NULL,
+                created_at REAL NOT NULL, last_seen_at REAL NOT NULL,
+                device TEXT NOT NULL DEFAULT '', source_ip TEXT NOT NULL DEFAULT ''
+            )""")
+        os.chmod(self.path, 0o600)
+
+    @contextmanager
+    def _connect(self):
+        db = sqlite3.connect(self.path, timeout=10)
+        db.row_factory = sqlite3.Row
+        try:
+            yield db
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            db.close()
+
+    @staticmethod
+    def _hash(session_id: str) -> str:
+        return hashlib.sha256(session_id.encode("utf-8")).hexdigest()
+
+    def create(self, username: str, device: str = "", source_ip: str = "") -> Session:
+        now = time.time()
+        session = Session(secrets.token_urlsafe(32), username, secrets.token_urlsafe(32), now, now)
+        with self._lock, self._connect() as db:
+            db.execute("INSERT INTO sessions VALUES (?,?,?,?,?,?,?)", (
+                self._hash(session.session_id), username, session.csrf_token, now, now,
+                str(device)[:180], str(source_ip)[:80]))
+        return session
+
+    def get(self, session_id: str) -> Session | None:
+        if not isinstance(session_id, str) or not 1 <= len(session_id) <= 160:
+            return None
+        key = self._hash(session_id)
+        now = time.time()
+        with self._lock, self._connect() as db:
+            row = db.execute("SELECT * FROM sessions WHERE id_hash=?", (key,)).fetchone()
+            if row is None:
+                return None
+            session = Session(session_id, row["username"], row["csrf_token"],
+                              row["created_at"], row["last_seen_at"])
+            if session.expired(now):
+                db.execute("DELETE FROM sessions WHERE id_hash=?", (key,))
+                return None
+            db.execute("UPDATE sessions SET last_seen_at=? WHERE id_hash=?", (now, key))
+        session.last_seen_at = now
+        return session
+
+    def list_devices(self, username: str, current_id: str) -> list[dict[str, Any]]:
+        self.sweep()
+        current_hash = self._hash(current_id)
+        with self._lock, self._connect() as db:
+            rows = db.execute("SELECT id_hash,device,source_ip,created_at,last_seen_at "
+                              "FROM sessions WHERE username=? ORDER BY last_seen_at DESC", (username,)).fetchall()
+        return [{"id": row["id_hash"], "device": row["device"],
+                 "source_ip": row["source_ip"], "created_at": row["created_at"],
+                 "last_seen_at": row["last_seen_at"], "current": row["id_hash"] == current_hash}
+                for row in rows]
+
+    def revoke_device(self, username: str, id_hash: str) -> bool:
+        if not isinstance(id_hash, str) or len(id_hash) != 64 or any(c not in "0123456789abcdef" for c in id_hash):
+            return False
+        with self._lock, self._connect() as db:
+            result = db.execute("DELETE FROM sessions WHERE username=? AND id_hash=?", (username, id_hash))
+            return result.rowcount == 1
+
+    def destroy(self, session_id: str) -> None:
+        with self._lock, self._connect() as db:
+            db.execute("DELETE FROM sessions WHERE id_hash=?", (self._hash(session_id),))
+
+    def destroy_all(self) -> None:
+        with self._lock, self._connect() as db:
+            db.execute("DELETE FROM sessions")
+
+    def destroy_user(self, username: str) -> None:
+        with self._lock, self._connect() as db:
+            db.execute("DELETE FROM sessions WHERE username=?", (username,))
+
+    def sweep(self) -> None:
+        now = time.time()
+        with self._lock, self._connect() as db:
+            db.execute("DELETE FROM sessions WHERE ?-created_at>? OR ?-last_seen_at>?", (
+                now, SESSION_ABSOLUTE_TIMEOUT_S, now, SESSION_IDLE_TIMEOUT_S))
 
 
 class LoginThrottle:

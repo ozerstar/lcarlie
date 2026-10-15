@@ -1296,6 +1296,46 @@ async function loadDailySummary() {
   if (!jobs && !proposals && !reminderData) container.textContent = 'Özet yüklenemedi. Sayfayı yenileyin.';
 }
 function refreshMobile() { loadJobs(); loadApprovals(); loadSystem(); loadDailySummary(); }
+async function loadDevices() {
+  const list = $('device-list');
+  list.textContent = 'Cihazlar yükleniyor…';
+  try {
+    const response = await request('/api/devices');
+    if (!response.ok) throw new Error('Cihazlar alınamadı. Tekrar dene.');
+    const body = await response.json();
+    list.replaceChildren();
+    for (const device of body.devices || []) {
+      const card = document.createElement('div'); card.className = 'mobile-card';
+      const title = document.createElement('strong');
+      title.textContent = device.current ? 'Bu cihaz' : 'Diğer cihaz';
+      const detail = document.createElement('p');
+      const seen = new Date(Number(device.last_seen_at) * 1000);
+      detail.textContent = `${String(device.device || 'Tarayıcı bilgisi yok').slice(0, 100)} · Son kullanım: ${Number.isNaN(seen.getTime()) ? 'bilinmiyor' : seen.toLocaleString('tr-TR')}`;
+      const button = document.createElement('button'); button.type = 'button';
+      button.textContent = device.current ? 'Bu cihazdan çıkış yap' : 'Bu cihazdan çıkış yaptır';
+      button.addEventListener('click', async () => {
+        button.disabled = true;
+        try {
+          const result = await request('/api/devices/revoke', {method:'POST', body:JSON.stringify({id:device.id})});
+          if (!result.ok) throw new Error('Cihazdan çıkış yaptırılamadı. Tekrar dene.');
+          if (device.current) { state.csrf = null; showLogin(); }
+          else loadDevices();
+        } catch (error) { status(error.message); button.disabled = false; }
+      });
+      card.append(title, detail, button); list.append(card);
+    }
+    if (!body.devices?.length) list.textContent = 'Açık cihaz oturumu yok.';
+  } catch (error) { list.textContent = friendlyMessage(error.message); }
+}
+$('device-refresh').addEventListener('click', loadDevices);
+$('device-revoke-all').addEventListener('click', async () => {
+  if (!confirm('Telefon ve bilgisayarlardaki bütün oturumlar kapatılsın mı?')) return;
+  try {
+    const response = await request('/api/devices/revoke-all', {method:'POST', body:'{}'});
+    if (!response.ok) throw new Error('Oturumlar kapatılamadı. Tekrar dene.');
+    state.csrf = null; showLogin();
+  } catch (error) { status(error.message); }
+});
 document.querySelectorAll('[data-tab]').forEach((button) => button.addEventListener('click', () => {
   const tab = button.dataset.tab;
   const mainTab = ['system', 'settings', 'creative'].includes(tab) ? 'more' : tab;
@@ -1311,6 +1351,7 @@ document.querySelectorAll('[data-tab]').forEach((button) => button.addEventListe
   if (tab === 'approvals') loadApprovals();
   if (tab === 'creative') loadCreative();
   if (tab === 'system') loadSystem();
+  if (tab === 'settings') loadDevices();
 }));
 
 const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;

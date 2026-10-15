@@ -1,4 +1,6 @@
 import sys
+import tempfile
+from contextlib import closing
 import time
 import unittest
 from pathlib import Path
@@ -74,6 +76,44 @@ class SessionStoreTests(unittest.TestCase):
         b = store.create("operator")
         self.assertNotEqual(a.csrf_token, b.csrf_token)
         self.assertNotEqual(a.session_id, b.session_id)
+
+
+class DurableSessionStoreTests(unittest.TestCase):
+    def test_survives_restart_without_storing_bearer_token(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "sessions.sqlite3"
+            first = auth.DurableSessionStore(path)
+            session = first.create("operator", "iPhone Safari", "192.0.2.1")
+            self.assertNotIn(session.session_id, path.read_bytes().decode("latin-1"))
+            second = auth.DurableSessionStore(path)
+            self.assertEqual(second.get(session.session_id).username, "operator")
+            devices = second.list_devices("operator", session.session_id)
+            self.assertEqual(len(devices), 1)
+            self.assertTrue(devices[0]["current"])
+            self.assertEqual(devices[0]["device"], "iPhone Safari")
+
+    def test_revoke_one_device_preserves_another_and_rejects_foreign_owner(self):
+        with tempfile.TemporaryDirectory() as folder:
+            store = auth.DurableSessionStore(Path(folder) / "sessions.sqlite3")
+            phone = store.create("operator", "iPhone")
+            computer = store.create("operator", "Chrome")
+            target = next(d["id"] for d in store.list_devices("operator", computer.session_id)
+                          if d["device"] == "iPhone")
+            self.assertFalse(store.revoke_device("someone-else", target))
+            self.assertTrue(store.revoke_device("operator", target))
+            self.assertIsNone(store.get(phone.session_id))
+            self.assertIsNotNone(store.get(computer.session_id))
+
+    def test_expired_session_is_removed_after_restart(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "sessions.sqlite3"
+            store = auth.DurableSessionStore(path)
+            session = store.create("operator")
+            import sqlite3
+            with closing(sqlite3.connect(path)) as db:
+                db.execute("UPDATE sessions SET last_seen_at=?", (time.time()-auth.SESSION_IDLE_TIMEOUT_S-1,))
+                db.commit()
+            self.assertIsNone(auth.DurableSessionStore(path).get(session.session_id))
 
 
 class LoginThrottleTests(unittest.TestCase):
