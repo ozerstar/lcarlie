@@ -197,9 +197,24 @@ function bubble(kind, text) {
   node.append(content);
   state.chatRows[state.chatMode].push(node);
   $('messages').append(node);
+  updateChatStarters();
   node.scrollIntoView({ block: 'end', behavior: 'smooth' });
   return { node, content };
 }
+
+function updateChatStarters() {
+  const visible = state.chatRows[state.chatMode].length === 0 &&
+    (state.chatMode !== 'personal' || state.personalTab === 'chat');
+  $('chat-starters').hidden = !visible;
+  document.querySelectorAll('[data-starter-mode]').forEach((group) => {
+    group.hidden = group.dataset.starterMode !== state.chatMode;
+  });
+}
+
+document.querySelectorAll('[data-starter]').forEach((button) => button.addEventListener('click', () => {
+  $('chat-input').value = button.dataset.starter;
+  $('chat-input').focus();
+}));
 
 function stopAudio() {
   state.audioGeneration += 1;
@@ -363,6 +378,7 @@ document.querySelectorAll('[data-chat-mode]').forEach((button) => button.addEven
   $('chat-input').placeholder = state.chatMode === 'personal' ? 'Kişisel asistana yaz…' : 'İş için Jarvis’e yaz…';
   $('personal-tools').hidden = state.chatMode !== 'personal';
   showPersonalTab(state.personalTab);
+  updateChatStarters();
   clearAttachment();
   if (state.chatMode === 'personal') { loadReminders(); loadMemory(); loadGoogle(); }
 }));
@@ -380,6 +396,7 @@ function showPersonalTab(name) {
   });
   const showChat = state.chatMode !== 'personal' || name === 'chat';
   for (const id of ['messages', 'chat-form', 'chat-actions', 'chat-help']) $(id).hidden = !showChat;
+  updateChatStarters();
 }
 document.querySelectorAll('[data-personal-tab]').forEach((button) => button.addEventListener('click', () => {
   showPersonalTab(button.dataset.personalTab);
