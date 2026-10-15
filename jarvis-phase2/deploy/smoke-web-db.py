@@ -17,4 +17,12 @@ for statement in checks:
     result = run(base + [statement], text=True, capture_output=True, timeout=15, check=False)
     if result.returncode:
         raise SystemExit('DB smoke failed: ' + result.stderr[:220])
+
+unsafe = "O'Reilly; DROP TABLE core.katalog_not; --"
+quoted = run(base[:-1] + ['-v', 'value=' + unsafe, '-Atc',
+             r"\pset tuples_only on" + "\n" +
+             "SELECT row_to_json(x) FROM (SELECT :'value' AS value) x;"],
+             text=True, capture_output=True, timeout=15, check=False)
+if quoted.returncode or unsafe not in quoted.stdout:
+    raise SystemExit('SQL variable quoting failed: ' + quoted.stderr[:220])
 print('web database read checks passed')

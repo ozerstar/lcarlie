@@ -37,8 +37,16 @@ def _direct(command, *, input=None, timeout=None, **kwargs):
         if arg == "-v" and "=" in args[i + 1]:
             key, value = args[i + 1].split("=", 1)
             variables[key] = value
-    statement = "\n".join(line for line in statement.splitlines()
-                          if not line.lstrip().startswith("\\set "))
+    sql_lines = []
+    for line in statement.splitlines():
+        meta = line.strip().lower()
+        if meta in (r"\set on_error_stop on", r"\pset tuples_only on",
+                    r"\pset format unaligned"):
+            continue
+        if meta.startswith("\\"):
+            raise ValueError("unsupported psql meta command")
+        sql_lines.append(line)
+    statement = "\n".join(sql_lines)
     statement, role_count = _ROLE.subn(lambda m: "SET ROLE " + m[1].lower() + ";", statement)
     if _OTHER_ROLE.search(statement):
         raise ValueError("unsupported database role")
