@@ -667,7 +667,7 @@ function showGoogleProposal(proposal) {
   state.googleProposal = proposal;
   showPersonalTab('google');
   $('google-actions-details').open = true;
-  $('google-approval-text').textContent = proposal.description;
+  $('google-approval-text').textContent = proposal.details || proposal.description;
   const external = ['calendar.create', 'gmail.send', 'drive.upload'].includes(proposal.kind);
   $('google-approval').classList.toggle('external-warning', external);
   const preview = $('google-approval-preview-link');

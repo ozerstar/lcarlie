@@ -49,6 +49,7 @@ class GoogleWorkspaceTests(unittest.TestCase):
                 patch.object(google_workspace, "_access_token", return_value="test-token"), \
                 patch.object(google_workspace, "_upload_drive_attachment", return_value={"id": "drive-id"}) as upload:
             proposal = google_workspace.prepare("alice", "drive.upload", {"attachment_id": attachment_id})
+            self.assertIn("Hedef klasör: Drive ana dizini", proposal["details"])
             upload.assert_not_called()
             result = google_workspace.decide("alice", proposal["id"], "APPROVED", proposal["fingerprint"])
             self.assertEqual(result["status"], "DONE")
@@ -117,6 +118,14 @@ class GoogleWorkspaceTests(unittest.TestCase):
             pending = google_workspace.pending_actions("alice")
             self.assertEqual(pending[0]["preview_url"], "/kreatif/campaign-gorseller/art.jpg")
             self.assertEqual(pending[0]["fingerprint"], "f" * 64)
+            self.assertIn("Hedef klasör: Drive ana dizini", pending[0]["details"])
+
+    def test_calendar_approval_shows_start_and_end(self):
+        details = google_workspace._approval_details("calendar.create", {
+            "summary": "Toplantı", "start": {"dateTime": "2030-01-01T09:00:00+03:00"},
+            "end": {"dateTime": "2030-01-01T10:00:00+03:00"}}, "")
+        self.assertIn("Başlangıç:", details)
+        self.assertIn("Bitiş:", details)
 
     def test_stale_approval_cannot_reach_google(self):
         with patch.object(google_workspace.action_store, "decide",

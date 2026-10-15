@@ -340,10 +340,24 @@ def pending_actions(username: str) -> list[dict]:
              "description": row["description"].removeprefix("KIRMIZI UYARI · "),
              "kind": row["kind"], "status": row["status"],
              "fingerprint": row["payload_hash"],
+             "details": _approval_details(row["kind"], row["payload"], row["description"]),
              "expires_at": row["expires_at"].timestamp(),
              "preview_url": "/kreatif/" + row["payload"]["creative_id"]
              if row["kind"] == "drive.upload" and row["payload"].get("creative_id") else None}
             for row in rows]
+
+
+def _approval_details(kind: str, payload: dict, description: str) -> str:
+    if kind == "calendar.create":
+        start = datetime.fromisoformat(payload["start"]["dateTime"]).astimezone(ZoneInfo("Europe/Istanbul"))
+        end = datetime.fromisoformat(payload["end"]["dateTime"]).astimezone(ZoneInfo("Europe/Istanbul"))
+        return (f"Takvime eklenecek: {payload['summary']}\n"
+                f"Başlangıç: {start:%d.%m.%Y %H:%M} (İstanbul)\n"
+                f"Bitiş: {end:%d.%m.%Y %H:%M} (İstanbul)")
+    if kind == "drive.upload":
+        folder = payload.get("folder_id") or "Drive ana dizini"
+        return f"Drive'a yüklenecek: {payload['name']}\nHedef klasör: {folder}"
+    return description
 
 
 def prepare(username: str, kind: str, fields: dict,
@@ -403,7 +417,8 @@ def prepare(username: str, kind: str, fields: dict,
         raise GoogleError(str(exc)) from exc
     except Exception as exc:
         raise GoogleError("İşlem kaydedilemedi; Google'a hiçbir şey gönderilmedi.") from exc
-    return {**proposal, "preview_url": "/kreatif/" + payload["creative_id"]
+    return {**proposal, "details": _approval_details(kind, payload, description),
+            "preview_url": "/kreatif/" + payload["creative_id"]
             if kind == "drive.upload" and payload.get("creative_id") else None}
 
 
