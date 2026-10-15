@@ -39,11 +39,12 @@ IDDIA_SINIFLARI = frozenset({"IDDIA_SORUSU"})
 # Jarvis'in cevaplayabileceği sınıflar. Beyaz liste: listede olmayan DEVREDİLİR.
 JARVIS_SINIFLARI = frozenset({
     "FIYAT", "ICERIK", "KULLANIM", "KARGO", "SELAMLAMA", "TESEKKUR", "KATEGORI",
+    "ODEME_YONLENDIR",
 })
 # Ürün adı bilinmeden cevaplanamayacak sınıflar. "Fiyatı nedir?" mesajından
 # ürün ÇIKARILAMAZ -- 540 müşteri mesajının hiçbirinde ürün adı geçmiyor ama
 # 183'ü fiyat soruyor (satis_dialog.py'deki ölçüm).
-URUN_GEREKTIREN = frozenset({"FIYAT", "ICERIK", "KULLANIM"})
+URUN_GEREKTIREN = frozenset({"FIYAT", "ICERIK", "KULLANIM", "ODEME_YONLENDIR"})
 
 # 🔴 SAHİP KARARI 15.10.2026 — ürün belirsizken Jarvis SORABİLİR.
 # Önceki kural "ürün belli değilse bana devret"ti. Ölçüm şunu gösterdi:

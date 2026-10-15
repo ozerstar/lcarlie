@@ -17,7 +17,9 @@ aynı tuzağa düşmüyoruz.)
 from __future__ import annotations
 
 import json
+import re
 import subprocess
+from urllib.parse import quote
 from jarvis.db_transport import run as db_run
 
 from jarvis import devir
@@ -144,18 +146,12 @@ def durum_yaz(konusma_id: int, yeni_durum: str, sebep: str | None = None) -> dic
 
 
 def devir_onerisi(konusma_id: int) -> dict:
-    """Son GELEN mesaja göre devir kapısının kararı. Hiçbir şey YAZMAZ.
-
-    Ürün ataması bugün yapılamıyor: müşteri mesajından ürün çıkarılamaz
-    (ölçüldü) ve reklam referansı `mesaj.ek` içinde her zaman yok. Bu
-    yüzden `urun_bilindi=False` ile çalışılır -- yani fiyat/içerik soruları
-    bugün sahibe düşer. Ürün ataması bağlandığında burası gevşer.
-    """
+    """Son gelen mesaja göre devir önerisi. Hiçbir şey yazmaz."""
     kid = int(konusma_id)
     satir = _calistir(f"""
     SELECT row_to_json(x) FROM (
-      SELECT m.sinif, m.mevzuat, m.metin
-      FROM lcarlie.mesaj m
+      SELECT m.sinif, m.mevzuat, m.metin, (k.notlar->>'urun') AS urun
+      FROM lcarlie.mesaj m JOIN lcarlie.konusma k ON k.id = m.konusma_id
       WHERE m.konusma_id = {kid} AND m.yon = 'gelen'
       ORDER BY m.zaman DESC LIMIT 1
     ) x;
@@ -165,13 +161,25 @@ def devir_onerisi(konusma_id: int) -> dict:
                 "sebep_metni": devir.sebep_aciklamasi(devir.SINIF_YOK),
                 "not": "konusmada gelen mesaj yok"}
     son = satir[0]
+    from jarvis import mesaj_sinifi, satis_dialog
+
+    sinif = _etkin_sinif(son.get("sinif"), son.get("metin") or "")
+    urun_bilindi = bool(son.get("urun"))
+    kart = None
+    if sinif == mesaj_sinifi.ODEME_YONLENDIR:
+        kayitlar = urun_kayitlari()
+        kart = (satis_dialog.urun_bul(kayitlar, son["urun"]) if urun_bilindi
+                else _mesajdaki_urun(kayitlar, son.get("metin") or ""))
+        urun_bilindi = bool(kart and _urun_sayfasi(kayitlar, kart.urun_id))
     gerek, sebep = devir.devir_gerekir(
-        son.get("sinif"), urun_bilindi=False, mevzuat=son.get("mevzuat"))
+        sinif, urun_bilindi=urun_bilindi, mevzuat=son.get("mevzuat"))
+    if sinif == mesaj_sinifi.ODEME_YONLENDIR and kart and not urun_bilindi and not gerek:
+        gerek, sebep = True, devir.URUN_BELIRSIZ
     return {
         "devir": gerek,
         "sebep": sebep,
         "sebep_metni": devir.sebep_aciklamasi(sebep),
-        "sinif": son.get("sinif"),
+        "sinif": sinif,
         "son_gelen": (son.get("metin") or "")[:200],
     }
 
@@ -244,9 +252,10 @@ def cevap_gonder(konusma_id: int, metin: str, *, kuru: bool = False) -> dict:
 
 _URUN_SQL = """
 SELECT row_to_json(x) FROM (
-  SELECT urun_id, urun_adi, aciklama_duz, wix_satis, wix_liste,
-         wix_stok, wix_yayinda
-  FROM mart.urun_karti
+  SELECT u.urun_id, u.urun_adi, u.aciklama_duz, u.wix_satis, u.wix_liste,
+         u.wix_stok, u.wix_yayinda, w.slug, w.gorunur
+  FROM mart.urun_karti u
+  LEFT JOIN raw.wix_urun w ON w.urun_id = u.urun_id
 ) x;
 """
 
@@ -254,6 +263,36 @@ SELECT row_to_json(x) FROM (
 def urun_kayitlari() -> list[dict]:
     """mart.urun_karti satırları. Fiyatın TEK kaynağı burasıdır."""
     return _calistir(_URUN_SQL)
+
+
+def _urun_sayfasi(kayitlar: list[dict], urun_id: str) -> str:
+    for kayit in kayitlar:
+        if (str(kayit.get("urun_id")) == urun_id and kayit.get("wix_yayinda")
+                and kayit.get("gorunur") and kayit.get("slug")):
+            return "https://www.lcarlie.shop/product-page/" + quote(str(kayit["slug"]), safe="")
+    return ""
+
+
+def _mesajdaki_urun(kayitlar: list[dict], mesaj: str):
+    from jarvis.satis_dialog import _sade, kart_olustur
+
+    metin = _sade(mesaj)
+    eslesen = []
+    for kayit in kayitlar:
+        ad = _sade(str(kayit.get("urun_adi") or "")).split(" ")[0]
+        if len(ad) >= 5 and re.search(r"(?<!\w)" + re.escape(ad) + r"(?!\w)", metin):
+            eslesen.append(kayit)
+    return kart_olustur(eslesen[0]) if len(eslesen) == 1 else None
+
+
+def _etkin_sinif(saklanan: str | None, mesaj: str) -> str:
+    from jarvis import mesaj_sinifi
+
+    guncel = mesaj_sinifi.siniflandir(mesaj)
+    if guncel in {mesaj_sinifi.SAGLIK, mesaj_sinifi.SIKAYET, mesaj_sinifi.DURDURMA,
+                 mesaj_sinifi.ODEME_YONLENDIR}:
+        return guncel
+    return saklanan or guncel
 
 
 def taslak(konusma_id: int) -> dict:
@@ -274,20 +313,54 @@ def taslak(konusma_id: int) -> dict:
         raise KutuHatasi("konusmada gelen mesaj yok")
     son = satir[0]
     mesaj = son.get("metin") or ""
-    sinif = son.get("sinif") or mesaj_sinifi.siniflandir(mesaj)
+    sinif = _etkin_sinif(son.get("sinif"), mesaj)
     urun_adi = son.get("urun")
+
+    kayitlar = []
+    kart = None
+    if sinif == mesaj_sinifi.ODEME_YONLENDIR or urun_adi:
+        kayitlar = urun_kayitlari()
+        kart = satis_dialog.urun_bul(kayitlar, urun_adi) if urun_adi else None
+        if kart is None and sinif == mesaj_sinifi.ODEME_YONLENDIR:
+            kart = _mesajdaki_urun(kayitlar, mesaj)
+
+    if sinif == mesaj_sinifi.ODEME_YONLENDIR and (son.get("mevzuat") or "").upper() not in {"BLOCKED", "BLOKE", "RED"}:
+        adres = _urun_sayfasi(kayitlar, kart.urun_id) if kart else ""
+        metin = (f"{kart.ad} ürününü şu sayfadan inceleyip ödeme adımlarını "
+                 f"tamamlayabilirsiniz: {adres}" if adres else
+                 ("Bu ürünün alışveriş sayfasını şu anda doğrulayamadım; "
+                  "konuyu yetkili kişiye iletiyorum." if kart else
+                  "Hangi ürünle ilgilendiğinizi paylaşır mısınız? Doğru ürün sayfasını "
+                  "göndererek ödeme adımlarına yönlendireyim."))
+        devredilmeli = bool(kart and not adres)
+        return {"uretildi": True, "devredilmeli": devredilmeli, "sinif": sinif,
+                "sebep": devir.URUN_BELIRSIZ if devredilmeli else None,
+                "sebep_metni": devir.sebep_aciklamasi(devir.URUN_BELIRSIZ) if devredilmeli else "",
+                "metin": metin, "bulgular": [], "gonderilebilir": not devredilmeli,
+                "urun_soruluyor": not bool(kart)}
 
     gerek, sebep = devir.devir_gerekir(
         sinif, urun_bilindi=bool(urun_adi), mevzuat=son.get("mevzuat"))
     if gerek:
-        # Model cagrilmaz: uygunsuz taslak da uretilmez, jeton da yanmaz.
-        return {"uretildi": False, "devredilmeli": True, "sinif": sinif,
+        yonlendirme = {
+            "SAGLIK": "Sağlığınız bizim için öncelikli. Buradan tıbbi değerlendirme yapamam; "
+                      "bir sağlık uzmanına danışmanızı öneririm. Konuyu yetkili kişiye iletiyorum.",
+            "BELIRTI_ANLATIMI": "Sağlığınız bizim için öncelikli. Buradan tıbbi değerlendirme "
+                                "yapamam; bir sağlık uzmanına danışmanızı öneririm. "
+                                "Konuyu yetkili kişiye iletiyorum.",
+            "SIKAYET": "Yaşadığınız olumsuz deneyim için üzgünüz, özür dileriz. "
+                       "Konuyu bizzat incelemesi için yetkili kişiye iletiyorum.",
+            "ANLASILMADI": "Mesajınızı aldım. Doğru yanıt verebilmem için sorunuzu veya "
+                           "ilgili ürünü biraz açabilir misiniz? Konuyu ayrıca "
+                           "yetkili kişiye iletiyorum.",
+        }
+        metin = yonlendirme.get(sinif, "") if son.get("mevzuat") not in {"BLOCKED", "BLOKE", "RED"} else ""
+        return {"uretildi": bool(metin), "devredilmeli": True, "sinif": sinif,
                 "sebep": sebep, "sebep_metni": devir.sebep_aciklamasi(sebep),
-                "metin": "", "bulgular": []}
+                "metin": metin, "bulgular": [], "gonderilebilir": False}
 
-    kart = None
-    if urun_adi:
-        kart = satis_dialog.urun_bul(urun_kayitlari(), urun_adi)
+    if urun_adi and kart is None:
+        kart = satis_dialog.urun_bul(kayitlar, urun_adi)
 
     cevap = satis_dialog.cevap_uret(mesaj, kart, ModelRouter())
     sonuc = cevap.to_dict()

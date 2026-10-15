@@ -8053,9 +8053,12 @@ async function gkTaslak(kid) {
   }
   var t = r.body;
   if (t.devredilmeli) {
-    sonuc.textContent = 'Jarvis bu konusmaya cevap URETMEDI -- ' +
-      (t.sebep_metni || 'devir kapisi sana veriyor') +
-      '. Cevabi sen yazmalisin.';
+    alan.value = t.metin || '';
+    sonuc.textContent = t.metin
+      ? 'Devir taslağı hazır: ' + (t.sebep_metni || 'yetkili incelemesi gerekli') +
+        '. Bu metni kontrol et; göndermeden önce konuşmayı üzerine al.'
+      : 'Bu konu sana devredilmeli: ' +
+        (t.sebep_metni || 'yetkili incelemesi gerekli') + '. Cevabı sen yazmalısın.';
     return;
   }
   if (!t.uretildi) {

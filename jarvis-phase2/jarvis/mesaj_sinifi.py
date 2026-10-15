@@ -49,7 +49,7 @@ from .satis_dialog import _gecer, _sade
 # anlamindaki "yarar/yararli" ile cakismasi IDDIA listesinin SAGLIK'tan
 # once denetlenmesiyle cozulur -- olculdu, iki yon de dogru ayrilir.
 TAM_KELIME = frozenset({
-    "zarar", "hasta", "agri", "ilac", "tamam", "peki", "kaca",
+    "zarar", "hasta", "agri", "ilac", "tamam", "peki", "kaca", "stop", "dur",
 })
 
 
@@ -81,6 +81,9 @@ SELAMLAMA = "SELAMLAMA"
 TESEKKUR = "TESEKKUR"
 # Sahibe gider
 SAGLIK = "SAGLIK"
+DURDURMA = "DURDURMA"
+SIKAYET = "SIKAYET"
+ODEME_YONLENDIR = "ODEME_YONLENDIR"
 IDDIA_SORUSU = "IDDIA_SORUSU"
 SIPARIS = "SIPARIS"
 ANLASILMADI = "ANLASILMADI"
@@ -96,21 +99,27 @@ _SIRA: tuple[tuple[str, tuple[str, ...]], ...] = (
         "sonuc verir", "sonuc alir", "ise yarar mi", "ise yararmi",
         "kac gunde", "ne kadar surede", "nekadar surede", "kalici mi",
     )),
-    # 2. SAĞLIK / ŞİKÂYET -- en geniş ağ. Yanlış yakalamak ucuz, kaçırmak pahalı.
     (SAGLIK, (
         "alerji", "alerjik", "kasinti", "kasindi", "yanma", "yandi", "tahris",
         "kizarik", "kizardi", "dokuntu", "sislik", "sisti", "yan etki",
         "doktor", "hastane", "ameliyat", "ilac", "recete", "hamile", "emzir",
         "bebek", "hasta", "agri", "aciyor", "yara", "yarasi", "egzama",
         "sedef", "mantar", "diyabet", "seker hastas", "tansiyon", "kanser",
-        "kanama", "felc", "kaza gecir", "zarar", "kotu oldu", "iyi gelmedi",
-        "yaramadi", "tepki verdi", "sikayet",
+        "kanama", "felc", "kaza gecir", "tepki verdi",
+    )),
+    (SIKAYET, (
+        "sikayet", "memnun kalmadim", "kotu oldu", "iyi gelmedi", "yaramadi",
+        "urun bozuk", "urun hasarli", "magdur", "zarar",
+    )),
+    (ODEME_YONLENDIR, (
+        "nasil satin al", "satin almak", "satin alabilir", "nasil alabilir",
+        "nereden alabilir", "siparis nasil ver", "nasil siparis ver",
+        "odeme nasil", "nasil odeme", "odeme yap", "nereden satin al",
     )),
     # 3. SİPARİŞ / İŞLEM -- sahibe gider (sahip kararı).
     (SIPARIS, (
-        "siparis", "sipariw", "satin al", "nasil alabilir", "nereden alabilir",
-        "iade", "degisim", "iptal", "odeme", "havale", "kapida",
-        "fatura", "takip no", "kargom", "gelmedi", "ulasmadi",
+        "siparis", "sipariw", "satin al", "iade", "degisim", "iptal",
+        "odeme", "havale", "kapida", "fatura", "takip no", "kargom",
     )),
     # 4. KARGO -- bilgi sorusu, Jarvis cevaplayabilir.
     (KARGO, ("kargo", "teslimat", "gonderim", "ne zaman gelir", "kac gunde gelir")),
@@ -138,7 +147,10 @@ _SIRA: tuple[tuple[str, tuple[str, ...]], ...] = (
 # "etkisi" koku onu once yakaliyordu. Olculdu ve duzeltildi: tek kelimelik
 # kokler, cok kelimeli ve daha spesifik bir kalibi ezmemeli.
 ONCELIK: tuple[tuple[str, tuple[str, ...]], ...] = (
+    (DURDURMA, ("mesaj gondermeyin", "mesaj atmayin", "yazmayin",
+                 "iletisim kurmayin", "beni rahatsiz etmeyin", "stop", "dur")),
     (SAGLIK, ("yan etki", "yan etkisi", "ters etki")),
+    (SIKAYET, ("yaramadi",)),
 )
 
 

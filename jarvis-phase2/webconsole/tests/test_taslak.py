@@ -109,5 +109,72 @@ class TaslakGONDERMEZ(unittest.TestCase):
         self.assertNotIn("cevap_gonder", govde)
 
 
+class YeniYonlendirmeTaslaklari(unittest.TestCase):
+    def setUp(self):
+        self.eski_calistir = GK._calistir
+
+    def tearDown(self):
+        GK._calistir = self.eski_calistir
+
+    def test_saglik_ve_sikayet_taslagi_devir_ister(self):
+        for sinif, metin, aranan in (
+            ("SAGLIK", "Alerjim oldu", "sağlık uzmanına"),
+            ("SIKAYET", "Şikayetim var", "özür dileriz"),
+            ("ANLASILMADI", "Ne bu şimdi", "biraz açabilir"),
+        ):
+            with self.subTest(sinif=sinif):
+                GK._calistir = SahteSorgu(sinif, metin=metin)
+                sonuc = GK.taslak(1)
+                self.assertTrue(sonuc["devredilmeli"])
+                self.assertIn(aranan, sonuc["metin"])
+                self.assertFalse(sonuc["gonderilebilir"])
+
+    def test_odeme_dogrulanmis_urun_sayfasina_gider(self):
+        kayit = {"urun_id": "u1", "urun_adi": "BABYSOFT (Losyon)",
+                 "slug": "babysoft", "wix_yayinda": True, "gorunur": True,
+                 "wix_stok": 3, "wix_satis": 100, "wix_liste": 100,
+                 "aciklama_duz": ""}
+        def sorgu(sql):
+            if "mart.urun_karti" in sql:
+                return [kayit]
+            return [{"metin": "BABYSOFT nasıl satın alabilirim?",
+                     "sinif": "SIPARIS", "mevzuat": None, "urun": None}]
+        GK._calistir = sorgu
+        sonuc = GK.taslak(1)
+        self.assertFalse(sonuc["devredilmeli"])
+        self.assertIn("https://www.lcarlie.shop/product-page/babysoft", sonuc["metin"])
+
+    def test_yayinda_olmayan_urun_icin_link_uydurmaz(self):
+        kayit = {"urun_id": "u1", "urun_adi": "BABYSOFT (Losyon)",
+                 "slug": "babysoft", "wix_yayinda": False, "gorunur": True,
+                 "wix_stok": 3, "wix_satis": 100, "wix_liste": 100,
+                 "aciklama_duz": ""}
+        def sorgu(sql):
+            if "mart.urun_karti" in sql:
+                return [kayit]
+            return [{"metin": "BABYSOFT nasıl satın alabilirim?",
+                     "sinif": None, "mevzuat": None, "urun": None}]
+        GK._calistir = sorgu
+        sonuc = GK.taslak(1)
+        self.assertTrue(sonuc["devredilmeli"])
+        self.assertNotIn("https://", sonuc["metin"])
+
+    def test_mevzuat_engeli_odeme_linkini_de_kapatir(self):
+        GK._calistir = SahteSorgu("ODEME_YONLENDIR", mevzuat="BLOCKED",
+                                 metin="Ödeme nasıl yapılır?")
+        sonuc = GK.taslak(1)
+        self.assertTrue(sonuc["devredilmeli"])
+        self.assertFalse(sonuc["uretildi"])
+        self.assertEqual(sonuc["metin"], "")
+
+    def test_urun_bilinmiyorsa_odeme_icin_sorar(self):
+        GK._calistir = SahteSorgu("ODEME_YONLENDIR", metin="Ödeme nasıl yapılır?")
+        sonuc = GK.taslak(1)
+        self.assertFalse(sonuc["devredilmeli"])
+        self.assertTrue(sonuc["urun_soruluyor"])
+        self.assertTrue(sonuc["gonderilebilir"])
+        self.assertNotIn("https://", sonuc["metin"])
+
+
 if __name__ == "__main__":
     unittest.main()

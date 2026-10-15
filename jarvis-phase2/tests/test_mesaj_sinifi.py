@@ -43,15 +43,29 @@ class SahibeGidenler(unittest.TestCase):
     def test_saglik_ve_sikayet(self):
         for m in ("Alerjim var", "Cildim kızardı", "Yan etkisi var mı",
                   "Hamileyim kullanabilir miyim", "Doktora sordum",
-                  "Bana yaramadı", "Yaram var"):
+                  "Yaram var"):
             with self.subTest(m=m):
                 self.assertEqual(M.siniflandir(m), M.SAGLIK)
 
     def test_siparis_ve_islem(self):
-        for m in ("Sipariş nasıl verilir?", "İade etmek istiyorum",
+        for m in ("Siparişim nerede?", "İade etmek istiyorum",
                   "Kargom gelmedi", "Kapıda ödeme var mı"):
             with self.subTest(m=m):
                 self.assertEqual(M.siniflandir(m), M.SIPARIS)
+
+    def test_odeme_ve_sikayet_ayri(self):
+        for m in ("Sipariş nasıl verilir?", "Nasıl satın alabilirim?",
+                  "Ödeme nasıl yapılır?"):
+            with self.subTest(m=m):
+                self.assertEqual(M.siniflandir(m), M.ODEME_YONLENDIR)
+        for m in ("Şikayetim var", "Bana yaramadı", "Memnun kalmadım"):
+            with self.subTest(m=m):
+                self.assertEqual(M.siniflandir(m), M.SIKAYET)
+        self.assertEqual(M.siniflandir("Alerjim oldu, şikayetçiyim"), M.SAGLIK)
+
+    def test_iletisim_durdurma_her_seyden_once(self):
+        self.assertEqual(M.siniflandir("Alerjim var, mesaj atmayın"), M.DURDURMA)
+        self.assertEqual(M.siniflandir("STOP"), M.DURDURMA)
 
     def test_hicbiri_beyaz_listede_DEGIL(self):
         for sinif in (M.SAGLIK, M.SIPARIS, M.IDDIA_SORUSU, M.ANLASILMADI):

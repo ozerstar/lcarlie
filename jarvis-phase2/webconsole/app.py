@@ -1853,7 +1853,7 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 self._send_json(200, {"pending": unified_actions.list_pending(
                     session.username)})
-            except Exception:  # fail closed if the shared record cannot be read
+            except Exception:  # noqa: BLE001 - kayit okunamazsa kapali kal
                 self._send_json(503, {"error": "İşlem listesi şu anda yüklenemedi."})
             return
         if path.startswith("/api/actions/"):
@@ -1863,7 +1863,7 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError as exc:
                 self._send_json(400, {"error": str(exc)})
                 return
-            except Exception:
+            except Exception:  # noqa: BLE001 - islem okunamazsa 503, panel durmaz
                 self._send_json(503, {"error": "İşlem şu anda okunamadı."})
                 return
             self._send_json(200, action) if action else self._send_json(404, {"error": "İşlem bulunamadı."})
@@ -2674,7 +2674,7 @@ class Handler(BaseHTTPRequestHandler):
             except (ValueError, TypeError) as exc:
                 self._send_json(400, {"error": str(exc)})
                 return
-            except Exception:
+            except Exception:  # noqa: BLE001 - kaydedilemezse mesaj TEKRAR gonderilmez
                 self._send_json(503, {"error": "Sohbet kaydedilemedi. Mesaj otomatik yeniden gönderilmedi."})
                 return
             self.send_response(200)
@@ -2701,7 +2701,7 @@ class Handler(BaseHTTPRequestHandler):
                     time.sleep(0.15)
             except (BrokenPipeError, ConnectionResetError, OSError):
                 pass  # the detached worker keeps the result for reconnection
-            except Exception:
+            except Exception:  # noqa: BLE001 - akis her zaman gecerli bir cerceveyle biter
                 try:
                     self.wfile.write(b'{"type":"error","message":"Sohbet durumu okunamadi."}\n')
                 except OSError:
@@ -2734,7 +2734,21 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(line.encode("utf-8"))
             except OSError:
                 pass
-        except Exception:  # noqa: BLE001 - always finish with a valid stream frame
+        except Exception as hata:  # noqa: BLE001 - always finish with a valid stream frame
+            # 🔴 SEBEBI KAYDET. Onceki hali istisnayi sessizce yutuyordu:
+            # kullanici "Yanit tamamlanamadi" goruyordu, gunlukte HICBIR SEY
+            # yoktu, yani ayni hata tekrar ettiginde de kor kaliniyordu.
+            # 15.10.2026'da olculdu -- sohbet 21:44'te dokuz kez koptu ve
+            # sebebi (sessions.sqlite3 acilamadi) ancak BASKA bir uctan
+            # sizan izle bulunabildi.
+            #
+            # Kullaniciya giden metin ayni kaliyor: ic ayrinti panele
+            # yazilmaz, gunluge yazilir.
+            import traceback
+            sys.stderr.write(
+                "[chat-stream] mode=%s istisna=%s: %s\n%s"
+                % (mode, type(hata).__name__, hata, traceback.format_exc()))
+            sys.stderr.flush()
             try:
                 line = json.dumps({"type": "error", "message": "Yanıt tamamlanamadı. Tekrar deneyin."}, ensure_ascii=False) + "\n"
                 self.wfile.write(line.encode("utf-8"))

@@ -20,6 +20,26 @@
 # ve bilinçli adımlardır.
 set -eu
 
+# 🔴 BETIK KENDINI UZERINE YAZIYOR — OLCULDU 15.10.2026.
+# 4. adim git'in bildigi TUM dosyalari kopyaliyor; bu betik de onlardan
+# biri. Kabuk betigi artimli okudugu icin, dosya calisma sirasinda
+# degisince eski bayt konumundan YENI icerige dusuyor ve rastgele bir
+# satiri komut sanip calistiriyor. Olculen cikti:
+#   tools/deploy.sh: 142: ün: not found
+# O sefer zararsiz bir satira dustu. Dusmeyebilirdi.
+#
+# Cozum: ilk is olarak kendini /tmp'ye kopyalayip oradan devam et.
+# Kopya calisma boyunca degismez, hedefteki dosya serbestce guncellenir.
+if [ "${DEPLOY_SABIT_KOPYA:-}" != "1" ]; then
+  _kopya=$(mktemp "${TMPDIR:-/tmp}/deploy-XXXXXX.sh")
+  cat "$0" > "$_kopya"
+  DEPLOY_SABIT_KOPYA=1 _KOPYA_SIL="$_kopya" export DEPLOY_SABIT_KOPYA _KOPYA_SIL
+  sh "$_kopya" "$@"
+  _durum=$?
+  rm -f "$_kopya"
+  exit $_durum
+fi
+
 KAYNAK=${JARVIS_SOURCE:-/opt/lcarlie/source/lcarlie-jarvis-v1/jarvis-phase2}
 HEDEF=${JARVIS_TARGET:-/opt/lcarlie/jarvis-phase2}
 SERVIS=${JARVIS_SERVICE:-jarvis-web}
