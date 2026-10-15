@@ -23,6 +23,11 @@ def main() -> None:
     try:
         first = actions.create(owner, 'calendar.create', payload, 'Synthetic calendar test',
                                idempotency_key='test:' + uuid.uuid4().hex)
+        with actions._connect() as conn, conn.cursor() as cur:
+            cur.execute('SELECT status,payload FROM core.jarvis_action_registry WHERE action_key=%s',
+                        ('personal:' + first['id'],))
+            record = cur.fetchone()
+        assert record['status'] == 'AWAITING_APPROVAL' and record['payload'] == payload
         same = actions.create(owner, 'calendar.create', payload, 'Synthetic calendar test',
                               idempotency_key='test:' + uuid.uuid4().hex)
         assert same['id'] == first['id'], 'duplicate payload created a second action'
@@ -48,6 +53,10 @@ def main() -> None:
             raise AssertionError('second approval accepted')
         final = actions.finish(owner, first['id'], 'UNCERTAIN', 'Synthetic timeout; no send made')
         assert final['status'] == 'UNCERTAIN'
+        with actions._connect() as conn, conn.cursor() as cur:
+            cur.execute('SELECT status FROM core.jarvis_action_registry WHERE action_key=%s',
+                        ('personal:' + first['id'],))
+            assert cur.fetchone()['status'] == 'UNCERTAIN'
         assert actions.create(owner, 'calendar.create', payload, 'Synthetic calendar test')['id'] == first['id']
         print('PG action checks passed: dedupe, owner, fingerprint, single decision, uncertain')
     finally:
