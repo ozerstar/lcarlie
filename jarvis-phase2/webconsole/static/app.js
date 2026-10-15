@@ -1305,6 +1305,43 @@ document.addEventListener('click', (event) => {
   });
 });
 
+function ekipDizininiFiltrele() {
+  const dizin = qs('ekipDizin');
+  if (!dizin) return;
+  const query = (qs('ekipArama').value || '').trim().toLocaleLowerCase('tr-TR');
+  const aile = qs('ekipAileSec').value;
+  const durum = qs('ekipDurumSec').value;
+  let visible = 0;
+  const groups = document.querySelectorAll('#ekipBody .ek-aile');
+  groups.forEach((group) => {
+    let groupVisible = 0;
+    group.querySelectorAll('.ek-dep').forEach((department) => {
+      const matches = (!aile || group.dataset.teamFamily === aile)
+        && (!durum || department.dataset.teamState === durum)
+        && (!query || department.textContent.toLocaleLowerCase('tr-TR').includes(query));
+      department.hidden = !matches;
+      if (matches) { visible += 1; groupVisible += 1; }
+    });
+    group.hidden = groupVisible === 0;
+  });
+  qs('ekipGorunen').textContent = `${visible} / ${document.querySelectorAll('#ekipBody .ek-dep').length} departman gösteriliyor`;
+  qs('ekipBos').hidden = visible !== 0;
+}
+
+document.addEventListener('input', (event) => {
+  if (event.target.id === 'ekipArama') ekipDizininiFiltrele();
+});
+document.addEventListener('change', (event) => {
+  if (event.target.id === 'ekipAileSec' || event.target.id === 'ekipDurumSec') ekipDizininiFiltrele();
+});
+document.addEventListener('click', (event) => {
+  if (!event.target.closest('[data-team-members]')) return;
+  const directory = qs('ekipUyeler');
+  if (!directory) return;
+  directory.open = true;
+  directory.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
 /* ==================================================================
  * EXECUTION SURFACE
  * ------------------------------------------------------------------
@@ -2150,6 +2187,60 @@ const EKIP_RENK = {
   gri:    { sinif: 'ek-gri',    etiket: 'kadrosu yok' },
 };
 
+const EKIP_AILE_ADI = {
+  ALTYAPI: 'Altyapı', BRAND: 'Marka', COMMERCIAL: 'Ticaret',
+  CREATIVE: 'Yaratıcı üretim', CUSTOMER: 'Müşteri', DATA: 'Veri',
+  EXECUTIVE: 'Üst yönetim', GOVERNANCE: 'Yönetişim',
+  INTELLIGENCE: 'Araştırma', KREATIF: 'Kreatif',
+  MARKETING: 'Pazarlama', OPERATIONS: 'Operasyon',
+  PLATFORM: 'Platform', PRODUCT: 'Ürün',
+};
+
+const EKIP_BIRIM_ADI = {
+  TEKNOLOJI: 'Teknoloji ve araç geliştirme', WEB: 'Web ve dönüşüm',
+  BRAND: 'Marka', PR: 'Basın ve halkla ilişkiler',
+  B2B: 'Kurumsal satış', BIZDEV: 'İş geliştirme',
+  CRO: 'Dönüşüm ve kullanıcı deneyimi', ECOM: 'E-ticaret ve sipariş',
+  EXPORT: 'İhracat ve uluslararası pazar', MARKETPLACE: 'Pazaryerleri',
+  PHARMACY: 'Eczane ve kilit müşteriler', ART: 'Sanat yönetimi',
+  CONTENT: 'İçerik', COPY: 'Metin yazarlığı',
+  CREATIVE_STRAT: 'Kreatif strateji', UGC: 'Video ve kullanıcı içerikleri',
+  CRM: 'Müşteri ilişkileri', CS: 'Müşteri hizmetleri',
+  CUSTOMER_INT: 'Müşteri araştırması', RETENTION: 'Müşteri bağlılığı',
+  DATA_BI: 'Veri ve iş zekâsı', EXPERIMENT: 'Deneyler',
+  FORECAST: 'Tahminleme', EXEC: 'Üst yönetim ve strateji',
+  FINANCE: 'Finans ve birim ekonomisi', DECISION_MEM: 'Karar hafızası',
+  LEGAL: 'Hukuk ve kişisel veriler', QUALITY: 'Kalite',
+  RED_TEAM: 'İç denetim', REGULATORY: 'Mevzuat ve ürün iddiaları',
+  COMPETITOR_INT: 'Rakip araştırması', MARKET_INT: 'Pazar araştırması',
+  TASARIM: 'Tasarım ve üretim', YAYIN: 'Yayın ve editoryal',
+  GOOGLE_ADS: 'Google arama reklamları', INFLUENCER: 'İçerik üreticileri',
+  INSTAGRAM: 'Instagram', META_MEDIA: 'Meta reklamları',
+  SEO: 'Arama görünürlüğü', SOCIAL: 'Organik sosyal medya',
+  TIKTOK: 'TikTok ve kısa video', FULFILLMENT: 'Sipariş hazırlama ve kargo',
+  INVENTORY: 'Stok ve envanter', PROCUREMENT: 'Satın alma',
+  SUPPLY: 'Tedarik zinciri', AI_OPS: 'Otomasyon ve yapay zekâ',
+  SECURITY: 'Güvenlik', PRODUCT: 'Ürün yönetimi',
+  RND: 'Araştırma ve yeni ürün',
+};
+
+function ekipBirimAdi(department) {
+  return EKIP_BIRIM_ADI[department.kod] || department.ad || department.kod || 'Adsız birim';
+}
+
+function ekipTakipAcikla(value) {
+  return String(value || '').replace(/REQUEST_HUMAN_REVIEW/g, 'insan incelemesi');
+}
+
+function ekipAileAdi(code) {
+  return EKIP_AILE_ADI[code] || code || 'Diğer';
+}
+
+function ekipBirimDurumu(value) {
+  return ({ CALISIYOR: 'Kaynak tanımlı', KISMI: 'Kısmi bağlantı',
+    YOK: 'Kaynak bağlı değil' })[value] || value || 'Durum bilinmiyor';
+}
+
 function ekipKaynakAdi(ref) {
   const names = {
     sales_orders: 'siparişler', sales_items: 'sipariş kalemleri',
@@ -2163,18 +2254,27 @@ function ekipKaynakAdi(ref) {
   return names[String(ref).replace(/^postgres:/, '')] || 'şirket veri kaynağı';
 }
 
+function ekipBirimKaynagi(ref) {
+  const value = String(ref || '').trim();
+  if (!value || value === 'None') return 'Kaynak belirtilmemiş';
+  if (value.startsWith('YOK')) return 'Kaynak bağlı değil';
+  return ekipKaynakAdi(value);
+}
+
 function ekipSorumluAdi(owner) {
   return ({ operations: 'Operasyon ekibi', sales: 'Satış ekibi',
     ecommerce: 'E-ticaret ekibi', advertising: 'Reklam ekibi',
     crm: 'Müşteri ilişkileri ekibi', strategy: 'Strateji ekibi',
-    research: 'Araştırma ekibi' })[owner] || owner;
+    research: 'Araştırma ekibi', managing_director: 'Genel müdür' })[owner] || owner;
 }
 
 function renderEkip(data) {
+  if (data.error) return `<p class="sect-empty is-bad">Ekip verisi okunamadı: ${escapeHtml(data.error)}</p>`;
   let deps = data.departmanlar || [];
+  const birimAdlari = new Map(deps.map(department => [department.ad, ekipBirimAdi(department)]));
   const yonetim = data.yonetim || {};
   const uyeler = yonetim.uyeler || [];
-  const acikSonuclar = new Map(uyeler.map(member => [member.key, member.son_is_acik || member.sonuc_acik]));
+  const uyeKayitlari = new Map(uyeler.map(member => [member.key, member]));
   const sonIsler = uyeler.filter(u => u.durum === 'ÇALIŞTI')
     .sort((left, right) => (left.gorev_turu === 'VERİ KONTROLÜ') - (right.gorev_turu === 'VERİ KONTROLÜ'));
   const durumSayilari = yonetim.durum_sayilari || {};
@@ -2185,7 +2285,8 @@ function renderEkip(data) {
       <div><span class="lead-eyebrow">L’CARLIÉ / Organizasyon</span>
         <h3>Yönetim masası</h3>
         <p>Ekip faaliyetleri ve takip gerektiren işler. Son kontrol: ${escapeHtml(fmtDateTime(yonetim.uretim_zamani) || 'kayıt yok')} · ${yonetim.guncel ? 'güncel' : 'güncel kayıt yok'}.</p></div>
-      <button type="button" class="lead-ask" data-ask="Ekipteki son kanıtlı çıktıları ve geciken işleri özetle; kaynakları ve eksikleri ayır.">Jarvis’le konuş</button>
+      <div class="lead-actions"><a class="lead-ask" href="#ekipDizin">Tüm departmanlar</a>
+        <button type="button" class="lead-ask" data-ask="Ekipteki son kanıtlı çıktıları ve geciken işleri özetle; kaynakları ve eksikleri ayır.">Jarvis’le konuş</button></div>
     </div>
     <div class="lead-metrics">
       <div><strong>${durumSayilari['ÇALIŞTI'] || 0}</strong><span>son kontrolde kayıt üretti · ${yonetim.rutin_kontrol || 0} yalnızca veri okudu</span></div>
@@ -2197,17 +2298,17 @@ function renderEkip(data) {
       ? escapeHtml(mudur.son_is_acik) : 'Son kontrolde genel müdür önerisi kaydedilmedi.'}</p></div>
     <div class="lead-columns">
       <section><h4>Son kayıtlı çıktılar</h4>${sonIsler.length ? sonIsler.slice(0, 8).map(u =>
-        `<article class="lead-row"><div><b>${escapeHtml(u.ad)}</b><span>${escapeHtml(u.gorev_turu || u.birim)}</span></div><p>${escapeHtml(u.son_is_acik || u.son_is)}</p></article>`).join('')
+        `<article class="lead-row"><div><b>${escapeHtml(u.ad)}</b><span>${escapeHtml(u.gorev_turu || birimAdlari.get(u.birim) || u.birim)}</span></div><p>${escapeHtml(u.son_is_acik || u.son_is)}</p></article>`).join('')
         : '<p class="lead-empty">Güncel döngüde kanıtlı çıktı kaydı yok.</p>'}</section>
       <section><h4>Yönetim takibi</h4>${oncelikler.length ? oncelikler.map(item =>
-        `<article class="lead-row"><div><b>${escapeHtml(ekipSorumluAdi(item.sorumlu))}</b><span>${escapeHtml(item.durum === 'UYGULAMA KANITI BEKLER' ? 'Yapıldığını gösteren kayıt bekleniyor' : item.durum)}</span></div><p>${escapeHtml(item.hedef)}</p><small>Son tarih: ${escapeHtml(String(item.son_tarih).slice(0, 10))}</small></article>`).join('')
+        `<article class="lead-row"><div><b>${escapeHtml(ekipSorumluAdi(item.sorumlu))}</b><span>${escapeHtml(item.durum === 'UYGULAMA KANITI BEKLER' ? 'Yapıldığını gösteren kayıt bekleniyor' : item.durum)}</span></div><p>${escapeHtml(ekipTakipAcikla(item.hedef))}</p><small>Son tarih: ${escapeHtml(String(item.son_tarih).slice(0, 10))}</small></article>`).join('')
         : '<p class="lead-empty">Takip gerektiren açık iş kaydı yok.</p>'}</section>
     </div>
-    <details class="lead-members"><summary>Tüm ekip · ${uyeler.length} üye · görev ve kanıt kayıtları</summary>
+    <details class="lead-members" id="ekipUyeler"><summary>Tüm üyeler · ${uyeler.length} kişi · görev, sonuç ve kanıt kayıtlarını aç</summary>
       <div class="lead-filters">${['HEPSİ', 'ÇALIŞTI', 'GÖREV BEKLİYOR', 'HATA', 'İZLENMİYOR'].map((status, index) =>
         `<button type="button" data-team-filter="${escapeHtml(status)}" aria-pressed="${index === 0}">${escapeHtml(({ 'ÇALIŞTI': 'KAYIT ÜRETTİ', 'GÖREV BEKLİYOR': 'BEKLİYOR', 'İZLENMİYOR': 'İZLENMEDİ' })[status] || status)}</button>`).join('')}</div>
       <div class="lead-member-list">${uyeler.map(u => `<div data-team-state="${escapeHtml(u.durum)}">
-        <b>${escapeHtml(u.ad)}</b><span>${escapeHtml(u.birim)}</span><em>${escapeHtml(({ 'ÇALIŞTI': 'Kayıt üretti', 'GÖREV BEKLİYOR': 'Bekliyor', 'İZLENMİYOR': 'İzlenmedi' })[u.durum] || u.durum)}</em>
+        <b>${escapeHtml(u.ad)}</b><span>${escapeHtml(birimAdlari.get(u.birim) || u.birim)}</span><em>${escapeHtml(({ 'ÇALIŞTI': 'Kayıt üretti', 'GÖREV BEKLİYOR': 'Bekliyor', 'İZLENMİYOR': 'İzlenmedi' })[u.durum] || u.durum)}</em>
         <small>Rol: ${escapeHtml(u.rol_tanimi || '—')}</small>
         <small>Görev türü: ${escapeHtml(u.gorev_turu || '—')}</small>
         <small>Son yürütülen görev: ${escapeHtml(u.gorev || 'bu döngüye bağlı değil')}</small>
@@ -2217,7 +2318,7 @@ function renderEkip(data) {
         <small>Veri erişimi: ${escapeHtml(({ 'KONUŞTU': 'Veri okundu', 'VERİ YOK': 'Veri yok' })[u.veri_durumu] || u.veri_durumu)}</small>
       </div>`).join('')}</div>
     </details>
-    <p class="lead-disclaimer">${escapeHtml(yonetim.not || '')}</p>
+    <p class="lead-disclaimer">“Kayıt üretti” yalnız son döngüde bir aşamanın tamamlandığını gösterir; mesai veya dışarıya uygulanan işlem değildir. Dış araştırma kaynağı eski olabilir. Bu ekran görev atamaz veya mesaj göndermez.</p>
   </div>`;
 
   /* Çemberden bir küme seçildiyse yalnız o küme gösterilir.
@@ -2242,6 +2343,8 @@ function renderEkip(data) {
   }
   const oz = data.ozet || {};
   const renk = oz.renk || {};
+  const aileSecenekleri = [...new Set(deps.map(d => String(d.aile || '')))].sort((left, right) =>
+    ekipAileAdi(left).localeCompare(ekipAileAdi(right), 'tr'));
 
   const ozet = filtreBaslik + `
     <div class="ek-ozet">
@@ -2262,7 +2365,27 @@ function renderEkip(data) {
         <span class="ek-lg"><i class="ek-dot ek-gri"></i>${renk.gri ?? 0} kadrosuz</span>
       </div>
     </div>
-    <p class="ek-not">${escapeHtml(data.not || '')}</p>`;
+    <p class="ek-not">Noktanın rengi son ekip döngüsündeki veri okuma sonucunu, birim etiketi ise veri kaynağının bağlantı durumunu gösterir. Bunlar farklı ölçümlerdir.</p>
+    <section class="team-directory" id="ekipDizin" aria-label="Tüm departmanlar">
+      <div class="team-directory-head">
+        <div><span class="lead-eyebrow">EKİP DİZİNİ</span><h3>Tüm departmanlar</h3>
+          <p>Birimi açarak görevini, üyelerini, son kayıtlarını ve yetki sınırlarını inceleyin.</p></div>
+        <button type="button" data-team-members>${uyeler.length} kişilik üye dizinine git</button>
+      </div>
+      <div class="team-directory-controls">
+        <label>Birimi veya kişiyi ara
+          <input id="ekipArama" type="search" placeholder="Ad, görev, üye veya konu" autocomplete="off"></label>
+        <label>Grup
+          <select id="ekipAileSec"><option value="">Tüm gruplar</option>${aileSecenekleri.map(aile =>
+            `<option value="${encodeURIComponent(aile)}">${escapeHtml(ekipAileAdi(aile))}</option>`).join('')}</select></label>
+        <label>Veri erişimi
+          <select id="ekipDurumSec"><option value="">Tüm durumlar</option>
+            <option value="yesil">Veri okuyor</option><option value="sari">Bekliyor</option>
+            <option value="kirmizi">Veri eksik</option><option value="gri">Kadrosuz</option></select></label>
+      </div>
+      <p class="team-directory-count" id="ekipGorunen" aria-live="polite">${deps.length} departman gösteriliyor</p>
+      <p class="team-directory-empty" id="ekipBos" hidden>Bu aramaya uyan departman yok. Filtreleri değiştirebilirsiniz.</p>
+    </section>`;
 
   // Aileye göre grupla; aile sırası veriden gelir, arayüz sabit liste tutmaz.
   const aileler = [];
@@ -2276,10 +2399,10 @@ function renderEkip(data) {
   const bloklar = aileler.map(aile => {
     const liste = kova[aile];
     const konusan = liste.filter(d => d.renk === 'yesil').length;
-    const satirlar = liste.map(d => ekipSatir(d, acikSonuclar)).join('');
-    return `<section class="ek-aile">
+    const satirlar = liste.map(d => ekipSatir(d, uyeKayitlari)).join('');
+    return `<section class="ek-aile" data-team-family="${encodeURIComponent(aile)}">
       <div class="ek-aile-head">
-        <span class="ek-aile-ad">${escapeHtml(aile)}</span>
+        <span class="ek-aile-ad">${escapeHtml(ekipAileAdi(aile))}</span>
         <span class="ek-aile-say">${liste.length} birim · ${konusan} veri okuyor</span>
       </div>
       ${satirlar}
@@ -2307,11 +2430,15 @@ function renderEkip(data) {
 
 function ekipBugun(d) {
   const bulgular = d.arastirma || [];
-  const bugun = new Date().toISOString().slice(0, 10);
-  const dun = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+  const yerelGun = (date) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Istanbul',
+    year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+  const bugun = yerelGun(new Date());
+  const dun = yerelGun(new Date(Date.now() - 864e5));
 
-  const gunluk = (g) => bulgular.filter(
-    (b) => String(b.zaman || '').slice(0, 10) === g);
+  const gunluk = (g) => bulgular.filter((bulgu) => {
+    const date = new Date(bulgu.zaman || '');
+    return !isNaN(date.getTime()) && yerelGun(date) === g;
+  });
   const bugunku = gunluk(bugun);
   const dunku = gunluk(dun);
 
@@ -2357,21 +2484,28 @@ function ekipBugun(d) {
     </div>`;
 }
 
-function ekipSatir(d, acikSonuclar = new Map()) {
+function ekipSatir(d, uyeKayitlari = new Map()) {
   const r = EKIP_RENK[d.renk] || EKIP_RENK.gri;
   const uyeler = d.uyeler || [];
 
-  const uyeListe = uyeler.length ? uyeler.map(u => `
+  const uyeListe = uyeler.length ? uyeler.map(u => {
+    const kayit = uyeKayitlari.get(u.key) || {};
+    const sonDurum = ({ 'ÇALIŞTI': 'Kayıt üretti', 'GÖREV BEKLİYOR': 'Görev bekliyor',
+      'İZLENMİYOR': 'Son döngüde izlenmedi' })[kayit.durum] || kayit.durum || 'Kayıt yok';
+    return `
     <div class="ek-uye ${u.durum === 'KONUŞTU' ? 'is-konustu' : ''}">
       <div class="ek-uye-ust">
         <span class="ek-uye-ad">${escapeHtml(u.ad || '')}</span>
         <span class="ek-uye-durum">${escapeHtml(({ 'KONUŞTU': 'Veri okudu', 'VERİ YOK': 'Veri yok' })[u.durum] || u.durum || '')}</span>
       </div>
       <div class="ek-uye-gorev">${escapeHtml(u.gorev || '')}</div>
-      ${u.soyledigi ? `<div class="ek-uye-soz">${escapeHtml(acikSonuclar.get(u.key) || u.soyledigi)}</div>` : ''}
+      <div class="ek-uye-soz"><strong>Son ekip döngüsü:</strong> ${escapeHtml(sonDurum)}${kayit.zaman ? ' · ' + escapeHtml(fmtDateTime(kayit.zaman)) : ''}</div>
+      ${(kayit.son_is_acik || kayit.sonuc_acik || u.soyledigi) ? `<div class="ek-uye-soz">${escapeHtml(kayit.son_is_acik || kayit.sonuc_acik || u.soyledigi)}</div>` : ''}
+      ${(kayit.kanitlar || []).length ? `<div class="ek-uye-okur">Dayanak: ${escapeHtml(kayit.kanitlar.map(ekipKaynakAdi).join(' · '))}</div>` : ''}
       ${(u.eksik && u.eksik.length) ? `<div class="ek-uye-eksik">okunamayan: ${escapeHtml(u.eksik.map(ekipKaynakAdi).join(', '))}</div>` : ''}
       ${(u.okur && u.okur.length) ? `<div class="ek-uye-okur">okuduğu kaynaklar: ${escapeHtml(u.okur.map(ekipKaynakAdi).join(' · '))}</div>` : ''}
-    </div>`).join('') : '<p class="ek-bos">Bu birimin kadrosu kurulmamış; sorulacak bir sorumlu yok.</p>';
+    </div>`;
+  }).join('') : '<p class="ek-bos">Bu birimin kadrosu kurulmamış; sorulacak bir sorumlu yok.</p>';
 
   /* Dış araştırma bulguları.
      🔴 "Şirket ölçümü" ile "dışarıdan okunan iddia" ayrı çizilir. Bulgu
@@ -2435,7 +2569,7 @@ function ekipSatir(d, acikSonuclar = new Map()) {
 
   const soruKutusu = d.soru_sorulabilir ? `
     <div class="ek-sor">
-      <label class="ek-sor-lbl" for="sor-${escapeHtml(d.kod)}">${escapeHtml(d.ad || d.kod)} sorumlusuna sor</label>
+      <label class="ek-sor-lbl" for="sor-${escapeHtml(d.kod)}">${escapeHtml(ekipBirimAdi(d))} sorumlusuna sor</label>
       <div class="ek-sor-row">
         <input id="sor-${escapeHtml(d.kod)}" class="ek-sor-in" type="text" autocomplete="off"
                placeholder="Bu neden böyle? Şöyle yapsak daha iyi olmaz mı?">
@@ -2444,16 +2578,24 @@ function ekipSatir(d, acikSonuclar = new Map()) {
       <div class="ek-cevap" id="cevap-${escapeHtml(d.kod)}" hidden></div>
     </div>` : '';
 
-  return `<details class="ek-dep ${r.sinif}">
+  return `<details class="ek-dep ${r.sinif}" data-team-state="${escapeHtml(d.renk || 'gri')}">
     <summary class="ek-dep-head">
       <i class="ek-dot ${r.sinif}" title="${escapeHtml(r.etiket)}"></i>
-      <span class="ek-ad">${escapeHtml(d.ad || '')}</span>
-      <span class="ek-rozet ek-rz-${escapeHtml(String(d.birim_durumu || '').toLowerCase())}">${escapeHtml(d.birim_durumu || '')}</span>
-      <span class="ek-say">${d.konusan || 0}/${d.uye_sayisi || 0}</span>
+      <span class="ek-ad">${escapeHtml(ekipBirimAdi(d))}</span>
+      <span class="ek-rozet ek-rz-${escapeHtml(String(d.birim_durumu || '').toLowerCase())}">${escapeHtml(ekipBirimDurumu(d.birim_durumu))}</span>
+      <span class="ek-say" title="Veri okuyan üye / toplam üye">${d.konusan || 0}/${d.uye_sayisi || 0} üye</span>
     </summary>
     <div class="ek-dep-govde">
       <div class="ek-misyon">${escapeHtml(d.misyon || '')}</div>
+      <div class="team-department-facts">
+        <div><span>Veri kaynağı</span><strong>${escapeHtml(ekipBirimKaynagi(d.veri_kaynagi))}</strong>
+          ${d.veri_kaynagi ? `<details><summary>Kaynak kaydını gör</summary><small>${escapeHtml(String(d.veri_kaynagi))}</small></details>` : ''}</div>
+        <div><span>Yetki sınırı</span><strong>${escapeHtml(d.otonomi_tavani ? 'Seviye ' + d.otonomi_tavani : 'Kayıt yok')}</strong></div>
+        <div><span>Üst mercie taşıma</span><strong>${escapeHtml(d.escalation === 'MANAGING_DIRECTOR' ? 'Genel müdür' : d.escalation || 'Kayıt yok')}</strong></div>
+        <div><span>Son dış araştırma</span><strong>${escapeHtml(d.arastirma_son ? fmtDateTime(d.arastirma_son) : 'Kayıt yok')}</strong></div>
+      </div>
       ${bugunBlok}
+      <h4 class="team-detail-heading">Ekip üyeleri · ${uyeler.length}</h4>
       ${uyeListe}
       ${arastirmaBlok}
       ${pazarBlok}
@@ -2584,7 +2726,7 @@ async function loadSection(name) {
     body.innerHTML = SECTION_RENDERERS[name](data);
     if (count) {
       count.textContent = name === 'ekip'
-        ? `${(data.ozet && data.ozet.konusan_uye) || 0}/${(data.ozet && data.ozet.uye) || 0} üye konuşuyor`
+        ? `${(data.ozet && data.ozet.departman) || 0} departman · ${(data.ozet && data.ozet.uye) || 0} üye`
         : name === 'veri'
         ? `${(data.domains || []).reduce((a, d) => a + d.ok, 0)} sorgu`
         : name === 'ajanlar' ? `${(data.engines || []).length} motor`

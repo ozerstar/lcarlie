@@ -58,6 +58,14 @@ class SayacYALAN_SOYLEMESIN(unittest.TestCase):
 
 
 class KuyrukOkumaDAYANIKLI(unittest.TestCase):
+    def test_mesajdaki_unicode_satir_ayirici_json_kaydini_bolmez(self):
+        with tempfile.TemporaryDirectory() as gecici:
+            kuyruk = Path(gecici) / "gelen.jsonl"
+            olay = {"mesaj_id": "unicode", "metin": "ilk\u2028ikinci"}
+            kuyruk.write_text(json.dumps(olay, ensure_ascii=False) + "\n",
+                              encoding="utf-8")
+            self.assertEqual([olay], mk.olaylari_oku(kuyruk))
+
     def test_bozuk_satir_digerlerini_dusurmez(self):
         with tempfile.TemporaryDirectory() as gecici:
             kuyruk = Path(gecici) / "gelen.jsonl"

@@ -11,15 +11,27 @@ sayilacakti ve devir dugmesi ilk tiklamada patlayacakti.
 Testler veritabani ISTEMEZ: `_calistir` degistirilerek uretilen SQL
 yakalanir ve bicimi denetlenir.
 """
+import json
 import sys
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 KOK = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KOK))
 sys.path.insert(0, str(KOK / "webconsole"))
 
 import gelen_kutusu as GK  # noqa: E402
+
+
+class PsqlSatirOkumaTests(unittest.TestCase):
+    def test_mesajdaki_unicode_satir_ayirici_json_kaydini_bolmez(self):
+        kayit = {"id": 1, "son_metin": "ilk\u2028ikinci"}
+        sonuc = SimpleNamespace(returncode=0, stderr="",
+                                stdout=json.dumps(kayit, ensure_ascii=False) + "\n")
+        with patch.object(GK, "db_run", return_value=sonuc):
+            self.assertEqual([kayit], GK._calistir("SELECT 1"))
 
 
 class SQLYakalayan:

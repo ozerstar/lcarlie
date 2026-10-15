@@ -62,7 +62,7 @@ def olaylari_oku(kuyruk: Path) -> list[dict]:
     if not kuyruk.is_file():
         return []
     olaylar = []
-    for satir in kuyruk.read_text(encoding="utf-8").splitlines():
+    for satir in kuyruk.read_text(encoding="utf-8").split("\n"):
         satir = satir.strip()
         if not satir:
             continue

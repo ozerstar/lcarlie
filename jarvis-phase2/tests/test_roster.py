@@ -144,5 +144,47 @@ class GorusTests(unittest.TestCase):
             self.assertTrue(kayit["statement"].strip())
 
 
+class YeniBirimTests(unittest.TestCase):
+    def test_yeni_birimler_rol_ve_sorumlu_sahibi(self):
+        codes = ("CS", "CUSTOMER_INT", "EXPERIMENT", "DECISION_MEM",
+                 "INSTAGRAM", "INVENTORY", "UGC", "RND")
+        for code in codes:
+            members = roster.departman_uyeleri()[code]
+            self.assertEqual(1, len(members), code)
+            self.assertEqual(members[0], roster.departman_sorumlusu(code))
+            self.assertIn(members[0].key, roster.SPEAKERS)
+        self.assertEqual((), roster.eslenmeyen_uyeler())
+
+    def test_kaynak_bossa_aktif_gorunmez(self):
+        for key in ("musteri_hizmetleri", "musteri_istihbarati", "deney_izleme",
+                    "karar_hafizasi", "instagram_olcum", "stok_kapsama",
+                    "video_brief", "yeni_urun_on_arastirma"):
+            opinion = roster.opinions(SahteMemory(), only=(key,))[0]
+            self.assertEqual(roster.NO_DATA, opinion["status"], key)
+
+    def test_musteri_hizmetleri_yanit_gondermez(self):
+        opinion = roster.opinions(SahteMemory({
+            "crm_unanswered": [{"bekleme_saat": 6}],
+            "urun_bilgi": [{"urun_adi": "Örnek"}],
+        }), only=("musteri_hizmetleri",))[0]
+        self.assertEqual(roster.SPEAKS, opinion["status"])
+        self.assertIn("1 yanıtsız", opinion["statement"])
+        self.assertIn("Yanıt gönderilmedi", opinion["statement"])
+
+    def test_stok_wix_ile_fiziksel_envanteri_ayirir(self):
+        opinion = roster.opinions(SahteMemory({"urun_bilgi": [
+            {"wix_stok": 0}, {"wix_stok": None}, {"wix_stok": 3},
+        ]}), only=("stok_kapsama",))[0]
+        self.assertIn("1 ürünün Wix stok değeri yok", opinion["statement"])
+        self.assertIn("fiziksel depo", opinion["statement"])
+
+    def test_instagram_erisim_olmadan_oran_iddia_etmez(self):
+        opinion = roster.opinions(SahteMemory({"content_performance": [
+            {"etkilesim": 18, "bicim": "reels"},
+        ]}), only=("instagram_olcum",))[0]
+        self.assertIn("18 etkileşim", opinion["statement"])
+        self.assertIn("oranı hesaplanmadı", opinion["statement"])
+
+
 if __name__ == "__main__":
     unittest.main()

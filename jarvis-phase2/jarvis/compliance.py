@@ -233,6 +233,48 @@ def _soften(term: str) -> str | None:
 _SHORT_TERM_CHARS = 5
 
 
+# 🔴 KISA TERİM / UZUN KELİME ÇAKIŞMASI — ÖLÇÜLDÜ 15.10.2026
+# Kısa terimlerde sağ tarafta sınır aranmıyor (Türkçe ek alsın diye, doğru
+# karar). Ama "ödem" + "e" = "ödeme": PARA kelimesi hastalık adı sayılıyordu.
+# Ölçüldü: "Kapıda ödeme yapabilirsiniz", "Güvenli ödeme", "ödeme linki
+# gönderiyorum" — hepsi BLOCKED. Bu kapı WhatsApp gönderimini tutuyor ve
+# işletme kapıda ödemeyle satış yapıyor, yani tam kritik yolda.
+#
+# Modül bu hata sınıfını zaten tanıyor: "sinir" ve "kas" terimleri aynı
+# sebeple daraltılmış. Burada terim daraltılmıyor -- "ödem" hâlâ yakalanır --
+# yalnız BİLİNEN çakışan kelimeler istisna tutuluyor.
+#
+# ⚠️ KABUL EDİLEN RİSK: "ödeme neden olur" (ödem'in yönelme hâli) artık
+# yakalanmaz. Pazarlama metninde bu kullanım neredeyse yok; "kapıda ödeme"
+# ise her satış konuşmasında var. Yanlış alarmın bedeli daha yüksek.
+TERIM_ISTISNALARI: dict[str, frozenset[str]] = {
+    "ödem": frozenset({
+        "ödeme", "ödemeyi", "ödemeye", "ödemede", "ödemeden", "ödemeler",
+        "ödemeleri", "ödemeniz", "ödemenizi", "ödemesi", "ödemesini",
+        "ödemek", "ödemeli", "ödemem", "ödemen",
+    }),
+    "odem": frozenset({
+        "odeme", "odemeyi", "odemeye", "odemede", "odemeden", "odemeler",
+        "odemeleri", "odemeniz", "odemenizi", "odemesi", "odemesini",
+        "odemek", "odemeli", "odemem", "odemen",
+    }),
+}
+
+
+def _istisna_mi(haystack: str, konum: int, terim: str) -> bool:
+    """Eşleşmenin düştüğü TAM KELİME istisna listesinde mi?"""
+    istisnalar = TERIM_ISTISNALARI.get(terim)
+    if not istisnalar:
+        return False
+    bas = konum
+    while bas > 0 and (haystack[bas - 1].isalnum() or haystack[bas - 1] == "'"):
+        bas -= 1
+    son = konum
+    while son < len(haystack) and (haystack[son].isalnum() or haystack[son] == "'"):
+        son += 1
+    return haystack[bas:son] in istisnalar
+
+
 def _contains(haystack_folded: str, haystack_flat: str, needle: str) -> bool:
     for candidate in (needle, _soften(needle)):
         if not candidate:
@@ -244,8 +286,13 @@ def _contains(haystack_folded: str, haystack_flat: str, needle: str) -> bool:
             # ki "kasa" ve "kasım" gibi bagimsiz kelimeler eslesmesin.
             pattern = r"(?<!\w)" + re.escape(folded)
             flat_pattern = r"(?<!\w)" + re.escape(flat)
-            if re.search(pattern, haystack_folded) or re.search(flat_pattern, haystack_flat):
-                return True
+            for desen, saman, terim in ((pattern, haystack_folded, folded),
+                                        (flat_pattern, haystack_flat, flat)):
+                for m in re.finditer(desen, saman):
+                    # Eslesme bir istisna kelimesinin icine dustuyse sayilmaz;
+                    # ayni metinde gercek bir kullanim varsa o yine yakalanir.
+                    if not _istisna_mi(saman, m.start(), terim):
+                        return True
             continue
         if folded in haystack_folded or flat in haystack_flat:
             return True

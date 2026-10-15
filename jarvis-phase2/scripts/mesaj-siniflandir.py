@@ -35,7 +35,7 @@ def _psql(sql: str) -> list[str]:
                            check=False)
     if sonuc.returncode:
         raise SystemExit("psql hatasi: %s" % (sonuc.stderr or sonuc.stdout)[:400])
-    return [s for s in sonuc.stdout.splitlines() if s.strip()]
+    return [s for s in sonuc.stdout.split("\n") if s.strip()]
 
 
 def _tirnak(deger) -> str:

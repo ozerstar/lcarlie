@@ -29,6 +29,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable
 
+from . import department_activation
+
 # --- durumlar
 SPEAKS = "KONUŞTU"          # veriye bakti, bir sey soyledi
 NO_DATA = "VERİ YOK"        # kaynagi okunamadi
@@ -479,6 +481,30 @@ ROSTER: tuple[Member, ...] = (
            "Açılış sayfası önerilerini çıkarır.", kind="agency", mode="synthesis"),
     Member("GROWTH_STRATEGIST", "Büyüme Stratejisti",
            "Problem ve fırsatları listeler.", kind="agency", mode="synthesis"),
+    Member("musteri_hizmetleri", "Müşteri Hizmetleri Takipçisi",
+           "Yanıtsız görüşmeleri ve ürün bilgi kapsamını izler; mesaj göndermez.",
+           ("crm_unanswered", "urun_bilgi")),
+    Member("musteri_istihbarati", "Müşteri İçgörü Uzmanı",
+           "Anonim konu özetlerinden müşteri beklentilerini izler.",
+           ("customer_voice",)),
+    Member("deney_izleme", "Deney Hazırlık Uzmanı",
+           "Hipotezlerin ölçüm ve yanlışlama planını denetler.",
+           ("creative_hypotheses",)),
+    Member("karar_hafizasi", "Karar Hafızası Uzmanı",
+           "Öneri, insan kararı ve öğrenme kayıtlarının kapsamını izler.",
+           ("own_proposals", "decision_outcomes", "learning_loop")),
+    Member("instagram_olcum", "Instagram İçerik Ölçüm Uzmanı",
+           "Organik gönderi kayıtlarını ölçüm sınırlarıyla izler; yayın yapmaz.",
+           ("content_performance",)),
+    Member("stok_kapsama", "Stok Kapsama Denetçisi",
+           "Wix stok alanının kapsamasını izler; depo envanteri iddia etmez.",
+           ("urun_bilgi",)),
+    Member("video_brief", "Video Brief Analisti",
+           "Video içerik kayıtlarından brief girdisi çıkarır; UGC üretmez.",
+           ("content_performance",)),
+    Member("yeni_urun_on_arastirma", "Yeni Ürün Ön Araştırmacısı",
+           "Müşteri konuları, mevcut ürün ve pazar bulgularından ön fikir üretir.",
+           ("customer_voice", "urun_karti", "market_research")),
 )
 
 BY_KEY = {m.key: m for m in ROSTER}
@@ -615,6 +641,14 @@ UYE_DEPARTMAN: dict[str, str] = {
     "managing_director": "EXEC",
     "is_planlama": "EXEC",
     "GROWTH_STRATEGIST": "EXEC",
+    "musteri_hizmetleri": "CS",
+    "musteri_istihbarati": "CUSTOMER_INT",
+    "deney_izleme": "EXPERIMENT",
+    "karar_hafizasi": "DECISION_MEM",
+    "instagram_olcum": "INSTAGRAM",
+    "stok_kapsama": "INVENTORY",
+    "video_brief": "UGC",
+    "yeni_urun_on_arastirma": "RND",
 }
 
 
@@ -666,6 +700,14 @@ DEPARTMAN_SORUMLUSU: dict[str, str] = {
     "YAYIN": "kurumsal_editor",
     "CREATIVE_STRAT": "CREATIVE_DIRECTOR",
     "EXEC": "managing_director",
+    "CS": "musteri_hizmetleri",
+    "CUSTOMER_INT": "musteri_istihbarati",
+    "EXPERIMENT": "deney_izleme",
+    "DECISION_MEM": "karar_hafizasi",
+    "INSTAGRAM": "instagram_olcum",
+    "INVENTORY": "stok_kapsama",
+    "UGC": "video_brief",
+    "RND": "yeni_urun_on_arastirma",
 }
 
 
@@ -2156,6 +2198,7 @@ SPEAKERS: dict[str, Callable[[dict[str, list]], str]] = {
     "regulatory_quality": _say_decisions,
     "growth": _say_decisions,
     "ai_prompt_engineering": _say_capability,
+    **department_activation.SPEAKERS,
 }
 
 
@@ -2226,6 +2269,9 @@ def opinions(memory: Any, only: tuple[str, ...] = (), *, activity: dict | None =
             kayit.update(status=NO_DATA, missing=eksik,
                          statement="Okuması gereken veri açık değil: "
                                    + ", ".join(eksik))
+        elif member.key in department_activation.SPEAKERS and not any(rows.values()):
+            kayit.update(status=NO_DATA, missing=list(member.reads),
+                         statement="Okunabilen kaynaklarda ilgili kayıt yok; iş bekliyor.")
         elif konusmaci is None:
             okunan = sum(len(r) for r in rows.values())
             kayit.update(

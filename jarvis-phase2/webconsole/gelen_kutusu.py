@@ -47,7 +47,7 @@ def _calistir(sql: str) -> list:
         raise KutuHatasi("veritabani calistirilamadi: %s" % hata) from None
     if p.returncode:
         raise KutuHatasi((p.stderr or p.stdout)[:300])
-    return [json.loads(s) for s in p.stdout.splitlines() if s.strip()]
+    return [json.loads(s) for s in p.stdout.split("\n") if s.strip()]
 
 
 def konusmalar(durum: str | None = None, limit: int = VARSAYILAN_LIMIT) -> list[dict]:
