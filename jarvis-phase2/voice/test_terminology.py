@@ -1,6 +1,6 @@
 import unittest
 
-from terminology import NAMES, whisper_options
+from terminology import NAMES, normalize_transcript, whisper_options
 
 
 class TerminologyTests(unittest.TestCase):
@@ -11,6 +11,16 @@ class TerminologyTests(unittest.TestCase):
             self.assertIn(name, NAMES)
             self.assertIn(name, options["initial_prompt"])
             self.assertIn(name, options["hotwords"])
+
+    def test_only_observed_distinctive_variants_are_corrected(self):
+        self.assertEqual(
+            normalize_transcript("Lecerle için HIDRAVU satışlarını göster."),
+            "L'CARLIE için HYDRAVIE satışlarını göster.",
+        )
+        self.assertEqual(
+            normalize_transcript("Hızlı kargo ve hidrolik pompa hakkında konuş."),
+            "Hızlı kargo ve hidrolik pompa hakkında konuş.",
+        )
 
 
 if __name__ == "__main__":

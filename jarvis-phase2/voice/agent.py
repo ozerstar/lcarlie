@@ -24,7 +24,7 @@ from faster_whisper import WhisperModel
 from livekit import rtc
 from livekit.agents import Agent, AgentServer, AgentSession, ModelSettings, llm, stt, utils
 from livekit.plugins import silero
-from terminology import whisper_options
+from terminology import normalize_transcript, whisper_options
 
 
 MODEL_PATH = Path(os.environ.get("JARVIS_WHISPER_MODEL", "/opt/lcarlie/jarvis-voice-agent/models/small"))
@@ -49,7 +49,8 @@ def _transcribe(model: WhisperModel, buffer: utils.AudioBuffer) -> str:
     segments, _info = model.transcribe(samples, language="tr", beam_size=1,
                                        best_of=1, condition_on_previous_text=False,
                                        vad_filter=False, **whisper_options())
-    return " ".join(segment.text.strip() for segment in segments).strip()[:2000]
+    text = " ".join(segment.text.strip() for segment in segments).strip()
+    return normalize_transcript(text)[:2000]
 
 
 class TurkishWhisper(stt.STT):
