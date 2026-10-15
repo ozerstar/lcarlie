@@ -15,6 +15,6 @@ def memory_host() -> str | None:
     SSH alias `lcarlie` -- an alias that does not resolve *on* the server, so
     both failed with "Could not resolve hostname lcarlie" when run there.
     """
-    if os.environ.get("JARVIS_MEMORY_TRANSPORT") == "local-docker":
+    if os.environ.get("JARVIS_MEMORY_TRANSPORT") in ("local-docker", "direct-pg"):
         return None
     return os.environ.get("JARVIS_SSH_HOST", "lcarlie")

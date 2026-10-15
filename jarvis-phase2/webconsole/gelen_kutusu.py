@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from jarvis.db_transport import run as db_run
 
 from jarvis import devir
 
@@ -38,7 +39,7 @@ def _tirnak(deger) -> str:
 
 def _calistir(sql: str) -> list:
     try:
-        p = subprocess.run(
+        p = db_run(
             ["docker", "exec", "-i", KAP, "psql", "-X", "-q", "-At",
              "-v", "ON_ERROR_STOP=1", "-U", "n8n", "-d", "n8n", "-f", "-"],
             input=sql, capture_output=True, text=True, timeout=45, check=False)
