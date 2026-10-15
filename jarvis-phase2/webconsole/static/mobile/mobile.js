@@ -99,11 +99,14 @@ $('login-form').addEventListener('submit', async (event) => {
     state.csrf = body.csrf_token;
     $('password').value = '';
     showApp();
-  } catch (error) { $('login-error').textContent = error.message || 'Giriş yapılamadı.'; $('login-error').hidden = false; }
+  } catch (error) { $('login-error').textContent = friendlyMessage(error.message, 'Giriş yapılamadı.'); $('login-error').hidden = false; }
 });
 
 $('logout').addEventListener('click', async () => {
   stopAudio();
+  forgetChatTurn();
+  state.chatRows = {work: [], personal: []};
+  $('messages').replaceChildren();
   try { await request('/api/logout', { method: 'POST' }); } catch (_) { /* session still expires */ }
   state.csrf = null;
   showLogin();
