@@ -92,5 +92,69 @@ class YalnizMUSTERI_MESAJI(unittest.TestCase):
         self.assertIsNone(urun_atama.konusmada_urun([], ANAHTAR))
 
 
+class YAZIM_HATASI_TOLERANSI(unittest.TestCase):
+    """🔴 Sahip "kinesis" yerine "kimesis" yazdi ve urun atanmadi (15.10.2026).
+    Musteriler de duzgun yazmaz. Ama bulanik esleme yanlis urunu secerse
+    Jarvis BASKA bir urunun fiyatini guvenle soyler -- en pahali hata.
+
+    Katalogdaki 36 anahtarin birbirine uzakligi olculdu: esik 1'de carpisma
+    YOK, esik 2'de babysoft/babysol ve calmaros/calmoris karisiyor."""
+
+    def test_bir_harf_hatasi_duzelir(self):
+        for yanlis in ("hydravve", "hydrarie", "hydrabie"):
+            with self.subTest(yanlis=yanlis):
+                self.assertEqual(
+                    urun_atama.metinde_urun("%s fiyati" % yanlis, ANAHTAR),
+                    "HYDRAVIE | Yoğun Nemlendirici Yüz Kremi")
+
+    def test_tam_yazim_hala_calisir(self):
+        self.assertEqual(urun_atama.metinde_urun("hydravie fiyati", ANAHTAR),
+                         "HYDRAVIE | Yoğun Nemlendirici Yüz Kremi")
+
+    def test_IKI_HARF_hatasi_atanmaz(self):
+        # Esik 1: iki harf sapma artik "hangi urun" belirsizligidir.
+        self.assertIsNone(urun_atama.metinde_urun("hydrxxie fiyati", ANAHTAR))
+
+    def test_KISA_kelimede_bulanik_KAPALI(self):
+        # 6 harften kisa kelimede bir harf fark cok seye benzer.
+        self.assertIsNone(urun_atama.metinde_urun("babi fiyati", ANAHTAR))
+
+    def test_iki_urune_esit_uzaklik_atanmaz(self):
+        sozluk = urun_atama.anahtarlar(["ALFABET (A)", "ALFABEX (B)"])
+        self.assertIsNone(urun_atama.metinde_urun("alfabez fiyati", sozluk))
+
+
+class ONEK_CAKISMASI(unittest.TestCase):
+    """🔴 "BABY RESCUE" ilk kelimesi "baby"; BABYDENT/BABYSOFT/BABYSOL'un
+    hepsinin on eki. Boyle birakilinca "babysoft fiyati" IKI anahtarla
+    eslesip belirsiz sayiliyor ve CAKISMAYAN urun de kayboluyordu."""
+
+    def test_onek_olan_anahtar_uzatilir(self):
+        sozluk = urun_atama.anahtarlar([
+            "BABY RESCUE (Anlık Yatıştırıcı)", "BABYSOFT (Bebek Vücut Losyonu)",
+            "BABYSOL (Güneş Kremi)"])
+        self.assertNotIn("baby", sozluk)
+        self.assertIn("baby rescue", sozluk)
+        self.assertIn("babysoft", sozluk)
+
+    def test_cakismayan_urun_kaybolmaz(self):
+        sozluk = urun_atama.anahtarlar([
+            "BABY RESCUE (Anlık Yatıştırıcı)", "BABYSOFT (Bebek Vücut Losyonu)"])
+        self.assertEqual(urun_atama.metinde_urun("babysoft fiyati", sozluk),
+                         "BABYSOFT (Bebek Vücut Losyonu)")
+
+
+class AYIRAC_TEMIZLIGI(unittest.TestCase):
+    def test_nokta_ayiraci(self):
+        sozluk = urun_atama.anahtarlar(["VIREON FOR MEN · Erkek Bakım Kremi"])
+        self.assertIn("vireon", sozluk)
+
+    def test_arti_isareti_anahtara_girmez(self):
+        sozluk = urun_atama.anahtarlar(["KINESIS + (Sporcu Bakım Kremi)"])
+        self.assertIn("kinesis", sozluk)
+        self.assertEqual(urun_atama.metinde_urun("kimesis fiyati", sozluk),
+                         "KINESIS + (Sporcu Bakım Kremi)")
+
+
 if __name__ == "__main__":
     unittest.main()
