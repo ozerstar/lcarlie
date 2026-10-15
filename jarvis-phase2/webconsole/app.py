@@ -1001,6 +1001,10 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(500, {"error": "internal error"})
 
     def do_POST(self) -> None:  # noqa: N802
+        # Several routes reject before reading their JSON body. Closing after
+        # each POST prevents leftover bytes from becoming a phantom request
+        # and leaking into the HTTP error log.
+        self.close_connection = True
         parsed = urlparse(self.path)
         try:
             if parsed.path == meta_webhook.WEBHOOK_PATH:
