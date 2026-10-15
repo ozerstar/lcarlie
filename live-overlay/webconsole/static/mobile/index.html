@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#101923">
+  <meta name="theme-color" content="#f1f5f3">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>L’CARLIÉ Jarvis</title>
@@ -14,12 +14,13 @@
   <link rel="stylesheet" href="/mobile/experience.css?v=1">
   <link rel="stylesheet" href="/mobile/drive.css?v=1">
   <link rel="stylesheet" href="/mobile/personal.css?v=1">
-  <script defer src="/mobile/mobile.js?v=18"></script>
+  <link rel="stylesheet" href="/mobile/atelier.css?v=1">
+  <script defer src="/mobile/mobile.js?v=19"></script>
 </head>
 <body>
   <main class="shell">
     <header class="header">
-      <div class="brand"><span class="brand-icon" aria-hidden="true">J</span><div><strong>L’CARLIÉ JARVIS</strong><small>Mobil yönetim</small></div></div>
+      <div class="brand"><span class="brand-icon" aria-hidden="true">J</span><div><strong>L’CARLIÉ</strong><small>Jarvis · kişisel çalışma alanı</small></div></div>
       <div class="header-actions"><span id="status" class="status">Bağlanıyor</span><button id="logout" class="text-button" hidden>Çıkış</button></div>
     </header>
 
@@ -44,13 +45,13 @@
         <button type="button" data-tab="more"><span class="tab-icon" aria-hidden="true">⋯</span>Diğer</button>
       </nav>
       <section id="home-panel" class="tab-panel">
-        <div class="intro home-intro"><span class="eyebrow">L’CARLIÉ / JARVIS</span><h1>Bugün neler oluyor?</h1><p>Önce önemli işler, sonra ayrıntılar.</p></div>
+        <div class="intro home-intro"><span class="eyebrow">Günlük bakış</span><h1>Bugün, tek bakışta.</h1><p>Önemli olanları burada toplayalım.</p></div>
         <div id="home-summary" class="home-status" role="status">
           <span class="home-status-dot" aria-hidden="true"></span>
           <span><strong id="home-system-state">Durum yükleniyor…</strong><small id="home-memory-state">Şirket hafızası kontrol ediliyor</small></span>
         </div>
         <div class="home-actions">
-          <button type="button" class="home-action-main" data-tab="chat"><span aria-hidden="true">✦</span><strong>Jarvis’e sor</strong><small>Yaz veya sesle konuş</small></button>
+          <button type="button" class="home-action-main" data-tab="chat"><span aria-hidden="true">✦</span><strong>Asistana yaz</strong><small>Yaz veya sesle konuş</small></button>
           <button type="button" class="home-action-approval" data-tab="approvals"><span>Onay bekleyenler</span><strong id="home-approval-count">—</strong><small>Önerileri incele</small></button>
         </div>
         <section class="mobile-form card" aria-label="Günlük özet"><h2>Günlük özet</h2><div id="daily-summary">Özet hazırlanıyor…</div></section>
@@ -68,7 +69,7 @@
         <p class="help">Bu bağlantılar tam web panelindeki bölümleri açar.</p>
       </section>
       <section id="chat-panel" class="tab-panel" hidden>
-      <div class="intro"><span class="eyebrow">L’CARLIÉ · TÜRKÇE SES</span><h1>Nasıl yardımcı olayım?</h1><p>Konuşmak istediğiniz alanı seçin.</p></div>
+      <div class="intro"><span class="eyebrow">Asistan</span><h1>Birlikte halledelim.</h1><p>Önce konuşmak istediğin alanı seç.</p></div>
       <div class="chat-mode" role="group" aria-label="Sohbet alanı">
         <button type="button" class="active" data-chat-mode="work" aria-pressed="true">İş</button>
         <button type="button" data-chat-mode="personal" aria-pressed="false">Kişisel</button>
@@ -93,7 +94,7 @@
         <form id="person-form" class="mobile-form card"><h2>Tanıdığım kişiler</h2><p class="help">Yalnızca paylaşmak istediğin bilgileri ekle. Kişileri sonradan silebilirsin.</p><label>Adı<input id="person-name" maxlength="80" required></label><label>Yakınlığı<input id="person-relationship" maxlength="80" placeholder="Örn. kardeşim, arkadaşım" required></label><label>Hatırlanacak bilgi<input id="person-detail" maxlength="160" placeholder="İsteğe bağlı"></label><button type="submit" class="secondary">Kişiyi hatırla</button></form>
         </section>
         <section class="personal-pane" data-personal-pane="google" hidden>
-        <div class="personal-settings-head"><span class="eyebrow">KİŞİSEL ASİSTAN</span><h2>Ayarlar</h2><p>Bağlantılarını ve dışarıya yönelik işlemleri buradan yönet.</p></div>
+        <div class="personal-settings-head"><span class="eyebrow">Kişisel asistan</span><h2>Ayarlar</h2><p>Bağlantılarını ve dışarıya yönelik işlemleri buradan yönet.</p></div>
         <section class="mobile-form card" aria-label="Google uygulamaları"><h2>Google uygulamalarım</h2><p id="google-status">Bağlantı kontrol ediliyor…</p><button id="google-connect" type="button" class="secondary">Google hesabını bağla</button><button id="google-disconnect" type="button" class="secondary" hidden>Bağlantıyı kaldır</button><p class="help">Jarvis yalnızca izin verdiğin Takvim, E-posta ve Drive işlemlerini yapabilir. Takvime ekleme ve e-posta gönderme ayrıca onay ister.</p></section>
         <details class="personal-setting"><summary>Takvim <span>Etkinlikler ve yeni kayıt</span></summary>
         <form id="calendar-form" class="mobile-form card" hidden><h2>Takvime etkinlik ekle</h2><label>Başlık<input id="calendar-title" maxlength="160" required></label><label>Başlangıç<input id="calendar-start" type="datetime-local" required></label><label>Bitiş<input id="calendar-end" type="datetime-local" required></label><button type="submit" class="secondary">Önce bana göster</button><div id="calendar-list"></div></form>
@@ -116,6 +117,17 @@
         <button data-action="maps"><span>⌖</span> Harita</button>
         <button data-action="shortcut"><span>✦</span> Kestirme</button>
       </section>
+      <section id="chat-starters" class="chat-starters" aria-label="Başlangıç önerileri">
+        <p>Buradan başlayabilirsin</p>
+        <div data-starter-mode="work">
+          <button type="button" data-starter="Bugün hangi işler öncelikli?">Bugünün öncelikleri</button>
+          <button type="button" data-starter="Onay bekleyenleri kısaca açıkla.">Bekleyen kararlar</button>
+        </div>
+        <div data-starter-mode="personal" hidden>
+          <button type="button" data-starter="Bugünkü planımı özetle.">Bugünkü planım</button>
+          <button type="button" data-starter="Hatırlatıcılarımı göster.">Hatırlatıcılarım</button>
+        </div>
+      </section>
       <section id="messages" class="messages" aria-label="Sohbet" aria-live="polite"></section>
       <form id="chat-form" class="composer">
         <input id="chat-input" placeholder="İş için Jarvis’e yaz…" aria-label="Jarvis'e yaz" autocomplete="off" required>
@@ -125,8 +137,8 @@
       <p id="chat-help" class="help">Sesli yanıtı dinlemek için cevabın yanındaki oynat düğmesine dokun.</p>
       </section>
       <section id="jobs-panel" class="tab-panel" hidden>
-        <div class="intro"><span class="eyebrow">GÖREV AKIŞI</span><h1>İşler</h1><p id="job-count">Yükleniyor…</p></div>
-        <div class="intro"><span class="eyebrow">PLANLI ÇALIŞMALAR</span><h2>Jarvis neleri inceledi?</h2><p id="orchestration-count">Yükleniyor…</p><p>Jarvis burada yaptığı analizleri gösterir. Hazırladığı öneri taslağı kendiliğinden onay listesine eklenmez.</p></div>
+        <div class="intro"><span class="eyebrow">Görevler</span><h1>İşler</h1><p id="job-count">Yükleniyor…</p></div>
+        <div class="intro"><span class="eyebrow">Planlı çalışmalar</span><h2>Jarvis neleri inceledi?</h2><p id="orchestration-count">Yükleniyor…</p><p>Jarvis burada yaptığı analizleri gösterir. Hazırladığı öneri taslağı kendiliğinden onay listesine eklenmez.</p></div>
         <div id="orchestration-list" class="card-list" aria-live="polite"></div>
         <form id="job-form" class="mobile-form card">
           <label>Yeni iş<textarea id="job-request" rows="3" placeholder="Jarvis ne yapsın?" required></textarea></label>
@@ -136,7 +148,7 @@
         <div id="job-list" class="card-list"></div>
       </section>
       <section id="approvals-panel" class="tab-panel" hidden>
-        <div class="intro"><span class="eyebrow">İNSAN KARARI</span><h1>Bekleyen onaylar</h1><p>Ne önerildiğini ve riskini okumadan onay verme.</p></div>
+        <div class="intro"><span class="eyebrow">Kararların</span><h1>Bekleyen onaylar</h1><p>Ne önerildiğini ve riskini okuyup karar ver.</p></div>
         <div id="approval-list" class="card-list"></div>
       </section>
       <section id="creative-panel" class="tab-panel" hidden>
@@ -144,13 +156,13 @@
         <div id="creative-list" class="creative-list" aria-live="polite"></div>
       </section>
       <section id="system-panel" class="tab-panel" hidden>
-        <div class="intro"><span class="eyebrow">CANLI DURUM</span><h1>Jarvis durumu</h1><p>Sunucu ve iş akışı özeti.</p></div>
+        <div class="intro"><span class="eyebrow">Canlı durum</span><h1>Jarvis durumu</h1><p>Sunucu ve iş akışı özeti.</p></div>
         <div id="system-list" class="card-list"></div>
         <button id="refresh-system" type="button" class="secondary">Yenile</button>
         <a class="full-console" href="/">Tam yönetim panelini aç</a>
       </section>
       <section id="settings-panel" class="tab-panel" hidden>
-        <div class="intro"><span class="eyebrow">HESAP</span><h1>Parolayı değiştir</h1><p>Bu parola mobil ve web panelinde ortaktır.</p></div>
+        <div class="intro"><span class="eyebrow">Hesap</span><h1>Parolayı değiştir</h1><p>Bu parola mobil ve web panelinde ortaktır.</p></div>
         <form id="password-form" class="mobile-form card">
           <label>Mevcut parola<input id="current-password" type="password" autocomplete="current-password" required></label>
           <label>Yeni parola<input id="new-password" type="password" autocomplete="new-password" minlength="6" required></label>
@@ -158,7 +170,7 @@
           <button class="primary" type="submit">Parolayı değiştir</button>
           <p id="password-result" role="status" hidden></p>
         </form>
-        <div class="intro"><span class="eyebrow">TELEFON</span><h2>Bildirimler</h2><p>Onaylar, hatırlatıcılar ve tamamlanan işler için telefonuna bildirim gönder.</p></div>
+        <div class="intro"><span class="eyebrow">Telefon</span><h2>Bildirimler</h2><p>Onaylar, hatırlatıcılar ve tamamlanan işler için telefonuna bildirim gönder.</p></div>
         <div class="mobile-form card">
           <p id="push-status" role="status">Bildirim durumu kontrol ediliyor…</p>
           <button id="push-enable" class="primary" type="button">Bildirimleri aç</button>
@@ -168,7 +180,7 @@
         </div>
       </section>
       <section id="more-panel" class="tab-panel" hidden>
-        <div class="intro"><span class="eyebrow">DİĞER</span><h1>Araçlar ve hesap</h1><p>Sistem durumunu gör veya hesabını yönet.</p></div>
+        <div class="intro"><span class="eyebrow">Diğer</span><h1>Araçlar ve hesap</h1><p>Sistem durumunu gör veya hesabını yönet.</p></div>
         <div class="more-links">
           <button type="button" data-tab="creative"><strong>Görseller</strong><small>Üretilen çalışmalar ve inceleme kararları</small></button>
           <button type="button" data-tab="system"><strong>Sistem durumu</strong><small>Bağlantı, hafıza ve sunucu</small></button>
