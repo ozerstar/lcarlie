@@ -30,6 +30,11 @@ os.environ["JARVIS_STATE_DIR"] = str(TMP_STATE)
 os.environ["JARVIS_WEB_INSECURE_COOKIES"] = "1"  # tests run over plain HTTP
 auth.AUTH_FILE = TMP_STATE / "auth.json"
 
+# The module may already be imported by test_chat_turns during discovery.
+# Keep integration tests out of the live web console's SQLite directory.
+import chat_turns  # noqa: E402
+chat_turns.DB_PATH = TMP_STATE / "chat_turns.sqlite3"
+
 with patch("jarvis.memory.CompanyMemory.__init__", return_value=None), \
      patch("jarvis.operator.OperatorSession.__init__", return_value=None):
     import app  # noqa: E402
