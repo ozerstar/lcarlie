@@ -61,7 +61,7 @@
   async function refresh() {
     if(app.hidden) return;
     const results=await Promise.allSettled([
-      get('/api/isler'),get('/api/proposals'),get('/api/mobile/reminders'),get('/api/satislar'),get('/api/status')
+      get('/api/isler'),get('/api/actions'),get('/api/mobile/reminders'),get('/api/satislar'),get('/api/status')
     ]);
     if(app.hidden) return;
     const data=results.map((r)=>r.status==='fulfilled'?r.value:null);
@@ -89,7 +89,7 @@
     else jobs.isler.slice(0,4).forEach((job)=>{
       const line=document.createElement('div');line.className='ed-row';
       const dot=document.createElement('span');dot.className='ed-dot';
-      const title=document.createElement('span');title.textContent=job.istem||'Başlıksız iş';
+      const title=document.createElement('span');title.textContent=JarvisMetin.jobTitle(job);
       const state=document.createElement('small');state.textContent=({bekleyen:'Sırada',calisan:'Hazırlanıyor',biten:'Bitti',hata:'Kontrol gerekli'})[job.asama]||'Durum bilinmiyor';
       line.append(dot,title,state);jobBox.append(line);
     });
@@ -103,7 +103,7 @@
     const decisions=$('edDecisions');decisions.replaceChildren();
     if(!pending) decisions.innerHTML='<p>Onaylar okunamadı.</p>';
     else if(!pending.length) decisions.innerHTML='<p>Bekleyen karar yok.</p>';
-    else pending.slice(0,3).forEach((p)=>row(decisions,String(p?.payload?.reason||p?.title||'Yeni öneri'),'İncelemek için onaylara git'));
+    else pending.slice(0,3).forEach((p)=>row(decisions,JarvisMetin.safeTitle(p?.payload?.reason||p?.title,'İncelenecek yeni karar'),'İncelemek için onaylara git'));
     $('edSystemState').textContent=status?'Sistem verileri alındı':'Sistem durumu okunamadı';
     document.querySelector('.ed-system-light')?.classList.toggle('is-warn',!status);
   }

@@ -258,15 +258,15 @@
               <text class="olabel" x="310.0" y="446.0" text-anchor="middle"><tspan x="310.0">KREATİF &</tspan><tspan x="310.0" dy="11">MARKA</tspan></text>
             </g>
             <g class="onode" data-dept="CRM,CS,CUSTOMER_INT,RETENTION"
-               data-dept-ad="MÜŞTERİ & CRM"
+               data-dept-ad="MÜŞTERİ İLİŞKİLERİ"
                role="button" tabindex="0"
-               aria-label="MÜŞTERİ & CRM departmanlarını aç">
+               aria-label="MÜŞTERİ İLİŞKİLERİ departmanlarını aç">
               <circle class="ohit" cx="211.3" cy="370.9" r="26"/>
               <line class="ospoke" x1="253.6" y1="312.7" x2="217.1" y2="362.8"/>
               <circle class="opulse" cx="211.3" cy="370.9" r="8"/>
               <circle class="ohalo" cx="211.3" cy="370.9" r="8"/>
               <circle class="odot" cx="211.3" cy="370.9" r="3.4"/>
-              <text class="olabel" x="192.7" y="385.5" text-anchor="end"><tspan x="192.7">MÜŞTERİ</tspan><tspan x="192.7" dy="11">& CRM</tspan></text>
+              <text class="olabel" x="192.7" y="385.5" text-anchor="end"><tspan x="192.7">MÜŞTERİ</tspan><tspan x="192.7" dy="11">İLİŞKİLERİ</tspan></text>
             </g>
             <g class="onode" data-dept="FINANCE"
                data-dept-ad="FİNANS"
@@ -344,7 +344,7 @@
         <h3 class="rp-sub">SERVİSLER</h3>
         <ul class="svc-list" id="svcList"></ul>
 
-        <h3 class="rp-sub">KUYRUK <span class="rp-src">Company Memory</span></h3>
+        <h3 class="rp-sub">KUYRUK <span class="rp-src">Şirket verileri</span></h3>
         <ul class="kv-list" id="queueList"></ul>
 
         <h3 class="rp-sub">BEKLEYEN ONAYLAR <span class="rp-src">operatör kuyruğu</span></h3>
@@ -352,10 +352,10 @@
         <ol id="proposalList" class="proposal-list"></ol>
         <p id="proposalEmpty" class="empty-note" hidden>Bekleyen öneri yok.</p>
 
-        <h3 class="rp-sub">BEKLEYEN ÖNERİLER <span class="rp-src">pending_actions</span></h3>
-        <div class="big-stat"><span id="statProposals" class="big-num">—</span><span class="big-unit">Company Memory kaydı</span></div>
+        <h3 class="rp-sub">BEKLEYEN ÖNERİLER <span class="rp-src">karar bekliyor</span></h3>
+        <div class="big-stat"><span id="statProposals" class="big-num">—</span><span class="big-unit">bekleyen öneri</span></div>
 
-        <h3 class="rp-sub">DOMAIN DURUMU <span class="rp-src" id="domainSrc">plan yok</span></h3>
+        <h3 class="rp-sub">İŞ ALANLARININ DURUMU <span class="rp-src" id="domainSrc">plan yok</span></h3>
         <ul class="svc-list" id="domainStrip"></ul>
 
         <h3 class="rp-sub">HIZLI AKSİYONLAR</h3>
@@ -863,7 +863,7 @@
         <h3 class="kd-baslik">MODEL KADEMELERİ</h3>
         <p class="fm-sub">
           Bir soru sorulduğunda sırayla hangi uca gidildiği. Zincir
-          <strong>API önce</strong> çalışır; yerel kademeler yedektir ve API
+          <strong>Bağlı hizmet önce</strong> çalışır; yerel kademeler yedektir ve hizmet
           ayakta olduğu sürece hiç yoklanmaz. <strong>ATLANDI</strong> bir arıza
           değildir — o kademe hazır olmadığı için hiç denenmemiştir.
         </p>
@@ -949,7 +949,7 @@
              backend reports a per-step status, never a completion ratio. -->
         <section class="exec-section" aria-label="Domain durumu">
           <div class="exec-head">
-            <h3 class="exec-title">DOMAIN DURUMU</h3>
+            <h3 class="exec-title">İŞ ALANLARININ DURUMU</h3>
             <span class="exec-src" id="domainGridSrc">kaynak: —</span>
           </div>
           <div class="dom-grid" id="domainGrid"></div>
@@ -1232,8 +1232,9 @@
 </div>
 
 <script src="/vendor/leaflet/leaflet.js"></script>
-  <script src="/app.js?v=15"></script>
-  <script src="/desktop-editorial.js?v=1"></script>
+  <script src="/display-text.js?v=1"></script>
+  <script src="/app.js?v=16"></script>
+  <script src="/desktop-editorial.js?v=2"></script>
   <script src="/interior.js?v=2"></script>
 </body>
 </html>

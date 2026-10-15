@@ -1125,23 +1125,8 @@ function addApprovalLine(container, text, className = '') {
   return line;
 }
 
-const CATALOG_SECTIONS = {
-  ritual: 'Ritüel', bebek: 'Bebek', mahrem: 'Mahrem bakım', bariyer: 'Cilt bariyeri',
-  vucut: 'Vücut', yuz: 'Yüz', kapak: 'Kapak',
-};
-
 function jobDisplay(job) {
-  const id = String(job.id || '');
-  const request = String(job.istem || '').trim();
-  if (String(job.isteyen || '').startsWith('katalog/bolum-acilisi')) {
-    const section = CATALOG_SECTIONS[id.replace(/^ktb?-/, '')];
-    return {title: section ? `Katalog bölüm görseli · ${section}` : 'Katalog bölüm görseli',
-      source: 'Katalog çalışması', technical: request};
-  }
-  const englishPrompt = /\b(?:extreme macro|editorial|soft light|continuous surface|photorealistic|render)\b/i.test(request);
-  return {title: englishPrompt ? `Görsel hazırlama işi${id ? ` · ${id}` : ''}` : request || 'İş',
-    source: job.isteyen === 'mobil-operator' ? 'Telefondan verildi' : '',
-    technical: englishPrompt ? request : ''};
+  return {title: JarvisMetin.jobTitle(job), source: JarvisMetin.source(job)};
 }
 
 async function loadJobs() {
@@ -1155,12 +1140,6 @@ async function loadJobs() {
       const phase = {bekleyen: 'Sırada', calisan: 'Hazırlanıyor', biten: 'Tamamlandı', hata: 'Tamamlanamadı'}[job.asama] || 'Durum belirlenemedi';
       const display = jobDisplay(job);
       const card = mobileCard(display.title, phase, display.source);
-      if (display.technical) {
-        const detail = document.createElement('details');
-        const summary = document.createElement('summary'); summary.textContent = 'Özgün görev metni';
-        const original = document.createElement('p'); original.textContent = display.technical;
-        detail.append(summary, original); card.append(detail);
-      }
       list.append(card);
     }
     if (!list.children.length) empty(list, 'Kuyrukta iş yok.');
@@ -1171,6 +1150,10 @@ const ORCHESTRATION_STEPS = {
   internal_data_analysis: 'Şirket verileri incelendi',
   sales_analysis: 'Satış verileri incelendi',
   advertising_analysis: 'Reklam sonuçları incelendi',
+  ecommerce_analysis: 'E-ticaret verileri incelendi',
+  crm_analysis: 'Müşteri ilişkileri incelendi',
+  operations_analysis: 'Operasyon verileri incelendi',
+  finance_analysis: 'Finans verileri incelendi',
   evidence_fusion: 'Bulgular karşılaştırıldı',
   red_team_review: 'Bulguların zayıf noktaları kontrol edildi',
   human_review_proposal: 'İncelenmek üzere öneri taslağı hazırlandı',
@@ -1218,7 +1201,7 @@ async function loadOrchestration() {
         INTERRUPTED: 'Çalışma yarıda kalmış olabilir',
         UNVERIFIED: 'Analiz bitti; bazı bulguların kaynağı eksik',
       }[run.status] || 'Durum kontrol edilemedi';
-      const card = mobileCard(run.request || 'Planlı çalışma', statusText, orchestrationDate(run.started_at));
+      const card = mobileCard(JarvisMetin.safeTitle(run.request, 'Planlı çalışma'), statusText, orchestrationDate(run.started_at));
       const detail = document.createElement('details');
       const summary = document.createElement('summary'); summary.textContent = `Neler yapıldı? (${(run.steps || []).length} adım)`;
       const steps = document.createElement('ol');

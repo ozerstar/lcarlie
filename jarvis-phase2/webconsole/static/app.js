@@ -334,11 +334,11 @@ function renderServices(body) {
   const memoryOk = !!(body.company_memory && body.company_memory.healthy);
   const contract = body.action_firewall ? body.action_firewall.contract_valid : null;
   const rows = [
-    ['Company Memory', memoryOk ? ['SAĞLIKLI', 's-ok'] : ['HATA', 's-error']],
-    ['Action Firewall', contract === null || contract === undefined
+    ['Şirket verileri', memoryOk ? ['SAĞLIKLI', 's-ok'] : ['HATA', 's-error']],
+    ['İşlem güvenliği', contract === null || contract === undefined
       ? ['BİLİNMİYOR', 's-warn'] : (contract ? ['SÖZLEŞME GEÇERLİ', 's-ok'] : ['GEÇERSİZ', 's-error'])],
-    ['AI Worker', flag(health && health.ai_worker_enabled, 'AÇIK', 'KAPALI', 's-ok', 's-off')],
-    ['Action Worker', flag(health && health.action_worker_enabled, 'AÇIK', 'KAPALI', 's-ok', 's-off')],
+    ['Yapay zekâ hizmeti', flag(health && health.ai_worker_enabled, 'AÇIK', 'KAPALI', 's-ok', 's-off')],
+    ['İşlem hizmeti', flag(health && health.action_worker_enabled, 'AÇIK', 'KAPALI', 's-ok', 's-off')],
     ['Dış İşlem Önerileri', body.external_proposals_enabled ? ['ONAYA AÇIK', 's-warn'] : ['KAPALI', 's-off']],
     ['Otomatik Dış İşlem', body.external_actions_enabled ? ['AÇIK', 's-error'] : ['KAPALI', 's-ok']],
   ];
@@ -642,13 +642,34 @@ const ACCEPTANCE_TEXT = {
   external_capability_required: 'Dış yetenek gerekir',
 };
 
+const ORCHESTRATION_STEP_TEXT = {
+  internal_data_analysis: 'Şirket verileri incelendi', sales_analysis: 'Satışlar incelendi',
+  advertising_analysis: 'Reklam sonuçları incelendi', evidence_fusion: 'Bulgular karşılaştırıldı',
+  ecommerce_analysis: 'E-ticaret verileri incelendi', crm_analysis: 'Müşteri ilişkileri incelendi',
+  operations_analysis: 'Operasyon verileri incelendi', finance_analysis: 'Finans verileri incelendi',
+  red_team_review: 'Bulguların zayıf yönleri kontrol edildi',
+  human_review_proposal: 'İnsan incelemesi için öneri hazırlandı',
+  action_plan: 'Yapılacaklar için öneri hazırlandı',
+  capability_analysis: 'Sistemin yapabildikleri kontrol edildi',
+  system_status: 'Sistem durumu kontrol edildi',
+  problem_opportunity_analysis: 'Sorunlar ve fırsatlar incelendi',
+};
+function orchestrationStepName(code) {
+  return ORCHESTRATION_STEP_TEXT[code] || (String(code || '').endsWith('_analysis')
+    ? 'İlgili veriler incelendi' : 'Çalışma adımı');
+}
+function orchestrationDate(value) {
+  const date = new Date(value);
+  return value && !Number.isNaN(date.getTime()) ? date.toLocaleString('tr-TR') : 'Tarih belirtilmemiş';
+}
+
 async function refreshOrchestration() {
   const list = qs('orchestrationList');
   if (!list) return;
   const { ok, body, status } = await api('/api/orchestration');
   if (!ok || !body) {
     qs('orchestrationCount').textContent = 'okunamadı';
-    list.innerHTML = `<li class="f-sistem">Çalışmalar okunamadı (HTTP ${escapeHtml(String(status))}).</li>`;
+    list.innerHTML = '<li class="f-sistem">Çalışmalar şu anda yüklenemedi. Biraz sonra tekrar deneyin.</li>';
     return;
   }
   qs('orchestrationCount').textContent = `son ${body.total} çalışma · ${body.needs_attention} inceleme`;
@@ -657,15 +678,15 @@ async function refreshOrchestration() {
       const evidence = step.evidence_state === 'MISSING' ? ' · Kanıt eksik' :
         step.evidence_state === 'PRESENT' ? ` · ${step.evidence_count} kaynak` : '';
       const acceptance = step.acceptance_status === 'PASSED' ? ' · Teslim doğrulandı' :
-        step.acceptance_status === 'FAILED' ? ` · Kabul edilmedi: ${(step.failed_criteria || []).map((criterion) => ACCEPTANCE_TEXT[criterion] || criterion).join(', ')}` : '';
-      return `<li>${escapeHtml(step.step_id)} · ${escapeHtml(step.capability)}: `
-        + `${escapeHtml(ORCHESTRATION_STATUS[step.status] || step.status)}${escapeHtml(evidence)}`
+        step.acceptance_status === 'FAILED' ? ` · Kabul edilmedi: ${(step.failed_criteria || []).map((criterion) => ACCEPTANCE_TEXT[criterion] || 'Kontrol koşulu sağlanmadı').join(', ')}` : '';
+      return `<li>${escapeHtml(orchestrationStepName(step.capability) || 'Çalışma adımı')}: `
+        + `${escapeHtml(ORCHESTRATION_STATUS[step.status] || 'Durum belirlenemedi')}${escapeHtml(evidence)}`
         + escapeHtml(acceptance)
-        + `${step.reason ? ` — ${escapeHtml(step.reason)}` : ''}</li>`;
+        + `${step.reason ? ` — ${escapeHtml(yonetimAciklama(step.reason))}` : ''}</li>`;
     }).join('');
-    return `<li class="f-sistem"><div class="f-text"><strong>${escapeHtml(run.request || run.plan_id)}</strong>`
-      + `<div>${escapeHtml(ORCHESTRATION_STATUS[run.status] || run.status)} · ${escapeHtml(run.run_id)}`
-      + ` · ${escapeHtml(run.started_at || '')}</div>`
+    return `<li class="f-sistem"><div class="f-text"><strong>${escapeHtml(JarvisMetin.safeTitle(run.request, 'Planlı çalışma'))}</strong>`
+      + `<div>${escapeHtml(ORCHESTRATION_STATUS[run.status] || 'Durum belirlenemedi')}`
+      + ` · ${escapeHtml(orchestrationDate(run.started_at))}</div>`
       + `<details><summary>${(run.steps || []).length} adımın durumu</summary><ol>${steps}</ol></details></div></li>`;
   }).join('') || '<li class="f-sistem">Henüz kayıtlı planlı çalışma yok.</li>';
 }
@@ -924,6 +945,13 @@ function planChip(label, value, cls) {
        + `<span class="plan-chip-value">${escapeHtml(String(value))}</span></span>`;
 }
 
+const PLAN_MODE_TEXT = {FAST:'Hızlı', SMART:'Ayrıntılı', DEEP:'Derinlemesine'};
+const PLAN_RISK_TEXT = {LOW:'Düşük', MEDIUM:'Orta', HIGH:'Yüksek'};
+const PLAN_CLASS_TEXT = {
+  LOCAL_DETERMINISTIC:'Yerel işlem', MODEL_ASSISTED:'Yapay zekâ destekli',
+  CODING_SANDBOX:'Denetimli kod çalışması',
+};
+
 function renderPlanSteps(plan) {
   if (!plan.steps.length) return '<p class="empty-note">Bu talep için adım üretilmedi.</p>';
   return plan.parallel_groups.map((group, index) => {
@@ -934,18 +962,17 @@ function renderPlanSteps(plan) {
       if (step.capability_status === 'DATA_UNAVAILABLE') {
         const why = (step.arguments && step.arguments.unavailable_reason) || '';
         marks.push('<span class="plan-flag plan-flag-blocked">VERİ YOK</span>'
-                 + (why ? `<span class="plan-unavailable">${escapeHtml(why)}</span>` : ''));
+                 + (why ? `<span class="plan-unavailable">${escapeHtml(yonetimAciklama(why))}</span>` : ''));
       } else if (blocked) {
-        marks.push(`<span class="plan-flag plan-flag-blocked">BLOKE: ${escapeHtml(step.blocked_by.join(', '))}</span>`);
+        marks.push('<span class="plan-flag plan-flag-blocked">Gerekli bağlantı hazır değil</span>');
       }
       if (step.requires_human_origination) marks.push('<span class="plan-flag plan-flag-human">İNSAN BAŞLATIR</span>');
       if (step.produces_action) marks.push('<span class="plan-flag">ONAY GEREKİR</span>');
-      const deps = step.depends_on.length ? ` ← ${escapeHtml(step.depends_on.join(', '))}` : '';
+      const deps = step.depends_on.length ? ' · Önceki adıma bağlı' : '';
       return `<li class="plan-step${blocked ? ' is-blocked' : ''}">
-        <div class="plan-step-head"><strong>${escapeHtml(step.step_id)}</strong> ${escapeHtml(step.capability)}<span class="plan-deps">${deps}</span></div>
-        <div class="plan-step-desc">${escapeHtml(step.description)}</div>
-        <div class="plan-step-target">${escapeHtml(step.target)}</div>
-        ${(step.acceptance_criteria || []).length ? `<div class="plan-step-target">Teslim koşulları: ${step.acceptance_criteria.map((criterion) => escapeHtml(ACCEPTANCE_TEXT[criterion] || criterion)).join(' · ')}</div>` : ''}
+        <div class="plan-step-head"><strong>${escapeHtml(orchestrationStepName(step.capability))}</strong><span class="plan-deps">${deps}</span></div>
+        <div class="plan-step-desc">${escapeHtml(JarvisMetin.safeTitle(step.description, 'Bu adım için ayrıntı hazırlanıyor.'))}</div>
+        ${(step.acceptance_criteria || []).length ? `<div class="plan-step-target">Teslim koşulları: ${step.acceptance_criteria.map((criterion) => escapeHtml(ACCEPTANCE_TEXT[criterion] || 'Sonuç kontrolü')).join(' · ')}</div>` : ''}
         ${marks.length ? `<div class="plan-flags">${marks.join(' ')}</div>` : ''}
       </li>`;
     }).join('');
@@ -956,28 +983,27 @@ function renderPlanSteps(plan) {
 
 function renderPlan(plan) {
   const blockedCaps = [...new Set(plan.steps.flatMap((s) => s.blocked_by || []))];
-  const statusText = PLAN_STATUS_TEXT[plan.status] || plan.status;
+  const statusText = PLAN_STATUS_TEXT[plan.status] || 'Planın durumu belirlenemedi';
   const chips = [
-    planChip('MOD', plan.mode, `plan-mode-${plan.mode}`),
-    planChip('RİSK', plan.risk, `risk-badge risk-${plan.risk}`),
-    planChip('NİYET', plan.intent),
-    planChip('SINIF', plan.estimated_execution_class),
+    planChip('ÇALIŞMA TÜRÜ', PLAN_MODE_TEXT[plan.mode] || 'Belirlenemedi', `plan-mode-${plan.mode}`),
+    planChip('RİSK', PLAN_RISK_TEXT[plan.risk] || 'Belirlenemedi', `risk-badge risk-${plan.risk}`),
+    planChip('KONU', orchestrationStepName(String(plan.intent || '').replace(/^DIAGNOSE_/, '').toLowerCase())),
+    planChip('İŞLEM TÜRÜ', PLAN_CLASS_TEXT[plan.estimated_execution_class] || 'Belirlenemedi'),
     planChip('TAZE ARAŞTIRMA', plan.requires_fresh_research ? 'GEREKLİ' : 'GEREKMİYOR'),
     planChip('ONAY', plan.approval_required ? 'GEREKLİ' : 'GEREKMİYOR'),
   ].join('');
   return `
-    <h3>Yürütme Planı <span class="risk-badge risk-${escapeHtml(plan.risk)}">${escapeHtml(plan.status)}</span></h3>
-    <p class="plan-request">${escapeHtml(plan.request)}</p>
-    <p class="plan-status-text">${escapeHtml(statusText)}${plan.reason ? ' — ' + escapeHtml(plan.reason) : ''}</p>
+    <h3>Çalışma planı <span class="risk-badge risk-${escapeHtml(plan.risk)}">${escapeHtml(statusText)}</span></h3>
+    <p class="plan-request">${escapeHtml(JarvisMetin.safeTitle(plan.request, 'Planlı çalışma'))}</p>
+    <p class="plan-status-text">${escapeHtml(statusText)}${plan.reason ? ' — ' + escapeHtml(yonetimAciklama(plan.reason)) : ''}</p>
     <div class="plan-chips">${chips}</div>
     ${renderPlanSteps(plan)}
     <dl class="plan-meta">
-      <dt>Gerekli yetenekler</dt><dd>${escapeHtml(plan.required_capabilities.join(', ') || '—')}</dd>
-      <dt>Bloke yetenekler</dt><dd>${blockedCaps.length ? `<span class="plan-flag plan-flag-blocked">${escapeHtml(blockedCaps.join(', '))}</span>` : '—'}</dd>
-      <dt>Gerekli iç veri</dt><dd>${escapeHtml(plan.required_internal_data.join(', ') || '—')}</dd>
-      <dt>Plan kimliği</dt><dd>${escapeHtml(plan.plan_id)}</dd>
+      <dt>Gerekli bağlantılar</dt><dd>${plan.required_capabilities.length ? `${plan.required_capabilities.length} bağlantı` : 'Ek bağlantı gerekmiyor'}</dd>
+      <dt>Hazır olmayanlar</dt><dd>${blockedCaps.length ? `${blockedCaps.length} bağlantı hazır değil` : 'Yok'}</dd>
+      <dt>Gerekli şirket verileri</dt><dd>${plan.required_internal_data.length ? `${plan.required_internal_data.length} veri kaynağı` : 'Ek veri gerekmiyor'}</dd>
     </dl>
-    <p class="plan-note">Bu yalnızca bir plandır. Hiçbir adım çalıştırılmadı; model çağrısı yapılmadı (model_calls=${escapeHtml(String(plan.model_calls))}).</p>
+    <p class="plan-note">Bu yalnızca bir plandır. Hiçbir adım çalıştırılmadı.</p>
   `;
 }
 
@@ -1368,14 +1394,14 @@ const DOMAIN_CARDS = [
   { id: 'sales', label: 'SATIŞ' },
   { id: 'ecommerce', label: 'E-TİCARET' },
   { id: 'advertising', label: 'REKLAM' },
-  { id: 'crm', label: 'CRM' },
+  { id: 'crm', label: 'MÜŞTERİ' },
   { id: 'operations', label: 'OPERASYON' },
 ];
 const DOMAIN_CAPS = DOMAIN_CARDS.map((d) => `${d.id}_analysis`);
 
 const EXEC_STAGES = [
   { id: 'plan', label: 'PLAN', caps: [] },
-  { id: 'domains', label: '5 DOMAIN', caps: DOMAIN_CAPS.concat(['internal_data_analysis']) },
+  { id: 'domains', label: '5 İŞ ALANI', caps: DOMAIN_CAPS.concat(['internal_data_analysis']) },
   { id: 'fusion', label: 'KANIT BİRLEŞTİRME', caps: ['evidence_fusion'] },
   { id: 'signals', label: 'PROBLEM / FIRSAT', caps: ['problem_opportunity_analysis'] },
   { id: 'redteam', label: 'KANIT DENETİMİ', caps: ['red_team_review'] },
@@ -1490,7 +1516,7 @@ function stageCell(stage) {
 
   const steps = planSteps().filter((s) => stage.caps.includes(s.capability));
   if (!steps.length) return { label, text: 'PLANDA YOK', cls: 'st-absent', meta: '' };
-  if (stage.id === 'domains') label = `${steps.length} DOMAIN`;
+  if (stage.id === 'domains') label = `${steps.length} İŞ ALANI`;
   meta = steps.map((s) => s.step_id).join(' · ');
 
   const runStatuses = steps.map((s) => runStep(s.step_id)).filter(Boolean).map((r) => r.status);
@@ -1681,7 +1707,7 @@ function renderEvidence() {
   }).join('');
   wrap.innerHTML = `<table class="ev-table">
     <thead><tr>
-      <th>KAYNAK</th><th>DOMAIN</th><th>BULGU</th><th>KANIT REF</th>
+      <th>KAYNAK</th><th>İŞ ALANI</th><th>BULGU</th><th>DAYANAK</th>
       <th>TAZELİK</th><th>GÜVEN</th><th>ÇELİŞKİ</th><th>BAĞIMSIZ KAYNAK</th>
     </tr></thead><tbody>${body}</tbody></table>`;
 }
@@ -1724,11 +1750,12 @@ function yonetimAciklama(raw) {
   if (sources) return `Bağımsız kaynak sayısı: ${sources[1]}.`;
   if (value === 'fused evidence contradicts itself') return 'Birleştirilen kanıtlar birbiriyle çelişiyor.';
   if (value.startsWith('no Company Memory data contract')) return 'Bu alan için bağlı şirket verisi yok.';
+  if (value.startsWith('live capability status blocks step')) return 'Gerekli bağlantı hazır olmadığı için bu adım çalışmadı.';
   if (value === 'no rows returned') return 'Kaynakta kayıt bulunamadı.';
   if (value.startsWith('value is not a number')) return 'Gerekli sayısal değer okunamadı.';
   if (value === 'agenda is empty') return 'Gündem kaydı yok.';
   if (value === 'no open work rows') return 'Açık iş kaydı yok.';
-  return value;
+  return JarvisMetin.safeTitle(value, 'Bu adımın teknik ayrıntıları inceleniyor.');
 }
 
 function renderProposed() {
@@ -6187,15 +6214,13 @@ async function loadIsler() {
   const { ok, status, body: d } = await api('/api/isler');
   if (!ok) {
     if (count) count.textContent = status === 401 ? 'oturum yok' : 'hata';
-    liste.innerHTML = '<p class="sect-empty is-bad">Kuyruk okunamadı (HTTP '
-      + status + ').</p>';
+    liste.innerHTML = '<p class="sect-empty is-bad">İşler şu anda yüklenemedi. Biraz sonra tekrar deneyin.</p>';
     return;
   }
 
   if (d.durum === 'KUYRUK_YOK') {
     if (count) count.textContent = 'kuyruk yok';
-    liste.innerHTML = '<p class="sect-empty is-bad">Kuyruk dizini bulunamadı: '
-      + escapeHtml(String(d.yol || '')) + '</p>';
+    liste.innerHTML = '<p class="sect-empty is-bad">İş kayıtlarına şu anda erişilemiyor.</p>';
     return;
   }
 
@@ -6209,14 +6234,14 @@ async function loadIsler() {
     : '';
 
   const satirlar = (d.isler || []).map(function (i) {
-    const etiket = IS_ASAMA_ETIKET[i.asama] || i.asama;
+    const etiket = IS_ASAMA_ETIKET[i.asama] || 'Durum bilinmiyor';
     const metin = i.bozuk
       ? '<em>dosya bozuk — okunamadı</em>'
-      : escapeHtml(String(i.istem || '(istem yok)'));
+      : escapeHtml(JarvisMetin.jobTitle(i));
     return '<li class="is-satir-kayit"><span class="is-rozet is-rozet-'
       + escapeHtml(String(i.asama)) + '">' + escapeHtml(etiket) + '</span>'
       + '<span class="is-metin">' + metin + '</span>'
-      + '<span class="is-kim">' + escapeHtml(String(i.isteyen || '')) + '</span></li>';
+      + '<span class="is-kim">' + escapeHtml(JarvisMetin.source(i)) + '</span></li>';
   });
 
   liste.innerHTML =
@@ -7746,7 +7771,7 @@ function urKonsept(k) {
     + satir('Kamera', k.ay_kamera)
     + satir('Işık', k.ay_isik)
     + satir('Yazı alanı', k.ay_tipografi_alani)
-    + (k.istem ? '<pre class="ur-istem">' + escapeHtml(k.istem) + '</pre>' : '')
+    + (k.istem ? '<p class="ur-istem">' + escapeHtml(JarvisMetin.jobTitle({istem:k.istem})) + '</p>' : '')
     + '<p class="ur-zaman">paket ' + k.plan_id + ' · ' + escapeHtml(k.uretim)
     + '</p></article>';
 }
