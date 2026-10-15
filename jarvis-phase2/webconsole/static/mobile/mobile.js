@@ -903,6 +903,25 @@ function addApprovalLine(container, text, className = '') {
   return line;
 }
 
+const CATALOG_SECTIONS = {
+  ritual: 'Ritüel', bebek: 'Bebek', mahrem: 'Mahrem bakım', bariyer: 'Cilt bariyeri',
+  vucut: 'Vücut', yuz: 'Yüz', kapak: 'Kapak',
+};
+
+function jobDisplay(job) {
+  const id = String(job.id || '');
+  const request = String(job.istem || '').trim();
+  if (String(job.isteyen || '').startsWith('katalog/bolum-acilisi')) {
+    const section = CATALOG_SECTIONS[id.replace(/^ktb?-/, '')];
+    return {title: section ? `Katalog bölüm görseli · ${section}` : 'Katalog bölüm görseli',
+      source: 'Katalog çalışması', technical: request};
+  }
+  const englishPrompt = /\b(?:extreme macro|editorial|soft light|continuous surface|photorealistic|render)\b/i.test(request);
+  return {title: englishPrompt ? `Görsel hazırlama işi${id ? ` · ${id}` : ''}` : request || 'İş',
+    source: job.isteyen === 'mobil-operator' ? 'Telefondan verildi' : '',
+    technical: englishPrompt ? request : ''};
+}
+
 async function loadJobs() {
   loadOrchestration();
   try {
@@ -912,7 +931,15 @@ async function loadJobs() {
     const list = $('job-list'); list.replaceChildren();
     for (const job of (data.isler || []).slice(0, 50)) {
       const phase = {bekleyen: 'Sırada', calisan: 'Hazırlanıyor', biten: 'Tamamlandı', hata: 'Tamamlanamadı'}[job.asama] || 'Durum belirlenemedi';
-      list.append(mobileCard(job.istem || 'İş', phase, job.isteyen ? `İsteyen: ${job.isteyen}` : ''));
+      const display = jobDisplay(job);
+      const card = mobileCard(display.title, phase, display.source);
+      if (display.technical) {
+        const detail = document.createElement('details');
+        const summary = document.createElement('summary'); summary.textContent = 'Özgün görev metni';
+        const original = document.createElement('p'); original.textContent = display.technical;
+        detail.append(summary, original); card.append(detail);
+      }
+      list.append(card);
     }
     if (!list.children.length) empty(list, 'Kuyrukta iş yok.');
   } catch (_) { empty($('job-list'), 'İşler yüklenemedi. Sayfayı yenileyip tekrar deneyin.'); $('job-count').textContent = 'İşler alınamadı'; }
