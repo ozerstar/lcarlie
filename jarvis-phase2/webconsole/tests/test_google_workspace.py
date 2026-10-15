@@ -9,6 +9,22 @@ import google_workspace
 
 
 class GoogleWorkspaceTests(unittest.TestCase):
+    def test_calendar_hides_future_birthdays_but_keeps_today(self):
+        from datetime import datetime, timedelta
+        from zoneinfo import ZoneInfo
+
+        today = datetime.now(ZoneInfo("Europe/Istanbul")).date()
+        events = [
+            {"summary": "Bugünkü doğum günü", "eventType": "birthday",
+             "start": {"date": today.isoformat()}},
+            {"summary": "Gelecek doğum günü", "eventType": "birthday",
+             "start": {"date": (today + timedelta(days=2)).isoformat()}},
+            {"summary": "Toplantı", "start": {"date": (today + timedelta(days=2)).isoformat()}},
+        ]
+        with patch.object(google_workspace, "_calendar_items", return_value=events):
+            titles = [event["title"] for event in google_workspace.calendar_events("alice")]
+        self.assertEqual(titles, ["Bugünkü doğum günü", "Toplantı"])
+
     def test_drive_scope_allows_file_content(self):
         self.assertIn("https://www.googleapis.com/auth/drive.readonly", google_workspace.SCOPES)
         self.assertIn("https://www.googleapis.com/auth/drive.file", google_workspace.SCOPES)

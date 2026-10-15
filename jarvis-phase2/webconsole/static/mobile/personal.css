@@ -1,0 +1,84 @@
+#chat-panel .personal-tools {
+  margin: 18px 0 24px;
+}
+
+.personal-nav {
+  display: flex;
+  gap: 22px;
+  overflow-x: auto;
+  padding: 0 2px;
+  border-bottom: 1px solid rgba(201, 169, 97, .22);
+  scrollbar-width: none;
+}
+
+.personal-nav::-webkit-scrollbar { display: none; }
+
+.personal-nav button {
+  position: relative;
+  flex: none;
+  min-height: 50px;
+  padding: 0 0 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #a9a49d;
+  font: inherit;
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.personal-nav button.active { color: #f4e6c9; }
+
+.personal-nav button.active::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  background: #c9a961;
+}
+
+.personal-pane { padding-top: 25px; }
+.personal-pane[hidden], .personal-setting [hidden] { display: none !important; }
+.personal-pane .mobile-form { margin: 0 0 16px; }
+
+.personal-settings-head { margin: 0 0 25px; }
+.personal-settings-head h2 { margin: 7px 0 6px; color: #f2efe9; font-size: 27px; letter-spacing: -.035em; }
+.personal-settings-head p { margin: 0; color: #aaa7a3; font-size: 13px; line-height: 1.55; }
+
+.personal-setting {
+  border-bottom: 1px solid rgba(201, 169, 97, .2);
+}
+
+.personal-setting summary {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  padding: 19px 30px 19px 2px;
+  color: #f2efe9;
+  font-size: 15px;
+  font-weight: 600;
+  list-style: none;
+  cursor: pointer;
+}
+
+.personal-setting summary::-webkit-details-marker { display: none; }
+.personal-setting summary span { color: #a9a49d; font-size: 12px; font-weight: 400; }
+.personal-setting summary::after {
+  content: "+";
+  position: absolute;
+  top: 22px;
+  right: 4px;
+  color: #c9a961;
+  font-size: 20px;
+  font-weight: 400;
+}
+.personal-setting[open] summary::after { content: "−"; }
+.personal-setting .mobile-form { margin: 0 0 18px; }
+
+@media (max-width: 400px) {
+  .personal-nav { gap: 17px; }
+  .personal-nav button { font-size: 12px; }
+}

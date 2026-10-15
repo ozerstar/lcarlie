@@ -16,6 +16,7 @@ from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from pathlib import Path
 from urllib.error import HTTPError, URLError
+from zoneinfo import ZoneInfo
 
 STATE = Path(os.environ.get("JARVIS_STATE_DIR", "/opt/lcarlie/jarvis-phase2/state")) / "mobile" / "google"
 REDIRECT = "https://jarvis.lcarlie.shop/google/callback"
@@ -173,14 +174,36 @@ def _access_token(username: str) -> str:
         return row["access_token"]
 
 
-def calendar_events(username: str) -> list[dict]:
-    params = urllib.parse.urlencode({"timeMin": datetime.now(timezone.utc).isoformat(),
-                                     "maxResults": 10, "singleEvents": "true", "orderBy": "startTime"})
+def _calendar_items(username: str, start: datetime, end: datetime) -> list[dict]:
+    params = urllib.parse.urlencode({"timeMin": start.isoformat(), "timeMax": end.isoformat(),
+                                     "maxResults": 100, "singleEvents": "true", "orderBy": "startTime"})
     data = _http_json("https://www.googleapis.com/calendar/v3/calendars/primary/events?" + params,
                       bearer=_access_token(username))
-    return [{"title": x.get("summary") or "Başlıksız etkinlik",
-             "start": (x.get("start") or {}).get("dateTime") or (x.get("start") or {}).get("date")}
-            for x in data.get("items", [])]
+    return data.get("items", [])
+
+
+def _is_birthday(event: dict) -> bool:
+    title = (event.get("summary") or "").casefold()
+    return event.get("eventType") == "birthday" or "doğum günü" in title or "birthday" in title
+
+
+def birthday_events_today(username: str) -> list[dict]:
+    now = datetime.now(ZoneInfo("Europe/Istanbul"))
+    today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    return [event for event in _calendar_items(username, today, today + timedelta(days=1))
+            if _is_birthday(event)]
+
+
+def calendar_events(username: str) -> list[dict]:
+    now = datetime.now(ZoneInfo("Europe/Istanbul"))
+    today = now.date()
+    items = _calendar_items(username, now.replace(hour=0, minute=0, second=0, microsecond=0),
+                            now + timedelta(days=30))
+    visible = [event for event in items if not _is_birthday(event) or
+               ((event.get("start") or {}).get("dateTime") or (event.get("start") or {}).get("date") or "")[:10] == today.isoformat()]
+    return [{"title": event.get("summary") or "Başlıksız etkinlik",
+             "start": (event.get("start") or {}).get("dateTime") or (event.get("start") or {}).get("date")}
+            for event in visible[:10]]
 
 
 def drive_files(username: str, query: str = "") -> list[dict]:

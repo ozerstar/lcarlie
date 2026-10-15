@@ -2,7 +2,7 @@
 
 const $ = (id) => document.getElementById(id);
 const state = { csrf: null, busy: false, audio: null, audioUrl: null, audioGeneration: 0, action: null,
-  chatMode: 'work', chatRows: { work: [], personal: [] }, attachment: null, googleProposal: null };
+  chatMode: 'work', personalTab: 'chat', chatRows: { work: [], personal: [] }, attachment: null, googleProposal: null };
 let voiceMode = false;
 let selectedProposal = null;
 
@@ -362,8 +362,27 @@ document.querySelectorAll('[data-chat-mode]').forEach((button) => button.addEven
     : 'Şirket verileri, görevler ve onaylar bu alandadır. İşlemler için onayınız gerekir.';
   $('chat-input').placeholder = state.chatMode === 'personal' ? 'Kişisel asistana yaz…' : 'İş için Jarvis’e yaz…';
   $('personal-tools').hidden = state.chatMode !== 'personal';
+  showPersonalTab(state.personalTab);
   clearAttachment();
   if (state.chatMode === 'personal') { loadReminders(); loadMemory(); loadGoogle(); }
+}));
+
+function showPersonalTab(name) {
+  state.personalTab = name;
+  document.querySelectorAll('[data-personal-tab]').forEach((button) => {
+    const active = button.dataset.personalTab === name;
+    button.classList.toggle('active', active);
+    if (active) button.setAttribute('aria-current', 'page');
+    else button.removeAttribute('aria-current');
+  });
+  document.querySelectorAll('[data-personal-pane]').forEach((pane) => {
+    pane.hidden = pane.dataset.personalPane !== name;
+  });
+  const showChat = state.chatMode !== 'personal' || name === 'chat';
+  for (const id of ['messages', 'chat-form', 'chat-actions', 'chat-help']) $(id).hidden = !showChat;
+}
+document.querySelectorAll('[data-personal-tab]').forEach((button) => button.addEventListener('click', () => {
+  showPersonalTab(button.dataset.personalTab);
 }));
 
 function clearAttachment() {
@@ -473,6 +492,17 @@ $('memory-form').addEventListener('submit', async (event) => {
     $('memory-form').reset(); loadMemory(); status('Bilgi kaydedildi');
   } catch (error) { status(friendlyMessage(error.message)); }
 });
+$('person-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const name = $('person-name').value.trim();
+  const relationship = $('person-relationship').value.trim();
+  const detail = $('person-detail').value.trim();
+  const text = `Tanıdığım kişi: ${name}. Yakınlığı: ${relationship}.${detail ? ` Hatırlanacak bilgi: ${detail}.` : ''}`;
+  try {
+    await readApi('/api/mobile/memory', {method:'POST', body:JSON.stringify({action:'add', text})});
+    $('person-form').reset(); loadMemory(); status('Kişi kaydedildi');
+  } catch (error) { status(friendlyMessage(error.message)); }
+});
 
 async function loadGoogle() {
   try {
@@ -510,6 +540,8 @@ async function loadCalendar() {
 
 function showGoogleProposal(proposal) {
   state.googleProposal = proposal;
+  showPersonalTab('google');
+  $('google-actions-details').open = true;
   $('google-approval-text').textContent = proposal.description;
   const external = ['calendar.create', 'gmail.send', 'drive.upload'].includes(proposal.kind);
   $('google-approval').classList.toggle('external-warning', external);

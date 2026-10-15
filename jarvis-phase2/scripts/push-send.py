@@ -15,6 +15,9 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "webconsole"))
 import push_store  # noqa: E402
 import mobile_features  # noqa: E402
+import google_workspace  # noqa: E402
+from datetime import datetime  # noqa: E402
+from zoneinfo import ZoneInfo  # noqa: E402
 
 
 def send(subscription: dict, title: str, body: str, tag: str) -> bool:
@@ -51,7 +54,8 @@ def pending_approvals() -> list[dict]:
     return [json.loads(line) for line in result.stdout.splitlines() if line.strip()]
 
 
-def save_seen(seen: dict) -> None:
+def save_seen(seen: dict, path: Path | None = None) -> None:
+    path = path or push_store.SEEN_FILE
     descriptor, temporary_path = tempfile.mkstemp(prefix=".push-seen-", dir=push_store.STATE_DIR)
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
@@ -59,7 +63,7 @@ def save_seen(seen: dict) -> None:
             handle.flush()
             os.fsync(handle.fileno())
         os.chmod(temporary_path, 0o600)
-        os.replace(temporary_path, push_store.SEEN_FILE)
+        os.replace(temporary_path, path)
     finally:
         if os.path.exists(temporary_path):
             os.unlink(temporary_path)
@@ -108,6 +112,32 @@ def notify_due_reminders() -> None:
             mobile_features.advance_reminder(reminder["id"], set(targets))
 
 
+def notify_birthdays() -> None:
+    subscriptions = push_store.all_subscriptions()
+    owners = {subscription.get("owner") for subscription in subscriptions.values()}
+    today = datetime.now(ZoneInfo("Europe/Istanbul")).date().isoformat()
+    seen_path = push_store.STATE_DIR / "birthday-seen.json"
+    seen = json.loads(seen_path.read_text(encoding="utf-8")) if seen_path.exists() else {}
+    seen = {key: value for key, value in seen.items() if key.startswith(today + ":")}
+    for owner in owners - {None, ""}:
+        try:
+            events = google_workspace.birthday_events_today(owner)
+        except Exception:  # noqa: BLE001 - Google hatasi diger bildirimleri engellemez
+            print("birthday calendar unavailable", file=sys.stderr)
+            continue
+        for event in events:
+            identifier = event.get("id") or event.get("summary") or "birthday"
+            title = event.get("summary") or "Bugün doğum günü var"
+            for subscription_id, subscription in subscriptions.items():
+                if subscription.get("owner") != owner:
+                    continue
+                key = f"{today}:{owner}:{identifier}:{subscription_id}"
+                if key not in seen and send(subscription, "Jarvis · Doğum günü", title,
+                                            f"birthday-{today}-{identifier}"):
+                    seen[key] = True
+                    save_seen(seen, seen_path)
+
+
 if __name__ == "__main__":
     if len(sys.argv) == 3 and sys.argv[1] == "--test":
         subscription = push_store.get(sys.argv[2])
@@ -117,5 +147,6 @@ if __name__ == "__main__":
     elif len(sys.argv) == 1:
         notify_due_reminders()
         notify_new_approvals()
+        notify_birthdays()
     else:
         raise SystemExit(2)
