@@ -32,19 +32,28 @@ def ready() -> bool:
         return False
 
 
-def issue_session(username: str, mode: str) -> dict[str, str]:
+def issue_session(username: str, mode: str, chat_id: str | None = None) -> dict[str, str]:
     if mode not in ("work", "personal") or not username or len(username) > 100:
         raise ValueError("Geçerli bir sohbet alanı seçin.")
+    if chat_id is not None:
+        try:
+            if str(uuid.UUID(chat_id)) != chat_id:
+                raise ValueError
+        except (TypeError, ValueError, AttributeError):
+            raise ValueError("Geçerli bir sohbet seçin.") from None
     if not ready():
         raise RuntimeError("Gerçek zamanlı ses şu anda kullanılamıyor.")
     key, secret = _secret()
     now = int(time.time())
     room = "jarvis-voice-" + secrets.token_hex(12)
+    metadata = {"owner": username, "mode": mode}
+    if chat_id is not None:
+        metadata["chat_id"] = chat_id
     claims = {
         "iss": key, "sub": "user-" + secrets.token_hex(12),
         "nbf": now - 5, "exp": now + 300, "iat": now,
         "jti": str(uuid.uuid4()),
-        "metadata": json.dumps({"owner": username, "mode": mode}, ensure_ascii=False),
+        "metadata": json.dumps(metadata, ensure_ascii=False),
         "video": {"roomJoin": True, "room": room, "canPublish": True,
                   "canSubscribe": True, "canPublishData": False,
                   "canUpdateOwnMetadata": False},

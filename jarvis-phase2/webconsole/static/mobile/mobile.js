@@ -1487,10 +1487,12 @@ async function startRealtimeVoice() {
   realtimeStarting = true;
   status('Sesli görüşme bağlanıyor');
   try {
+    const microphone = realtimeVoice.prepare();
     const response = await request('/api/voice/realtime/session', { method: 'POST',
       body: JSON.stringify({ mode: state.chatMode }) });
     if (!response.ok) throw new Error('Ses oturumu kullanılamıyor');
     const session = await response.json();
+    await microphone;
     if (!voiceSession.active || generation !== voiceSession.generation) return true;
     await realtimeVoice.start(session.url, session.token);
     if (!voiceSession.active || generation !== voiceSession.generation) {
@@ -1500,6 +1502,7 @@ async function startRealtimeVoice() {
     $('mic').setAttribute('aria-label', 'Sesli görüşme sürüyor');
     return true;
   } catch (_) {
+    await realtimeVoice.stop();
     if (voiceSession.active && generation === voiceSession.generation)
       status(Recognition ? 'Canlı ses kullanılamıyor; tarayıcı mikrofonuyla devam ediliyor'
         : 'Ses bağlantısı kurulamadı; yazarak devam edebilirsiniz');

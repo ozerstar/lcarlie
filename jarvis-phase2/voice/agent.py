@@ -10,6 +10,7 @@ from io import BytesIO
 import hashlib
 import hmac
 import json
+import logging
 import os
 from pathlib import Path
 import time
@@ -21,13 +22,14 @@ import wave
 import numpy as np
 from faster_whisper import WhisperModel
 from livekit import rtc
-from livekit.agents import Agent, AgentServer, AgentSession, ModelSettings, stt, utils
+from livekit.agents import Agent, AgentServer, AgentSession, ModelSettings, llm, stt, utils
 from livekit.plugins import silero
 
 
 MODEL_PATH = Path(os.environ.get("JARVIS_WHISPER_MODEL", "/opt/lcarlie/jarvis-voice-agent/models/small"))
 BRIDGE_URL = os.environ.get("JARVIS_VOICE_BRIDGE_URL", "http://127.0.0.1:8091/api/voice/agent-turn")
 PIPER_URL = "http://127.0.0.1:5000/synthesize"
+log = logging.getLogger("jarvis.voice")
 
 
 def _transcribe(model: WhisperModel, buffer: utils.AudioBuffer) -> str:
@@ -64,13 +66,30 @@ class TurkishWhisper(stt.STT):
 
     async def _recognize_impl(self, buffer, *, language, conn_options):
         text = await asyncio.to_thread(_transcribe, self._model, buffer)
+        log.info("transcription completed; characters=%s", len(text))
         return stt.SpeechEvent(type=stt.SpeechEventType.FINAL_TRANSCRIPT,
                                alternatives=[stt.SpeechData(language="tr", text=text)])
 
 
-def _ask_jarvis(owner: str, mode: str, message: str, turn_id: str) -> str:
+class BridgeLLM(llm.LLM):
+    """Marks reply generation as available; JarvisVoiceAgent owns the actual node."""
+
+    @property
+    def model(self) -> str:
+        return "jarvis-chat-bridge"
+
+    @property
+    def provider(self) -> str:
+        return "local"
+
+    def chat(self, **kwargs):
+        raise RuntimeError("Only JarvisVoiceAgent.llm_node may run")
+
+
+def _ask_jarvis(owner: str, mode: str, message: str, turn_id: str,
+                chat_id: str | None = None) -> str:
     payload = json.dumps({"owner": owner, "mode": mode, "message": message,
-                          "turn_id": turn_id}, ensure_ascii=False,
+                          "turn_id": turn_id, "chat_id": chat_id}, ensure_ascii=False,
                          separators=(",", ":")).encode()
     when = str(int(time.time()))
     secret = os.environ["LIVEKIT_API_SECRET"]
@@ -100,10 +119,11 @@ def _synthesize(text: str) -> tuple[int, bytes]:
 
 
 class JarvisVoiceAgent(Agent):
-    def __init__(self, owner: str, mode: str):
+    def __init__(self, owner: str, mode: str, chat_id: str | None = None):
         super().__init__(instructions="Türkçe konuş. Dış işlem yapmadan önce Jarvis onay kurallarını uygula.")
         self.owner = owner
         self.mode = mode
+        self.chat_id = chat_id
 
     async def llm_node(self, chat_ctx, tools, model_settings: ModelSettings) -> AsyncIterable[str]:
         question = next((item.text_content for item in reversed(chat_ctx.items)
@@ -113,8 +133,9 @@ class JarvisVoiceAgent(Agent):
             return
         try:
             answer = await asyncio.to_thread(_ask_jarvis, self.owner, self.mode,
-                                             question, str(uuid.uuid4()))
+                                             question, str(uuid.uuid4()), self.chat_id)
         except Exception:
+            log.exception("chat bridge unavailable")
             answer = "Bağlantı koptu. İşlem durumunu kontrol edin; isteğiniz yeniden gönderilmedi."
         yield answer
 
@@ -157,13 +178,18 @@ async def voice_session(ctx) -> None:
         identity = json.loads(participant.metadata or "{}")
     except json.JSONDecodeError:
         return
-    owner, mode = identity.get("owner"), identity.get("mode")
+    owner, mode, chat_id = identity.get("owner"), identity.get("mode"), identity.get("chat_id")
     if not isinstance(owner, str) or not owner or len(owner) > 100 or mode not in ("work", "personal"):
         return
+    if chat_id is not None and (not isinstance(chat_id, str) or len(chat_id) != 36):
+        return
     session = AgentSession(stt=TurkishWhisper(ctx.proc.userdata["whisper"]),
-                           vad=ctx.proc.userdata["vad"], llm=None, tts=None,
+                           vad=ctx.proc.userdata["vad"], llm=BridgeLLM(), tts=None,
                            min_endpointing_delay=0.4, max_endpointing_delay=1.5)
-    await session.start(agent=JarvisVoiceAgent(owner, mode), room=ctx.room)
+    @session.on("user_state_changed")
+    def on_user_state(event):
+        log.info("user voice state: %s", event.new_state)
+    await session.start(agent=JarvisVoiceAgent(owner, mode, chat_id), room=ctx.room)
 
 
 if __name__ == "__main__":
