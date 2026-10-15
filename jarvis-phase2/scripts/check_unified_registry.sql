@@ -3,6 +3,12 @@ DO $$
 DECLARE
     mismatches integer;
 BEGIN
+    IF has_function_privilege('human_approver',
+            'core.ai_decide_action(bigint,text,text)', 'EXECUTE')
+       OR NOT has_function_privilege('human_approver',
+            'core.jarvis_decide_company_action(bigint,text,text,text)', 'EXECUTE') THEN
+        RAISE EXCEPTION 'Company approval function privileges bypass the fingerprint gate';
+    END IF;
     SELECT count(*) INTO mismatches FROM (
         SELECT p.action_id::text AS id FROM core.ai_action_proposal p
         LEFT JOIN core.jarvis_action_registry r

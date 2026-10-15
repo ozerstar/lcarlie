@@ -725,8 +725,8 @@ async function decideGoogle(decision) {
   if (!proposal) return;
   $('google-approve').disabled = true; $('google-reject').disabled = true;
   try {
-    const result = await readApi('/api/mobile/google/decide', {method:'POST',
-      body:JSON.stringify({id:proposal.id, decision, fingerprint:proposal.fingerprint})});
+    const result = await readApi(`/api/actions/personal:${proposal.id}/decide`, {method:'POST',
+      body:JSON.stringify({decision, fingerprint:proposal.fingerprint})});
     $('google-approval').hidden = true; state.googleProposal = null;
     loadGooglePending();
     status(result.status === 'UNCERTAIN' ? 'İşlem sonucu belirsiz. Google hesabında kontrol edin.' : result.message);

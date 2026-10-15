@@ -1983,7 +1983,10 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError as exc:
                 self._send_json(400, {"error": str(exc)[:200]})
             return
-        if path in ("/api/mobile/google/prepare", "/api/mobile/google/decide",
+        if path == "/api/mobile/google/decide":
+            self._send_json(410, {"error": "Bu eski onay yolu kapatıldı. İşlemi Onaylar ekranında yeniden açın."})
+            return
+        if path in ("/api/mobile/google/prepare",
                     "/api/mobile/google/disconnect", "/api/mobile/google/drive/import"):
             try:
                 body = _read_json_body(self)
@@ -1991,12 +1994,6 @@ class Handler(BaseHTTPRequestHandler):
                     result = google_workspace.prepare(session.username, body.get("kind"),
                                                       body.get("fields") or {},
                                                       request_id=body.get("request_id"))
-                elif path.endswith("/decide"):
-                    result = google_workspace.decide(session.username, body.get("id"),
-                                                     body.get("decision"),
-                                                     body.get("fingerprint"))
-                    if result.get("status") == "DONE":
-                        mobile_features.record_activity(session.username, "google", "Onaylanan Google işlemi tamamlandı")
                 elif path.endswith("/drive/import"):
                     result = google_workspace.import_drive_file(session.username, body.get("id"))
                 else:
@@ -2632,6 +2629,8 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     result = google_workspace.decide(session.username, identifier,
                                                      decision, fingerprint)
+                    if result.get("status") == "DONE":
+                        mobile_features.record_activity(session.username, "google", "Onaylanan Google işlemi tamamlandı")
                 self._send_json(200, result)
             except (ValueError, google_workspace.GoogleError) as exc:
                 self._send_json(400, {"error": str(exc)})

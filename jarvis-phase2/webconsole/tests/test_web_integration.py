@@ -257,6 +257,29 @@ class WebConsoleIntegrationTests(unittest.TestCase):
         self.assertEqual(resp.status, 400)
         app._operator.decide.assert_not_called()
 
+    def test_personal_decision_uses_shared_endpoint_and_records_completion(self):
+        csrf, sid = self._login()
+        identifier = "b" * 32
+        with patch.object(app.google_workspace, "decide", return_value={"status": "DONE", "message": "Tamamlandı"}) as decide, \
+             patch.object(app.mobile_features, "record_activity") as activity:
+            resp, body = self._post(f"/api/actions/personal:{identifier}/decide", {
+                "decision": "APPROVED", "fingerprint": "a" * 32},
+                headers={"Cookie": f"{app.SESSION_COOKIE}={sid}", "X-CSRF-Token": csrf})
+        self.assertEqual(resp.status, 200)
+        self.assertEqual(body["status"], "DONE")
+        decide.assert_called_once_with(TEST_USER, identifier, "APPROVED", "a" * 32)
+        activity.assert_called_once()
+
+    def test_legacy_google_decision_endpoint_is_closed(self):
+        csrf, sid = self._login()
+        with patch.object(app.google_workspace, "decide") as decide:
+            resp, body = self._post("/api/mobile/google/decide", {
+                "id": "b" * 32, "decision": "APPROVED", "fingerprint": "a" * 32},
+                headers={"Cookie": f"{app.SESSION_COOKIE}={sid}", "X-CSRF-Token": csrf})
+        self.assertEqual(resp.status, 410)
+        self.assertIn("Onaylar", body["error"])
+        decide.assert_not_called()
+
     def test_proposal_list_reaches_operator_not_raw_db(self):
         csrf, sid = self._login()
         app._operator.list_pending.return_value = [{"action_id": 1, "action_type": "REQUEST_HUMAN_REVIEW"}]
