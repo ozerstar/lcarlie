@@ -1912,16 +1912,16 @@ function card(title, bodyHtml, meta) {
 function renderVeri(d) {
   const domains = (d.domains || []).map((dom) => {
     const rows = (dom.queries || []).map((q) => kvRow(
-      q.name, q.status === 'OK' ? `${q.rows} kayıt · ${q.latency_ms} ms`
-        : (q.error || 'okunamadı'), q.status === 'OK' ? '' : 'is-bad')).join('');
-    return card(dom.domain.toUpperCase(), rows,
+      JarvisMetin.label(q.name, 'Veri sorgusu'), q.status === 'OK' ? `${q.rows} kayıt · ${q.latency_ms} ms`
+        : JarvisMetin.errorText(q.error, 'Veri alınamadı'), q.status === 'OK' ? '' : 'is-bad')).join('');
+    return card(JarvisMetin.label(dom.domain, 'Veri alanı'), rows,
                 stateChip(`${dom.ok}/${dom.total}`));
   }).join('');
   const prov = (d.provenance || []).map((p) => kvRow(
-    p.alan || p.error || '?', `${p.connection || '—'} · ${p.freshness || '—'}`,
+    JarvisMetin.label(p.alan, 'Veri kaynağı'), `${JarvisMetin.label(p.connection, 'Bağlantı bilinmiyor')} · ${JarvisMetin.label(p.freshness, 'Güncellik bilinmiyor')}`,
     p.connection === 'CONNECTED' ? '' : 'is-warn')).join('');
   const qual = (d.quality || []).map((q) => kvRow(
-    q.check || q.error || '?', q.passed === true ? 'GEÇTİ' : q.passed === false ? 'KALDI' : (q.detail || '—'),
+    JarvisMetin.label(q.check, 'Veri kontrolü'), q.passed === true ? 'GEÇTİ' : q.passed === false ? 'KALDI' : JarvisMetin.label(q.detail, 'Kontrol sonucu yok'),
     q.passed === false ? 'is-bad' : '')).join('');
   return domains + card('KAYNAK OTORİTESİ', prov, `${(d.provenance || []).length} alan`)
     + card('VERİ KALİTESİ', qual, '');
@@ -1935,9 +1935,9 @@ function renderRoleReality(block) {
   const rows = (block.contributions || []).map((c) => {
     const bos = c.status !== 'PRODUCED';
     const kalemler = Object.entries(c.items || {})
-      .map(([k, v]) => `${escapeHtml(k)}: ${v}`).join(' · ');
+      .map(([k, v]) => `${escapeHtml(JarvisMetin.label(k, 'Üretilen bilgi'))}: ${v}`).join(' · ');
     return `<div class="kv${bos ? ' is-bad' : ''}">
-      <span class="kv-k">${escapeHtml(String(c.role || '?'))}</span>
+      <span class="kv-k">${escapeHtml(JarvisMetin.label(c.role, 'Ekip üyesi'))}</span>
       <span class="kv-v">${bos ? 'ÜRETMEDİ' : escapeHtml(kalemler || '—')}</span>
     </div>`;
   }).join('');
@@ -1957,12 +1957,12 @@ function renderTeam(rows) {
   const konusan = rows.filter((r) => r.status === 'KONUŞTU');
   const susan = rows.filter((r) => r.status !== 'KONUŞTU');
   const blok = (r) => `<details class="detail-block">
-      <summary><strong>${escapeHtml(String(r.name || r.key || '?'))}</strong>
-        <span class="kv-v">${escapeHtml(String(r.status || ''))}</span></summary>
-      <p class="sect-note">${escapeHtml(String(r.job || ''))}</p>
-      <p>${escapeHtml(String(r.statement || ''))}</p>
+      <summary><strong>${escapeHtml(JarvisMetin.label(r.name || r.key, 'Ekip üyesi'))}</strong>
+        <span class="kv-v">${escapeHtml(JarvisMetin.label(r.status, 'Durum bilinmiyor'))}</span></summary>
+      <p class="sect-note">${escapeHtml(JarvisMetin.safeTitle(r.job, 'Görev açıklaması yok'))}</p>
+      <p>${escapeHtml(JarvisMetin.safeTitle(r.statement, 'Bu konuda henüz açıklama yok.'))}</p>
       ${r.reads && r.reads.length
-        ? `<p class="sect-note">okuduğu veri: ${escapeHtml(r.reads.join(', '))}</p>`
+        ? `<p class="sect-note">okuduğu veri: ${escapeHtml(r.reads.map((name) => JarvisMetin.label(name, 'Veri kaynağı')).join(', '))}</p>`
         : ''}
     </details>`;
   return card('EKİP — KİM NE DİYOR', konusan.map(blok).join(''),
@@ -1973,12 +1973,12 @@ function renderTeam(rows) {
 
 function renderAjanlar(d) {
   const roles = (d.roles || []).map((r) => kvRow(
-    r.id || r.error || '?', r.kind || r.domain || '')).join('');
+    EKIP_BIRIM_ADI[r.id] || JarvisMetin.label(r.id, 'Tanımlı rol'), JarvisMetin.label(r.kind || r.domain, 'Görev alanı'))).join('');
   const provs = (d.providers || []).map((p) => kvRow(
-    p.provider || p.error || '?', p.state)).join('');
+    JarvisMetin.label(p.provider, 'Model sağlayıcısı'), JarvisMetin.label(p.state, 'Durum bilinmiyor'))).join('');
   const engines = (d.engines || []).map((e) => `<div class="kv">
-      <span class="kv-k">${escapeHtml(String(e.name || e.error || '?'))}</span>
-      <span class="kv-v">${stateChip(e.state || '—')} ${escapeHtml(String(e.version || ''))}</span>
+      <span class="kv-k">${escapeHtml(JarvisMetin.label(e.name, 'Çalışma motoru'))}</span>
+      <span class="kv-v">${stateChip(JarvisMetin.label(e.state, 'Durum bilinmiyor'))} ${escapeHtml(String(e.version || ''))}</span>
     </div>`).join('');
   return renderTeam(d.team)
     + renderRoleReality(d.role_reality)
@@ -2015,7 +2015,7 @@ function renderImprovement(d) {
   if (!d || d.error_type) return card('GELİŞİM DÖNGÜSÜ', '<p>Gelişim defteri okunamadı.</p>', '');
   const statuses = {WAITING_APPLICATION_EVIDENCE:'Uygulama kanıtı bekliyor', WAITING_MEASUREMENT:'Sonuç ölçümü bekliyor', TARGET_REACHED:'Hedefe ulaştı', MEASURED_FOLLOW_UP:'Ölçüldü; takip gerekli', CANCELLED:'İptal edildi'};
   const works = d.works || [];
-  const rows = works.slice(0, 60).map(w => `<div class="kv"><span class="kv-k">#${w.id} ${escapeHtml(w.objective)}</span><span class="kv-v">${escapeHtml(statuses[w.status] || w.status)}</span></div><p class="sect-note">Sorumlu: ${escapeHtml(w.owner)} · Son tarih: ${escapeHtml(w.due)}${w.overdue ? ' · Süresi geçti' : ''}<br>Ölçüt: ${escapeHtml(w.metric)} · Hedef: ${escapeHtml(String(w.target ?? 'belirlenecek'))} ${escapeHtml(w.unit)}<br>Kaynak: ${escapeHtml(w.source)}</p>`).join('');
+  const rows = works.slice(0, 60).map(w => `<div class="kv"><span class="kv-k">#${w.id} ${escapeHtml(JarvisMetin.safeTitle(w.objective, 'Gelişim işi'))}</span><span class="kv-v">${escapeHtml(statuses[w.status] || JarvisMetin.label(w.status, 'Durum bilinmiyor'))}</span></div><p class="sect-note">Sorumlu: ${escapeHtml(JarvisMetin.label(w.owner, 'Sorumlu belirtilmemiş'))} · Son tarih: ${escapeHtml(w.due)}${w.overdue ? ' · Süresi geçti' : ''}<br>Ölçüt: ${escapeHtml(JarvisMetin.safeTitle(w.metric, 'Başarı ölçütü'))} · Hedef: ${escapeHtml(String(w.target ?? 'belirlenecek'))} ${escapeHtml(w.unit)}<br>Kaynak: ${escapeHtml(JarvisMetin.label(w.source, 'Kaynak belirtilmemiş'))}</p>`).join('');
   const lessons = (d.outcome_lessons || []).map(r => `<p>${escapeHtml(r.summary)}<br><small>${r.sample} gözlem · ${escapeHtml(r.evidence.join(' · '))}</small></p>`).join('');
   const ev = d.evaluation || {};
   const cases = ev.cases || [];
@@ -2023,7 +2023,7 @@ function renderImprovement(d) {
   const previous = d.previous_evaluation;
   const comparison = previous ? `<p class="sect-note">Önceki kontrol: ${(previous.cases || []).filter(r=>r.status==='PASS').length}/${(previous.cases || []).length} kaynak · ${previous.duration_ms} ms. Son kontrol: ${ev.duration_ms} ms.</p>` : '';
   const modelEval = d.model_evaluation || {};
-  const modelTests = (modelEval.cases || []).map(r => kvRow(r.task, `${r.status} · ${r.model || 'yanıt alınamadı'} · ${r.duration_ms} ms`)).join('');
+  const modelTests = (modelEval.cases || []).map(r => kvRow(JarvisMetin.label(r.task, 'Model kontrolü'), `${JarvisMetin.label(r.status, 'Durum bilinmiyor')} · ${r.model || 'yanıt alınamadı'} · ${r.duration_ms} ms`)).join('');
   const options = works.map(w => `<option value="${w.id}">#${w.id} ${escapeHtml(w.objective.slice(0,100))}</option>`).join('');
   const labels = {domain:'Alan / konu',objective:'Yapılacak iş',owner:'Sorumlu rol',metric:'Başarı ölçütü',unit:'Birim',target:'Hedef değer',due:'Son tarih',source:'İşin kaynağı',at:'Uygulandığı tarih',evidence:'Uygulama / düzeltme kanıtı',baseline:'Başlangıç değeri',result:'Sonuç değeri',sample:'Gözlem sayısı',before_at:'Başlangıç ölçüm tarihi',after_at:'Sonuç ölçüm tarihi',before_source:'Başlangıç ölçümünün kaynağı',after_source:'Sonuç ölçümünün kaynağı',note:'Ölçüm yorumu ve sınırları',wrong:'Hatalı yaklaşım',right:'Doğru yaklaşım',reason:'Neden'};
   function form(operation,title,fields) {
@@ -2069,14 +2069,14 @@ document.addEventListener('submit', async (event) => {
 
 function renderRaporlar(d) {
   const f = (d.findings || []).map((x) => `<div class="kv">
-      <span class="kv-k">${escapeHtml(String(x.code))}</span>
-      <span class="kv-v">${stateChip(x.severity || '—')} ${x.count}×</span>
-    </div>${x.reason ? `<p class="sect-note">${escapeHtml(String(x.reason))}</p>` : ''}`).join('');
-  const c = (d.cycle_results || []).map((x) => kvRow(x.result, `${x.count} döngü`)).join('');
+      <span class="kv-k">${escapeHtml(yonetimKodu(x.code))}</span>
+      <span class="kv-v">${stateChip(JarvisMetin.label(x.severity, 'Önem belirtilmemiş'))} ${x.count}×</span>
+    </div>${x.reason ? `<p class="sect-note">${escapeHtml(yonetimAciklama(x.reason))}</p>` : ''}`).join('');
+  const c = (d.cycle_results || []).map((x) => kvRow(JarvisMetin.label(x.result, 'Döngü sonucu'), `${x.count} döngü`)).join('');
   const last = d.last_cycle || {};
   const b = last.business || {};
-  const lastRows = kvRow('döngü', last.cycle) + kvRow('sonuç', last.result)
-    + kvRow('iş zekâsı', b.status ? `${b.status} · ${b.signals} sinyal` : '—')
+  const lastRows = kvRow('döngü', last.cycle) + kvRow('sonuç', JarvisMetin.label(last.result, 'Sonuç yok'))
+    + kvRow('iş zekâsı', b.status ? `${JarvisMetin.label(b.status, 'Durum bilinmiyor')} · ${b.signals} sinyal` : '—')
     + kvRow('model çağrısı', last.model_calls) + kvRow('dış aksiyon', last.external_actions)
     + kvRow('süre', last.total_ms ? `${last.total_ms} ms` : '—');
   return renderImprovement(d.lessons && d.lessons.improvement)
@@ -2191,7 +2191,7 @@ function renderAyarlar(d) {
     + `<p class="sect-note">${escapeHtml(String(d.note || ''))}</p>`
     + card('MEVZUAT KAPISI', gated, escapeHtml(String(d.compliance?.rules_source || '')))
     + card('İŞ ZEKÂSI EŞİKLERİ', th, '')
-    + card('KILL SWITCH', `<pre class="sect-pre">${escapeHtml(String(d.kill_switch || ''))}</pre>`, '');
+    + card('ACİL DURDURMA', `<p class="sect-note">${escapeHtml(JarvisMetin.label(d.kill_switch, 'Durum bilgisi yok'))}</p>`, '');
 }
 
 /* ==================================================================

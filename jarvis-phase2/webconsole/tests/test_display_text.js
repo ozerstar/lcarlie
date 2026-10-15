@@ -15,4 +15,7 @@ assert.equal(m.source({isteyen:'mobil-operator'}), 'Telefondan istendi');
 assert.equal(m.safeTitle('internal_data_analysis: SUCCEEDED', 'Planlı çalışma'), 'Planlı çalışma');
 assert.equal(m.errorText('HTTP 500 Internal Server Error', 'İşlem yapılamadı.'), 'İşlem yapılamadı.');
 assert.equal(m.errorText('Gerekli alan eksik.', 'İşlem yapılamadı.'), 'Gerekli alan eksik.');
+assert.equal(m.label('CONNECTED'), 'Bağlı');
+assert.equal(m.label('crm'), 'Müşteri ilişkileri');
+assert.equal(m.label('internal_data_analysis', 'Çalışma adımı'), 'Çalışma adımı');
 console.log('Görünen metin kontrolleri geçti.');

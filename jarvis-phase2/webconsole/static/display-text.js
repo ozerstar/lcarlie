@@ -36,5 +36,22 @@
     return message && !needsSummary(message) && (/[çğıöşüİ]/i.test(message) || /\b(?:hatalı|eksik|geçersiz|bulunamadı|zorunlu|lütfen|izin|erişim|başarısız)\b/i.test(message))
       ? message : fallback;
   }
-  root.JarvisMetin = Object.freeze({jobTitle, source, safeTitle, needsSummary, errorText});
+  const codes = {
+    OK:'Hazır', PASS:'Geçti', FAIL:'Tamamlanamadı', FAILED:'Tamamlanamadı',
+    CONNECTED:'Bağlı', DISCONNECTED:'Bağlı değil', PRODUCED:'Üretildi',
+    CURRENT:'Güncel', FRESH:'Güncel', STALE:'Güncel değil', UNKNOWN:'Bilinmiyor',
+    READY:'Hazır', ACTIVE:'Etkin', INACTIVE:'Etkin değil', UNAVAILABLE:'Kullanılamıyor',
+    NEEDS_DATA:'Veri gerekli', DATA_UNAVAILABLE:'Veri yok',
+    LOW:'Düşük', MEDIUM:'Orta', HIGH:'Yüksek', CRITICAL:'Kritik',
+    ecommerce:'E-ticaret', advertising:'Reklam', crm:'Müşteri ilişkileri',
+    operations:'Operasyon', finance:'Finans', sales:'Satış',
+  };
+  function label(value, fallback = 'Bilgi') {
+    const raw = String(value || '').trim();
+    if (!raw) return fallback;
+    if (codes[raw]) return codes[raw];
+    if (/^[A-Z][A-Z0-9_ -]+$/.test(raw) || /^[a-z][a-z0-9]*(?:_[a-z0-9]+)+$/.test(raw)) return fallback;
+    return safeTitle(raw, fallback);
+  }
+  root.JarvisMetin = Object.freeze({jobTitle, source, safeTitle, needsSummary, errorText, label});
 })(globalThis);
