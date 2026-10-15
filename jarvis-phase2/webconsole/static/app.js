@@ -7714,6 +7714,8 @@ async function gkKonusmaAc(kid) {
       '<textarea id="gkCevapMetin" class="gk-c-alan" rows="3" ' +
         'placeholder="Musteriye gidecek metin..."></textarea>' +
       '<div class="gk-c-dugmeler">' +
+        '<button type="button" class="gk-b" data-taslak="1" ' +
+          'data-kid="' + k.id + '">JARVIS TASLAK URETSIN</button>' +
         '<button type="button" class="gk-b gk-b-sade" data-cevap="kuru" ' +
           'data-kid="' + k.id + '">ONCE DENETLE</button>' +
         '<button type="button" class="gk-b" data-cevap="gonder" ' +
@@ -7803,4 +7805,49 @@ async function gkCevapla(kid, kuru) {
 document.addEventListener('click', function (ev) {
   var b = ev.target.closest ? ev.target.closest('[data-cevap]') : null;
   if (b) gkCevapla(Number(b.dataset.kid), b.dataset.cevap === 'kuru');
+});
+
+
+/* Jarvis taslagi. URETIR, GONDERMEZ -- metin cevap kutusuna dusur, sahip
+   okur ve isterse degistirip GONDER'e basar. Devir kapisi modelden once
+   isledigi icin devredilmesi gereken konusmada model hic cagrilmaz. */
+async function gkTaslak(kid) {
+  var alan = qs('gkCevapMetin');
+  var sonuc = qs('gkCevapSonuc');
+  if (!alan || !sonuc) return;
+  sonuc.textContent = 'Jarvis taslak uretiyor...';
+  var r = await api('/api/gelenkutusu/taslak', {
+    method: 'POST',
+    body: JSON.stringify({ id: kid })
+  });
+  if (!r.ok || !r.body) {
+    sonuc.textContent = 'Taslak uretilemedi: ' +
+      ((r.body && r.body.error) || 'bilinmeyen sebep');
+    return;
+  }
+  var t = r.body;
+  if (t.devredilmeli) {
+    sonuc.textContent = 'Jarvis bu konusmaya cevap URETMEDI -- ' +
+      (t.sebep_metni || 'devir kapisi sana veriyor') +
+      '. Cevabi sen yazmalisin.';
+    return;
+  }
+  if (!t.uretildi) {
+    sonuc.textContent = 'Taslak bos dondu' +
+      (t.gerekce ? ' (' + t.gerekce + ')' : '') + '.';
+    return;
+  }
+  alan.value = t.metin || '';
+  var notlar = [];
+  if (t.urun_soruluyor) notlar.push('urun bilinmedigi icin hangi urun oldugunu soruyor');
+  if (t.mevzuat) notlar.push('mevzuat: ' + t.mevzuat);
+  if (t.model) notlar.push('model: ' + t.model);
+  else notlar.push('model cagrilmadi');
+  sonuc.textContent = 'Taslak hazir — ' + notlar.join(' · ') +
+    '. Oku, gerekirse degistir, sonra GONDER.';
+}
+
+document.addEventListener('click', function (ev) {
+  var b = ev.target.closest ? ev.target.closest('[data-taslak]') : null;
+  if (b) gkTaslak(Number(b.dataset.kid));
 });

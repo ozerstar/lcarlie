@@ -14,6 +14,7 @@ from pywebpush import WebPushException, webpush
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "webconsole"))
 import push_store  # noqa: E402
+import mobile_features  # noqa: E402
 
 
 def send(subscription: dict, title: str, body: str, tag: str) -> bool:
@@ -90,6 +91,23 @@ def notify_new_approvals() -> None:
     save_seen(seen)
 
 
+def notify_due_reminders() -> None:
+    subscriptions = push_store.all_subscriptions()
+    for reminder in mobile_features.due_reminders():
+        targets = {identifier: subscription for identifier, subscription in subscriptions.items()
+                   if subscription.get("owner") == reminder.get("user")}
+        sent = set(reminder.get("sent_to") or [])
+        for identifier, subscription in targets.items():
+            if identifier in sent:
+                continue
+            if send(subscription, "Jarvis · Hatırlatıcı", reminder["text"],
+                    f"reminder-{reminder['id']}-{reminder['due_at']}"):
+                mobile_features.mark_sent(reminder["id"], identifier)
+                sent.add(identifier)
+        if targets and set(targets).issubset(sent):
+            mobile_features.advance_reminder(reminder["id"], set(targets))
+
+
 if __name__ == "__main__":
     if len(sys.argv) == 3 and sys.argv[1] == "--test":
         subscription = push_store.get(sys.argv[2])
@@ -97,6 +115,7 @@ if __name__ == "__main__":
                                         "Telefon bildirim bağlantısı hazır.", "jarvis-test"):
             raise SystemExit(1)
     elif len(sys.argv) == 1:
+        notify_due_reminders()
         notify_new_approvals()
     else:
         raise SystemExit(2)

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import base64
+import calendar
 import io
 import json
 import os
@@ -51,10 +52,12 @@ def reminders(username: str) -> list[dict]:
         return [dict(row) for row in _read(_reminders_path()) if row.get("user") == _user(username)][-100:]
 
 
-def add_reminder(username: str, text: str, when: str) -> dict:
+def _reminder_fields(text: str, when: str, repeat: str) -> tuple[str, datetime, str]:
     text = " ".join((text or "").split())[:240]
     if not text:
         raise ValueError("Hatırlatılacak konuyu yazın.")
+    if repeat not in ("none", "daily", "weekly", "monthly"):
+        raise ValueError("Geçerli bir tekrar aralığı seçin.")
     try:
         due = datetime.fromisoformat(when.replace("Z", "+00:00"))
     except (ValueError, AttributeError):
@@ -65,13 +68,31 @@ def add_reminder(username: str, text: str, when: str) -> dict:
     due = due.astimezone(timezone.utc)
     if due <= now or due > now + timedelta(days=365):
         raise ValueError("Gelecek bir yıl içinden tarih ve saat seçin.")
+    return text, due, repeat
+
+
+def add_reminder(username: str, text: str, when: str, repeat: str = "none") -> dict:
+    text, due, repeat = _reminder_fields(text, when, repeat)
     row = {"id": uuid.uuid4().hex, "user": _user(username), "text": text,
-           "due_at": due.isoformat(), "sent_to": []}
+           "due_at": due.isoformat(), "repeat": repeat, "anchor_day": due.day, "sent_to": []}
     with _LOCK:
         rows = _read(_reminders_path())
         rows.append(row)
         _atomic(_reminders_path(), rows[-500:])
     return row
+
+
+def update_reminder(username: str, identifier: str, text: str, when: str, repeat: str = "none") -> dict:
+    text, due, repeat = _reminder_fields(text, when, repeat)
+    with _LOCK:
+        rows = _read(_reminders_path())
+        for row in rows:
+            if row.get("id") == identifier and row.get("user") == _user(username):
+                row.update(text=text, due_at=due.isoformat(), repeat=repeat,
+                           anchor_day=due.day, sent_to=[])
+                _atomic(_reminders_path(), rows)
+                return dict(row)
+    raise ValueError("Hatırlatıcı bulunamadı.")
 
 
 def delete_reminder(username: str, identifier: str) -> bool:
@@ -107,9 +128,99 @@ def mark_sent(identifier: str, subscription_id: str) -> None:
         _atomic(_reminders_path(), rows)
 
 
+def advance_reminder(identifier: str, subscription_ids: set[str]) -> bool:
+    if not subscription_ids:
+        return False
+    with _LOCK:
+        rows = _read(_reminders_path())
+        for row in rows:
+            if row.get("id") != identifier or row.get("repeat", "none") == "none":
+                continue
+            if not subscription_ids.issubset(set(row.get("sent_to", []))):
+                return False
+            due = datetime.fromisoformat(row["due_at"])
+            now = datetime.now(timezone.utc)
+            while due <= now:
+                if row["repeat"] == "daily":
+                    due += timedelta(days=1)
+                elif row["repeat"] == "weekly":
+                    due += timedelta(days=7)
+                elif row["repeat"] == "monthly":
+                    year, month = due.year + (due.month == 12), due.month % 12 + 1
+                    day = min(int(row.get("anchor_day", due.day)), calendar.monthrange(year, month)[1])
+                    due = due.replace(year=year, month=month, day=day)
+                else:
+                    return False
+            row["due_at"] = due.isoformat()
+            row["sent_to"] = []
+            _atomic(_reminders_path(), rows)
+            return True
+    return False
+
+
 def personal_notes(username: str) -> list[dict]:
     with _LOCK:
         return _read(STATE / "notes" / (_user(username) + ".json"))[-60:]
+
+
+def _memory_thread(username: str) -> str:
+    return "personal_" + _user(username)
+
+
+def _tombstone_path(username: str) -> Path:
+    return STATE / "notes" / (_user(username) + ".pending-delete.json")
+
+
+def _reconcile_deletions(username: str) -> None:
+    if STATE.parent != Path("/opt/lcarlie/jarvis-phase2/state"):
+        return
+    from jarvis import hatira
+    path = _tombstone_path(username)
+    with _LOCK:
+        pending = _read(path)
+    if not pending:
+        return
+    done = []
+    for item in pending:
+        if hatira.unut_tam(str(item.get("text") or ""), thread=_memory_thread(username)) >= 0:
+            done.append(item.get("id"))
+    if done:
+        with _LOCK:
+            _atomic(path, [item for item in _read(path) if item.get("id") not in done])
+
+
+def _index_note(username: str, text: str) -> bool:
+    # The JSON note is authoritative; pgvector is a rebuildable search index.
+    if STATE.parent != Path("/opt/lcarlie/jarvis-phase2/state"):
+        return False
+    from jarvis import hatira
+    return hatira.kaydet(text, thread=_memory_thread(username))
+
+
+def memory_search(username: str, query: str, limit: int = 8) -> dict:
+    query = " ".join((query or "").split())[:240]
+    rows = personal_notes(username)
+    if not query:
+        return {"notes": rows[::-1], "method": "recent"}
+    if not rows:
+        return {"notes": [], "method": "text"}
+    active = {str(row.get("text") or "") for row in rows}
+    matches = []
+    method = "text"
+    if STATE.parent == Path("/opt/lcarlie/jarvis-phase2/state"):
+        from jarvis import hatira
+        _reconcile_deletions(username)
+        for text in hatira.ara(query, limit=limit, thread=_memory_thread(username)):
+            if text in active and text not in matches:
+                matches.append(text)
+        if matches:
+            method = "meaning"
+    for row in reversed(rows):
+        value = str(row.get("text") or "")
+        if query.casefold() in value.casefold() and value not in matches:
+            matches.append(value)
+    return {"notes": [row for text in matches[:limit] for row in reversed(rows) if row.get("text") == text][:limit],
+            "method": method}
 
 
 def add_note(username: str, text: str) -> dict:
@@ -122,19 +233,70 @@ def add_note(username: str, text: str) -> dict:
     with _LOCK:
         rows = _read(path)
         rows.append(row)
+        evicted = rows[:-60]
         _atomic(path, rows[-60:])
+        tombstones = _tombstone_path(username)
+        retained = {item.get("text") for item in rows[-60:]}
+        pending = [item for item in _read(tombstones) if item.get("text") != text]
+        pending += [{"id": uuid.uuid4().hex, "text": old.get("text")}
+                    for old in evicted if old.get("text") not in retained]
+        _atomic(tombstones, pending[-100:])
+    try:
+        _index_note(username, text)
+        _reconcile_deletions(username)
+    except Exception:  # noqa: BLE001 - dizin coksa bile kalici not gorunur
+        pass  # The durable note remains visible even when the index is down.
     return row
+
+
+def update_note(username: str, identifier: str, text: str) -> dict:
+    text = " ".join((text or "").split())[:400]
+    if not text:
+        raise ValueError("Hatırlanacak bilgiyi yazın.")
+    path = STATE / "notes" / (_user(username) + ".json")
+    with _LOCK:
+        rows = _read(path)
+        for row in rows:
+            if row.get("id") == identifier:
+                old_text = row["text"]
+                row["text"] = text
+                _atomic(path, rows)
+                break
+        else:
+            raise ValueError("Kişisel bilgi bulunamadı.")
+        tombstones = _tombstone_path(username)
+        pending = [item for item in _read(tombstones) if item.get("text") != text]
+        if old_text != text and not any(item.get("text") == old_text for item in rows):
+            pending.append({"id": uuid.uuid4().hex, "text": old_text})
+        _atomic(tombstones, pending[-100:])
+    try:
+        _index_note(username, text)
+        _reconcile_deletions(username)
+    except Exception:  # noqa: BLE001 - dizin coksa bile kalici not gorunur
+        pass
+    return dict(row)
 
 
 def delete_note(username: str, identifier: str) -> bool:
     path = STATE / "notes" / (_user(username) + ".json")
     with _LOCK:
         rows = _read(path)
+        removed = [row for row in rows if row.get("id") == identifier]
         kept = [row for row in rows if row.get("id") != identifier]
         if len(kept) == len(rows):
             return False
         _atomic(path, kept)
-        return True
+    if removed and not any(row.get("text") == removed[0].get("text") for row in kept):
+        tombstones = _tombstone_path(username)
+        with _LOCK:
+            pending = _read(tombstones)
+            pending.append({"id": uuid.uuid4().hex, "text": removed[0]["text"]})
+            _atomic(tombstones, pending[-100:])
+        try:
+            _reconcile_deletions(username)
+        except Exception:  # noqa: BLE001 - arama yetkili satirlara gore suzuyor
+            pass  # Search still filters against the authoritative rows.
+    return True
 
 
 def _attachment_dir(username: str) -> Path:
@@ -161,13 +323,17 @@ def upload(username: str, filename: str, data: bytes) -> dict:
         from PIL import Image, UnidentifiedImageError
         try:
             image = Image.open(io.BytesIO(data))
+            if image.width * image.height > 16_000_000:
+                raise ValueError("Görsel çok büyük. Daha küçük bir dosya seçin.")
             image.verify()
             image = Image.open(io.BytesIO(data)).convert("RGB")
             image.thumbnail((1600, 1600))
             out = io.BytesIO()
             image.save(out, format="JPEG", quality=85, optimize=True)
             payload = out.getvalue()
-        except (UnidentifiedImageError, OSError, ValueError):
+        except ValueError as exc:
+            raise ValueError(str(exc)) from None
+        except (UnidentifiedImageError, OSError):
             raise ValueError("Görsel okunamadı. JPG veya PNG deneyin.") from None
         kind, suffix = "image", ".jpg"
     else:
@@ -205,32 +371,30 @@ def attachment(username: str, identifier: str) -> tuple[dict, Path]:
 
 
 def vision_answer(username: str, identifier: str, question: str) -> str:
-    """Explicit opt-in call; never runs merely because an image was uploaded."""
-    from jarvis.model_layer import ExternalProvider
+    """Analyze an uploaded image on the server's local Ollama instance."""
     meta, path = attachment(username, identifier)
     if meta["kind"] != "image":
         raise ValueError("Görsel seçin.")
-    key = ExternalProvider()._key()
-    if not key:
-        raise ValueError("Görsel analiz servisi şu anda kullanılamıyor.")
     image = base64.b64encode(path.read_bytes()).decode("ascii")
     request_body = json.dumps({
-        "model": os.environ.get("JARVIS_VISION_MODEL", "google/gemini-3.5-flash-lite"),
-        "max_tokens": 420,
+        "model": os.environ.get("JARVIS_LOCAL_VISION_MODEL", "qwen3-vl:2b"),
+        "stream": False,
+        "keep_alive": "0",
+        "options": {"num_predict": 420, "num_ctx": 4096},
         "messages": [
             {"role": "system", "content": "Görseli Türkçe, sade ve kısa anlat. Gördüğünle tahmini ayır. Şirket verisi uydurma."},
-            {"role": "user", "content": [
-                {"type": "text", "text": (question or "Bu görselde ne var? Kendini açıkça gösteren sorunları söyle.")[:500]},
-                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + image}},
-            ]},
+            {"role": "user", "content": (question or "Bu görselde ne var? Kendini açıkça gösteren sorunları söyle.")[:500],
+             "images": [image]},
         ],
     }, ensure_ascii=False).encode("utf-8")
-    req = urllib.request.Request("https://openrouter.ai/api/v1/chat/completions", request_body,
-                                 {"Authorization": "Bearer " + key, "Content-Type": "application/json"})
+    req = urllib.request.Request("http://127.0.0.1:11434/api/chat", request_body,
+                                 {"Content-Type": "application/json"})
     try:
-        with urllib.request.urlopen(req, timeout=45) as response:
+        with urllib.request.urlopen(req, timeout=180) as response:
             result = json.load(response)
-        answer = result["choices"][0]["message"]["content"]
-        return str(answer).strip()[:3000]
-    except (HTTPError, URLError, KeyError, IndexError, ValueError):
-        raise ValueError("Görsel şu anda analiz edilemedi. Biraz sonra tekrar deneyin.") from None
+        answer = result["message"]["content"]
+        if not isinstance(answer, str) or not answer.strip():
+            raise ValueError("empty vision answer")
+        return answer.strip()[:3000]
+    except (HTTPError, URLError, KeyError, ValueError, TimeoutError):
+        raise ValueError("Görsel yerel sunucuda analiz edilemedi. Biraz sonra tekrar deneyin.") from None

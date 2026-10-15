@@ -1,21 +1,47 @@
 'use strict';
 
 const $ = (id) => document.getElementById(id);
-const state = { csrf: null, busy: false, audio: null, audioUrl: null, audioGeneration: 0, action: null };
+const state = { csrf: null, busy: false, audio: null, audioUrl: null, audioGeneration: 0, action: null,
+  chatMode: 'work', chatRows: { work: [], personal: [] }, attachment: null, googleProposal: null };
 let voiceMode = false;
 let selectedProposal = null;
 
 function status(message) {
-  $('status').textContent = message;
-  $('status').dataset.state = /hata|kesildi|açılamadı|algılanamadı|gerekli/i.test(message) ? 'error'
-    : /dinliyor|düşünüyor/i.test(message) ? 'busy' : 'ready';
+  const shown = friendlyMessage(message);
+  $('status').textContent = shown;
+  $('status').dataset.state = /hata|kesildi|açılamadı|algılanamadı|gerekli|tamamlanamadı/i.test(shown) ? 'error'
+    : /dinliyor|düşünüyor/i.test(shown) ? 'busy' : 'ready';
+}
+
+function friendlyMessage(value, fallback = 'İşlem tamamlanamadı. Lütfen tekrar deneyin.') {
+  const message = String(value || '').trim();
+  if (!message) return fallback;
+  if (/^(?:HTTP\s*\d+|JSON|SyntaxError|TypeError|Traceback|Internal Server Error)/i.test(message) ||
+      /(?:parse error|unexpected token|unexpected identifier|undefined|null reference|postgres:|\/opt\/)/i.test(message)) return fallback;
+  return message;
+}
+
+function approvalSummary(reason) {
+  const text = String(reason || '').trim();
+  if (/^CodingExecutor/i.test(text)) return 'Kod değişikliği önerildi. İnceleyip karar vermeniz gerekiyor.';
+  const first = text.split('\n').map((line) => line.trim())
+    .find((line) => line && !line.startsWith('/') && !/^(?:ONAY|RET)\s*=/.test(line)) || '';
+  const summary = first.replace(/^[A-ZÇĞİÖŞÜ _]+\s*[—:]\s*/, '').trim();
+  if (!summary || /(?:\{|\}|\[[^\]]*\]|\/opt\/|postgres:|\.json\b|_[a-z]+_)/i.test(summary))
+    return 'Yeni bir öneri var. Ayrıntıları inceleyip karar verin.';
+  return summary.slice(0, 180);
 }
 function showLogin() { $('login').hidden = false; $('app').hidden = true; $('logout').hidden = true; status('Giriş gerekli'); }
 function showApp() {
   $('login').hidden = true; $('app').hidden = false; $('logout').hidden = false;
   status('Bağlı'); refreshMobile(); refreshPushStatus();
-  if (new URLSearchParams(location.search).get('tab') === 'approvals') {
-    document.querySelector('[data-tab="approvals"]').click();
+  const tab = new URLSearchParams(location.search).get('tab');
+  if (['approvals', 'creative', 'jobs', 'chat'].includes(tab)) document.querySelector(`[data-tab="${tab}"]`).click();
+  if (tab === 'chat' && new URLSearchParams(location.search).get('mode') === 'personal')
+    document.querySelector('[data-chat-mode="personal"]').click();
+  if (new URLSearchParams(location.search).has('google')) {
+    status(new URLSearchParams(location.search).get('google') === 'connected' ? 'Google hesabı bağlandı' : 'Google hesabı bağlanamadı');
+    history.replaceState(null, '', '/mobile/index.html?tab=chat&mode=personal');
   }
 }
 
@@ -99,6 +125,9 @@ async function refreshPushStatus() {
     const registration = await navigator.serviceWorker.register('/mobile/sw.js', { scope: '/mobile/' });
     const subscription = await registration.pushManager.getSubscription();
     const active = Boolean(subscription && Notification.permission === 'granted');
+    if (active && state.csrf) await readApi('/api/push/subscribe', {
+      method: 'POST', body: JSON.stringify(subscription.toJSON()),
+    });
     $('push-enable').hidden = active;
     $('push-test').hidden = !active;
     $('push-disable').hidden = !active;
@@ -166,6 +195,7 @@ function bubble(kind, text) {
   const content = document.createElement('div');
   content.textContent = text;
   node.append(content);
+  state.chatRows[state.chatMode].push(node);
   $('messages').append(node);
   node.scrollIntoView({ block: 'end', behavior: 'smooth' });
   return { node, content };
@@ -247,9 +277,11 @@ async function sendMessage(text) {
   status('Düşünüyor');
   bubble('user', text);
   const row = bubble('jarvis', 'Yanıt hazırlanıyor…');
+  const mode = state.chatMode;
   let answer = '';
   try {
-    const response = await request('/api/chat/stream', { method: 'POST', body: JSON.stringify({ message: text }) });
+    const response = await request('/api/chat/stream', { method: 'POST', body: JSON.stringify({ message: text, mode,
+      attachment_id: mode === 'personal' ? state.attachment?.id : undefined }) });
     if (!response.ok || !response.body) throw new Error('Sohbet bağlantısı açılamadı.');
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -264,11 +296,46 @@ async function sendMessage(text) {
         const line = pending.slice(0, end).trim();
         pending = pending.slice(end + 1);
         if (!line) continue;
-        const item = JSON.parse(line);
+        let item;
+        try { item = JSON.parse(line); }
+        catch (_) { throw new Error('Yanıt tamamlanamadı. Lütfen tekrar deneyin.'); }
         if (item.type === 'stage') row.content.textContent = `${item.label}…`;
         if (item.type === 'token') { streamed += item.delta || ''; row.content.textContent = streamed; }
-        if (item.type === 'done') { answer = item.result?.text || item.result?.message || streamed; row.content.textContent = answer || 'Yanıt yok.'; }
-        if (item.type === 'error') { answer = item.message || 'Bir hata oluştu.'; row.content.textContent = answer; }
+        if (item.type === 'done') {
+          answer = item.result?.text || item.result?.message || streamed;
+          if (item.result?.source === 'operator.list_pending') {
+            const count = Array.isArray(item.result.data) ? item.result.data.length : 0;
+            answer = count ? `${count} öneri onayınızı bekliyor. Onaylar bölümünden inceleyebilirsiniz.` : 'Bekleyen onay yok.';
+          }
+          answer = friendlyMessage(answer, 'Jarvis yanıt veremedi. Lütfen tekrar deneyin.');
+          row.content.textContent = answer;
+          if (mode === 'work' && item.result?.source === 'kreatif.inceleme') {
+            const open = document.createElement('button');
+            open.className = 'chat-open-creative'; open.textContent = 'Görselleri aç';
+            open.addEventListener('click', () => document.querySelector('[data-tab="creative"]').click());
+            row.node.append(open);
+            if (item.result.data?.incelenen > 0) {
+              const assign = document.createElement('button');
+              assign.className = 'chat-assign-creative'; assign.textContent = 'Ekibe düzeltme görevi ver';
+              assign.addEventListener('click', async () => {
+                if (!window.confirm('Görselli çalışmalar için seçim ve düzeltme isteğini kreatif ekibe iletmek istiyor musun?')) return;
+                assign.disabled = true; assign.textContent = 'Kaydediliyor…';
+                try {
+                  const result = await readApi('/api/kreatif-gorev', {
+                    method: 'POST', body: JSON.stringify({tur: 'en_iyileri_sec_ve_duzelt'}) });
+                  assign.textContent = 'Görev kaydedildi';
+                  const note = document.createElement('p'); note.className = 'chat-task-result';
+                  note.textContent = result.message; row.node.append(note);
+                } catch (error) {
+                  assign.disabled = false; assign.textContent = 'Ekibe düzeltme görevi ver';
+                  status(friendlyMessage(error.message, 'Görev kaydedilemedi. Tekrar deneyin.'));
+                }
+              });
+              row.node.append(assign);
+            }
+          }
+        }
+        if (item.type === 'error') { answer = friendlyMessage(item.message, 'Yanıt tamamlanamadı. Tekrar deneyin.'); row.content.textContent = answer; }
       }
       row.node.scrollIntoView({ block: 'end' });
     }
@@ -276,9 +343,355 @@ async function sendMessage(text) {
     const playButton = addPlayButton(row, answer);
     if (voiceMode && playButton) { voiceMode = false; playAnswer(answer, playButton); }
     status('Bağlı');
-  } catch (error) { row.content.textContent = error.message || 'Bağlantı kesildi.'; status('Bağlantı hatası'); voiceMode = false; }
-  finally { state.busy = false; $('send').disabled = false; }
+  } catch (error) { row.content.textContent = friendlyMessage(error.message, 'Bağlantı kesildi. Tekrar deneyin.'); status('Bağlantı hatası'); voiceMode = false; }
+  finally { state.busy = false; $('send').disabled = false; if (mode === 'personal') clearAttachment(); }
 }
+
+document.querySelectorAll('[data-chat-mode]').forEach((button) => button.addEventListener('click', () => {
+  if (state.busy || button.dataset.chatMode === state.chatMode) return;
+  stopAudio();
+  state.chatMode = button.dataset.chatMode;
+  document.querySelectorAll('[data-chat-mode]').forEach((item) => {
+    const active = item.dataset.chatMode === state.chatMode;
+    item.classList.toggle('active', active);
+    item.setAttribute('aria-pressed', String(active));
+  });
+  $('messages').replaceChildren(...state.chatRows[state.chatMode]);
+  $('chat-mode-help').textContent = state.chatMode === 'personal'
+    ? 'Kişisel konuşmalar ayrı saklanır. Jarvis burada şirket kayıtlarını ve iş onaylarını kullanmaz.'
+    : 'Şirket verileri, görevler ve onaylar bu alandadır. İşlemler için onayınız gerekir.';
+  $('chat-input').placeholder = state.chatMode === 'personal' ? 'Kişisel asistana yaz…' : 'İş için Jarvis’e yaz…';
+  $('personal-tools').hidden = state.chatMode !== 'personal';
+  clearAttachment();
+  if (state.chatMode === 'personal') { loadReminders(); loadMemory(); loadGoogle(); }
+}));
+
+function clearAttachment() {
+  state.attachment = null;
+  $('personal-file').value = '';
+  $('file-status').textContent = 'JPG, PNG, PDF veya metin · En fazla 5 MB';
+  $('file-preview').hidden = true;
+  $('vision-button').hidden = true;
+}
+
+$('personal-file').addEventListener('change', async () => {
+  const file = $('personal-file').files[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) { clearAttachment(); status('Dosya en fazla 5 MB olabilir.'); return; }
+  $('file-status').textContent = 'Dosya yükleniyor…';
+  try {
+    const result = await readApi('/api/mobile/upload', { method: 'POST', body: file,
+      headers: { 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name) } });
+    state.attachment = result;
+    $('file-status').textContent = `${result.name} hazır. ${result.kind === 'image' ? 'Analiz et düğmesine dokun.' : 'Sorunu yazıp gönder.'}`;
+    if (result.kind === 'image') { $('file-preview').src = result.url; $('file-preview').hidden = false; $('vision-button').hidden = false; }
+  } catch (error) { clearAttachment(); status(friendlyMessage(error.message)); }
+});
+
+$('vision-button').addEventListener('click', async () => {
+  if (!state.attachment || state.busy) return;
+  const button = $('vision-button'); button.disabled = true; button.textContent = 'İnceleniyor…';
+  const question = $('chat-input').value.trim() || 'Bu görselde ne var? Sorunları sade anlat.';
+  try {
+    const result = await readApi('/api/mobile/vision', { method: 'POST', body: JSON.stringify({
+      attachment_id: state.attachment.id, question, consent: true }) });
+    bubble('user', `${state.attachment.name}: ${question}`);
+    const row = bubble('jarvis', result.answer); addPlayButton(row, result.answer);
+    $('chat-input').value = ''; clearAttachment();
+  } catch (error) { status(friendlyMessage(error.message)); }
+  finally { button.disabled = false; button.textContent = 'Görseli analiz et'; }
+});
+
+async function loadReminders() {
+  try {
+    const data = await readApi('/api/mobile/reminders'); const list = $('reminder-list'); list.replaceChildren();
+    const rows = data.reminders || [];
+    if (!rows.length) { empty(list, 'Henüz hatırlatıcı yok.'); return; }
+    for (const item of rows.slice().reverse()) {
+      const repeatLabel = {none: 'Bir kez', daily: 'Her gün', weekly: 'Her hafta', monthly: 'Her ay'}[item.repeat || 'none'];
+      const card = mobileCard(item.text, `${new Date(item.due_at).toLocaleString('tr-TR')} · ${repeatLabel}`,
+        new Date(item.due_at) <= new Date() ? 'Zamanı geldi' : 'Bekliyor');
+      const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'secondary'; edit.textContent = 'Düzenle';
+      edit.addEventListener('click', () => {
+        state.reminderEditId = item.id;
+        $('reminder-text').value = item.text;
+        const local = new Date(new Date(item.due_at).getTime() - new Date(item.due_at).getTimezoneOffset() * 60000);
+        $('reminder-time').value = local.toISOString().slice(0, 16);
+        $('reminder-repeat').value = item.repeat || 'none';
+        $('reminder-save').textContent = 'Değişiklikleri kaydet';
+        $('reminder-cancel').hidden = false;
+        $('reminder-text').focus();
+      });
+      const del = document.createElement('button'); del.type = 'button'; del.className = 'secondary'; del.textContent = 'Sil';
+      del.addEventListener('click', async () => { try { await readApi('/api/mobile/reminders', {method:'POST', body:JSON.stringify({action:'delete', id:item.id})}); loadReminders(); loadDailySummary(); } catch (error) { status(friendlyMessage(error.message)); } });
+      card.append(edit, del); list.append(card);
+    }
+  } catch (_) { empty($('reminder-list'), 'Hatırlatıcılar yüklenemedi.'); }
+}
+$('reminder-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  try {
+    const when = new Date($('reminder-time').value);
+    if (Number.isNaN(when.getTime())) throw new Error('Geçerli bir tarih ve saat seç.');
+    await readApi('/api/mobile/reminders', {method:'POST', body:JSON.stringify({action:state.reminderEditId ? 'update' : 'add',
+      id:state.reminderEditId, text:$('reminder-text').value, due_at:when.toISOString(), repeat:$('reminder-repeat').value})});
+    $('reminder-form').reset(); state.reminderEditId = null; $('reminder-save').textContent = 'Hatırlatıcı ekle';
+    $('reminder-cancel').hidden = true; loadReminders(); loadDailySummary(); status('Hatırlatıcı kaydedildi');
+  } catch (error) { status(friendlyMessage(error.message)); }
+});
+$('reminder-cancel').addEventListener('click', () => {
+  state.reminderEditId = null; $('reminder-form').reset();
+  $('reminder-save').textContent = 'Hatırlatıcı ekle'; $('reminder-cancel').hidden = true;
+});
+
+async function loadMemory() {
+  try {
+    const query = $('memory-query').value.trim();
+    const data = await readApi(query ? `/api/mobile/memory/search?q=${encodeURIComponent(query)}` : '/api/mobile/memory');
+    $('memory-search-method').textContent = query ? (data.method === 'meaning' ? 'Anlamına göre bulunan kayıtlar' : 'Metinle bulunan kayıtlar') : '';
+    const list = $('memory-list'); list.replaceChildren();
+    if (!data.notes?.length) { empty(list, 'Kayıtlı kişisel bilgi yok.'); return; }
+    for (const item of (query ? data.notes : data.notes.slice().reverse())) {
+      const card = mobileCard(item.text);
+      const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'secondary'; edit.textContent = 'Düzenle';
+      edit.addEventListener('click', async () => {
+        const changed = window.prompt('Jarvis’in hatırlamasını istediğin bilgi', item.text);
+        if (changed === null || changed.trim() === item.text) return;
+        try { await readApi('/api/mobile/memory', {method:'POST', body:JSON.stringify({action:'update', id:item.id, text:changed})}); loadMemory(); status('Bilgi güncellendi'); }
+        catch (error) { status(friendlyMessage(error.message)); }
+      });
+      const del = document.createElement('button'); del.type = 'button'; del.className = 'secondary'; del.textContent = 'Unut';
+      del.addEventListener('click', async () => { try { await readApi('/api/mobile/memory', {method:'POST', body:JSON.stringify({action:'delete', id:item.id})}); loadMemory(); } catch (error) { status(friendlyMessage(error.message)); } });
+      card.append(edit, del); list.append(card);
+    }
+  } catch (_) { empty($('memory-list'), 'Kişisel bilgiler yüklenemedi.'); }
+}
+$('memory-query').addEventListener('input', () => { clearTimeout(state.memorySearchTimer); state.memorySearchTimer = setTimeout(loadMemory, 350); });
+$('memory-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  try { await readApi('/api/mobile/memory', {method:'POST', body:JSON.stringify({action:'add', text:$('memory-text').value})});
+    $('memory-form').reset(); loadMemory(); status('Bilgi kaydedildi');
+  } catch (error) { status(friendlyMessage(error.message)); }
+});
+
+async function loadGoogle() {
+  try {
+    const account = await readApi('/api/mobile/google/status');
+    $('google-status').textContent = account.connected ? (account.drive_write
+      ? 'Google hesabın bağlı. Takvim, e-posta ve Drive hazır.'
+      : 'Google hesabın bağlı. Drive’a kaydetmek için yeniden bağlanıp ek izin vermelisin.')
+      : account.configured ? 'Google hesabın henüz bağlı değil.' : 'Google bağlantısı için kurulum bekleniyor.';
+    $('google-connect').hidden = account.connected && account.drive_write;
+    $('google-connect').textContent = account.connected ? 'Drive yazma izni için yeniden bağla' : 'Google hesabını bağla';
+    $('google-connect').disabled = !account.configured;
+    $('drive-save').disabled = !account.drive_write;
+    $('google-disconnect').hidden = !account.connected;
+    for (const id of ['calendar-form', 'email-form', 'drive-section']) $(id).hidden = !account.connected;
+    if (account.connected) { loadCalendar(); loadGooglePending(); }
+    else { $('google-pending').hidden = true; $('google-approval').hidden = true; }
+  } catch (_) { $('google-status').textContent = 'Google bağlantısı kontrol edilemedi.'; }
+}
+$('google-connect').addEventListener('click', () => { window.location.href = '/google/start'; });
+$('google-disconnect').addEventListener('click', async () => {
+  if (!window.confirm('Google bağlantısını Jarvis’ten kaldırayım mı?')) return;
+  try { await readApi('/api/mobile/google/disconnect', {method:'POST', body:'{}'}); loadGoogle(); }
+  catch (error) { status(friendlyMessage(error.message)); }
+});
+
+async function loadCalendar() {
+  const list = $('calendar-list');
+  try {
+    const data = await readApi('/api/mobile/google/calendar'); list.replaceChildren();
+    if (!data.events?.length) { empty(list, 'Yaklaşan etkinlik görünmüyor.'); return; }
+    for (const item of data.events) list.append(mobileCard(item.title,
+      item.start ? new Date(item.start).toLocaleString('tr-TR') : 'Tarih yok'));
+  } catch (_) { empty(list, 'Takvim şu anda okunamadı.'); }
+}
+
+function showGoogleProposal(proposal) {
+  state.googleProposal = proposal;
+  $('google-approval-text').textContent = proposal.description;
+  const external = ['calendar.create', 'gmail.send', 'drive.upload'].includes(proposal.kind);
+  $('google-approval').classList.toggle('external-warning', external);
+  const preview = $('google-approval-preview-link');
+  const previewUrl = proposal.preview_url;
+  preview.hidden = !/^\/kreatif\/[\w./-]+\.(?:jpe?g|png|webp)$/i.test(previewUrl || '');
+  if (!preview.hidden) { preview.href = previewUrl; $('google-approval-preview').src = previewUrl; }
+  else { preview.removeAttribute('href'); $('google-approval-preview').removeAttribute('src'); }
+  $('google-approval').hidden = false;
+  $('google-approval').scrollIntoView({block:'center'});
+}
+async function loadGooglePending() {
+  try {
+    const data = await readApi('/api/mobile/google/pending');
+    const list = $('google-pending-list'); list.replaceChildren();
+    $('google-pending').hidden = !data.pending?.length;
+    for (const proposal of data.pending || []) {
+      const card = mobileCard(proposal.kind === 'gmail.send' ? 'E-posta gönderme'
+        : proposal.kind === 'drive.upload' ? 'Drive’a kaydetme' : 'Takvime ekleme',
+        proposal.description.split('\n')[0]);
+      if (['calendar.create', 'gmail.send', 'drive.upload'].includes(proposal.kind)) card.classList.add('external-warning');
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'secondary';
+      button.textContent = 'İncele'; button.addEventListener('click', () => showGoogleProposal(proposal));
+      card.append(button); list.append(card);
+    }
+  } catch (_) { $('google-pending').hidden = true; }
+}
+$('calendar-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  try {
+    const proposal = await readApi('/api/mobile/google/prepare', {method:'POST', body:JSON.stringify({
+      kind:'calendar.create', fields:{title:$('calendar-title').value,
+        start:new Date($('calendar-start').value).toISOString(),
+        end:new Date($('calendar-end').value).toISOString()}})});
+    showGoogleProposal(proposal);
+    loadGooglePending();
+  } catch (error) { status(friendlyMessage(error.message)); }
+});
+$('email-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  try {
+    const proposal = await readApi('/api/mobile/google/prepare', {method:'POST', body:JSON.stringify({
+      kind:'gmail.send', fields:{to:$('email-to').value, subject:$('email-subject').value,
+        body:$('email-body').value}})});
+    showGoogleProposal(proposal);
+    loadGooglePending();
+  } catch (error) { status(friendlyMessage(error.message)); }
+});
+async function decideGoogle(decision) {
+  const proposal = state.googleProposal;
+  if (!proposal) return;
+  $('google-approve').disabled = true; $('google-reject').disabled = true;
+  try {
+    const result = await readApi('/api/mobile/google/decide', {method:'POST',
+      body:JSON.stringify({id:proposal.id, decision})});
+    $('google-approval').hidden = true; state.googleProposal = null;
+    loadGooglePending();
+    status(result.status === 'UNCERTAIN' ? 'İşlem sonucu belirsiz. Google hesabında kontrol edin.' : result.message);
+    if (result.status === 'DONE' && proposal.kind === 'calendar.create') { $('calendar-form').reset(); loadCalendar(); }
+    if (result.status === 'DONE' && proposal.kind === 'gmail.send') $('email-form').reset();
+  } catch (error) { status(friendlyMessage(error.message)); }
+  finally { $('google-approve').disabled = false; $('google-reject').disabled = false; }
+}
+$('google-approve').addEventListener('click', () => decideGoogle('APPROVED'));
+$('google-reject').addEventListener('click', () => decideGoogle('REJECTED'));
+function driveFolderId() {
+  const folder = $('drive-folder').value.trim();
+  return folder.includes('/folders/') ? folder.split('/folders/')[1].split(/[?/#]/)[0] : folder;
+}
+function creativeFeedbackForm(group, filename) {
+  const wrapper = document.createElement('div'); wrapper.className = 'creative-feedback';
+  const open = document.createElement('button'); open.type = 'button'; open.className = 'secondary';
+  open.textContent = 'Düzeltme / yeni sürüm iste';
+  const form = document.createElement('form'); form.hidden = true;
+  const label = document.createElement('label'); label.textContent = 'Neyi değiştirelim?';
+  const topic = document.createElement('select');
+  for (const [value, name] of [
+    ['LOGO', 'Logo, yazı tipi, yerleşim veya renk'], ['URUN', 'Ürün, şişe veya ambalaj'],
+    ['METIN', 'Yazının içeriği'], ['MARKA', 'Marka dili'], ['MEVZUAT', 'Mevzuat'],
+    ['DIGER', 'Daha iyi bir alternatif'],
+  ]) { const option = document.createElement('option'); option.value = value; option.textContent = name; topic.append(option); }
+  const note = document.createElement('textarea'); note.rows = 3; note.maxLength = 2000; note.required = true;
+  note.placeholder = 'Örn. Şişe yamuk; dikleştir. Yazı tipini sadeleştir ve daha okunur yap.';
+  const submit = document.createElement('button'); submit.type = 'submit'; submit.className = 'secondary';
+  submit.textContent = 'Düzeltme isteğini kaydet';
+  const result = document.createElement('p'); result.setAttribute('role', 'status');
+  label.append(topic, note); form.append(label, submit, result);
+  open.addEventListener('click', () => { form.hidden = !form.hidden; if (!form.hidden) note.focus(); });
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault(); submit.disabled = true;
+    try {
+      const answer = await readApi('/api/kreatif-itiraz', {method:'POST', body:JSON.stringify({
+        parti:group, dosya:filename, konu:topic.value, aciklama:note.value.trim(),
+      })});
+      result.textContent = `İstek ${answer.muhatap || 'ilgili ekibe'} kaydedildi. Sonraki kreatif üretiminde dikkate alınacak; yeni görsel henüz üretilmedi.`;
+      note.value = '';
+    } catch (error) { result.textContent = friendlyMessage(error.message); }
+    finally { submit.disabled = false; }
+  });
+  wrapper.append(open, form); return wrapper;
+}
+$('drive-save').addEventListener('click', async () => {
+  if (!state.attachment?.id) { status('Önce bir dosya seç veya Drive’dan Jarvis’e ekle.'); return; }
+  try {
+    const proposal = await readApi('/api/mobile/google/prepare', {method:'POST', body:JSON.stringify({
+      kind:'drive.upload', fields:{attachment_id:state.attachment.id, folder_id:driveFolderId()}})});
+    showGoogleProposal(proposal);
+    loadGooglePending();
+  } catch (error) { status(friendlyMessage(error.message)); }
+});
+$('creative-refresh').addEventListener('click', async () => {
+  const list = $('drive-creative-list');
+  try {
+    const data = await readApi('/api/mobile/google/creative');
+    list.replaceChildren();
+    if (!data.files?.length) { empty(list, 'Kreatif görsel bulunamadı.'); return; }
+    for (const item of data.files) {
+      const card = mobileCard(item.name, item.group);
+      const preview = document.createElement('a'); preview.href = item.preview_url;
+      preview.target = '_blank'; preview.rel = 'noopener'; preview.setAttribute('aria-label', `${item.name} büyüt`);
+      const image = document.createElement('img'); image.src = item.preview_url; image.alt = `${item.group} · ${item.name}`;
+      image.className = 'drive-creative-preview'; image.loading = 'lazy'; preview.append(image); card.append(preview);
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'secondary';
+      button.textContent = 'Drive’a kaydetme onayı hazırla';
+      button.addEventListener('click', async () => {
+        button.disabled = true;
+        try {
+          const proposal = await readApi('/api/mobile/google/prepare', {method:'POST', body:JSON.stringify({
+            kind:'drive.upload', fields:{creative_id:item.id, folder_id:driveFolderId()}})});
+          showGoogleProposal(proposal); loadGooglePending();
+        } catch (error) { status(friendlyMessage(error.message)); }
+        finally { button.disabled = false; }
+      });
+      card.append(button, creativeFeedbackForm(item.group, item.name)); list.append(card);
+    }
+  } catch (error) { empty(list, friendlyMessage(error.message)); }
+});
+$('drive-search').addEventListener('click', async () => {
+  const list = $('drive-list');
+  const readableTypes = new Set([
+    'application/vnd.google-apps.document', 'application/vnd.google-apps.spreadsheet',
+    'application/vnd.google-apps.presentation', 'application/pdf', 'text/plain',
+    'text/csv', 'text/markdown', 'image/jpeg', 'image/png', 'image/webp',
+  ]);
+  try {
+    const data = await readApi(`/api/mobile/google/drive?q=${encodeURIComponent($('drive-query').value.trim())}`);
+    list.replaceChildren();
+    if (!data.files?.length) { empty(list, 'Dosya bulunamadı.'); return; }
+    for (const item of data.files) {
+      const card = mobileCard(item.name || 'Adsız dosya');
+      if (item.id && readableTypes.has(item.mime_type)) {
+        const attach = document.createElement('button'); attach.type = 'button'; attach.className = 'secondary';
+        attach.textContent = 'Jarvis’e ekle';
+        attach.addEventListener('click', async () => {
+          attach.disabled = true;
+          try {
+            const result = await readApi('/api/mobile/google/drive/import', {
+              method: 'POST', body: JSON.stringify({id: item.id}),
+            });
+            state.attachment = result;
+            $('file-status').textContent = `${result.name} hazır. Kişisel sohbette sorunu yazıp gönder.`;
+            $('file-preview').hidden = true;
+            $('vision-button').hidden = result.kind !== 'image';
+            if (result.kind === 'image') { $('file-preview').src = result.url; $('file-preview').hidden = false; }
+            status('Drive dosyası kişisel sohbete eklendi.');
+            $('chat-input').focus();
+          } catch (error) { status(friendlyMessage(error.message)); }
+          finally { attach.disabled = false; }
+        });
+        card.append(attach);
+      }
+      try {
+        const url = new URL(item.url);
+        if (url.protocol === 'https:' && ['drive.google.com', 'docs.google.com'].includes(url.hostname)) {
+          const link = document.createElement('a'); link.href = url.href; link.target = '_blank'; link.rel = 'noopener';
+          link.textContent = 'Drive’da aç'; card.append(link);
+        }
+      } catch (_) { /* invalid link is simply not opened */ }
+      list.append(card);
+    }
+  } catch (error) { empty(list, friendlyMessage(error.message)); }
+});
 
 function openAction(kind, target = '', message = '') {
   state.action = kind;
@@ -350,7 +763,9 @@ $('action-form').addEventListener('submit', async (event) => {
 async function readApi(path, options) {
   const response = await request(path, options);
   const body = await response.json();
-  if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
+  if (!response.ok) throw new Error(response.status >= 500 ? 'Jarvis şu anda yanıt veremiyor. Biraz sonra tekrar deneyin.' :
+    response.status === 403 ? 'Bu işlem için yetkiniz yok.' :
+    friendlyMessage(body.error, 'İşlem tamamlanamadı. Tekrar deneyin.'));
   return body;
 }
 
@@ -371,21 +786,81 @@ function empty(container, message) {
 
 function approvalTitle(proposal) {
   const reason = String(proposal.payload?.reason || '').trim();
-  if (reason.startsWith('CodingExecutor')) {
-    return reason.includes('SMOKE_TEST') ? 'Kod deneme kaydı' : 'Kod değişikliği incelemesi';
-  }
-  const firstLine = reason.split('\n')[0].replace(/^[A-ZÇĞİÖŞÜ ]+—\s*/, '').trim();
-  return firstLine || 'Açıklaması olmayan öneri';
+  return approvalSummary(reason);
 }
 
 function approvalRisk(value) {
   return { LOW: 'Düşük', MEDIUM: 'Orta', HIGH: 'Yüksek', CRITICAL: 'Kritik' }[value] || 'Belirtilmemiş';
 }
 
+async function loadCreative() {
+  const list = $('creative-list'); list.replaceChildren();
+  try {
+    const data = await readApi('/api/kreatif-parti');
+    const batches = data.partiler || [];
+    const ready = batches.filter((batch) => (batch.kareler || []).length);
+    const waiting = batches.filter((batch) => !(batch.kareler || []).length);
+    if (!ready.length) empty(list, 'Henüz üretilmiş görsel yok.');
+    for (const batch of ready) {
+      const section = document.createElement('section'); section.className = 'creative-batch';
+      const heading = document.createElement('h2'); heading.textContent = batch.urun_adi || batch.parti;
+      const count = document.createElement('p'); count.textContent = `${batch.kareler.length} görsel · Dokunarak büyüt`;
+      const gallery = document.createElement('div'); gallery.className = 'creative-gallery';
+      for (const frame of batch.kareler) {
+        if (!/^\/kreatif\/[\w./-]+\.(?:jpe?g|png)$/i.test(frame.url || '')) continue;
+        const link = document.createElement('a'); link.href = frame.url; link.target = '_blank'; link.rel = 'noopener';
+        link.className = 'creative-image'; link.setAttribute('aria-label', `${frame.ust_yazi || 'Görsel'} büyüt`);
+        const image = document.createElement('img'); image.src = frame.url; image.alt = frame.ust_yazi || 'Reklam görseli'; image.loading = 'lazy';
+        image.onerror = () => { image.alt = 'Görsel açılamadı'; link.classList.add('image-error'); };
+        const caption = document.createElement('span'); caption.textContent = frame.ust_yazi || frame.dosya || 'Görseli aç';
+        const decision = document.createElement('small'); decision.className = 'creative-decision';
+        decision.textContent = {GECER: 'İncelemeden geçti', DUZELT: 'Düzeltme gerekli', RED: 'Reddedildi'}[frame.karar] || 'İnceleme bekliyor';
+        const tile = document.createElement('div'); tile.className = 'creative-tile';
+        link.append(image, caption, decision); tile.append(link);
+        if (frame.gerekce) {
+          const why = document.createElement('p'); why.className = 'creative-review';
+          why.textContent = `İnceleme nedeni: ${friendlyMessage(frame.gerekce, 'Ayrıntı belirtilmedi.')}`;
+          tile.append(why);
+        }
+        tile.append(creativeFeedbackForm(batch.parti_klasor || `${batch.parti}-gorseller`, frame.dosya));
+        gallery.append(tile);
+      }
+      section.append(heading, count, gallery); list.append(section);
+      const objections = batch.red_team?.itirazlar || batch.red_team || [];
+      if (Array.isArray(objections) && objections.length) {
+        const review = document.createElement('details'); review.className = 'creative-red-team';
+        const summary = document.createElement('summary'); summary.textContent = `İncelemede bulunan ${objections.length} sorun · Dokunup aç`;
+        review.append(summary);
+        for (const item of objections) {
+          const card = mobileCard(friendlyMessage(item.alinti || 'İnceleme notu'),
+            `Neden önemli? ${friendlyMessage(item.itiraz || 'Açıklama yok.')}`,
+            `Nasıl düzeltilir? ${friendlyMessage(item.duzeltme || 'Öneri yok.')}`);
+          review.append(card);
+        }
+        const assign = document.createElement('button'); assign.type = 'button'; assign.className = 'secondary';
+        assign.textContent = 'Düzeltme görevi ver';
+        assign.addEventListener('click', async () => {
+          if (!window.confirm('İncelemede bulunan sorunları düzeltme görevi olarak kaydedeyim mi?')) return;
+          assign.disabled = true;
+          try { const result = await readApi('/api/kreatif-gorev', {method:'POST', body:JSON.stringify({tur:'en_iyileri_sec_ve_duzelt'})});
+            assign.textContent = friendlyMessage(result.message, 'Görev kaydedildi'); }
+          catch (error) { assign.disabled = false; status(friendlyMessage(error.message)); }
+        });
+        review.append(assign); section.append(review);
+      }
+    }
+    if (waiting.length) {
+      const heading = document.createElement('h2'); heading.className = 'creative-waiting-title'; heading.textContent = 'Görseli henüz hazırlanmayanlar';
+      list.append(heading);
+      for (const batch of waiting.slice(0, 8)) list.append(mobileCard(batch.urun_adi || batch.parti, 'Görsel henüz üretilmedi.', 'Hazırlık aşamasında'));
+    }
+  } catch (_) { empty(list, 'Görseller yüklenemedi. Tekrar deneyin.'); }
+}
+
 function approvalDate(value) {
   if (!value) return 'Belirtilmemiş';
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString('tr-TR');
+  return Number.isNaN(date.getTime()) ? 'Belirtilmemiş' : date.toLocaleString('tr-TR');
 }
 
 function addApprovalLine(container, text, className = '') {
@@ -401,37 +876,77 @@ async function loadJobs() {
   try {
     const data = await readApi('/api/isler');
     const counts = data.sayilar || {};
-    $('job-count').textContent = `Sırada ${counts.bekleyen ?? 0} · çalışan ${counts.calisan ?? 0} · biten ${counts.biten ?? 0} · hata ${counts.hata ?? 0}`;
+    $('job-count').textContent = `Sırada ${counts.bekleyen ?? 0} · hazırlanan ${counts.calisan ?? 0} · tamamlanan ${counts.biten ?? 0} · tamamlanamayan ${counts.hata ?? 0}`;
     const list = $('job-list'); list.replaceChildren();
     for (const job of (data.isler || []).slice(0, 50)) {
-      list.append(mobileCard(job.istem || 'İş', '', `${job.asama || '—'} · ${job.isteyen || ''}`));
+      const phase = {bekleyen: 'Sırada', calisan: 'Hazırlanıyor', biten: 'Tamamlandı', hata: 'Tamamlanamadı'}[job.asama] || 'Durum belirlenemedi';
+      list.append(mobileCard(job.istem || 'İş', phase, job.isteyen ? `İsteyen: ${job.isteyen}` : ''));
     }
     if (!list.children.length) empty(list, 'Kuyrukta iş yok.');
-  } catch (error) { empty($('job-list'), error.message); $('job-count').textContent = 'İşler alınamadı'; }
+  } catch (_) { empty($('job-list'), 'İşler yüklenemedi. Sayfayı yenileyip tekrar deneyin.'); $('job-count').textContent = 'İşler alınamadı'; }
+}
+
+const ORCHESTRATION_STEPS = {
+  internal_data_analysis: 'Şirket verileri incelendi',
+  sales_analysis: 'Satış verileri incelendi',
+  advertising_analysis: 'Reklam sonuçları incelendi',
+  evidence_fusion: 'Bulgular karşılaştırıldı',
+  red_team_review: 'Bulguların zayıf noktaları kontrol edildi',
+  human_review_proposal: 'İncelenmek üzere öneri taslağı hazırlandı',
+  action_plan: 'Yapılacaklar için öneri taslağı hazırlandı',
+  capability_analysis: 'Sistemin yapabildikleri kontrol edildi',
+  system_status: 'Sistem durumu kontrol edildi',
+  problem_opportunity_analysis: 'Sorunlar ve fırsatlar incelendi',
+};
+
+function orchestrationStepName(capability) {
+  if (ORCHESTRATION_STEPS[capability]) return ORCHESTRATION_STEPS[capability];
+  if (capability?.endsWith('_analysis')) return 'İlgili veriler incelendi';
+  return 'Çalışma adımı';
+}
+
+function orchestrationStepStatus(step) {
+  const labels = {
+    SUCCEEDED: 'Tamamlandı', PROPOSED: 'Taslak hazır; onay listesine eklenmedi',
+    RUNNING: 'Devam ediyor', PENDING: 'Sırada', FAILED: 'Tamamlanamadı',
+    DATA_UNAVAILABLE: 'Gerekli veriye ulaşılamadı',
+    BLOCKED_CAPABILITY: 'Bu işlem şu anda yapılamıyor',
+    BLOCKED_UPSTREAM: 'Önceki adım tamamlanamadığı için bekliyor',
+    REQUIRES_HUMAN_ORIGINATION: 'Bu adımı bir kişinin başlatması gerekiyor',
+  };
+  return labels[step.status] || 'Durumu belirlenemedi';
+}
+
+function orchestrationDate(value) {
+  const date = new Date(value);
+  return value && !Number.isNaN(date.getTime())
+    ? new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium', timeStyle: 'short' }).format(date)
+    : '';
 }
 
 async function loadOrchestration() {
   const list = $('orchestration-list');
   try {
     const data = await readApi('/api/orchestration');
-    $('orchestration-count').textContent = `son ${data.total} çalışma · ${data.needs_attention} inceleme`;
+    $('orchestration-count').textContent = `Son ${data.total} çalışma · ${data.needs_attention} çalışma kontrol gerektiriyor`;
     list.replaceChildren();
     for (const run of data.runs || []) {
       const statusText = {
-        COMPLETED: 'Tamamlandı', COMPLETED_DEGRADED: 'Eksik veri', RUNNING: 'Çalışıyor',
-        FAILED: 'Hata', INTERRUPTED: 'Yarım kalmış olabilir', UNVERIFIED: 'Kanıt doğrulanamadı',
-      }[run.status] || run.status;
-      const card = mobileCard(run.request || run.plan_id, statusText, run.started_at || '');
+        COMPLETED: 'Analiz tamamlandı', COMPLETED_DEGRADED: 'Analiz bitti; bazı bilgiler eksik',
+        RUNNING: 'Analiz sürüyor', FAILED: 'Analiz tamamlanamadı',
+        INTERRUPTED: 'Çalışma yarıda kalmış olabilir',
+        UNVERIFIED: 'Analiz bitti; bazı bulguların kaynağı eksik',
+      }[run.status] || 'Durum kontrol edilemedi';
+      const card = mobileCard(run.request || 'Planlı çalışma', statusText, orchestrationDate(run.started_at));
       const detail = document.createElement('details');
-      const summary = document.createElement('summary'); summary.textContent = `${(run.steps || []).length} adımı gör`;
+      const summary = document.createElement('summary'); summary.textContent = `Neler yapıldı? (${(run.steps || []).length} adım)`;
       const steps = document.createElement('ol');
       for (const step of run.steps || []) {
         const item = document.createElement('li');
-        const evidence = step.evidence_state === 'MISSING' ? ' · Kanıt eksik' :
-          step.evidence_state === 'PRESENT' ? ` · ${step.evidence_count} kaynak` : '';
-        const acceptance = step.acceptance_status === 'PASSED' ? ' · Teslim doğrulandı' :
-          step.acceptance_status === 'FAILED' ? ' · Teslim kabul edilmedi' : '';
-        item.textContent = `${step.step_id} · ${step.capability}: ${step.status}${evidence}${acceptance}${step.reason ? ` — ${step.reason}` : ''}`;
+        const evidence = step.evidence_state === 'MISSING' ? ' · Dayanak bilgisi eksik' :
+          step.evidence_state === 'PRESENT' ? ` · ${step.evidence_count} bilgi kaynağı kullanıldı` : '';
+        const acceptance = step.acceptance_status === 'FAILED' ? ' · Sonuç kontrolü geçemedi' : '';
+        item.textContent = `${orchestrationStepName(step.capability)} — ${orchestrationStepStatus(step)}${evidence}${acceptance}`;
         steps.append(item);
       }
       detail.append(summary, steps); card.append(detail); list.append(card);
@@ -439,7 +954,7 @@ async function loadOrchestration() {
     if (!list.children.length) empty(list, 'Henüz kayıtlı planlı çalışma yok.');
   } catch (error) {
     $('orchestration-count').textContent = 'Çalışmalar okunamadı';
-    empty(list, 'Orkestrasyon kayıtları yüklenemedi.');
+    empty(list, 'Planlı çalışmalar yüklenemedi. Sayfayı yenileyip tekrar deneyin.');
   }
 }
 
@@ -463,17 +978,15 @@ async function loadApprovals() {
     $('approval-count').hidden = pending.length === 0;
     $('home-approval-count').textContent = String(pending.length);
     for (const proposal of pending) {
-      const reason = String(proposal.payload?.reason || '').trim();
-      const preview = reason.length > 240 ? `${reason.slice(0, 240)}…` : reason;
-      const card = mobileCard(approvalTitle(proposal), preview || 'Açıklama yok; onaylamadan önce inceleyin.',
-        `#${proposal.action_id} · Risk: ${approvalRisk(proposal.risk_class)} · ${approvalDate(proposal.proposed_at)}`);
-      const button = document.createElement('button'); button.textContent = 'İncele';
+      const card = mobileCard(approvalTitle(proposal), 'Ayrıntıları inceleyip karar verin.',
+        `Risk: ${approvalRisk(proposal.risk_class)} · ${approvalDate(proposal.proposed_at)}`);
+      const button = document.createElement('button'); button.textContent = 'Öneriyi incele';
       button.addEventListener('click', () => openMobileProposal(proposal.action_id));
       card.append(button); list.append(card);
     }
     if (!pending.length) empty(list, 'Bekleyen onay yok.');
-  } catch (error) {
-    empty($('approval-list'), error.message);
+  } catch (_) {
+    empty($('approval-list'), 'Onaylar yüklenemedi. Sayfayı yenileyip tekrar deneyin.');
     $('approval-count').hidden = true;
     $('home-approval-count').textContent = '—';
   }
@@ -487,10 +1000,16 @@ async function openMobileProposal(id) {
     const reason = String(proposal.payload?.reason || '').trim();
     $('approval-title').textContent = `#${id} · ${title}`;
     const detail = $('approval-detail'); detail.replaceChildren();
-    addApprovalLine(detail, `Risk: ${approvalRisk(proposal.risk_class)} · Görev: #${proposal.task_id || '—'}`, 'approval-meta');
-    addApprovalLine(detail, `Oluşturuldu: ${approvalDate(proposal.proposed_at)} · Son geçerlilik: ${approvalDate(proposal.expires_at)}`, 'approval-meta');
+    addApprovalLine(detail, `Risk: ${approvalRisk(proposal.risk_class)}`, 'approval-meta');
+    const outcome = reason.match(/ONAY\s*=\s*(.*?)(?:\s+RET\s*=|$)/i);
+    if (outcome) addApprovalLine(detail, `Onaylarsan: ${outcome[1].trim()}`, 'approval-outcome');
+    addApprovalLine(detail, `Son karar tarihi: ${approvalDate(proposal.expires_at)}`, 'approval-meta');
     if (reason) {
-      addApprovalLine(detail, reason, 'approval-reason');
+      addApprovalLine(detail, approvalSummary(reason), 'approval-summary');
+      const explanation = document.createElement('details'); explanation.className = 'approval-full';
+      const label = document.createElement('summary'); label.textContent = 'Açıklamanın tamamı';
+      const full = document.createElement('p'); full.textContent = reason;
+      explanation.append(label, full); detail.append(explanation);
     } else {
       addApprovalLine(detail, 'Bu önerinin açıklaması yok. Ne yapılacağını bilmeden onay vermeyin.', 'approval-warning');
     }
@@ -501,7 +1020,7 @@ async function openMobileProposal(id) {
       const link = document.createElement('a');
       link.href = match[1]; link.target = '_blank'; link.rel = 'noopener';
       const preview = document.createElement('img'); preview.src = match[1]; preview.alt = 'Önerilen görsel önizlemesi';
-      link.append(preview); detail.append(link);
+      link.className = 'approval-image'; link.append(preview); detail.append(link);
     }
     const technical = document.createElement('details');
     const summary = document.createElement('summary'); summary.textContent = 'Teknik kayıt';
@@ -510,7 +1029,7 @@ async function openMobileProposal(id) {
     $('approval-approve').disabled = !reason;
     $('approval-reason').value = '';
     $('approval-dialog').showModal();
-  } catch (error) { status(error.message); }
+  } catch (error) { status(friendlyMessage(error.message)); }
 }
 
 $('approval-close').addEventListener('click', () => $('approval-dialog').close());
@@ -524,7 +1043,7 @@ async function decideMobile(decision) {
     await readApi(`/api/proposals/${id}/decide`, { method: 'POST', body: JSON.stringify({ decision, reason }) });
     selectedProposal = null; $('approval-dialog').close();
     await loadApprovals(); status(decision === 'APPROVED' ? 'Onay kaydedildi' : 'Ret kaydedildi');
-  } catch (error) { status(error.message); }
+  } catch (error) { status(friendlyMessage(error.message)); }
 }
 $('approval-approve').addEventListener('click', () => decideMobile('APPROVED'));
 $('approval-reject').addEventListener('click', () => decideMobile('REJECTED'));
@@ -538,13 +1057,17 @@ async function loadSystem() {
     $('home-system-state').textContent = online ? 'Jarvis bağlı' : 'Jarvis bağlantısını kontrol et';
     $('home-memory-state').textContent = data.company_memory?.healthy ? 'Şirket hafızası erişilebilir' : 'Şirket hafızasını kontrol et';
     const list = $('system-list'); list.replaceChildren();
-    list.append(mobileCard('Jarvis', data.visual_state || '—', `Bekleyen onay: ${data.pending_proposals ?? '—'}`));
+    const jarvisState = {
+      IDLE: 'Hazır', PROPOSING: 'Öneri hazırlıyor', WAITING_APPROVAL: 'Kararınızı bekleyen öneri var',
+      OFFLINE: 'Bağlantı yok',
+    }[data.visual_state] || 'Durum belirlenemedi';
+    list.append(mobileCard('Jarvis', jarvisState, `Bekleyen onay: ${data.pending_proposals ?? '—'}`));
     list.append(mobileCard('Şirket hafızası', data.company_memory?.healthy ? 'Bağlı' : 'Erişilemiyor',
       `Eylem güvenliği: ${data.action_firewall?.contract_valid === true ? 'etkin' : 'kontrol gerekli'}`));
-    list.append(mobileCard('Sunucu', `CPU ${host.cpu?.percent ?? '—'}% · RAM ${host.ram?.percent ?? '—'}% · Disk ${host.disk?.percent ?? '—'}%`,
-      host.measured_at || ''));
-  } catch (error) {
-    empty($('system-list'), error.message);
+    list.append(mobileCard('Sunucu kullanımı', `İşlemci %${host.cpu?.percent ?? '—'} · Bellek %${host.ram?.percent ?? '—'} · Depolama %${host.disk?.percent ?? '—'}`,
+      orchestrationDate(host.measured_at)));
+  } catch (_) {
+    empty($('system-list'), 'Sistem durumu yüklenemedi. Sayfayı yenileyip tekrar deneyin.');
     $('home-summary').dataset.state = 'error';
     $('home-system-state').textContent = 'Durum alınamadı';
     $('home-memory-state').textContent = 'Bağlantıyı kontrol edip yeniden dene';
@@ -552,20 +1075,51 @@ async function loadSystem() {
 }
 $('refresh-system').addEventListener('click', loadSystem);
 
-function refreshMobile() { loadJobs(); loadApprovals(); loadSystem(); }
+async function loadDailySummary() {
+  const container = $('daily-summary');
+  const results = await Promise.allSettled([
+    readApi('/api/isler'), readApi('/api/proposals'), readApi('/api/mobile/reminders'), readApi('/api/satislar')]);
+  container.replaceChildren();
+  const jobs = results[0].status === 'fulfilled' ? results[0].value : null;
+  const proposals = results[1].status === 'fulfilled' ? results[1].value : null;
+  const reminderData = results[2].status === 'fulfilled' ? results[2].value : null;
+  const sales = results[3].status === 'fulfilled' ? results[3].value : null;
+  const approvalCount = Array.isArray(proposals?.pending) ? proposals.pending.length : 0;
+  const completed = jobs?.sayilar?.biten || 0;
+  const upcoming = (reminderData?.reminders || []).filter((item) => new Date(item.due_at) > new Date()).length;
+  const today = new Date().toLocaleDateString('sv-SE');
+  const visibleOrders = Array.isArray(sales?.siparisler) ? sales.siparisler.filter((order) => String(order.gun || '').slice(0, 10) === today).length : null;
+  const items = [
+    [visibleOrders === null ? 'Satış verisi alınamadı' : `Bugün kayıtlı ${visibleOrders} sipariş (bağlı kanallar)`, 'home'],
+    [`${approvalCount} onay bekliyor`, 'approvals'],
+    [`${upcoming} yaklaşan hatırlatıcı`, 'chat'],
+    [`${completed} toplam tamamlanan iş`, 'jobs'],
+  ];
+  for (const [label, tab] of items) {
+    const button = document.createElement('button'); button.type = 'button'; button.className = 'daily-item';
+    button.textContent = label + '  ›'; button.addEventListener('click', () => {
+      if (tab === 'home') { window.location.href = '/?view=satislar'; return; }
+      document.querySelector(`[data-tab="${tab}"]`).click();
+      if (tab === 'chat') document.querySelector('[data-chat-mode="personal"]').click();
+    }); container.append(button);
+  }
+  if (!jobs && !proposals && !reminderData) container.textContent = 'Özet yüklenemedi. Sayfayı yenileyin.';
+}
+function refreshMobile() { loadJobs(); loadApprovals(); loadSystem(); loadDailySummary(); }
 document.querySelectorAll('[data-tab]').forEach((button) => button.addEventListener('click', () => {
   const tab = button.dataset.tab;
-  const mainTab = ['system', 'settings'].includes(tab) ? 'more' : tab;
+  const mainTab = ['system', 'settings', 'creative'].includes(tab) ? 'more' : tab;
   document.querySelectorAll('.tab-nav [data-tab]').forEach((item) => {
     const active = item.dataset.tab === mainTab;
     item.classList.toggle('active', active);
     if (active) item.setAttribute('aria-current', 'page');
     else item.removeAttribute('aria-current');
   });
-  for (const name of ['home', 'chat', 'jobs', 'approvals', 'system', 'settings', 'more']) $(`${name}-panel`).hidden = name !== tab;
-  if (tab === 'home') loadSystem();
+  for (const name of ['home', 'chat', 'jobs', 'approvals', 'creative', 'system', 'settings', 'more']) $(`${name}-panel`).hidden = name !== tab;
+  if (tab === 'home') { loadSystem(); loadDailySummary(); }
   if (tab === 'jobs') loadJobs();
   if (tab === 'approvals') loadApprovals();
+  if (tab === 'creative') loadCreative();
   if (tab === 'system') loadSystem();
 }));
 

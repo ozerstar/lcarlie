@@ -73,6 +73,7 @@ import sistem  # noqa: E402
 import chat  # noqa: E402
 import personal_chat  # noqa: E402
 import mobile_features  # noqa: E402
+import google_workspace  # noqa: E402
 
 STATE_DIR = Path(os.environ.get("JARVIS_STATE_DIR", "/opt/lcarlie/jarvis-phase2/state"))
 STATIC_DIR = HERE / "static"
@@ -982,6 +983,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._route_messenger_pilot()
             elif path.startswith("/canva/"):
                 self._route_canva(path, parse_qs(parsed.query))
+            elif path.startswith("/google/"):
+                self._route_google(path, parse_qs(parsed.query))
             else:
                 self._route_static(path)
         except Exception:  # noqa: BLE001
@@ -1381,6 +1384,33 @@ class Handler(BaseHTTPRequestHandler):
 
         self._send_json(404, {"error": "not found"})
 
+    def _route_google(self, path: str, query: dict) -> None:
+        if path == "/google/start":
+            session = self._current_session()
+            if session is None:
+                self._send_json(401, {"error": "Oturum gerekli."})
+                return
+            try:
+                destination = google_workspace.start(session.username)
+            except google_workspace.GoogleError as exc:
+                self._send_json(400, {"error": str(exc)})
+                return
+        elif path == "/google/callback":
+            try:
+                google_workspace.callback((query.get("code") or [""])[0],
+                                          (query.get("state") or [""])[0])
+                destination = "/mobile/index.html?tab=chat&mode=personal&google=connected"
+            except google_workspace.GoogleError:
+                destination = "/mobile/index.html?tab=chat&mode=personal&google=error"
+        else:
+            self._send_json(404, {"error": "not found"})
+            return
+        self.send_response(302)
+        self.send_header("Location", destination)
+        self.send_header("Content-Length", "0")
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+
     # -- static frontend --------------------------------------------------
     def _route_static(self, path: str) -> None:
         if path == "/":
@@ -1425,6 +1455,30 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/api/mobile/memory":
             self._send_json(200, {"notes": mobile_features.personal_notes(session.username)})
+            return
+        if path == "/api/mobile/memory/search":
+            self._send_json(200, mobile_features.memory_search(
+                session.username, (query.get("q") or [""])[0]))
+            return
+        if path == "/api/mobile/google/status":
+            self._send_json(200, google_workspace.status(session.username))
+            return
+        if path == "/api/mobile/google/pending":
+            self._send_json(200, {"pending": google_workspace.pending_actions(session.username)})
+            return
+        if path == "/api/mobile/google/creative":
+            self._send_json(200, {"files": google_workspace.creative_files()})
+            return
+        if path in ("/api/mobile/google/calendar", "/api/mobile/google/drive"):
+            try:
+                if path.endswith("/calendar"):
+                    result = {"events": google_workspace.calendar_events(session.username)}
+                else:
+                    result = {"files": google_workspace.drive_files(
+                        session.username, (query.get("q") or [""])[0])}
+                self._send_json(200, result)
+            except google_workspace.GoogleError as exc:
+                self._send_json(400, {"error": str(exc)})
             return
         if path.startswith("/api/mobile-attachment/"):
             try:
@@ -1819,7 +1873,11 @@ class Handler(BaseHTTPRequestHandler):
                 body = _read_json_body(self)
                 if path == "/api/mobile/reminders":
                     if body.get("action") == "add":
-                        mobile_features.add_reminder(session.username, body.get("text"), body.get("due_at"))
+                        mobile_features.add_reminder(session.username, body.get("text"), body.get("due_at"),
+                                                     body.get("repeat", "none"))
+                    elif body.get("action") == "update":
+                        mobile_features.update_reminder(session.username, body.get("id"), body.get("text"),
+                                                        body.get("due_at"), body.get("repeat", "none"))
                     elif body.get("action") == "delete":
                         mobile_features.delete_reminder(session.username, body.get("id"))
                     else:
@@ -1828,6 +1886,8 @@ class Handler(BaseHTTPRequestHandler):
                 elif path == "/api/mobile/memory":
                     if body.get("action") == "add":
                         mobile_features.add_note(session.username, body.get("text"))
+                    elif body.get("action") == "update":
+                        mobile_features.update_note(session.username, body.get("id"), body.get("text"))
                     elif body.get("action") == "delete":
                         mobile_features.delete_note(session.username, body.get("id"))
                     else:
@@ -1842,10 +1902,27 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError as exc:
                 self._send_json(400, {"error": str(exc)[:200]})
             return
+        if path in ("/api/mobile/google/prepare", "/api/mobile/google/decide",
+                    "/api/mobile/google/disconnect", "/api/mobile/google/drive/import"):
+            try:
+                body = _read_json_body(self)
+                if path.endswith("/prepare"):
+                    result = google_workspace.prepare(session.username, body.get("kind"), body.get("fields") or {})
+                elif path.endswith("/decide"):
+                    result = google_workspace.decide(session.username, body.get("id"), body.get("decision"))
+                elif path.endswith("/drive/import"):
+                    result = google_workspace.import_drive_file(session.username, body.get("id"))
+                else:
+                    google_workspace.disconnect(session.username)
+                    result = {"connected": False}
+                self._send_json(200, result)
+            except google_workspace.GoogleError as exc:
+                self._send_json(400, {"error": str(exc)})
+            return
 
         if path == "/api/push/subscribe":
             try:
-                push_store.save(_read_json_body(self))
+                push_store.save(_read_json_body(self), owner=mobile_features._user(session.username))
             except ValueError:
                 self._send_json(400, {"error": "invalid push subscription"})
             else:
@@ -1857,14 +1934,15 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(body, dict) or not isinstance(body.get("endpoint"), str):
                 self._send_json(400, {"error": "invalid request"})
                 return
-            push_store.remove(body["endpoint"])
+            push_store.remove(body["endpoint"], owner=mobile_features._user(session.username))
             self._send_json(200, {"ok": True})
             return
 
         if path == "/api/push/test":
             body = _read_json_body(self)
             endpoint = body.get("endpoint") if isinstance(body, dict) else None
-            if not isinstance(endpoint, str) or not push_store.get(push_store.subscription_id(endpoint)):
+            subscription = push_store.get(push_store.subscription_id(endpoint)) if isinstance(endpoint, str) else None
+            if not subscription or subscription.get("owner") != mobile_features._user(session.username):
                 self._send_json(400, {"error": "device not registered"})
                 return
             try:
@@ -1904,6 +1982,19 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(200, {"ok": True}, self._clear_session_cookies())
             return
 
+        if path == "/api/gelenkutusu/taslak":
+            # Jarvis taslagi URETIR, GONDERMEZ. Devir kapisi modelden once
+            # isler: devredilmesi gereken konusmada model hic cagrilmaz.
+            body = _read_json_body(self)
+            kid = str(body.get("id", ""))
+            if not kid.isdigit():
+                self._send_json(400, {"error": "gecersiz konusma id"})
+                return
+            try:
+                self._send_json(200, gelen_kutusu.taslak(int(kid)))
+            except gelen_kutusu.KutuHatasi as hata:
+                self._send_json(400, {"error": str(hata)})
+            return
         if path == "/api/gelenkutusu/cevap":
             # 🔴 MUSTERIYE MESAJ GONDERIR. Kapilar jarvis.whatsapp icinde:
             # onay kaynagi, metin siniri, MEVZUAT, gonderme anahtari, kimlik.
@@ -2560,7 +2651,6 @@ class Handler(BaseHTTPRequestHandler):
             "visual_state": visual_state,
             "company_memory": {"healthy": health_error is None, "error": health_error, "health": health},
             "action_firewall": {"contract_valid": contract_valid},
-            "external_proposals_enabled": contract_valid is True,
             "pending_proposals": pending_count,
             "last_cycle": last_cycle,
             # Olculmus host kullanimi. Panelin CPU/RAM/DISK alanlari yalnizca
