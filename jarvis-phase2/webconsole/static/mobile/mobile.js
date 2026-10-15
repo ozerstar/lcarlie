@@ -2,7 +2,8 @@
 
 const $ = (id) => document.getElementById(id);
 const state = { csrf: null, busy: false, audio: null, audioUrl: null, audioGeneration: 0, action: null,
-  chatMode: 'work', personalTab: 'chat', chatRows: { work: [], personal: [] }, attachment: null, googleProposal: null };
+  chatMode: 'work', personalTab: 'today', chatRows: { work: [], personal: [] }, attachment: null, googleProposal: null,
+  contactEditId: null };
 let voiceMode = false;
 let selectedProposal = null;
 
@@ -380,7 +381,7 @@ document.querySelectorAll('[data-chat-mode]').forEach((button) => button.addEven
   showPersonalTab(state.personalTab);
   updateChatStarters();
   clearAttachment();
-  if (state.chatMode === 'personal') { loadReminders(); loadMemory(); loadGoogle(); }
+  if (state.chatMode === 'personal') { loadPersonalOverview(); loadReminders(); loadMemory(); loadContacts(); loadGoogle(); loadNotificationSettings(); }
 }));
 
 function showPersonalTab(name) {
@@ -395,11 +396,60 @@ function showPersonalTab(name) {
     pane.hidden = pane.dataset.personalPane !== name;
   });
   const showChat = state.chatMode !== 'personal' || name === 'chat';
-  for (const id of ['messages', 'chat-form', 'chat-actions', 'chat-help']) $(id).hidden = !showChat;
+  for (const id of ['messages', 'chat-form', 'chat-actions', 'chat-starters', 'chat-help']) $(id).hidden = !showChat;
   updateChatStarters();
 }
 document.querySelectorAll('[data-personal-tab]').forEach((button) => button.addEventListener('click', () => {
   showPersonalTab(button.dataset.personalTab);
+  if (button.dataset.personalTab === 'today') loadPersonalOverview();
+}));
+
+function briefSection(container, title, rows, fallback) {
+  const section = document.createElement('section'); section.className = 'personal-brief-section';
+  const heading = document.createElement('h3'); heading.textContent = title; section.append(heading);
+  if (!rows.length) { const text = document.createElement('p'); text.textContent = fallback; section.append(text); }
+  for (const [label, detail] of rows) {
+    const item = document.createElement('div'); item.className = 'personal-brief-row';
+    const strong = document.createElement('strong'); strong.textContent = label;
+    const small = document.createElement('small'); small.textContent = detail;
+    item.append(strong, small); section.append(item);
+  }
+  container.append(section);
+}
+
+async function loadPersonalOverview() {
+  const today = $('personal-today-list'); const evening = $('personal-evening-list');
+  try {
+    const data = await readApi('/api/mobile/personal/overview');
+    $('personal-date').textContent = new Date(`${data.date}T12:00:00`).toLocaleDateString('tr-TR',
+      {weekday:'long', day:'numeric', month:'long'});
+    today.replaceChildren(); evening.replaceChildren();
+    briefSection(today, 'Özel günler', (data.special_days || []).map((item) =>
+      [item.name, item.occasion || 'Doğum günü']), 'Bugün kayıtlı özel gün yok.');
+    briefSection(today, 'Takvim', (data.today_events || []).map((item) => [item.title,
+      item.start?.length > 10 ? new Date(item.start).toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'}) : 'Tüm gün']),
+      data.calendar_error ? 'Takvim şu anda okunamadı.' : data.calendar_connected ? 'Bugün etkinlik yok.' : 'Google Takvim bağlı değil.');
+    briefSection(today, 'Hatırlatıcılar', (data.today_reminders || []).map((item) => [item.text,
+      new Date(item.due_at).toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'})]), 'Bugün hatırlatıcı yok.');
+    if (data.overdue_reminders?.length) briefSection(today, 'Gecikenler', data.overdue_reminders.map((item) =>
+      [item.text, new Date(item.due_at).toLocaleDateString('tr-TR')]), '');
+    briefSection(today, `Karar bekleyenler · ${(data.pending || []).length}`, (data.pending || []).slice(0, 5).map((item) =>
+      [item.kind === 'gmail.send' ? 'E-posta' : item.kind === 'drive.upload' ? 'Drive' : 'Takvim', item.description.split('\n')[0]]),
+      'Kişisel işlem onayı beklemiyor.');
+    briefSection(evening, 'Bugün yapılanlar', (data.activities || []).slice(-5).reverse().map((item) =>
+      [item.summary, new Date(item.at).toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'})]),
+      'Bugün uygulamada kaydedilen kişisel işlem yok.');
+    briefSection(evening, 'Yarın', [...(data.tomorrow_events || []).map((item) => [item.title, 'Takvim']),
+      ...(data.tomorrow_reminders || []).map((item) => [item.text, 'Hatırlatıcı'])], 'Yarın için kayıtlı plan yok.');
+  } catch (_) { today.textContent = 'Kişisel özet yüklenemedi.'; evening.replaceChildren(); }
+}
+
+document.querySelectorAll('[data-personal-quick]').forEach((button) => button.addEventListener('click', () => {
+  const action = button.dataset.personalQuick;
+  showPersonalTab(action === 'reminder' ? 'reminders' : 'google');
+  if (action === 'reminder') $('reminder-text').focus();
+  if (action === 'drive') { $('drive-details').open = true; $('drive-query').focus(); }
+  if (action === 'email') { $('email-details').open = true; $('email-to').focus(); }
 }));
 
 function clearAttachment() {
@@ -488,7 +538,7 @@ async function loadMemory() {
     const list = $('memory-list'); list.replaceChildren();
     if (!data.notes?.length) { empty(list, 'Kayıtlı kişisel bilgi yok.'); return; }
     for (const item of (query ? data.notes : data.notes.slice().reverse())) {
-      const card = mobileCard(item.text);
+      const card = mobileCard(item.text, item.source || 'Kaynak belirtilmemiş');
       const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'secondary'; edit.textContent = 'Düzenle';
       edit.addEventListener('click', async () => {
         const changed = window.prompt('Jarvis’in hatırlamasını istediğin bilgi', item.text);
@@ -511,15 +561,49 @@ $('memory-form').addEventListener('submit', async (event) => {
 });
 $('person-form').addEventListener('submit', async (event) => {
   event.preventDefault();
-  const name = $('person-name').value.trim();
-  const relationship = $('person-relationship').value.trim();
-  const detail = $('person-detail').value.trim();
-  const text = `Tanıdığım kişi: ${name}. Yakınlığı: ${relationship}.${detail ? ` Hatırlanacak bilgi: ${detail}.` : ''}`;
   try {
-    await readApi('/api/mobile/memory', {method:'POST', body:JSON.stringify({action:'add', text})});
-    $('person-form').reset(); loadMemory(); status('Kişi kaydedildi');
+    await readApi('/api/mobile/contacts', {method:'POST', body:JSON.stringify({action:'save', id:state.contactEditId,
+      name:$('person-name').value, relationship:$('person-relationship').value, detail:$('person-detail').value,
+      special_day:$('person-day').value, occasion:$('person-occasion').value})});
+    cancelContactEdit(); loadContacts(); loadPersonalOverview(); status('Kişi kaydedildi');
   } catch (error) { status(friendlyMessage(error.message)); }
 });
+
+function cancelContactEdit() {
+  state.contactEditId = null; $('person-form').reset();
+  $('person-save').textContent = 'Kişiyi kaydet'; $('person-cancel').hidden = true;
+}
+$('person-cancel').addEventListener('click', cancelContactEdit);
+
+async function loadContacts() {
+  const list = $('person-list');
+  try {
+    const data = await readApi('/api/mobile/contacts'); list.replaceChildren();
+    if (!data.contacts?.length) { empty(list, 'Henüz kişi kaydı yok.'); return; }
+    for (const item of data.contacts) {
+      const day = item.special_day ? `${item.special_day.slice(3)}.${item.special_day.slice(0, 2)}` : '';
+      const card = mobileCard(item.name, `${item.relationship}${day ? ` · ${item.occasion}: ${day}` : ''}`);
+      if (item.detail) { const detail = document.createElement('p'); detail.textContent = item.detail; card.append(detail); }
+      const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'secondary'; edit.textContent = 'Düzenle';
+      edit.addEventListener('click', () => {
+        state.contactEditId = item.id;
+        $('person-name').value = item.name; $('person-relationship').value = item.relationship;
+        $('person-detail').value = item.detail || ''; $('person-day').value = day;
+        $('person-occasion').value = item.occasion || '';
+        $('person-save').textContent = 'Değişiklikleri kaydet'; $('person-cancel').hidden = false;
+        $('person-form').scrollIntoView({block:'start'});
+      });
+      const del = document.createElement('button'); del.type = 'button'; del.className = 'secondary'; del.textContent = 'Sil';
+      del.addEventListener('click', async () => {
+        if (!window.confirm(`${item.name} kişi kaydını sileyim mi?`)) return;
+        try { await readApi('/api/mobile/contacts', {method:'POST', body:JSON.stringify({action:'delete', id:item.id})});
+          loadContacts(); loadPersonalOverview(); status('Kişi silindi'); }
+        catch (error) { status(friendlyMessage(error.message)); }
+      });
+      card.append(edit, del); list.append(card);
+    }
+  } catch (_) { empty(list, 'Kişiler yüklenemedi.'); }
+}
 
 async function loadGoogle() {
   try {
@@ -538,6 +622,20 @@ async function loadGoogle() {
     else { $('google-pending').hidden = true; $('google-approval').hidden = true; }
   } catch (_) { $('google-status').textContent = 'Google bağlantısı kontrol edilemedi.'; }
 }
+async function loadNotificationSettings() {
+  try {
+    const data = await readApi('/api/mobile/personal/notifications');
+    $('notify-morning').checked = data.morning; $('notify-evening').checked = data.evening;
+  } catch (_) { status('Bildirim tercihleri yüklenemedi.'); }
+}
+$('personal-notification-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  try {
+    await readApi('/api/mobile/personal/notifications', {method:'POST', body:JSON.stringify({
+      morning:$('notify-morning').checked, evening:$('notify-evening').checked})});
+    status('Bildirim tercihleri kaydedildi');
+  } catch (error) { status(friendlyMessage(error.message)); }
+});
 $('google-connect').addEventListener('click', () => { window.location.href = '/google/start'; });
 $('google-disconnect').addEventListener('click', async () => {
   if (!window.confirm('Google bağlantısını Jarvis’ten kaldırayım mı?')) return;
@@ -775,12 +873,28 @@ function commandAction(text) {
   return false;
 }
 
+function personalDraftCommand(text) {
+  if (state.chatMode !== 'personal') return false;
+  const reminder = text.match(/^(?:bunu hatırlat|hatırlat)(?:\s*[:,-]\s*|\s+)?(.*)$/i);
+  if (reminder) {
+    showPersonalTab('reminders'); $('reminder-text').value = reminder[1].trim();
+    $('reminder-time').focus(); status('Hatırlatıcı taslağı hazır. Zamanı seçip kaydet.'); return true;
+  }
+  const email = text.match(/^(?:e-posta|mail) taslağı(?:\s*[:,-]\s*|\s+)?(.*)$/i);
+  if (email) {
+    showPersonalTab('google'); $('email-details').open = true;
+    $('email-body').value = email[1].trim(); $('email-to').focus();
+    status('E-posta taslağı hazır. Alıcı ve konuyu yaz; gönderim ayrıca onay ister.'); return true;
+  }
+  return false;
+}
+
 $('chat-form').addEventListener('submit', (event) => {
   event.preventDefault();
   const text = $('chat-input').value.trim();
   if (!text) return;
   $('chat-input').value = '';
-  if (!commandAction(text)) sendMessage(text);
+  if (!personalDraftCommand(text) && !commandAction(text)) sendMessage(text);
 });
 
 document.querySelectorAll('[data-action]').forEach((button) => button.addEventListener('click', () => openAction(button.dataset.action)));

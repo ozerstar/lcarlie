@@ -1,0 +1,94 @@
+/* Editorial workspace: image-led home, conversational assistant, and a real work queue. */
+#home-panel { display: block; }
+#home-panel[hidden] { display: none; }
+.desk-greeting {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  min-height: 370px;
+  margin: 0 -18px;
+  padding: 35px 24px 57px;
+  isolation: isolate;
+  color: white;
+  background: #102f35 url('/mobile/editorial/hero-water-v1.webp') center 41% / cover no-repeat;
+}
+.desk-greeting::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(4,25,30,.76), rgba(4,25,30,.22) 78%),
+              linear-gradient(0deg, rgba(4,25,30,.72), transparent 55%);
+}
+.desk-greeting>div { max-width: 260px; }
+.desk-date { margin: 0 0 12px; color: #e9d1a8; font-size: 13px; font-weight: 600; text-transform: capitalize; }
+.desk-greeting h1 { margin: 0 0 9px; color: white; font: 400 clamp(50px, 13vw, 68px)/1 Georgia, serif; letter-spacing: -.05em; }
+.desk-greeting p:last-child { margin: 0; color: #f3f5ef; font-size: 14px; line-height: 1.5; }
+.desk-assistant { width: 68px; height: 68px; flex: none; border: 1px solid #ffffff8c; border-radius: 50%; background: #f8f7f0e8; color: #123e46; display: grid; place-items: center; gap: 0; padding: 7px; box-shadow: 0 8px 24px #0018; }
+.desk-assistant span { display: block; font-size: 22px; line-height: 1; }
+.desk-assistant small { display: block; font-size: 10px; font-weight: 700; }
+
+.desk-focus { position: relative; margin: -27px 0 20px; padding: 20px 21px 21px; border: 1px solid #d9e2dc; border-radius: 16px; background: #fffefa; box-shadow: 0 12px 27px rgba(17,57,62,.13); }
+.desk-focus-top { display: flex; justify-content: space-between; color: #a07747; font-size: 12px; font-weight: 700; }
+.desk-focus-top span:last-child { font-size: 21px; font-weight: 400; line-height: 1; }
+.desk-focus h2 { max-width: 290px; margin: 12px 0 7px; color: #173b42; font: 400 clamp(26px, 7vw, 35px)/1.13 Georgia, serif; letter-spacing: -.035em; }
+.desk-focus p { margin: 0 0 17px; color: #5d7478; font-size: 13px; line-height: 1.5; }
+.desk-focus button { min-height: 44px; padding: 0 16px; border: 0; border-radius: 9px; background: #153f46; color: white; font-size: 13px; font-weight: 700; }
+.desk-metrics { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); padding: 9px 0 17px; border-bottom: 1px solid #d4e0de; }
+.desk-metrics button { min-width: 0; min-height: 69px; padding: 6px 9px; border: 0; border-right: 1px solid #d4e0de; background: transparent; color: #173b42; text-align: left; }
+.desk-metrics button:last-child { border-right: 0; }
+.desk-metrics strong { display: block; font: 400 31px/1 Georgia, serif; }
+.desk-metrics span { display: block; margin-top: 5px; color: #5d7478; font-size: 11px; line-height: 1.3; }
+.desk-flow { padding-top: 24px; }
+.desk-section-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 10px; }
+.desk-section-heading h2 { margin: 0; color: #173b42; font: 400 27px Georgia, serif; }
+.desk-section-heading button { padding: 7px 0; border: 0; background: transparent; color: #315f64; font-size: 13px; font-weight: 700; }
+#daily-summary { display: grid; gap: 0; border-top: 1px solid #d4e0de; }
+#daily-summary .daily-item { position: relative; display: grid; gap: 4px; width: 100%; min-height: 69px; margin: 0; padding: 14px 30px 13px 2px; border: 0; border-bottom: 1px solid #d4e0de; border-radius: 0; background: transparent; text-align: left; }
+#daily-summary .daily-item strong { color: #173b42; font-size: 14px; }
+#daily-summary .daily-item small { color: #5d7478; font-size: 12px; }
+#daily-summary .daily-item>span { position: absolute; right: 3px; top: 19px; color: #a07747; font-size: 27px; font-weight: 400; }
+#home-panel .home-status { margin-top: 25px; padding: 13px 0; border: 0; border-top: 1px solid #d4e0de; border-radius: 0; background: transparent; }
+.desk-directory { margin: 2px 0 30px; border-top: 1px solid #d4e0de; }
+.desk-directory>summary { padding: 16px 0; color: #173b42; cursor: pointer; font-size: 14px; font-weight: 700; }
+.desk-directory>summary span { display: block; margin-top: 4px; color: #5d7478; font-size: 12px; font-weight: 400; }
+.desk-directory .overview-links { padding: 5px 0 20px; }
+
+#chat-panel { min-height: calc(100dvh - 190px); }
+.chat-heading { display: flex; align-items: flex-end; justify-content: space-between; min-height: 215px; margin: 0 -18px 20px; padding: 27px 22px 23px; background: #d7e2e4 url('/mobile/editorial/assistant-silk-v1.webp') center 45% / cover no-repeat; }
+.chat-heading>div { max-width: 250px; }
+.chat-heading h1 { display: inline; margin: 0 0 0 8px; color: #153f46; font: 400 43px Georgia, serif; letter-spacing: -.035em; }
+.chat-heading p { max-width: 180px; margin: 9px 0 0; color: #315960; font-size: 12px; line-height: 1.4; }
+.chat-presence { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #488e73; box-shadow: 0 0 0 4px #d6e9dd; vertical-align: 6px; }
+.chat-new { min-height: 38px; padding: 8px 10px; border: 1px solid #73989b; border-radius: 8px; background: rgba(255,255,255,.78); color: #153f46; font-size: 12px; font-weight: 700; }
+.chat-mode { margin: 0 0 11px; }
+.chat-tools { margin: 3px 0 13px; border-bottom: 1px solid #d4e0de; }
+.chat-tools>summary { padding: 10px 0; cursor: pointer; color: #315f64; font-size: 12px; font-weight: 700; }
+.chat-tools .actions { margin: 2px 0 13px; }
+#chat-panel .messages { min-height: 150px; max-height: none; }
+#chat-panel .composer { margin-top: auto; }
+.chat-starters { margin-top: 8px; }
+
+#jobs-panel>.intro { padding-bottom: 8px; }
+.job-filters { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 11px 0 7px; padding: 4px; border-radius: 11px; background: #deebe7; }
+.job-filters button { min-height: 44px; border: 0; border-radius: 8px; background: transparent; color: #4b7176; font-size: 14px; font-weight: 700; }
+.job-filters button.active { background: white; color: #153f46; box-shadow: 0 1px 4px #264f4d22; }
+#jobs-panel #job-list { margin: 7px 0 18px; }
+.job-compose, .job-analysis { margin: 0 0 11px; border: 1px solid #d4e0de; border-radius: 12px; background: #fffefa; }
+.job-compose>summary, .job-analysis>summary { display: flex; justify-content: space-between; gap: 12px; min-height: 52px; align-items: center; padding: 12px 15px; color: #153f46; cursor: pointer; font-size: 14px; font-weight: 700; }
+.job-compose>summary span, .job-analysis>summary span { color: #687e7f; font-size: 12px; font-weight: 400; }
+.job-compose .mobile-form { border: 0; border-top: 1px solid #d4e0de; border-radius: 0 0 12px 12px; }
+.job-analysis>p { padding: 0 15px; color: #5d7478; font-size: 12px; line-height: 1.5; }
+.job-analysis .card-list { margin: 12px 15px 17px; }
+
+@media(max-width:380px) {
+  .desk-greeting, .chat-heading { margin-left: -14px; margin-right: -14px; }
+  .desk-greeting { min-height: 340px; padding-left: 18px; padding-right: 18px; }
+  .desk-assistant { width: 60px; height: 60px; }
+  .desk-greeting h1 { font-size: 48px; }
+}
+@media(min-width:740px) {
+  .desk-greeting, .chat-heading { border-radius: 0 0 18px 18px; }
+}
+

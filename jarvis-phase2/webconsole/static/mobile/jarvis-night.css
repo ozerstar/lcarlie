@@ -1,0 +1,35 @@
+/* JARVIS mobil: gece mavisi çalışma alanı */
+:root{--paper:#07131c;--surface:#10232e;--ink:#e8f6fa;--deep:#72ddeb;--muted:#9bb7c2;--line:#254351;--accent:#6bd6e7;--soft:#173d4b;color-scheme:dark;color:var(--ink);background:var(--paper)}
+body{background:var(--paper);color:var(--ink)}
+.shell{background:linear-gradient(180deg,#071722,#07131c 45%)}
+.header{border-color:var(--line);background:#07131c}
+.brand-icon{width:38px;height:38px;border:1px solid #376b7d;border-radius:50%;background:radial-gradient(circle at 35% 25%,#27778c,#071723 68%);color:#baf2fd;font-family:inherit;font-size:21px;box-shadow:0 0 15px #1d819552}
+.brand strong{font-weight:450;letter-spacing:.27em;color:#c6f3fd;font-size:18px}.brand small{color:#86a7b5;font-size:10px}
+.status{color:#a8c0c8}.text-button{color:#b8eaf4}
+.tab-nav{background:#091b25;border-color:#2a4b58;box-shadow:0 -8px 25px #020b12a8}.tab-nav button{color:#8aaebb}.tab-nav button.active{color:#baf3ff;background:#163f50}.tab-badge{background:#e09a65;color:#07131c}
+.desk-greeting{min-height:400px;align-items:flex-start;margin-bottom:0;padding:25px 24px;background-image:linear-gradient(180deg,#06121bdd,transparent 42%,#06131bc7),url('/mobile/editorial/hero-water-v1.webp');background-position:center 52%}
+.desk-greeting:before{background:linear-gradient(180deg,rgba(3,15,23,.72),rgba(3,16,24,.1) 42%,rgba(3,16,24,.78))}
+.desk-greeting>div{position:relative;z-index:2}.desk-date{color:#a8dce7;font-size:12px}.desk-greeting h1{font-family:Metropolis,'Avenir Next','Segoe UI',sans-serif;font-weight:500;letter-spacing:-.055em;font-size:40px}.desk-greeting p:last-child{color:#c3d7dd}
+.desk-orb{position:absolute;top:148px;left:50%;transform:translateX(-50%);width:180px;height:180px;border:1px solid #83d9eb7a;border-radius:50%;background:radial-gradient(circle at 30% 24%,#7ef3ff99 0,#20698099 10%,#0a3146 33%,#041420 66%,#2cbde4 93%,#02111c 100%);box-shadow:inset -18px -24px 28px #020910b8,inset 9px 8px 18px #a1efff55,0 0 0 12px #74d5e71a,0 0 40px #45bddd50;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#c6f6ff;z-index:2;cursor:pointer}
+.desk-orb span{font-size:30px;text-shadow:0 0 17px #a5f3ff}.desk-orb small{position:absolute;top:191px;width:150px;text-align:center;font-size:12px;letter-spacing:.04em;color:#d6edf4}
+.desk-orb:active{transform:translateX(-50%) scale(.97)}
+.desk-quick{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin:-25px 0 25px;position:relative;z-index:3}.desk-quick button{min-width:0;min-height:80px;border:1px solid #2a5261;border-radius:13px;background:#102a37;color:#cce7ef;padding:9px 3px;font-size:11px;font-weight:600}.desk-quick button span{display:block;color:#77ddec;font-size:22px;margin-bottom:7px}
+.desk-focus{margin:0 0 19px;padding:19px 19px 20px;border:1px solid #2b5a69;background:linear-gradient(120deg,#123547,#0d2634);box-shadow:0 12px 28px #010b15a6}.desk-focus-top{color:#88ddea}.desk-focus h2{color:#e8f9fd;font-family:Metropolis,'Avenir Next','Segoe UI',sans-serif;font-weight:550;font-size:25px}.desk-focus p{color:#acc9d3}.desk-focus button{border:1px solid #6bcbdf;background:#19617a;color:#e4f9ff}
+.desk-metrics{border-color:var(--line)}.desk-metrics button{color:#e8f7fa;border-color:var(--line)}.desk-metrics strong{font-family:Metropolis,'Avenir Next','Segoe UI',sans-serif;font-weight:550}.desk-metrics span{color:#9dbec9}
+.desk-section-heading h2{color:#edfaff;font-family:Metropolis,'Avenir Next','Segoe UI',sans-serif;font-weight:550;font-size:23px}.desk-section-heading button{color:#83dfee}
+#daily-summary{border-color:var(--line)}#daily-summary .daily-item{border-color:var(--line)}#daily-summary .daily-item strong{color:#e6f5fa}#daily-summary .daily-item small{color:#a4c0ca}#daily-summary .daily-item>span{color:#72d9e8}
+#home-panel .home-status,.desk-directory{border-color:var(--line)}.home-status strong,.desk-directory>summary{color:#e6f5fa}.home-status small,.desk-directory>summary span{color:#9db7c0}
+.card,.mobile-card,.creative-batch,.dialog,.overview-links a,.overview-links button,.more-links>*{background:#10232e;border-color:#2b4855;color:#e8f6fa}
+.mobile-card strong,.overview-links a strong,.overview-links button strong,.more-links strong,.mobile-form h2,.personal-tools h2,.intro h1,.intro h2,.personal-settings-head h2,.login h1{color:#e8f6fa}
+.mobile-card p,.mobile-card small,.overview-links a small,.overview-links button small,.more-links small,.intro p,.login p,.personal-settings-head p,.help{color:#a0bbc5}
+.empty-state{background:#10232e;border-color:#335461;color:#aac3cc}.mobile-card summary,.full-console{color:#83ddeb}
+label{color:#d9edf2}input,textarea,select,.composer input{background:#0a1b26;border-color:#42606b;color:#eefaff}input::placeholder,textarea::placeholder{color:#83a3ae}input:focus,textarea:focus,select:focus{border-color:#7bddeb;box-shadow:0 0 0 3px #2c92a63b}
+.primary,.composer button{background:#79ddea;color:#092531}.secondary,.mobile-card button{background:#143342;border-color:#467285;color:#d8f4fa}
+.chat-heading{background:linear-gradient(90deg,#071c29bd,#05202b59),url('/mobile/editorial/hero-water-v1.webp') center 40% / cover no-repeat}.chat-heading h1,.chat-heading p{color:#e9f9fc}.chat-presence{background:#69dabd;box-shadow:0 0 0 4px #176c6855}.chat-new{background:#123a4b;border-color:#528698;color:#e6f7fb}
+.chat-mode,.job-filters{background:#12313e}.chat-mode button,.job-filters button{color:#aac7d0}.chat-mode button.active,.job-filters button.active{background:#286177;color:#f2fcff}.chat-mode-help,.chat-starters p{color:#a1bdc7}.chat-tools{border-color:var(--line)}.chat-tools>summary{color:#9bdce9}.chat-starters button,.actions button{background:#153341;border-color:#315565;color:#d8f1f6}.actions button span{color:#83dcec}
+.bubble.user{background:#246d81;color:#f3fdff}.bubble.jarvis{background:#102b38;border-color:#3b6574;color:#e7f5f8}.bubble .meta{color:#aac7d0}.play{background:#16455a;border-color:#51889a;color:#d8f7ff}.composer{background:#07131c}.composer #mic{background:#17495e;color:#def8ff}
+.job-compose,.job-analysis{background:#10232e;border-color:#2b4855}.job-compose>summary,.job-analysis>summary{color:#e6f6fa}.job-compose>summary span,.job-analysis>summary span,.job-analysis>p{color:#9eb9c3}
+.personal-nav,.personal-setting{border-color:var(--line)}.personal-nav button{color:#a7c3ca}.personal-nav button.active{color:#93e5f2}.personal-nav button.active::after{background:#7bdfec}
+button:focus-visible,a:focus-visible{outline-color:#9ef0ff}
+@media(max-width:380px){.desk-greeting{min-height:380px}.desk-orb{width:160px;height:160px;top:144px}.desk-orb small{top:170px}.desk-quick button{font-size:10px}}
+

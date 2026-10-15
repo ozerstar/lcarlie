@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f1f5f3">
+  <meta name="theme-color" content="#06121b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>L’CARLIÉ Jarvis</title>
@@ -15,12 +15,14 @@
   <link rel="stylesheet" href="/mobile/drive.css?v=1">
   <link rel="stylesheet" href="/mobile/personal.css?v=1">
   <link rel="stylesheet" href="/mobile/atelier.css?v=1">
-  <script defer src="/mobile/mobile.js?v=19"></script>
+  <link rel="stylesheet" href="/mobile/desk.css?v=2">
+  <link rel="stylesheet" href="/mobile/jarvis-night.css?v=2">
+  <script defer src="/mobile/mobile.js?v=21"></script>
 </head>
 <body>
   <main class="shell">
     <header class="header">
-      <div class="brand"><span class="brand-icon" aria-hidden="true">J</span><div><strong>L’CARLIÉ</strong><small>Jarvis · kişisel çalışma alanı</small></div></div>
+      <div class="brand"><span class="brand-icon" aria-hidden="true">✦</span><div><strong>JARVIS</strong><small>L’CARLIÉ · senin asistanın</small></div></div>
       <div class="header-actions"><span id="status" class="status">Bağlanıyor</span><button id="logout" class="text-button" hidden>Çıkış</button></div>
     </header>
 
@@ -45,31 +47,39 @@
         <button type="button" data-tab="more"><span class="tab-icon" aria-hidden="true">⋯</span>Diğer</button>
       </nav>
       <section id="home-panel" class="tab-panel">
-        <div class="intro home-intro"><span class="eyebrow">Günlük bakış</span><h1>Bugün, tek bakışta.</h1><p>Önemli olanları burada toplayalım.</p></div>
-        <div id="home-summary" class="home-status" role="status">
-          <span class="home-status-dot" aria-hidden="true"></span>
-          <span><strong id="home-system-state">Durum yükleniyor…</strong><small id="home-memory-state">Şirket hafızası kontrol ediliyor</small></span>
+        <div class="desk-greeting">
+          <div><p id="today-date" class="desk-date">Bugün</p><h1>Merhaba.</h1><p>Önce önemli olanı halledelim.</p></div>
+          <button type="button" class="desk-orb" id="home-voice" aria-label="Sesli asistana geç"><span aria-hidden="true">✦</span><small>Dokun ve konuş</small></button>
         </div>
-        <div class="home-actions">
-          <button type="button" class="home-action-main" data-tab="chat"><span aria-hidden="true">✦</span><strong>Asistana yaz</strong><small>Yaz veya sesle konuş</small></button>
-          <button type="button" class="home-action-approval" data-tab="approvals"><span>Onay bekleyenler</span><strong id="home-approval-count">—</strong><small>Önerileri incele</small></button>
+        <div class="desk-quick" aria-label="Hızlı işlemler"><button type="button" data-tab="chat"><span>✦</span>Asistana sor</button><button type="button" data-tab="jobs"><span>▤</span>İşleri gör</button><button type="button" data-tab="approvals"><span>✓</span>Karar ver</button><button type="button" data-tab="creative"><span>▧</span>Görseller</button></div>
+        <section class="desk-focus" aria-label="Öncelikli konu">
+          <div class="desk-focus-top"><span>Öncelikli konu</span><span aria-hidden="true">↗</span></div>
+          <h2 id="home-focus-title">Günün durumu hazırlanıyor</h2>
+          <p id="home-focus-detail">Bekleyen işleri kontrol ediyorum.</p>
+          <button id="home-focus-action" type="button" data-focus-tab="jobs">İşlere bak</button>
+        </section>
+        <div class="desk-metrics" aria-label="Günlük sayılar">
+          <button type="button" data-tab="approvals"><strong id="home-approval-count">—</strong><span>Onay</span></button>
+          <button type="button" data-tab="jobs"><strong id="home-jobs-count">—</strong><span>Bekleyen iş</span></button>
+          <button type="button" id="home-reminder-shortcut"><strong id="home-reminder-count">—</strong><span>Hatırlatıcı</span></button>
         </div>
-        <section class="mobile-form card" aria-label="Günlük özet"><h2>Günlük özet</h2><div id="daily-summary">Özet hazırlanıyor…</div></section>
-        <h2 class="section-title">Şirket işleri</h2>
-        <div class="overview-links">
-          <a href="/?view=home"><strong>Ana Sayfa</strong><small>Şirket özeti</small></a>
-          <a href="/?view=satislar"><strong>Satışlar</strong><small>Satış kayıtları</small></a>
-          <a href="/?view=eticaret"><strong>E-Ticaret</strong><small>Ürün ve kanal görünümü</small></a>
-          <a href="/?view=fiyat"><strong>Fiyat</strong><small>Fiyat çalışmaları</small></a>
-          <a href="/?view=kargo"><strong>Kargo</strong><small>Gönderiler</small></a>
-          <a href="/?view=musteri"><strong>Müşteriler</strong><small>Müşteri görünümü</small></a>
-          <button type="button" data-tab="creative"><strong>Görseller</strong><small>Üretilen reklam çalışmaları</small></button>
-          <a href="/?view=raporlar"><strong>Raporlar</strong><small>Şirket raporları</small></a>
-        </div>
-        <p class="help">Bu bağlantılar tam web panelindeki bölümleri açar.</p>
+        <section class="desk-flow" aria-label="Günün akışı"><div class="desk-section-heading"><h2>Günün akışı</h2><button type="button" data-tab="jobs">Tüm işler</button></div><div id="daily-summary">Özet hazırlanıyor…</div></section>
+        <div id="home-summary" class="home-status" role="status"><span class="home-status-dot" aria-hidden="true"></span><span><strong id="home-system-state">Durum yükleniyor…</strong><small id="home-memory-state">Şirket hafızası kontrol ediliyor</small></span></div>
+        <details class="desk-directory"><summary>Şirket bölümleri <span>Satışlar, görseller ve diğerleri</span></summary>
+          <div class="overview-links">
+            <a href="/?view=home"><strong>Ana Sayfa</strong><small>Şirket özeti</small></a>
+            <a href="/?view=satislar"><strong>Satışlar</strong><small>Satış kayıtları</small></a>
+            <a href="/?view=eticaret"><strong>E-Ticaret</strong><small>Ürün ve kanal görünümü</small></a>
+            <a href="/?view=fiyat"><strong>Fiyat</strong><small>Fiyat çalışmaları</small></a>
+            <a href="/?view=kargo"><strong>Kargo</strong><small>Gönderiler</small></a>
+            <a href="/?view=musteri"><strong>Müşteriler</strong><small>Müşteri görünümü</small></a>
+            <button type="button" data-tab="creative"><strong>Görseller</strong><small>Üretilen reklam çalışmaları</small></button>
+            <a href="/?view=raporlar"><strong>Raporlar</strong><small>Şirket raporları</small></a>
+          </div>
+        </details>
       </section>
       <section id="chat-panel" class="tab-panel" hidden>
-      <div class="intro"><span class="eyebrow">Asistan</span><h1>Birlikte halledelim.</h1><p>Önce konuşmak istediğin alanı seç.</p></div>
+      <div class="chat-heading"><div><span class="chat-presence" aria-hidden="true"></span><h1>Jarvis</h1><p>Yaz veya konuş, birlikte ilerleyelim.</p></div><button type="button" class="chat-new" id="chat-new" aria-label="Yeni konuşma">Yeni sohbet</button></div>
       <div class="chat-mode" role="group" aria-label="Sohbet alanı">
         <button type="button" class="active" data-chat-mode="work" aria-pressed="true">İş</button>
         <button type="button" data-chat-mode="personal" aria-pressed="false">Kişisel</button>
@@ -111,12 +121,12 @@
         </details>
         </section>
       </section>
-      <section id="chat-actions" class="actions" aria-label="Telefon işlemleri">
+      <details id="chat-tools" class="chat-tools"><summary>Telefon araçları</summary><section id="chat-actions" class="actions" aria-label="Telefon işlemleri">
         <button data-action="call"><span>☎</span> Ara</button>
         <button data-action="message"><span>✉</span> Mesaj</button>
         <button data-action="maps"><span>⌖</span> Harita</button>
         <button data-action="shortcut"><span>✦</span> Kestirme</button>
-      </section>
+      </section></details>
       <section id="chat-starters" class="chat-starters" aria-label="Başlangıç önerileri">
         <p>Buradan başlayabilirsin</p>
         <div data-starter-mode="work">
@@ -137,15 +147,18 @@
       <p id="chat-help" class="help">Sesli yanıtı dinlemek için cevabın yanındaki oynat düğmesine dokun.</p>
       </section>
       <section id="jobs-panel" class="tab-panel" hidden>
-        <div class="intro"><span class="eyebrow">Görevler</span><h1>İşler</h1><p id="job-count">Yükleniyor…</p></div>
-        <div class="intro"><span class="eyebrow">Planlı çalışmalar</span><h2>Jarvis neleri inceledi?</h2><p id="orchestration-count">Yükleniyor…</p><p>Jarvis burada yaptığı analizleri gösterir. Hazırladığı öneri taslağı kendiliğinden onay listesine eklenmez.</p></div>
-        <div id="orchestration-list" class="card-list" aria-live="polite"></div>
-        <form id="job-form" class="mobile-form card">
+        <div class="intro"><span class="eyebrow">Görevler</span><h1>İşlerini takip et.</h1><p id="job-count">Yükleniyor…</p></div>
+        <div class="job-filters" role="group" aria-label="İşleri süz">
+          <button type="button" data-job-filter="active" class="active" aria-pressed="true">Bekleyenler</button>
+          <button type="button" data-job-filter="done" aria-pressed="false">Yapılanlar</button>
+        </div>
+        <div id="job-list" class="card-list" aria-live="polite"></div>
+        <details class="job-compose"><summary>Yeni görev ver <span aria-hidden="true">＋</span></summary><form id="job-form" class="mobile-form card">
           <label>Yeni iş<textarea id="job-request" rows="3" placeholder="Jarvis ne yapsın?" required></textarea></label>
           <label>Yapılmaması gerekenler<input id="job-negative" placeholder="İsteğe bağlı"></label>
           <button class="primary" type="submit">İşi kuyruğa ekle</button>
-        </form>
-        <div id="job-list" class="card-list"></div>
+        </form></details>
+        <details class="job-analysis"><summary>Jarvis’in yaptığı analizler <span id="orchestration-count">Yükleniyor…</span></summary><p>Hazırlanan öneri taslağı kendiliğinden onay listesine eklenmez.</p><div id="orchestration-list" class="card-list" aria-live="polite"></div></details>
       </section>
       <section id="approvals-panel" class="tab-panel" hidden>
         <div class="intro"><span class="eyebrow">Kararların</span><h1>Bekleyen onaylar</h1><p>Ne önerildiğini ve riskini okuyup karar ver.</p></div>

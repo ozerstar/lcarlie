@@ -2,13 +2,16 @@ import importlib.util
 import sys
 import tempfile
 import unittest
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "webconsole"))
 import push_store  # noqa: E402
 import mobile_features  # noqa: E402
+import personal_planner  # noqa: E402
 import google_workspace  # noqa: E402
 
 spec = importlib.util.spec_from_file_location("push_send", ROOT / "scripts" / "push-send.py")
@@ -80,6 +83,35 @@ class PushSenderTests(unittest.TestCase):
             push_send.notify_birthdays()
         sender.assert_called_once()
         self.assertEqual(sender.call_args.args[1], "Jarvis · Doğum günü")
+
+    def test_special_day_notification_only_reaches_owner_once(self):
+        subscription = {"endpoint": "https://web.push.apple.com/example",
+                        "keys": {"p256dh": "a" * 87, "auth": "b" * 22}}
+        push_store.save(subscription, owner="alice")
+        today = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%d.%m")
+        with patch.object(mobile_features, "STATE", push_store.STATE_DIR / "mobile"), \
+             patch.object(google_workspace, "birthday_events_today", return_value=[]), \
+             patch.object(push_send, "send", return_value=True) as sender:
+            mobile_features.save_contact("alice", "Talha", "Yakın", special_day=today)
+            push_send.notify_birthdays()
+            push_send.notify_birthdays()
+        sender.assert_called_once()
+        self.assertEqual(sender.call_args.args[1], "Jarvis · Özel gün")
+
+    def test_daily_digest_is_owner_scoped_and_deduplicated(self):
+        subscription = {"endpoint": "https://web.push.apple.com/example",
+                        "keys": {"p256dh": "a" * 87, "auth": "b" * 22}}
+        push_store.save(subscription, owner="alice")
+        now = datetime(2026, 10, 15, 8, 2, tzinfo=ZoneInfo("Europe/Istanbul"))
+        summary = {"today_events": [], "today_reminders": [], "special_days": [],
+                   "pending": [], "activities": [], "tomorrow_events": [], "tomorrow_reminders": []}
+        with patch.object(mobile_features, "notification_settings", return_value={"morning": True, "evening": True}), \
+             patch.object(personal_planner, "overview", return_value=summary), \
+             patch.object(push_send, "send", return_value=True) as sender:
+            push_send.notify_daily_digest(now)
+            push_send.notify_daily_digest(now)
+        sender.assert_called_once()
+        self.assertEqual(sender.call_args.args[1], "Jarvis · Sabah planı")
 
 
 if __name__ == "__main__":
