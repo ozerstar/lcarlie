@@ -1,0 +1,26 @@
+# 🔴 BU DIZINDEN DEPOYA GIRMEYECEKLER
+#
+# Worker calisirken burada sir ve oturum uretilir. Deponun koku de
+# `.env` desenlerini zaten kapsiyor; bu dosya o korumayi worker'in
+# KENDI dizininde de acik acik tekrarlar, cunku worker E: uzerinde
+# bagimsiz da kurulabiliyor ve o halde kok .gitignore yoktur.
+
+# SSH anahtari ve host anahtari
+ssh/
+
+# Oturum bilgisi: ChatGPT/Claude cerezleri BURADA durur
+chrome-profile/
+
+# Python sanal ortami
+venv/
+
+# Gunluk ve ekran goruntuleri (7 gun sonra silinir, depoya girmez)
+worker.log
+worker.log.1
+ekran/
+
+# Ortam dosyasi
+.env
+
+__pycache__/
+*.pyc

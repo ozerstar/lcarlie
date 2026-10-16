@@ -1,0 +1,379 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""TARAYICI KAPISI — PC'deki worker'ın sunucuya tek giriş noktası.
+
+`~/.ssh/authorized_keys` içinde ZORUNLU KOMUT olarak bağlanır:
+
+    command="/opt/lcarlie/bin/tarayici-kapi",no-agent-forwarding,
+    no-port-forwarding,no-pty,no-X11-forwarding,no-user-rc ssh-ed25519 AAAA...
+
+🔴 NEDEN KAPI VAR -- WORKER'A KABUK VERİLMEZ.
+   PC-2'deki `jarvis-hakem.ps1` sunucuya `root@` olarak bağlanıp serbest
+   kabuk komutu çalıştırıyor. O, kuyruk bir dizin olduğu için öyleydi.
+   Burada kuyruk veritabanında ve kabuk vermeye gerek yok: worker yalnız
+   altı işlem yapabilir. Anahtar çalınsa bile elde edilen şey bir kabuk
+   değil, bu altı işlemdir.
+
+   Kapı HATALI OLSA BİLE sınır var: psql çağrıları `SET ROLE
+   tarayici_worker` ile koşar ve o rolün yetkisi veritabanında dar
+   (iş alır/kapatır; iş EKLEYEMEZ, SUNULDU yazamaz, tabloyu OKUYAMAZ).
+   İki katman, iki ayrı gerekçe.
+
+ALT KOMUTLAR (SSH_ORIGINAL_COMMAND içinden okunur)
+    al <worker>                  -> kiralanan iş JSON olarak, yoksa {}
+    girdi <is_id> <sira>         -> girdi dosyası base64 olarak stdout'a
+    bitir <is_id> <jeton>        -> stdin: {"metin":..,"dosyalar":[{ad,b64}],"ekran_b64":..}
+    hata  <is_id> <jeton>        -> stdin: {"hata":..,"ekran_b64":..}
+    insan <is_id> <jeton>        -> stdin: {"sebep":..,"ekran_b64":..}
+    nabiz <worker>               -> stdin: {"ayrinti":{...}}
+
+🔴 HİÇBİR ARGÜMAN KABUĞA GİTMEZ. Alt komut adı sabit listede aranır,
+   `is_id` tam sayıya, jeton UUID'ye zorlanır, dosya adı yalnız
+   basename + güvenli karakter kümesi olur. Kabuk hiç kurulmaz:
+   subprocess argv listesiyle çağrılır.
+"""
+from __future__ import annotations
+
+import base64
+import binascii
+import json
+import os
+import re
+import shlex
+import subprocess
+import sys
+import uuid
+from pathlib import Path
+
+CIKTI_KOK = Path(os.environ.get("TARAYICI_CIKTI_DIR", "/opt/lcarlie/tarayici-cikti"))
+GUNLUK = Path("/opt/lcarlie/tarayici-kapi.log")
+
+WORKER_RE = re.compile(r"^[A-Za-z0-9_.-]{1,80}$")
+DOSYA_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$")
+
+# Boyut tavanları. Tavansız bir kapı, diski doldurmanın yoludur.
+EN_COK_STDIN = 64 * 1024 * 1024       # 64 MB (base64 dahil)
+EN_COK_DOSYA = 12 * 1024 * 1024       # 12 MB tek dosya (çözülmüş)
+EN_COK_DOSYA_SAYISI = 8
+EN_COK_METIN = 200_000                # karakter
+EN_COK_GIRDI = 12 * 1024 * 1024
+
+# 🔴 `-f -` KULLANILIR, `-c` DEĞİL. Ölçüldü: psql `-c` ile verilen metinde
+#    değişken yerleştirmesi HİÇ yapılmaz; `:'ad'` sunucuya olduğu gibi gider
+#    ve "syntax error at or near :" ile düşer. Değişkenler yalnız psql'in
+#    kendi çözümleyicisinden geçen girdide (stdin) açılır.
+PSQL_TABAN = ["docker", "exec", "-i", "lcarlie-postgres", "psql", "-X", "-q",
+              "-A", "-t", "-v", "ON_ERROR_STOP=1", "-U", "n8n", "-d", "n8n"]
+
+
+class KapiHatasi(RuntimeError):
+    """İstek reddedildi. Sebep stderr'e yazılır, worker onu günlüğüne alır."""
+
+
+def gunluge_yaz(satir: str) -> None:
+    """Her çağrı deftere yazılır -- reddedilen de.
+
+    Reddedilen çağrıyı kaydetmemek, "hiç denenmedi" ile "engellendi"yi
+    aynı gösterirdi.
+    """
+    try:
+        import time
+        with GUNLUK.open("a", encoding="utf-8") as d:
+            d.write("%s  %s\n" % (time.strftime("%Y-%m-%dT%H:%M:%S%z"), satir))
+    except OSError as hata:
+        # Defter yazılamazsa çağrı durmaz, ama sessiz de kalmaz.
+        sys.stderr.write("[kapi] defter yazilamadi: %s\n" % hata)
+
+
+def psql(sql: str, degiskenler: dict[str, str] | None = None,
+         timeout_s: int = 30) -> list[str]:
+    """SET ROLE tarayici_worker ile tek ifade. Değerler -v ile geçer."""
+    komut = list(PSQL_TABAN)
+    for ad, deger in (degiskenler or {}).items():
+        komut += ["-v", "%s=%s" % (ad, deger)]
+    komut += ["-f", "-"]
+    sonuc = subprocess.run(
+        komut, input="BEGIN; SET ROLE tarayici_worker; %s COMMIT;" % sql,
+        capture_output=True, text=True, timeout=timeout_s, check=False)
+    if sonuc.returncode:
+        raise KapiHatasi((sonuc.stderr or "").strip() or "veritabani hatasi")
+    return [s for s in (sonuc.stdout or "").splitlines() if s.strip()]
+
+
+def sadece_okuma(sql: str, degiskenler: dict[str, str] | None = None) -> list[str]:
+    """Okuma çağrıları için ai_reader; worker rolü tabloyu okuyamaz."""
+    komut = list(PSQL_TABAN)
+    for ad, deger in (degiskenler or {}).items():
+        komut += ["-v", "%s=%s" % (ad, deger)]
+    komut += ["-f", "-"]
+    sonuc = subprocess.run(
+        komut, input="BEGIN; SET SESSION AUTHORIZATION ai_reader; %s ROLLBACK;" % sql,
+        capture_output=True, text=True, timeout=20, check=False)
+    if sonuc.returncode:
+        raise KapiHatasi((sonuc.stderr or "").strip() or "veritabani hatasi")
+    return [s for s in (sonuc.stdout or "").splitlines() if s.strip()]
+
+
+# --------------------------------------------------------------------------
+# Doğrulayıcılar
+# --------------------------------------------------------------------------
+def worker_adi(deger: str) -> str:
+    if not WORKER_RE.match(deger or ""):
+        raise KapiHatasi("worker adi gecersiz")
+    return deger
+
+
+def is_kimligi(deger: str) -> int:
+    if not re.fullmatch(r"[0-9]{1,18}", deger or ""):
+        raise KapiHatasi("is_id tam sayi olmali")
+    return int(deger)
+
+
+def jeton(deger: str) -> str:
+    try:
+        return str(uuid.UUID(deger))
+    except (ValueError, AttributeError, TypeError):
+        raise KapiHatasi("kira jetonu UUID olmali") from None
+
+
+def stdin_json() -> dict:
+    ham = sys.stdin.buffer.read(EN_COK_STDIN + 1)
+    if len(ham) > EN_COK_STDIN:
+        raise KapiHatasi("govde %d bayt tavanini asiyor" % EN_COK_STDIN)
+    if not ham:
+        return {}
+    try:
+        veri = json.loads(ham.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as hata:
+        raise KapiHatasi("govde JSON degil: %s" % hata) from None
+    if not isinstance(veri, dict):
+        raise KapiHatasi("govde bir JSON nesnesi olmali")
+    return veri
+
+
+def coz_b64(deger: str, tavan: int, ne: str) -> bytes:
+    if not isinstance(deger, str):
+        raise KapiHatasi("%s base64 metin olmali" % ne)
+    try:
+        ham = base64.b64decode(deger, validate=True)
+    except (binascii.Error, ValueError):
+        raise KapiHatasi("%s gecerli base64 degil" % ne) from None
+    if len(ham) > tavan:
+        raise KapiHatasi("%s %d bayt tavanini asiyor" % (ne, tavan))
+    if not ham:
+        raise KapiHatasi("%s bos" % ne)
+    return ham
+
+
+def dosya_yaz(is_id: int, ad: str, ham: bytes) -> str:
+    """Sonuç dosyasını işe ait dizine yazar ve göreli yolu döndürür.
+
+    🔴 Dosya adı YALNIZ basename ve güvenli karakter kümesi. `..`, eğik
+       çizgi ve mutlak yol reddedilir: aksi hâlde kapı, sunucuda keyfi
+       yere yazma aracı olurdu.
+
+    🔴 BASENAME'E İNDİRİP KABUL ETMEK YETMEZ, REDDETMEK GEREKİR.
+       İlk hâlinde `../../../etc/kotu.png` basename'e indirgeniyor ve
+       `kotu.png` olarak SESSİZCE kabul ediliyordu. Yazma güvenliydi
+       (dosya işin dizinine düşüyordu) ama düzgün bir worker asla yol
+       göndermez: gönderdiyse ya kusurlu ya da ele geçmiştir. Sessizce
+       düzeltmek o işareti siler. Ölçüldü ve değiştirildi.
+    """
+    ham_ad = str(ad or "")
+    if ham_ad != os.path.basename(ham_ad):
+        raise KapiHatasi("dosya adi yol icermez: %r" % (ham_ad,))
+    temiz = ham_ad
+    if not DOSYA_RE.match(temiz):
+        raise KapiHatasi("dosya adi gecersiz: %r" % (ad,))
+    dizin = CIKTI_KOK / ("is-%d" % is_id)
+    dizin.mkdir(parents=True, exist_ok=True)
+    os.chmod(dizin, 0o750)
+    hedef = dizin / temiz
+    # Atomik yazım: panel yarım dosya görmesin.
+    gecici = dizin / (".yaziliyor-" + temiz)
+    with gecici.open("wb") as d:
+        d.write(ham)
+        d.flush()
+        os.fsync(d.fileno())
+    os.chmod(gecici, 0o640)
+    os.replace(gecici, hedef)
+    return "is-%d/%s" % (is_id, temiz)
+
+
+# --------------------------------------------------------------------------
+# Alt komutlar
+# --------------------------------------------------------------------------
+def komut_al(argv: list[str]) -> int:
+    if len(argv) != 1:
+        raise KapiHatasi("kullanim: al <worker>")
+    ad = worker_adi(argv[0])
+    satirlar = psql(
+        "SELECT COALESCE(json_agg(row_to_json(t))::text, '[]') FROM "
+        "core.tarayici_isi_al(:'worker', 420) t;",
+        {"worker": ad})
+    isler = json.loads(satirlar[0]) if satirlar else []
+    print(json.dumps(isler[0] if isler else {}, ensure_ascii=False))
+    return 0
+
+
+def komut_girdi(argv: list[str]) -> int:
+    if len(argv) != 2:
+        raise KapiHatasi("kullanim: girdi <is_id> <sira>")
+    is_id = is_kimligi(argv[0])
+    try:
+        sira = int(argv[1])
+    except ValueError:
+        raise KapiHatasi("sira tam sayi olmali") from None
+    satirlar = sadece_okuma(
+        "SELECT girdi_dosyalari::text FROM core.tarayici_isi_getir(:'is_id'::bigint);",
+        {"is_id": str(is_id)})
+    if not satirlar:
+        raise KapiHatasi("is bulunamadi")
+    yollar = json.loads(satirlar[0])
+    if not 0 <= sira < len(yollar):
+        raise KapiHatasi("sira araligin disinda")
+    # Yol, iş eklenirken jarvis/tarayici.py'nin izinli kök listesinden
+    # geçti. Burada ikinci kez dosya olup olmadığı denetlenir; var olmayan
+    # bir dosya için sessizce boş dönmek, worker'a "girdi yok" yerine
+    # "girdi boş" demek olurdu.
+    p = Path(yollar[sira])
+    if not p.is_file():
+        raise KapiHatasi("girdi dosyasi diskte yok: %s" % p.name)
+    ham = p.read_bytes()
+    if len(ham) > EN_COK_GIRDI:
+        raise KapiHatasi("girdi dosyasi %d bayt tavanini asiyor" % EN_COK_GIRDI)
+    print(json.dumps({"ad": p.name,
+                      "b64": base64.b64encode(ham).decode("ascii")}))
+    return 0
+
+
+def komut_bitir(argv: list[str]) -> int:
+    if len(argv) != 2:
+        raise KapiHatasi("kullanim: bitir <is_id> <jeton>")
+    is_id, jet = is_kimligi(argv[0]), jeton(argv[1])
+    govde = stdin_json()
+    metin = str(govde.get("metin") or "")[:EN_COK_METIN]
+
+    dosyalar = govde.get("dosyalar") or []
+    if not isinstance(dosyalar, list):
+        raise KapiHatasi("dosyalar bir liste olmali")
+    if len(dosyalar) > EN_COK_DOSYA_SAYISI:
+        raise KapiHatasi("en fazla %d dosya" % EN_COK_DOSYA_SAYISI)
+    yollar = []
+    for kayit in dosyalar:
+        if not isinstance(kayit, dict):
+            raise KapiHatasi("dosya kaydi nesne olmali")
+        ham = coz_b64(kayit.get("b64"), EN_COK_DOSYA, "dosya")
+        yollar.append(dosya_yaz(is_id, kayit.get("ad"), ham))
+
+    ekran = ekran_yaz(is_id, govde.get("ekran_b64"))
+
+    psql("SELECT core.tarayici_isi_bitir(:'is_id'::bigint, :'jeton'::uuid, "
+         ":'metin', :'dosyalar'::jsonb, :'ekran');",
+         {"is_id": str(is_id), "jeton": jet, "metin": metin,
+          "dosyalar": json.dumps(yollar, ensure_ascii=False),
+          "ekran": ekran or ""})
+    print(json.dumps({"durum": "BITTI", "is_id": is_id, "dosyalar": yollar}))
+    return 0
+
+
+def komut_hata(argv: list[str]) -> int:
+    if len(argv) != 2:
+        raise KapiHatasi("kullanim: hata <is_id> <jeton>")
+    is_id, jet = is_kimligi(argv[0]), jeton(argv[1])
+    govde = stdin_json()
+    sebep = str(govde.get("hata") or "sebep bildirilmedi")[:1000]
+    ekran = ekran_yaz(is_id, govde.get("ekran_b64"))
+    satirlar = psql(
+        "SELECT core.tarayici_isi_hata(:'is_id'::bigint, :'jeton'::uuid, "
+        ":'hata', :'ekran');",
+        {"is_id": str(is_id), "jeton": jet, "hata": sebep, "ekran": ekran or ""})
+    print(json.dumps({"durum": satirlar[0] if satirlar else "?", "is_id": is_id}))
+    return 0
+
+
+def komut_insan(argv: list[str]) -> int:
+    if len(argv) != 2:
+        raise KapiHatasi("kullanim: insan <is_id> <jeton>")
+    is_id, jet = is_kimligi(argv[0]), jeton(argv[1])
+    govde = stdin_json()
+    sebep = str(govde.get("sebep") or "insan mudahalesi gerekli")[:1000]
+    ekran = ekran_yaz(is_id, govde.get("ekran_b64"))
+    psql("SELECT core.tarayici_isi_insan(:'is_id'::bigint, :'jeton'::uuid, "
+         ":'sebep', :'ekran');",
+         {"is_id": str(is_id), "jeton": jet, "sebep": sebep, "ekran": ekran or ""})
+    print(json.dumps({"durum": "INSAN_GEREKLI", "is_id": is_id, "ekran": ekran}))
+    return 0
+
+
+def komut_nabiz(argv: list[str]) -> int:
+    if len(argv) != 1:
+        raise KapiHatasi("kullanim: nabiz <worker>")
+    ad = worker_adi(argv[0])
+    govde = stdin_json()
+    ayrinti = govde.get("ayrinti")
+    if ayrinti is None:
+        ayrinti = {}
+    if not isinstance(ayrinti, dict):
+        raise KapiHatasi("ayrinti bir nesne olmali")
+    # Nabız ayrıntısı panele düşer; şişmesin ve sır taşımasın.
+    kirpik = {str(k)[:40]: (v if isinstance(v, (int, float, bool)) or v is None
+                            else str(v)[:200])
+              for k, v in list(ayrinti.items())[:20]}
+    psql("SELECT core.tarayici_nabiz_yaz(:'worker', :'ayrinti'::jsonb);",
+         {"worker": ad, "ayrinti": json.dumps(kirpik, ensure_ascii=False)})
+    print(json.dumps({"durum": "NABIZ_YAZILDI", "worker": ad}))
+    return 0
+
+
+def ekran_yaz(is_id: int, b64: object) -> str | None:
+    """Ekran görüntüsünü yazar. Yoksa None -- boş string YAZILMAZ."""
+    if not b64:
+        return None
+    ham = coz_b64(b64, EN_COK_DOSYA, "ekran goruntusu")
+    return dosya_yaz(is_id, "ekran-%d.png" % is_id, ham)
+
+
+KOMUTLAR = {"al": komut_al, "girdi": komut_girdi, "bitir": komut_bitir,
+            "hata": komut_hata, "insan": komut_insan, "nabiz": komut_nabiz}
+
+
+def main() -> int:
+    ham = os.environ.get("SSH_ORIGINAL_COMMAND")
+    if ham is None:
+        # Elle çalıştırma (kurulum sınaması) için argv de kabul edilir.
+        parcalar = sys.argv[1:]
+    else:
+        try:
+            parcalar = shlex.split(ham)
+        except ValueError:
+            sys.stderr.write("komut ayristirilamadi\n")
+            return 2
+    if not parcalar:
+        sys.stderr.write("alt komut yok. izinli: %s\n" % ", ".join(sorted(KOMUTLAR)))
+        return 2
+    ad, argv = parcalar[0], parcalar[1:]
+    if ad not in KOMUTLAR:
+        gunluge_yaz("RED bilinmeyen-komut %r" % (ad,))
+        sys.stderr.write("izinli olmayan alt komut: %r\n" % (ad,))
+        return 2
+    try:
+        kod = KOMUTLAR[ad](argv)
+    except KapiHatasi as hata:
+        gunluge_yaz("RED %s: %s" % (ad, hata))
+        sys.stderr.write("%s\n" % hata)
+        return 3
+    except subprocess.TimeoutExpired:
+        gunluge_yaz("RED %s: zaman asimi" % ad)
+        sys.stderr.write("veritabani zaman asimi\n")
+        return 4
+    except Exception as hata:            # noqa: BLE001 - kapı sessiz düşmez
+        gunluge_yaz("HATA %s: %s: %s" % (ad, type(hata).__name__, hata))
+        sys.stderr.write("beklenmeyen hata: %s\n" % type(hata).__name__)
+        return 5
+    gunluge_yaz("OK %s %s" % (ad, " ".join(argv[:1])))
+    return kod
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

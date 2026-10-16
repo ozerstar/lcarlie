@@ -37,19 +37,22 @@ class ContractTests(unittest.TestCase):
         value = contract()
         self.assertTrue(value.valid, value.reason)
         self.assertEqual(value.canonical_action_count, 6)
-        # 🔴 9, 7 DEGIL. 21.09.2026'da KREATIF_BRIEF ve KREATIF_INCELEME
-        # eklendi; ikisi de REQUEST_HUMAN_REVIEW'a duser (yeni bir DB
-        # action type UYDURULMADI -- ikisi de "insan baksin" talebi).
+        # 🔴 10, 9 DEGIL. 21.09.2026'da KREATIF_BRIEF ve KREATIF_INCELEME
+        # eklendi; 16.10.2026'da TARAYICI_SONUC eklendi. Ucu de
+        # REQUEST_HUMAN_REVIEW'a duser (yeni bir DB action type
+        # UYDURULMADI -- ucu de "insan baksin" talebi: uretilen seye
+        # sahip GOZUYLE bakip karar verir).
         # Cip sayisi degil, KUMENIN KENDISI kilitleniyor: ciplak bir sayi
-        # degisince "8 mi 9 mu olmaliydi" diye bakilacak hicbir sey
+        # degisince "9 mu 10 mu olmaliydi" diye bakilacak hicbir sey
         # birakmiyor, bu test 24.09'a kadar tam bu yuzden kirmizi kaldi.
         self.assertEqual(
             set(INTENT_TO_CANONICAL),
             {"CUSTOMER_REPLY_DRAFT", "HUMAN_REVIEW_REQUEST", "CODE_CHANGE_REVIEW",
-             "KREATIF_BRIEF", "KREATIF_INCELEME", "WHATSAPP_TEMPLATE_SEND",
-             "META_CAMPAIGN_CHANGE", "PRICE_CHANGE", "WIX_PUBLISH"},
+             "KREATIF_BRIEF", "KREATIF_INCELEME", "TARAYICI_SONUC",
+             "WHATSAPP_TEMPLATE_SEND", "META_CAMPAIGN_CHANGE", "PRICE_CHANGE",
+             "WIX_PUBLISH"},
             "ic niyet kumesi degisti -- sozlesme tarafi da gozden gecirilmeli")
-        self.assertEqual(value.mapped_action_count, 9)
+        self.assertEqual(value.mapped_action_count, 10)
         self.assertEqual(value.unknown_internal, ())
         self.assertEqual(value.unknown_canonical, ())
 

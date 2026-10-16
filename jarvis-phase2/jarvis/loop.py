@@ -274,6 +274,38 @@ def _build_kreatif_payload(slug: str) -> dict[str, str]:
             "reason": onay_ozeti(inceleme, slug, KREATIF_TABAN_URL)}
 
 
+# --------------------------------------------------------------------------
+# Tarayici isi koprusu. KREATIF_INCELEME ile AYNI desen: is burada
+# yapilmaz, PC-1'deki Chrome'da yapilmis ve sonucu diske yazilmis bir
+# sey okunur.
+#
+# 🔴 SONUC DOSYASI YOKSA ONERI YAZILMAZ. "Icı bos oneri onay degildir"
+#    kurali burada da gecerli: slug verilmis ama dosya yoksa bu bir
+#    hatadir, yer tutucu degil. Gorev duser, onay kuyrugu temiz kalir.
+TARAYICI_KOK = Path(os.environ.get(
+    "TARAYICI_DURUM_DIR", "/opt/lcarlie/jarvis-phase2/state/tarayici"))
+
+
+def _build_tarayici_payload(slug: str) -> dict[str, str]:
+    if not slug:
+        raise CodingTaskDenied(
+            "TARAYICI_SONUC bir is adi ister: jarvis:TARAYICI_SONUC:<slug>")
+    yol = TARAYICI_KOK / f"{slug}.json"
+    if not yol.exists():
+        raise CodingTaskDenied(f"tarayici sonucu bulunamadi: {yol}")
+    try:
+        kayit = json.loads(yol.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise CodingTaskDenied(f"tarayici sonucu okunamadi: {exc}") from exc
+    gerekce = (kayit.get("reason") or "").strip()
+    if len(gerekce) < 40:
+        # scripts/tarayici-dongu.py gerekceyi ZENGIN yazar. Kisa gelmesi,
+        # dosyanin elle ya da eski bir surumle yazildigi anlamina gelir.
+        raise CodingTaskDenied(
+            f"tarayici sonucunun gerekcesi ici bos: {yol}")
+    return {"subject_ref": f"tarayici:{slug}", "reason": gerekce}
+
+
 def _build_coding_review_payload(slug: str) -> dict[str, str]:
     if not slug:
         raise CodingTaskDenied("CODE_CHANGE_REVIEW requires a slug: jarvis:CODE_CHANGE_REVIEW:<slug>")
@@ -505,6 +537,9 @@ def run_cycle(host: str | None = "lcarlie") -> dict[str, Any]:
             elif internal_intent == "KREATIF_INCELEME":
                 state["kreatif_task_count"] = state.get("kreatif_task_count", 0) + 1
                 payload = _build_kreatif_payload(slug)
+            elif internal_intent == "TARAYICI_SONUC":
+                state["tarayici_task_count"] = state.get("tarayici_task_count", 0) + 1
+                payload = _build_tarayici_payload(slug)
             elif internal_intent == "CODE_CHANGE_REVIEW":
                 # CodingExecutor runs here, inside the firewall try/except: a
                 # scope violation, failing tests, or a run error all become a

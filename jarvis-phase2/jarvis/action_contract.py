@@ -26,7 +26,7 @@ from typing import Any, Mapping
 
 # Bump when the mapping below changes. It is part of the contract hash, so a
 # stale deployment cannot masquerade as a current one.
-CONTRACT_MAP_VERSION = "2026-09-18.2"
+CONTRACT_MAP_VERSION = "2026-10-16.1"
 
 # Jarvis internal intent -> canonical core.ai_action_type.action_type
 #
@@ -52,6 +52,11 @@ INTENT_TO_CANONICAL: Mapping[str, str] = {
     # yeni bir DB action type uydurmak icin sebep yok.
     "KREATIF_BRIEF": "REQUEST_HUMAN_REVIEW",
     "KREATIF_INCELEME": "REQUEST_HUMAN_REVIEW",
+    # Tarayici isi: PC-1'deki Chrome'da ChatGPT/Claude ile uretilen sonuc.
+    # Yeni bir DB action type UYDURULMAZ -- uretilen sey sahibin GOZUYLE
+    # bakip karar verecegi bir seydir, yani tam olarak bir insan incelemesi
+    # talebidir. KREATIF_INCELEME ile ayni gerekce, ayni kanonik tip.
+    "TARAYICI_SONUC": "REQUEST_HUMAN_REVIEW",
     "WHATSAPP_TEMPLATE_SEND": "WHATSAPP_SEND_TEMPLATE",
     "META_CAMPAIGN_CHANGE": "META_CAMPAIGN_CHANGE",
     "PRICE_CHANGE": "PRICE_CHANGE",
