@@ -17,9 +17,10 @@
   <link rel="stylesheet" href="/mobile/atelier.css?v=1">
   <link rel="stylesheet" href="/mobile/desk.css?v=2">
   <link rel="stylesheet" href="/mobile/jarvis-night.css?v=2">
+  <link rel="stylesheet" href="/mobile/chat-overlay.css?v=1">
   <script defer src="/display-text.js?v=4"></script>
   <script defer src="/mobile/voice-rtc.js?v=3"></script>
-  <script defer src="/mobile/mobile.js?v=31"></script>
+  <script defer src="/mobile/mobile.js?v=32"></script>
 </head>
 <body>
   <main class="shell">
@@ -80,8 +81,8 @@
           </div>
         </details>
       </section>
-      <section id="chat-panel" class="tab-panel" hidden>
-      <div class="chat-heading"><div><span class="chat-presence" aria-hidden="true"></span><h1>Jarvis</h1><p>Yaz veya konuş, birlikte ilerleyelim.</p></div><button type="button" class="chat-new" id="chat-new" aria-label="Yeni konuşma">Yeni sohbet</button></div>
+      <section id="chat-panel" class="tab-panel" role="dialog" aria-modal="true" aria-labelledby="chat-title" hidden>
+      <div class="chat-heading"><div><span class="chat-presence" aria-hidden="true"></span><h1 id="chat-title">Jarvis</h1><p>Yaz veya konuş, birlikte ilerleyelim.</p></div><div class="chat-heading-actions"><button type="button" class="chat-new" id="chat-new" aria-label="Yeni konuşma">Yeni sohbet</button><button type="button" class="chat-close" id="chat-close" aria-label="Asistanı kapat">Kapat ✕</button></div></div>
       <div class="chat-mode" role="group" aria-label="Sohbet alanı">
         <button type="button" class="active" data-chat-mode="work" aria-pressed="true">İş</button>
         <button type="button" data-chat-mode="personal" aria-pressed="false">Kişisel</button>
@@ -142,7 +143,7 @@
       </section>
       <section id="messages" class="messages" aria-label="Sohbet" aria-live="polite"></section>
       <form id="chat-form" class="composer">
-        <input id="chat-input" placeholder="İş için Jarvis’e yaz…" aria-label="Jarvis'e yaz" autocomplete="off" required>
+        <textarea id="chat-input" rows="2" maxlength="4000" placeholder="İş için Jarvis’e yaz…" aria-label="Jarvis'e yaz" autocomplete="off" required></textarea>
         <button id="mic" type="button" aria-label="Sesli görüşmeyi başlat">🎙</button>
         <button id="voice-stop" type="button" aria-label="Sesli görüşmeyi bitir" hidden>Bitir</button>
         <button id="send" type="submit" aria-label="Gönder">➤</button>

@@ -67,6 +67,7 @@ function approvalSummary(reason) {
 }
 function showLogin() {
   endVoiceSession();
+  closeChatOverlay(false);
   $('login').hidden = false; $('app').hidden = true; $('logout').hidden = true; status('Giriş gerekli');
 }
 function showApp() {
@@ -1468,9 +1469,45 @@ $('device-revoke-all').addEventListener('click', async () => {
     state.csrf = null; showLogin();
   } catch (error) { status(error.message); }
 });
-document.querySelectorAll('[data-tab]').forEach((button) => button.addEventListener('click', () => {
+let chatTrigger = null;
+function fitChatOverlay() {
+  const height = window.visualViewport?.height;
+  if (height) $('chat-panel').style.setProperty('--jarvis-visible-height', `${height}px`);
+}
+function openChatOverlay(trigger) {
+  chatTrigger = trigger || document.activeElement;
+  fitChatOverlay();
+  $('chat-panel').hidden = false;
+  document.body.classList.add('chat-overlay-open');
+  document.querySelectorAll('.header, #app > :not(#chat-panel)').forEach((node) => { node.inert = true; });
+  document.querySelectorAll('[data-tab="chat"]').forEach((button) => button.setAttribute('aria-expanded', 'true'));
+  $('chat-close').focus({preventScroll: true});
+}
+function closeChatOverlay(restoreFocus = true) {
+  if ($('chat-panel').hidden) return;
   endVoiceSession();
+  $('chat-input').blur();
+  $('chat-panel').hidden = true;
+  document.body.classList.remove('chat-overlay-open');
+  document.querySelectorAll('.header, #app > :not(#chat-panel)').forEach((node) => { node.inert = false; });
+  document.querySelectorAll('[data-tab="chat"]').forEach((button) => button.setAttribute('aria-expanded', 'false'));
+  if (restoreFocus && chatTrigger?.isConnected) chatTrigger.focus({preventScroll: true});
+  chatTrigger = null;
+}
+$('chat-close').addEventListener('click', () => closeChatOverlay());
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !$('chat-panel').hidden) closeChatOverlay();
+});
+window.visualViewport?.addEventListener('resize', fitChatOverlay);
+$('home-voice').addEventListener('click', (event) => {
+  openChatOverlay(event.currentTarget);
+  $('mic').click();
+});
+document.querySelectorAll('[data-tab]').forEach((button) => button.addEventListener('click', () => {
   const tab = button.dataset.tab;
+  if (tab === 'chat') { openChatOverlay(button); return; }
+  closeChatOverlay(false);
+  endVoiceSession();
   const mainTab = ['system', 'settings', 'creative'].includes(tab) ? 'more' : tab;
   document.querySelectorAll('.tab-nav [data-tab]').forEach((item) => {
     const active = item.dataset.tab === mainTab;
