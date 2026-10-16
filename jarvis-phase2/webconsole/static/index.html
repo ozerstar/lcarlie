@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="/leadership.css?v=4">
   <link rel="stylesheet" href="/desktop-editorial.css?v=4">
   <link rel="stylesheet" href="/interior.css?v=2">
+  <link rel="stylesheet" href="/desktop-chat-dock.css?v=1">
 </head>
 <body>
 
@@ -1209,12 +1210,15 @@
 
 
   <!-- ----------------------- COMMAND BAR ------------------------- -->
-  <section class="cmdbar" id="cmdBar" aria-label="L’CARLIÉ komut satırı">
+  <button type="button" id="chatLauncher" class="chat-launcher" aria-controls="cmdBar" aria-expanded="false">✦ Jarvis’i aç</button>
+  <section class="cmdbar" id="cmdBar" aria-label="Jarvis ile yazışma" hidden>
+    <div class="chat-dock-head"><div><strong>Jarvis</strong><small id="chatDockStatus">Yazışmalar burada</small></div><div><button type="button" id="chatMinimize" aria-label="Yazışmayı küçült">Küçült</button><button type="button" id="chatClose" aria-label="Yazışmayı kapat">Kapat ✕</button></div></div>
+    <p id="chatEmpty" class="chat-dock-empty">Bir şey sorabilir veya sayfadaki “Jarvis’e sor” düğmelerini kullanabilirsin.</p>
     <div id="chatLog" class="chat-log" hidden></div>
     <form id="chatForm" class="cmd-form">
       <span class="cmd-caret" aria-hidden="true"></span>
-      <input id="chatInput" type="text" autocomplete="off"
-             placeholder="L’CARLIÉ’ye sorun… örn. “Bugün şirkette durum ne?”">
+      <textarea id="chatInput" rows="2" maxlength="4000" autocomplete="off" aria-label="Jarvis’e yaz"
+             placeholder="L’CARLIÉ’ye sorun… örn. “Bugün şirkette durum ne?”"></textarea>
       <button type="button" id="retryBtn" class="ghost-btn" hidden>TEKRAR</button>
       <button type="button" id="stopBtn" class="ghost-btn" hidden>DURDUR</button>
       <button type="button" id="planBtn" class="ghost-btn" data-ipucu="1" title="Sorunuzu CEVAPLAMADAN önce, hangi adımlarla cevaplayacağını gösterir. Veri okunmaz, hiçbir şey çalıştırılmaz.">PLAN</button>
@@ -1236,5 +1240,6 @@
   <script src="/app.js?v=20"></script>
   <script src="/desktop-editorial.js?v=2"></script>
   <script src="/interior.js?v=2"></script>
+  <script src="/desktop-chat-dock.js?v=1"></script>
 </body>
 </html>

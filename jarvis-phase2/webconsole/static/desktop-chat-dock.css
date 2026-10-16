@@ -1,0 +1,103 @@
+/* Keep every content view at full height; the conversation floats above it. */
+.app-view .chat-launcher {
+  position: fixed;
+  z-index: 85;
+  right: max(22px, env(safe-area-inset-right));
+  bottom: max(20px, env(safe-area-inset-bottom));
+  min-height: 52px;
+  padding: 0 19px;
+  border: 1px solid #83dce9;
+  border-radius: 999px;
+  background: #155267;
+  color: #ecfbff;
+  box-shadow: 0 14px 38px #0009;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.app-view .chat-launcher[hidden], .app-view .cmdbar[hidden] { display: none!important; }
+.app-view .cmdbar {
+  position: fixed;
+  z-index: 86;
+  right: max(20px, env(safe-area-inset-right));
+  bottom: max(18px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  width: min(480px, calc(100vw - 32px));
+  height: min(650px, 76dvh);
+  min-height: 240px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #427589;
+  border-radius: 19px;
+  background: #091d29;
+  box-shadow: 0 22px 75px #000b;
+}
+.chat-dock-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex: none;
+  min-height: 66px;
+  padding: 12px 15px;
+  border-bottom: 1px solid #345d6d;
+  background: linear-gradient(95deg,#103b4b,#0b2735);
+}
+.chat-dock-head strong { display: block; color: #e7faff; font-size: 19px; }
+.chat-dock-head small { display: block; margin-top: 2px; color: #a7c9d2; font-size: 11px; }
+.chat-dock-head>div:last-child { display: flex; gap: 7px; }
+.chat-dock-head button {
+  min-height: 38px;
+  padding: 7px 9px;
+  border: 1px solid #5894a5;
+  border-radius: 9px;
+  background: #1b5366;
+  color: #e8f9fd;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.chat-dock-empty { flex: 1; margin: 0; padding: 28px 19px; color: #a9c6cf; line-height: 1.55; }
+.app-view .cmdbar .chat-log {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  padding: 15px;
+  overflow-y: auto;
+}
+.app-view .cmdbar .cmd-form {
+  flex: none;
+  align-items: flex-end;
+  gap: 7px;
+  margin: 0;
+  padding: 12px;
+  border-top: 1px solid #345d6d;
+  background: #091d29;
+}
+.app-view .cmdbar .cmd-caret { display: none; }
+.app-view .cmdbar .cmd-form textarea {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 72px;
+  max-height: 150px;
+  padding: 12px;
+  resize: vertical;
+  overflow-y: auto;
+  border: 1px solid #4b7180;
+  border-radius: 12px;
+  background: #0e2a38;
+  color: #f3fcff;
+  font: inherit;
+  line-height: 1.4;
+}
+.app-view .cmdbar .cmd-form textarea:focus { outline: 2px solid #7bdbe9; outline-offset: 1px; }
+@media(max-width:620px) {
+  .app-view .cmdbar { left: 8px; right: 8px; bottom: max(8px, env(safe-area-inset-bottom)); width: auto; height: min(620px, 74dvh); }
+  .app-view .chat-launcher { right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); }
+  .app-view .cmdbar .cmd-form { flex-wrap: wrap; }
+  .app-view .cmdbar .cmd-form textarea { flex: 1 1 100%; order: -1; }
+}
