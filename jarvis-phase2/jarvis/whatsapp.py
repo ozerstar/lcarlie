@@ -24,6 +24,11 @@ bu projede o ayrımın kaybolması daha önce iki gün süren bir arızayı gizl
 
 Kuru koşu (`kuru=True`) 1-3. kapıları işletir ama ağa çıkmaz: panelde
 "ne gidecekti" sorusunun cevabı buradan alınır.
+
+İKİ YOL VAR, AYNI KAPILARDAN GEÇER
+  `gonder`        serbest metin -- ancak müşteri son 24 saatte yazdıysa çıkar.
+  `sablon_gonder` Meta'da onaylı şablon -- konuşmayı İŞLETME başlatabilir,
+                  sipariş teyidi gibi mesajların tek yolu budur.
 """
 from __future__ import annotations
 
@@ -42,6 +47,7 @@ DEFTER = Path(os.environ.get("JARVIS_STATE_DIR",
                              "/opt/lcarlie/jarvis-phase2/state")) / "whatsapp-gonderim.jsonl"
 API = "https://graph.facebook.com/v21.0"
 METIN_SINIRI = 4096
+SABLON_DEGER_SINIRI = 1024   # Meta sablon parametresi siniri
 ZAMAN_ASIMI = 25.0
 
 ONAY_INSAN = "sahip-panel"
@@ -93,14 +99,41 @@ def denetle(metin: str) -> list[dict[str, str]]:
     return [f.to_dict() for f in inceleme.blocked]
 
 
+def _meta_cagir(telefon_id: str, jeton: str,
+                govde: dict[str, Any]) -> tuple[dict[str, Any], str, Any]:
+    """Cloud API'ye POST eder. (veri, sebep, ayrinti) döner; sebep boşsa başarılı.
+
+    🔴 Hata gövdesi anahtar İÇEREBİLİR; yalnız kod ve kısa metin alınır.
+    """
+    istek = urllib.request.Request(
+        f"{API}/{telefon_id}/messages", method="POST",
+        data=json.dumps(govde, ensure_ascii=False).encode("utf-8"),
+        headers={"Authorization": "Bearer " + jeton,
+                 "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(istek, timeout=ZAMAN_ASIMI) as yanit:
+            return json.loads(yanit.read().decode("utf-8")), "", None
+    except urllib.error.HTTPError as hata:
+        try:
+            detay = json.loads(hata.read().decode("utf-8")).get("error", {})
+            ozet = str(detay.get("message", ""))[:160]
+        except Exception:  # noqa: BLE001 - hata govdesi okunamazsa kod yeter
+            ozet = ""
+        return {}, "Meta HTTP %d" % hata.code, ozet
+    except (OSError, TimeoutError) as hata:
+        return {}, "ag hatasi: %s" % type(hata).__name__, None
+
+
 def gonder(telefon: str, metin: str, *, onay_kaynagi: str,
-           konusma_id: int | None = None, kuru: bool = False) -> dict[str, Any]:
+           konusma_id: int | None = None, kuru: bool = False,
+           kaynak_mesaj_id: int | None = None) -> dict[str, Any]:
     """Tek mesaj gönderir. Her kapı ayrı ayrı denetlenir ve kaydedilir."""
     baslangic = time.time()
     kayit: dict[str, Any] = {
         "ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "telefon_son4": _telefon_sadele(telefon)[-4:],
         "konusma_id": konusma_id,
+        "kaynak_mesaj_id": kaynak_mesaj_id,
         "onay_kaynagi": onay_kaynagi,
         "uzunluk": len(metin or ""),
         "kuru": bool(kuru),
@@ -150,30 +183,15 @@ def gonder(telefon: str, metin: str, *, onay_kaynagi: str,
     if not jeton or not telefon_id:
         reddet("anahtar veya telefon kimligi yok")
 
-    govde = json.dumps({
+    veri, sebep, ayrinti = _meta_cagir(telefon_id, jeton, {
         "messaging_product": "whatsapp",
         "recipient_type": "individual",
         "to": numara,
         "type": "text",
         "text": {"preview_url": False, "body": temiz},
-    }).encode("utf-8")
-    istek = urllib.request.Request(
-        f"{API}/{telefon_id}/messages", data=govde, method="POST",
-        headers={"Authorization": "Bearer " + jeton,
-                 "Content-Type": "application/json"})
-    try:
-        with urllib.request.urlopen(istek, timeout=ZAMAN_ASIMI) as yanit:
-            veri = json.loads(yanit.read().decode("utf-8"))
-    except urllib.error.HTTPError as hata:
-        # 🔴 Hata govdesi anahtar ICEREBILIR; yalniz kod ve kisa metin alinir.
-        try:
-            detay = json.loads(hata.read().decode("utf-8")).get("error", {})
-            ozet = str(detay.get("message", ""))[:160]
-        except Exception:  # noqa: BLE001 - hata govdesi okunamazsa kod yeter
-            ozet = ""
-        reddet("Meta HTTP %d" % hata.code, ozet)
-    except (OSError, TimeoutError) as hata:
-        reddet("ag hatasi: %s" % type(hata).__name__)
+    })
+    if sebep:
+        reddet(sebep, ayrinti)
 
     wamid = ""
     mesajlar = veri.get("messages") or []
@@ -184,3 +202,119 @@ def gonder(telefon: str, metin: str, *, onay_kaynagi: str,
     _defter_yaz(kayit)
     return {"gonderildi": True, "wamid": wamid, "telefon": numara,
             "metin": temiz, "bulgular": []}
+
+
+def sablon_gonder(telefon: str, sablon: str, degerler: list[str], *,
+                  onay_kaynagi: str, baslik_gorsel: str = "", dil: str = "tr",
+                  onizleme: str = "", konusma_id: int | None = None,
+                  kuru: bool = False) -> dict[str, Any]:
+    """Meta'da ONAYLI şablonla mesaj gönderir. 24 saat penceresi gerekmez.
+
+    `gonder` serbest metin yazar ve ancak müşteri yazdıysa çıkar. Şablon ise
+    konuşmayı İŞLETME başlatır -- sipariş teyidi gibi mesajların tek yolu.
+
+    Şablonun sabit metni Meta'da onaylıdır, burada değiştirilemez. Bu yüzden
+    2. ve 3. kapı sabit metne değil, yerine geçecek DEĞERLERE ve `onizleme`ye
+    uygulanır: önizleme müşterinin göreceği TAM metindir, çağıran üretir.
+    Önizleme verilmezse yalnız değerler denetlenir -- sabit metin zaten
+    kurulurken denetlenmiş sayılır.
+
+    🔴 Şablon parametresinde satır sonu, sekme veya 4 ardışık boşluk
+    OLAMAZ; Meta bunları 132000 ile reddeder. Sessiz kırpma yapılmaz,
+    gönderim reddedilir ki yanlış adres müşteriye hiç gitmesin.
+    """
+    baslangic = time.time()
+    kayit: dict[str, Any] = {
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "tur": "sablon",
+        "sablon": sablon,
+        "dil": dil,
+        "telefon_son4": _telefon_sadele(telefon)[-4:],
+        "konusma_id": konusma_id,
+        "onay_kaynagi": onay_kaynagi,
+        "deger_sayisi": len(degerler or []),
+        "kuru": bool(kuru),
+    }
+
+    def reddet(sebep: str, ayrinti: Any = None) -> None:
+        kayit.update({"sonuc": "REDDEDILDI", "sebep": sebep})
+        if ayrinti is not None:
+            kayit["ayrinti"] = ayrinti
+        _defter_yaz(kayit)
+        raise GondermeReddedildi(sebep)
+
+    # 1. ONAY KAYNAGI
+    if onay_kaynagi not in GECERLI_ONAYLAR:
+        reddet("onay kaynagi gecersiz: %r" % (onay_kaynagi,))
+    if not (sablon or "").strip():
+        reddet("sablon adi bos")
+
+    # 2. DEGERLER
+    for sira, deger in enumerate(degerler or [], start=1):
+        metin = str(deger or "")
+        if not metin.strip():
+            reddet("sablon degeri %d bos" % sira)
+        if "\n" in metin or "\t" in metin or "    " in metin:
+            reddet("sablon degeri %d satir sonu/sekme iceriyor" % sira)
+        if len(metin.encode("utf-8")) > SABLON_DEGER_SINIRI:
+            reddet("sablon degeri %d %d bayti asiyor" % (sira, SABLON_DEGER_SINIRI))
+    if baslik_gorsel and not baslik_gorsel.startswith("https://"):
+        reddet("baslik gorseli https degil")
+
+    # 3. MEVZUAT -- insan onayiyla da asilmaz
+    denetlenecek = (onizleme or " | ".join(str(d) for d in degerler or [])).strip()
+    bulgular = denetle(denetlenecek) if denetlenecek else []
+    if bulgular:
+        reddet("mevzuat kapisi: %d bulgu" % len(bulgular),
+               [b.get("matched") for b in bulgular])
+
+    numara = _telefon_sadele(telefon)
+    if len(numara) < 10:
+        reddet("telefon numarasi gecersiz")
+
+    if kuru:
+        kayit.update({"sonuc": "KURU", "sebep": "kuru kosu, aga cikilmadi"})
+        _defter_yaz(kayit)
+        return {"gonderildi": False, "kuru": True, "sablon": sablon,
+                "telefon": numara, "degerler": list(degerler or []),
+                "onizleme": onizleme, "bulgular": []}
+
+    # 4. GONDERME ANAHTARI
+    if not gonderme_acik():
+        reddet("gonderme KAPALI (JARVIS_WHATSAPP_GONDER=1 degil)")
+
+    # 5. KIMLIK
+    jeton = _env("META_WHATSAPP_TOKEN")
+    telefon_id = _env("META_WHATSAPP_PHONE_NUMBER_ID")
+    if not jeton or not telefon_id:
+        reddet("anahtar veya telefon kimligi yok")
+
+    bilesenler: list[dict[str, Any]] = []
+    if baslik_gorsel:
+        bilesenler.append({"type": "header", "parameters": [
+            {"type": "image", "image": {"link": baslik_gorsel}}]})
+    if degerler:
+        bilesenler.append({"type": "body", "parameters": [
+            {"type": "text", "text": str(d)} for d in degerler]})
+
+    veri, sebep, ayrinti = _meta_cagir(telefon_id, jeton, {
+        "messaging_product": "whatsapp",
+        "recipient_type": "individual",
+        "to": numara,
+        "type": "template",
+        "template": {"name": sablon, "language": {"code": dil},
+                     "components": bilesenler},
+    })
+    if sebep:
+        reddet(sebep, ayrinti)
+
+    wamid = ""
+    mesajlar = veri.get("messages") or []
+    if mesajlar:
+        wamid = str(mesajlar[0].get("id") or "")
+    kayit.update({"sonuc": "GONDERILDI", "wamid": wamid,
+                  "gecikme_ms": round((time.time() - baslangic) * 1000, 1)})
+    _defter_yaz(kayit)
+    return {"gonderildi": True, "wamid": wamid, "telefon": numara,
+            "sablon": sablon, "degerler": list(degerler or []),
+            "onizleme": onizleme, "bulgular": []}

@@ -447,6 +447,22 @@ class CompanyMemory:
             "cod_var,cod_tutar,cod_durum,toplam_maliyet,transit_gun,alarm,"
             "sinif,olcumde FROM mart.gonderi ORDER BY olusturma DESC LIMIT 50) x;"
         ),
+
+        "operations_marketplace_orders": (
+            "SELECT row_to_json(x) FROM (SELECT id AS entity_id,"
+            "'core.pazaryeri_siparis' AS source,siparis_no AS source_record_id,"
+            "ilk_gorulme AS observed_at,kanal,durum,siparis_zamani,tutar,"
+            "musteri_ad,sehir,kalem_sayisi,kaynak FROM core.pazaryeri_siparis "
+            "ORDER BY ilk_gorulme DESC LIMIT 100) x;"
+        ),
+
+        "operations_channel_health": (
+            "SELECT row_to_json(x) FROM (SELECT kanal AS entity_id,"
+            "'core.kanal_nabiz' AS source,kanal AS source_record_id,"
+            "son_deneme AS observed_at,son_basarili,ardisik_hata,son_hata,"
+            "son_siparis_sayisi,etkin,alarm_verildi FROM core.kanal_nabiz "
+            "ORDER BY kanal) x;"
+        ),
     }
 
     # Which allowlisted queries answer a business domain. The execution
@@ -469,7 +485,8 @@ class CompanyMemory:
         # core.ai_provider_allowed internally, and granting ai_reader EXECUTE
         # on that function is explicitly out of bounds. open_work + system
         # already carry the operational picture.
-        "operations": ("operations_shipments", "open_work", "system"),
+        "operations": ("operations_shipments", "operations_marketplace_orders",
+                       "operations_channel_health", "open_work", "system"),
     }
 
     def __init__(self, host: str | None = "lcarlie", timeout_s: int = 12):
