@@ -40,6 +40,27 @@ repos:
         additional_dependencies: [pre-commit-hooks==6.0.0]
         stages: [pre-commit]
 
+      - id: test-suiti
+        name: test suiti (push oncesi)
+        # NEDEN EKLENDI (25.10.2026): o gune kadar kapi yalniz ruff
+        # calistiriyordu. Ayni gun, suitin YAKALADIGI bir PII ihlali
+        # (musteri adi ajana acik sorguda) commit'lenip itilebildi --
+        # cunku kapi testi hic kosturmuyordu. ruff sozdizimine bakar,
+        # davranisa bakmaz; PII, bozulan sozlesme ve OLU KORUMA ancak
+        # suitte gorunur. Ayni gun olu bir korumanin 4 kirmizi testi de
+        # aylarca kimse bakmadigi icin fark edilmemisti.
+        #
+        # NEDEN pre-push: suit ~20 sn. Her commit'te odetmek insani
+        # --no-verify'a iter ve o an ruff da atlanir. Push, kodun bu
+        # makineden ciktigi tek andir.
+        #
+        # Kurulum: pre-commit install --hook-type pre-push
+        entry: jarvis-phase2/tools/test-kapisi.sh
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+
       - id: birlesme-izi
         name: birlesme cakismasi izi
         entry: check-merge-conflict

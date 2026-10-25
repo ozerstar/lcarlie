@@ -84,6 +84,11 @@ import google_workspace  # noqa: E402
 import unified_actions  # noqa: E402
 import voice_bridge  # noqa: E402
 import personal_planner  # noqa: E402
+import cari  # noqa: E402
+import cari_invoice  # noqa: E402
+import cari_draft  # noqa: E402
+import cari_channels  # noqa: E402
+import expense_vault  # noqa: E402
 
 STATE_DIR = Path(os.environ.get("JARVIS_STATE_DIR", "/opt/lcarlie/jarvis-phase2/state"))
 image_jobs = ImageJobs(STATE_DIR)
@@ -1567,6 +1572,47 @@ class Handler(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(raw)
                 return
+        if path == "/api/cari/documents/content":
+            try:
+                mime, data = cari_invoice.content(session.username, (query.get("id") or [""])[0])
+                self.send_response(200)
+                self.send_header("Content-Type", mime)
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Content-Disposition", "inline")
+                self.send_header("Cache-Control", "private, no-store")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.end_headers()
+                self.wfile.write(data)
+            except cari.CariError as exc:
+                self._send_json(404, {"error": str(exc)})
+            return
+        if path == "/api/expenses/content":
+            try:
+                _, mime, data = expense_vault.content(session.username, (query.get("id") or [""])[0])
+                self.send_response(200)
+                self.send_header("Content-Type", mime)
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Content-Disposition", "inline")
+                self.send_header("Cache-Control", "private, no-store")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.end_headers()
+                self.wfile.write(data)
+            except expense_vault.ExpenseError as exc:
+                self._send_json(404, {"error": str(exc)})
+            return
+        if path == "/api/expenses":
+            try:
+                self._send_json(200, expense_vault.list_documents(
+                    session.username, (query.get("period") or [None])[0]))
+            except expense_vault.ExpenseError as exc:
+                self._send_json(400, {"error": str(exc)})
+            return
+        if path == "/api/expenses/google":
+            self._send_json(200, google_workspace.status(session.username))
+            return
+        if path.startswith("/api/cari/"):
+            self._route_cari(path, session, query=query)
+            return
 
         if path == "/api/devices":
             self._send_json(200, {"devices": sessions.list_devices(session.username, session.session_id)})
@@ -2066,6 +2112,61 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 self._send_json(200, job)
                 return
+
+        if path == "/api/expenses/upload":
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if not 0 < length <= expense_vault.MAX_BYTES:
+                    raise expense_vault.ExpenseError("Dosya 12 MB veya daha küçük olmalı.")
+                result = expense_vault.upload(session.username, self.rfile.read(length),
+                    unquote(self.headers.get("X-File-Name", "belge")),
+                    self.headers.get("X-Expense-Kind", "receipt"),
+                    self.headers.get("X-Expense-Company", "unknown"))
+                if not result.get("reused"):
+                    expense_vault.start_processing(session.username, result["id"])
+                self._send_json(200, result)
+            except expense_vault.ExpenseError as exc:
+                self._send_json(400, {"error": str(exc)})
+            except Exception:  # noqa: BLE001
+                traceback.print_exc()
+                self._send_json(503, {"error": "Belge yüklenemedi; listeyi kontrol edin."})
+            return
+        if path in ("/api/expenses/update", "/api/expenses/process"):
+            try:
+                body = _read_json_body(self)
+                if path.endswith("/update"):
+                    result = expense_vault.update(session.username, body.get("id"), body)
+                else:
+                    expense_vault.start_processing(session.username, body.get("id"))
+                    result = {"id": body.get("id"), "status": "uploaded"}
+                self._send_json(200, result)
+            except expense_vault.ExpenseError as exc:
+                self._send_json(400, {"error": str(exc)})
+            return
+        if path == "/api/cari/documents/upload":
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if not 0 < length <= cari_invoice.MAX_BYTES:
+                    raise cari.CariError("Dosya 8 MB veya daha küçük olmalı.")
+                result = cari_invoice.upload(session.username, self.rfile.read(length),
+                    unquote(self.headers.get("X-File-Name", "fatura")),
+                    self.headers.get("X-Document-Source", "invoice"),
+                    self.headers.get("X-Account-Id") or None,
+                    self.headers.get("X-Entry-Id") or None)
+                if self.headers.get("X-Document-Source", "invoice") == "invoice":
+                    cari_invoice.start_processing(session.username, result["id"])
+                self._send_json(200, result)
+            except cari.CariConflict as exc:
+                self._send_json(409, {"error": str(exc)})
+            except cari.CariError as exc:
+                self._send_json(400, {"error": str(exc)})
+            except Exception:  # noqa: BLE001 - keep database and OCR internals out of API responses
+                traceback.print_exc()
+                self._send_json(503, {"error": "Belge işlenemedi; listeyi kontrol edip tekrar deneyin."})
+            return
+        if path.startswith("/api/cari/"):
+            self._route_cari(path, session, body=_read_json_body(self))
+            return
 
         if path == "/api/devices/revoke":
             device_id = _read_json_body(self).get("id")
@@ -2986,6 +3087,67 @@ class Handler(BaseHTTPRequestHandler):
             except OSError:
                 pass
         self.close_connection = True
+
+    def _route_cari(self, path: str, session, *, query=None, body=None) -> None:
+        """Called only behind the existing session + POST CSRF boundary."""
+        try:
+            if query is not None:
+                if path == "/api/cari/channels":
+                    result = cari_channels.board(session.username)
+                elif path == "/api/cari/overview":
+                    result = cari.portfolio(session.username, (query.get("as_of") or [None])[0])
+                elif path == "/api/cari/accounts":
+                    result = cari.list_accounts(session.username)
+                elif path == "/api/cari/statement":
+                    result = cari.statement(session.username, (query.get("id") or [""])[0])
+                elif path == "/api/cari/documents":
+                    result = cari_invoice.list_documents(session.username, (query.get("account_id") or [None])[0])
+                elif path == "/api/cari/drafts":
+                    result = cari_draft.list_drafts(session.username, (query.get("account_id") or [""])[0])
+                else:
+                    self._send_json(404, {"error": "Cari yolu bulunamadı."})
+                    return
+            else:
+                if not isinstance(body, dict):
+                    raise cari.CariError("İstek bir JSON nesnesi olmalı.")
+                if path == "/api/cari/channels/observe":
+                    result = cari_channels.observe(session.username, body)
+                elif path == "/api/cari/accounts":
+                    result = cari.create_account(session.username, body)
+                elif path == "/api/cari/accounts/update":
+                    result = cari.update_account(session.username, body.get("account_id"), body)
+                elif path == "/api/cari/preview":
+                    result = cari.calculate(body)
+                elif path == "/api/cari/entries":
+                    result = cari.post_entry(session.username, body.get("account_id"), body)
+                elif path == "/api/cari/correct":
+                    result = cari.correct_entry(session.username, body.get("account_id"), body)
+                elif path == "/api/cari/reverse":
+                    result = cari.reverse_entry(session.username, body.get("account_id"), body)
+                elif path == "/api/cari/documents/approve":
+                    result = cari_invoice.approve(session.username, body.get("id"), body.get("extracted"))
+                elif path == "/api/cari/documents/process":
+                    cari_invoice.start_processing(session.username, cari._id(body.get("id")))
+                    result = {"id": body["id"], "status": "uploaded"}
+                elif path == "/api/cari/drafts/create":
+                    result = cari_draft.create(session.username, body.get("account_id"), body)
+                elif path == "/api/cari/drafts/update":
+                    result = cari_draft.update(session.username, body.get("account_id"), body.get("draft_id"), body)
+                elif path == "/api/cari/drafts/post":
+                    result = cari_draft.post(session.username, body.get("account_id"), body.get("draft_id"))
+                else:
+                    self._send_json(404, {"error": "Cari yolu bulunamadı."})
+                    return
+            self._send_json(200, result)
+        except cari.CariNotFound as exc:
+            self._send_json(404, {"error": str(exc)})
+        except cari.CariConflict as exc:
+            self._send_json(409, {"error": str(exc)})
+        except cari.CariError as exc:
+            self._send_json(400, {"error": str(exc)})
+        except Exception:  # noqa: BLE001 - database failures must remain visible to the client
+            traceback.print_exc()
+            self._send_json(503, {"error": "Cari veritabanına ulaşılamıyor. Kayıt eklenmediği varsayılmamalı; aynı isteği tekrar deneyin."})
 
     def _handle_login(self) -> None:
         source = _client_ip(self)

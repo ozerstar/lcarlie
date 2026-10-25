@@ -162,7 +162,7 @@ durum=$(systemctl is-active "$SERVIS" || true)
 kod="000"
 bekleme=0
 for deneme in $(seq 1 20); do
-  kod=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://127.0.0.1:8091/ 2>/dev/null)
+  kod=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://127.0.0.1:8091/ 2>/dev/null) || kod="000"
   [ -n "$kod" ] || kod="000"
   [ "$kod" = "200" ] && break
   sleep 1

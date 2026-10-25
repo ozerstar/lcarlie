@@ -25,6 +25,7 @@ REDIRECT = "https://jarvis.lcarlie.shop/google/callback"
 SCOPES = (
     "https://www.googleapis.com/auth/calendar.events",
     "https://www.googleapis.com/auth/gmail.send",
+    "https://www.googleapis.com/auth/gmail.readonly",
     "https://www.googleapis.com/auth/drive.readonly",
     "https://www.googleapis.com/auth/drive.file",
 )
@@ -72,6 +73,7 @@ def status(username: str) -> dict:
     token = _read(_path(username), {})
     connected = configured() and bool(token.get("refresh_token"))
     return {"configured": configured(), "connected": connected,
+            "gmail_read": connected and "https://www.googleapis.com/auth/gmail.readonly" in token.get("scope", []),
             "drive_write": connected and DRIVE_WRITE_SCOPE in token.get("scope", []),
             "services": ["Takvim", "E-posta", "Drive"] if connected else []}
 
@@ -458,7 +460,7 @@ def decide(username: str, identifier: str, decision: str,
         else:
             raise GoogleError("Bilinmeyen işlem.")
         final = "COMPLETED"
-    except Exception:
+    except Exception:  # noqa: BLE001 - an uncertain Google write is not retried
         result, message, final = {}, ("Sonuç belirsiz. Google hesabında kontrol edin; "
                                       "otomatik tekrar yapılmadı."), "UNCERTAIN"
     try:
