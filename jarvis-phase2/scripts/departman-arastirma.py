@@ -157,14 +157,47 @@ def _plan_sql(sql: str, role: str) -> list:
     return [json.loads(line) for line in result.stdout.splitlines() if line.strip()]
 
 
-def plandan_konular(limit: int = 8) -> list[dict]:
+# Bir kosuda alinacak plan adedi.
+#
+# 🔴 8 DEGIL 18, VE BU SAYI OLCULDU (16.10.2026):
+#      gunluk talep 11,29 plan  (departman 6,21 + urun 5,08)
+#      eski tavan    8 plan     -> talep tavanin USTUNDE, birikme sonsuz
+#    8 ile kuyruk hicbir zaman kapanmaz; 18 hem gunluk talebi karsilar
+#    hem 86 planlik birikmis isi ~13 gunde eritir.
+#
+# 🔴 BU DEGISIKLIK PARA HARCAMAZ. Arastirma sifir model cagrisi yapar;
+#    maliyeti zamandir. 18 konu ~8 dakika suruyor, birimin
+#    TimeoutStartSec'i 1800 sn.
+VARSAYILAN_SINIR = 18
+
+
+def plandan_konular(limit: int = VARSAYILAN_SINIR) -> list[dict]:
+    """Vakti gelen planlar -- kapsamlar arasinda PAYLASTIRILMIS.
+
+    🔴 ACLIK KUSURU, OLCULDU 16.10.2026. Eski siralama duz
+       `ORDER BY oncelik, son_kosu NULLS FIRST, plan_id` idi. Urun
+       planlari oncelik 3'te, departman planlari 4 ve 6'da oldugu icin
+       urun kuyrugu her kosuda butun kontenjani yiyordu: 21.09'da yazilan
+       95 planin 86'si bir kez bile kosmadi ve SEO gibi birimler hic sira
+       alamadi.
+
+       Cozum kontenjani BOLMEK degil, SIRAYLA almak: her kapsam kendi
+       icinde onceligine gore siralanir, sonra kosu "DEPARTMAN 1., URUN
+       1., DEPARTMAN 2., URUN 2., ..." diye ilerler. Oncelik HALA
+       gecerli -- ama yalniz kendi kapsami icinde. Yeni bir kapsam
+       eklenirse (orn. BAYI) kendiliginden paya girer; liste yok.
+    """
     limit = int(limit)
     if not 1 <= limit <= 32:
         raise ValueError("sinir 1 ile 32 arasinda olmali")
     return _plan_sql(
-        "SELECT row_to_json(x) FROM (SELECT plan_id,kapsam,hedef,konu,"
-        "siklik_gun,oncelik FROM mart.arastirma_sirasi WHERE vakti_geldi "
-        f"ORDER BY oncelik,son_kosu NULLS FIRST,plan_id LIMIT {limit}) x;",
+        "SELECT row_to_json(x) FROM ("
+        "SELECT plan_id,kapsam,hedef,konu,siklik_gun,oncelik FROM ("
+        "SELECT plan_id,kapsam,hedef,konu,siklik_gun,oncelik,"
+        "ROW_NUMBER() OVER (PARTITION BY kapsam "
+        "ORDER BY oncelik,son_kosu NULLS FIRST,plan_id) AS pay "
+        "FROM mart.arastirma_sirasi WHERE vakti_geldi) s "
+        f"ORDER BY pay,oncelik,plan_id LIMIT {limit}) x;",
         "ai_reader")
 
 
@@ -181,7 +214,7 @@ def plani_tamamla(plan_id: int, bulunan: int) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Vakti gelen arastirma planlari")
-    parser.add_argument("--sinir", type=int, default=8)
+    parser.add_argument("--sinir", type=int, default=VARSAYILAN_SINIR)
     args = parser.parse_args()
     if not 1 <= args.sinir <= 32:
         parser.error("sinir 1 ile 32 arasinda olmali")

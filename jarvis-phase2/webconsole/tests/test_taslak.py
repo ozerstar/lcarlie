@@ -7,6 +7,7 @@ bir taslak üretilir ve her devredilen mesaj için jeton parası yanardı.
 """
 import sys
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 # Bu dosya webconsole/tests/ icinde; proje koku UC seviye yukarida.
@@ -115,6 +116,60 @@ class YeniYonlendirmeTaslaklari(unittest.TestCase):
 
     def tearDown(self):
         GK._calistir = self.eski_calistir
+
+    def test_kargo_durumu_yalniz_dogrulaninca_gonderilebilir(self):
+        from jarvis import whatsapp_kargo
+        GK._calistir = SahteSorgu("SIPARIS", metin="Kargom nerede?")
+        with patch.object(GK, "telefon_bul", return_value="905551234567"), \
+             patch.object(whatsapp_kargo, "durum_sor",
+                          return_value=("Kargoya verildi.", False)):
+            sonuc = GK.taslak(1)
+        self.assertEqual(sonuc["sinif"], "KARGO_TAKIP")
+        self.assertTrue(sonuc["gonderilebilir"])
+
+    def test_kargo_eslesmezse_insana_devredilir(self):
+        from jarvis import whatsapp_kargo
+        GK._calistir = SahteSorgu("SIPARIS", metin="Kargom nerede?")
+        with patch.object(GK, "telefon_bul", return_value="905551234567"), \
+             patch.object(whatsapp_kargo, "durum_sor",
+                          return_value=("Doğrulayamadım.", True)):
+            sonuc = GK.taslak(1)
+        self.assertTrue(sonuc["devredilmeli"])
+        self.assertFalse(sonuc["gonderilebilir"])
+
+    def test_urun_listesi_yalniz_yayindaki_urunlerden(self):
+        def sorgu(sql):
+            if "mart.urun_karti" in sql:
+                return [{"urun_adi": "BABYSOFT", "wix_yayinda": True, "gorunur": True},
+                        {"urun_adi": "GIZLI", "wix_yayinda": False, "gorunur": True}]
+            return [{"metin": "hangi ürünler var", "sinif": "ANLASILMADI",
+                     "mevzuat": None, "urun": None}]
+        GK._calistir = sorgu
+        sonuc = GK.taslak(1)
+        self.assertEqual(sonuc["sinif"], "KATEGORI")
+        self.assertTrue(sonuc["gonderilebilir"])
+        self.assertIn("BABYSOFT", sonuc["metin"])
+        self.assertNotIn("GIZLI", sonuc["metin"])
+
+    def test_bos_katalog_otomatik_yanit_vermez(self):
+        GK._calistir = SahteSorgu("ANLASILMADI", metin="hangi ürünler var")
+        sonuc = GK.taslak(1)
+        self.assertTrue(sonuc["devredilmeli"])
+        self.assertFalse(sonuc["gonderilebilir"])
+
+    def test_kisa_selamlamaya_dogal_yanit_verir(self):
+        GK._calistir = SahteSorgu("ANLASILMADI", metin="Nbr ben jarvis")
+        sonuc = GK.taslak(1)
+        self.assertEqual(sonuc["sinif"], "SELAMLAMA")
+        self.assertFalse(sonuc["devredilmeli"])
+        self.assertTrue(sonuc["gonderilebilir"])
+        self.assertIn("nasıl yardımcı olabilirim", sonuc["metin"])
+
+    def test_mevzuat_engelli_selamlama_gonderilmez(self):
+        GK._calistir = SahteSorgu("SELAMLAMA", mevzuat="BLOCKED", metin="Nbr")
+        sonuc = GK.taslak(1)
+        self.assertTrue(sonuc["devredilmeli"])
+        self.assertFalse(sonuc["gonderilebilir"])
 
     def test_saglik_ve_sikayet_taslagi_devir_ister(self):
         for sinif, metin, aranan in (

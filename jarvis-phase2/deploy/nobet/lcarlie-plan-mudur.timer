@@ -1,0 +1,16 @@
+[Unit]
+Description=Arastirma planini haftalik tazele (yeni kadrolu birim plansiz kalmasin)
+
+[Timer]
+# Haftalik yeter: kadro her gun degismiyor. Ama 24 GUN boyunca kimse
+# fark etmedigi icin (SEO 22.09'da eklendi, 16.10'da goruldu) hic
+# kosmamaktansa haftalik kosmak sart.
+#
+# Pazartesi 06:30 -- gunluk arastirmadan (09:43) ONCE, boylece hafta
+# icinde eklenen bir birim ilk arastirma turuna yetisir.
+OnCalendar=Mon 06:30
+# Sunucu kapaliysa aciliste kacirilan kosu yapilir.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

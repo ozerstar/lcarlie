@@ -1,0 +1,17 @@
+[Unit]
+Description=LCARLIE image pack review worker
+
+[Service]
+Type=oneshot
+User=jarvis-web
+Group=jarvis-web
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+Environment=JARVIS_STATE_DIR=/opt/lcarlie/jarvis-phase2/state
+ExecStart=/opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/image-job-worker.py
+TimeoutStartSec=180
+UMask=0077
+NoNewPrivileges=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/opt/lcarlie/jarvis-phase2/state
+

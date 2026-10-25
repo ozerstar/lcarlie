@@ -39,7 +39,7 @@ IDDIA_SINIFLARI = frozenset({"IDDIA_SORUSU"})
 # Jarvis'in cevaplayabileceği sınıflar. Beyaz liste: listede olmayan DEVREDİLİR.
 JARVIS_SINIFLARI = frozenset({
     "FIYAT", "ICERIK", "KULLANIM", "KARGO", "SELAMLAMA", "TESEKKUR", "KATEGORI",
-    "ODEME_YONLENDIR",
+    "ODEME_YONLENDIR", "KARGO_TAKIP",
 })
 # Ürün adı bilinmeden cevaplanamayacak sınıflar. "Fiyatı nedir?" mesajından
 # ürün ÇIKARILAMAZ -- 540 müşteri mesajının hiçbirinde ürün adı geçmiyor ama
@@ -63,6 +63,8 @@ SEBEP_METNI = {
     MEVZUAT: "Üretilen cevap mevzuat kapısından geçmedi",
     IDDIA: "Ürünün etkisi soruluyor; cevabı mevzuat iddiası üretir",
     SINIF_YOK: "Mesajın sınıfı belirlenemedi",
+    "OTOMATIK_YANIT_BELIRSIZ": "Otomatik yanıtın gönderilip gönderilmediği doğrulanamadı; mükerrer gönderim önlendi",
+    "OTOMATIK_YANIT_HATASI": "Otomatik yanıtta hata oluştu; görüşme insan incelemesinde",
 }
 
 

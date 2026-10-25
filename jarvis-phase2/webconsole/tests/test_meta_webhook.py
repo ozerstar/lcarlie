@@ -122,6 +122,33 @@ class ReklamReferansiTASINIR(unittest.TestCase):
 
 
 class WhatsAppMesajlari(unittest.TestCase):
+    def test_sablon_hizli_yanit_dugmesi_kaybolmaz(self):
+        yuk = {"object": "whatsapp_business_account", "entry": [{
+            "changes": [{"field": "messages", "value": {
+                "metadata": {"phone_number_id": "12345"},
+                "messages": [{"from": "905551112233", "id": "wamid.button",
+                              "timestamp": "1720000000", "type": "button",
+                              "button": {"text": "Nakit onaylıyorum",
+                                         "payload": "COD:99999:CASH"}}],
+            }}],
+        }]}
+        [olay] = mw.olaylari_ayristir(yuk)
+        self.assertEqual(olay["metin"], "Nakit onaylıyorum")
+        self.assertEqual(olay["ek"]["button_payload"], "COD:99999:CASH")
+
+    def test_etkilesimli_dugme_metni_kaybolmaz(self):
+        yuk = {"object": "whatsapp_business_account", "entry": [{
+            "changes": [{"field": "messages", "value": {
+                "messages": [{"from": "905551112233", "id": "wamid.interactive",
+                              "timestamp": "1720000000", "type": "interactive",
+                              "interactive": {"type": "button_reply", "button_reply": {
+                                  "title": "Düzeltme / soru", "id": "COD:99999:HELP"}}}],
+            }}],
+        }]}
+        [olay] = mw.olaylari_ayristir(yuk)
+        self.assertEqual(olay["metin"], "Düzeltme / soru")
+        self.assertEqual(olay["ek"]["button_payload"], "COD:99999:HELP")
+
     def test_gelen_mesaj_ayri_kanala_gider(self):
         yuk = {"object": "whatsapp_business_account", "entry": [{
             "id": "2314052356072937", "changes": [{"field": "messages", "value": {
@@ -147,6 +174,21 @@ class WhatsAppMesajlari(unittest.TestCase):
             }}],
         }]}
         self.assertEqual(mw.olaylari_ayristir(yuk), [])
+        self.assertEqual(mw.teslimat_olaylari(yuk), [{
+            "wamid": "wamid.test", "durum": "delivered", "zaman": "", "hata_kodu": "",
+        }])
+
+    def test_basarisiz_teslimatta_yalniz_hata_kodu_kaydedilir(self):
+        yuk = {"object": "whatsapp_business_account", "entry": [{
+            "changes": [{"field": "messages", "value": {"statuses": [{
+                "id": "wamid.test", "status": "failed", "recipient_id": "905550000000",
+                "errors": [{"code": 131026, "message": "özel hata metni"}],
+            }]}}],
+        }]}
+        olay = mw.teslimat_olaylari(yuk)[0]
+        self.assertEqual(olay["hata_kodu"], "131026")
+        self.assertNotIn("recipient_id", olay)
+        self.assertNotIn("özel hata metni", str(olay))
 
 
 class KuyrukKAYIP_VERMEZ(unittest.TestCase):

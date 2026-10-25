@@ -4,6 +4,30 @@
   const app = $('appView');
   if (!app || !$('edDate')) return;
 
+  $('edNavSearch')?.addEventListener('click', () => $('quickSearch')?.click());
+  const heroVoice = $('edVoice');
+  const coreVoice = $('coreBtn');
+  const coreHint = $('coreHint');
+  const syncVoice = () => {
+    if (!heroVoice || !coreVoice || !coreHint) return;
+    const hint = coreHint.textContent.trim();
+    const unsupported = hint === 'SES YOK';
+    const listening = coreVoice.getAttribute('aria-pressed') === 'true';
+    heroVoice.disabled = unsupported;
+    heroVoice.setAttribute('aria-pressed', String(listening));
+    heroVoice.setAttribute('aria-label', listening ? 'Jarvis sesli konuşmayı durdur' : 'Jarvis ile sesli konuşmayı başlat');
+    $('edVoiceStatus').textContent = unsupported ? 'Sesli görüşme bu tarayıcıda kullanılamıyor'
+      : hint === 'DÜŞÜNÜYOR' || hint === 'CEVAP HAZIRLANIYOR' ? 'Yanıt hazırlanıyor'
+      : hint === 'SUSTURMAK İÇİN BAS' ? 'Jarvis konuşuyor · durdurmak için dokun'
+      : listening ? 'Dinliyor · bitirmek için dokun' : 'Konuşmak için dokun';
+  };
+  heroVoice?.addEventListener('click', () => coreVoice?.click());
+  if (coreVoice && coreHint) {
+    new MutationObserver(syncVoice).observe(coreVoice, {attributes:true, attributeFilter:['aria-pressed']});
+    new MutationObserver(syncVoice).observe(coreHint, {childList:true, characterData:true, subtree:true});
+    syncVoice();
+  }
+
   function navigate(view) {
     document.querySelector(`#mainNav .nav-item[data-view="${view}"]`)?.click();
   }

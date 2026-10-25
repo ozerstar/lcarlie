@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="tr"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Görsel İşleri · L’CARLIÉ Jarvis</title>
+<link rel="stylesheet" href="/image-jobs.css">
+<main><a href="/">← Jarvis</a><h1>Ürün görsel işleri</h1>
+<p class="muted">Yüklenen paket otomatik denetlenir. WEB ve TASARIM görüşleri kaydedilince iş sahibinin kararına hazır olur. Bu sayfa site görsellerini değiştirmez.</p>
+<section class="card"><h2>Yeni paket</h2><input id="file" type="file" accept=".zip,application/zip"><button id="upload">Yükle ve denetle</button><p id="uploadStatus" role="status"></p></section>
+<section class="card"><h2>İşler</h2><div id="jobs" class="list"></div></section>
+<section class="card" id="detail" hidden><h2 id="jobTitle"></h2><p id="jobState"></p><p id="jobCounts"></p><p id="mediaProgress"></p><div id="problems"></div><h3>Jarvis ekip görüşleri</h3><div id="teamNotes"></div><button id="askTeam">Seçili departmana sor</button><p id="teamStatus" role="status"></p><h3>İnsan değerlendirmesi</h3><div id="reviews"></div>
+<h3>Görsellerin gerçek içerik incelemesi</h3><p id="visualProgress" role="status"></p><a id="visualDecision" hidden>Doğrulanmış kararı aç</a> · <a id="visualReport" hidden>195 görselin tam raporunu aç</a><p class="muted">Model gözlemleri yayın onayı değildir. Ürün metinleri ve iddiaları insan tarafından doğrulanmalıdır.</p>
+<label>Ürün <select id="product"></select></label><div id="images" class="grid"></div>
+<h3>Departman değerlendirmesi</h3><select id="department"><option value="WEB">WEB</option><option value="TASARIM">TASARIM</option></select>
+<select id="decision"><option value="CHANGES_REQUIRED">Düzeltme gerekli</option><option value="APPROVE">Onay</option></select>
+<textarea id="comment" placeholder="Somut bulguyu ve gerekçeyi yazın"></textarea><button id="save">Görüşü kaydet</button><p id="reviewStatus" role="status"></p></section></main>
+<script src="/image-jobs.js" defer></script></html>

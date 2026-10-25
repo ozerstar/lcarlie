@@ -32,6 +32,21 @@ class PushSenderTests(unittest.TestCase):
             patcher.start()
             self.addCleanup(patcher.stop)
 
+    def test_whatsapp_failure_push_only_once(self):
+        import json
+        subscription = {"endpoint": "https://web.push.apple.com/example",
+                        "keys": {"p256dh": "a" * 87, "auth": "b" * 22}}
+        push_store.save(subscription, owner="alice")
+        log = push_store.STATE_DIR / "meta_webhook" / "teslimat.jsonl"
+        log.parent.mkdir(parents=True, exist_ok=True)
+        log.write_text(json.dumps({"wamid": "wamid.test", "durum": "failed",
+                                   "hata_kodu": "131026"}) + "\n", encoding="utf-8")
+        with patch.object(push_send, "send", return_value=True) as sender:
+            push_send.notify_whatsapp_failures(log)
+            push_send.notify_whatsapp_failures(log)
+        sender.assert_called_once()
+        self.assertIn("131026", sender.call_args.args[2])
+
     def test_existing_approvals_are_baseline_and_new_ones_send_once(self):
         push_store.save({"endpoint": "https://web.push.apple.com/example",
                          "keys": {"p256dh": "a" * 87, "auth": "b" * 22}})

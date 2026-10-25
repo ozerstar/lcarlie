@@ -1,0 +1,20 @@
+[Unit]
+Description=LCARLIE product image visual review
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=jarvis-web
+Group=jarvis-web
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+Environment=JARVIS_STATE_DIR=/opt/lcarlie/jarvis-phase2/state
+EnvironmentFile=-/etc/lcarlie/jarvis-web.env
+ExecStart=/opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/image-job-visual-queue.py
+TimeoutStartSec=3700
+MemoryMax=512M
+UMask=0077
+NoNewPrivileges=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/opt/lcarlie/jarvis-phase2/state
+

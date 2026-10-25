@@ -1,0 +1,10 @@
+[Unit]
+Description=Retry queued LCARLIE image pack jobs
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+Unit=lcarlie-image-jobs.service
+
+[Install]
+WantedBy=timers.target

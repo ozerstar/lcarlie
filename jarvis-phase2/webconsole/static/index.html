@@ -10,8 +10,10 @@
   <link rel="stylesheet" href="/app.css">
   <link rel="stylesheet" href="/experience.css?v=2">
   <link rel="stylesheet" href="/leadership.css?v=4">
-  <link rel="stylesheet" href="/desktop-editorial.css?v=4">
+  <link rel="stylesheet" href="/desktop-editorial.css?v=7">
   <link rel="stylesheet" href="/interior.css?v=2">
+  <link rel="stylesheet" href="/workspace-refresh.css?v=2">
+  <link rel="stylesheet" href="/desktop-chat-dock.css?v=1">
 </head>
 <body>
 
@@ -54,6 +56,7 @@
     </div>
 
     <nav class="tb-nav" id="mainNav" aria-label="Ana gezinme">
+      <button type="button" class="ed-nav-search" id="edNavSearch" aria-label="Bölüm ara"><span aria-hidden="true">⌕</span> Bölüm ara <kbd>Ctrl K</kbd></button>
       <div class="nav-group" data-group="izleme">
         <button type="button" class="nav-head" aria-expanded="true">
           <span>İZLEME</span><i class="nav-caret" aria-hidden="true"></i>
@@ -71,6 +74,7 @@
         </button>
         <div class="nav-body">
           <button type="button" class="nav-item" data-view="gorevler">GÖREVLER</button>
+          <a class="nav-item" href="/image-jobs.html">GÖRSEL İŞLERİ</a>
           <button type="button" class="nav-item" data-view="fiyat">FİYAT</button>
           <button type="button" class="nav-item" data-view="eticaret">E-TİCARET</button>
           <button type="button" class="nav-item" data-view="satislar">SATIŞLAR</button>
@@ -130,26 +134,41 @@
 
     <div class="ed-dashboard">
       <section class="ed-hero" aria-label="Günlük karşılama">
-        <div class="ed-hero-copy"><p id="edDate">Bugün</p><h1 id="edGreeting">Günaydın.</h1><p>Günün önemli işlerini tek yerden yönet.</p></div>
-        <button type="button" class="ed-hero-ask" data-ed-view="asistan">✦ <span>Jarvis’e sor</span></button>
+        <div class="ed-hero-copy">
+          <span class="ed-eyebrow">YÖNETİM MASASI <span aria-hidden="true">/</span> GÜNLÜK BAKIŞ</span>
+          <p id="edDate">Bugün</p>
+          <h1 id="edGreeting">Günaydın.</h1>
+          <p>Önceliklerin, kararların ve işlerin tek yerde.</p>
+        </div>
+        <div class="ed-hero-assistant" aria-label="Jarvis sesli asistan">
+          <button type="button" class="ed-orb" id="edVoice" aria-label="Jarvis ile sesli konuşmayı başlat" aria-pressed="false"><span class="ed-orb-core" aria-hidden="true">✦</span></button>
+          <span class="ed-orb-label">JARVIS</span>
+          <span class="ed-orb-status" id="edVoiceStatus" aria-live="polite">Konuşmak için dokun</span>
+          <button type="button" class="ed-hero-ask" data-ed-view="asistan">Yazarak sor <span aria-hidden="true">↗</span></button>
+        </div>
       </section>
       <div class="ed-main-grid">
         <div class="ed-main-column">
+          <section class="ed-card ed-focus" aria-label="Öncelikli konu">
+            <div class="ed-section-title"><h2><span class="ed-focus-marker" aria-hidden="true"></span> Şimdi öncelikli</h2><span id="edUpdated">Canlı veriler</span></div>
+            <h3 id="edFocusTitle">Günlük durum hazırlanıyor</h3>
+            <p id="edFocusDetail">İşler, kararlar ve hatırlatıcılar kontrol ediliyor.</p>
+            <button type="button" id="edFocusAction" data-ed-view="asistan">Asistanı aç <span aria-hidden="true">↗</span></button>
+          </section>
           <div class="ed-stat-row" aria-label="Güncel sayılar">
             <button type="button" class="ed-stat" data-ed-view="gorevler"><span>Bekleyen işler</span><strong id="edWaiting">—</strong><small>İş kuyruğundaki kayıtlar</small></button>
             <button type="button" class="ed-stat" data-ed-view="gorevler"><span>Tamamlanan</span><strong id="edDone">—</strong><small>Bitmiş işler</small></button>
             <button type="button" class="ed-stat" data-ed-view="gorevler"><span>Onay bekleyen</span><strong id="edApprovals">—</strong><small>Kararını isteyen öneriler</small></button>
             <button type="button" class="ed-stat" data-ed-view="satislar"><span>Bugünkü sipariş</span><strong id="edOrders">—</strong><small>Satış kayıtlarından</small></button>
           </div>
-          <section class="ed-card ed-focus" aria-label="Öncelikli konu"><div class="ed-section-title"><h2>Bugünün odağı</h2><span id="edUpdated">Canlı veriler</span></div><h3 id="edFocusTitle">Günlük durum hazırlanıyor</h3><p id="edFocusDetail">İşler, kararlar ve hatırlatıcılar kontrol ediliyor.</p><button type="button" id="edFocusAction" data-ed-view="asistan">Asistanı aç <span aria-hidden="true">↗</span></button></section>
           <div class="ed-lower-grid">
             <section class="ed-card"><div class="ed-section-title"><h2>İş akışı</h2><button type="button" data-ed-view="isler">Tüm işler <span aria-hidden="true">↗</span></button></div><div id="edJobs" class="ed-list"><p>İşler yükleniyor…</p></div></section>
             <section class="ed-card"><div class="ed-section-title"><h2>Jarvis ile devam et</h2><button type="button" data-ed-view="asistan">Asistanı aç <span aria-hidden="true">↗</span></button></div><div class="ed-shortcuts"><button type="button" data-ed-ask="Bugün hangi işler öncelikli?">Bugünün öncelikleri</button><button type="button" data-ed-ask="Bekleyen önerileri sade bir dille özetle.">Kararları açıkla</button><button type="button" data-ed-view="uretilenler">Görselleri gör</button><button type="button" data-ed-view="raporlar">Raporlara bak</button></div></section>
           </div>
         </div>
         <aside class="ed-rail" aria-label="Plan ve kararlar">
-          <section class="ed-card ed-calendar"><div class="ed-section-title"><h2 id="edMonth">Takvim</h2><span id="edToday">Bugün</span></div><div class="ed-weekdays"><span>Pt</span><span>Sa</span><span>Ça</span><span>Pe</span><span>Cu</span><span>Ct</span><span>Pz</span></div><div id="edCalendar" class="ed-calendar-grid"></div><div class="ed-rail-divider"></div><div class="ed-section-title"><h2>Hatırlatıcılarım</h2><span id="edReminderCount">—</span></div><div id="edReminders" class="ed-rail-list"><p>Yükleniyor…</p></div></section>
           <section class="ed-card ed-decision"><div class="ed-section-title"><h2>Karar bekleyenler</h2><span id="edDecisionCount">—</span></div><div id="edDecisions" class="ed-rail-list"><p>Yükleniyor…</p></div><button type="button" data-ed-view="gorevler">Onayları incele <span aria-hidden="true">↗</span></button></section>
+          <section class="ed-card ed-calendar"><div class="ed-section-title"><h2 id="edMonth">Takvim</h2><span id="edToday">Bugün</span></div><div class="ed-weekdays"><span>Pt</span><span>Sa</span><span>Ça</span><span>Pe</span><span>Cu</span><span>Ct</span><span>Pz</span></div><div id="edCalendar" class="ed-calendar-grid"></div><div class="ed-rail-divider"></div><div class="ed-section-title"><h2>Hatırlatıcılarım</h2><span id="edReminderCount">—</span></div><div id="edReminders" class="ed-rail-list"><p>Yükleniyor…</p></div></section>
           <section class="ed-card ed-system"><span class="ed-system-light"></span><div><strong id="edSystemState">Bağlantı kontrol ediliyor</strong><small>Jarvis sistem durumu</small></div><button type="button" data-ed-view="sistem">Aç</button></section>
         </aside>
       </div>
@@ -1209,18 +1228,36 @@
 
 
   <!-- ----------------------- COMMAND BAR ------------------------- -->
-  <section class="cmdbar" id="cmdBar" aria-label="L’CARLIÉ komut satırı">
+  <button type="button" id="chatLauncher" class="chat-launcher" aria-controls="cmdBar" aria-expanded="false">✦ Jarvis’i aç</button>
+  <section class="cmdbar" id="cmdBar" aria-label="Jarvis ile yazışma" hidden>
+    <div class="chat-dock-head"><div><strong>Jarvis</strong><small id="chatDockStatus">Yazışmalar burada</small></div><div><button type="button" id="chatMinimize" aria-label="Yazışmayı küçült">Küçült</button><button type="button" id="chatClose" aria-label="Yazışmayı kapat">Kapat ✕</button></div></div>
+    <p id="chatEmpty" class="chat-dock-empty">Bir şey sorabilir veya sayfadaki “Jarvis’e sor” düğmelerini kullanabilirsin.</p>
     <div id="chatLog" class="chat-log" hidden></div>
     <form id="chatForm" class="cmd-form">
       <span class="cmd-caret" aria-hidden="true"></span>
-      <input id="chatInput" type="text" autocomplete="off"
-             placeholder="L’CARLIÉ’ye sorun… örn. “Bugün şirkette durum ne?”">
+      <textarea id="chatInput" rows="2" maxlength="4000" autocomplete="off" aria-label="Jarvis’e yaz"
+             placeholder="L’CARLIÉ’ye sorun… örn. “Bugün şirkette durum ne?”"></textarea>
+      <button type="button" id="newChatBtn" class="ghost-btn">YENİ SOHBET</button>
       <button type="button" id="retryBtn" class="ghost-btn" hidden>TEKRAR</button>
       <button type="button" id="stopBtn" class="ghost-btn" hidden>DURDUR</button>
       <button type="button" id="planBtn" class="ghost-btn" data-ipucu="1" title="Sorunuzu CEVAPLAMADAN önce, hangi adımlarla cevaplayacağını gösterir. Veri okunmaz, hiçbir şey çalıştırılmaz.">PLAN</button>
       <button type="submit" id="sendBtn" class="gold-btn">GÖNDER</button>
     </form>
   </section>
+
+  <dialog id="findingDialog" class="finding-dialog" aria-labelledby="findingTitle">
+    <div class="finding-dialog-head"><div><span>CANLI ZEKÂ AKIŞI</span><h2 id="findingTitle">Konu</h2><p id="findingMeta"></p></div><button id="findingClose" type="button" aria-label="Kapat">×</button></div>
+    <div id="findingBody" class="finding-dialog-body"></div>
+    <div class="finding-dialog-actions">
+      <label for="findingInstruction">Yapılacak iş veya kendi notun</label>
+      <textarea id="findingInstruction" maxlength="1000" rows="3" placeholder="Yapılacak işi burada düzenleyin."></textarea>
+      <div class="finding-action-row"><button id="findingRun" type="button">Jarvis ile incele</button><button id="findingTask" type="button">Takip işi oluştur</button><button id="findingView" type="button">İlgili bölümü aç</button></div>
+      <p class="finding-limitation">Jarvis incelemesi okuma ve plan üretir. Site, müşteri veya dış sistem değişiklikleri ayrıca yetki ve onay gerektirir.</p>
+      <label for="findingQuestion">Bu konu hakkında Jarvis'e soru sor</label>
+      <div class="finding-question-row"><input id="findingQuestion" type="text" maxlength="500" placeholder="Örneğin: İlk adım ne olmalı?"><button id="findingAsk" type="button">Sor ↗</button></div>
+      <p id="findingStatus" role="status" aria-live="polite"></p>
+    </div>
+  </dialog>
 
   <div id="proposalModal" class="modal" hidden>
     <div class="modal-card">
@@ -1233,8 +1270,10 @@
 
 <script src="/vendor/leaflet/leaflet.js"></script>
   <script src="/display-text.js?v=4"></script>
-  <script src="/app.js?v=20"></script>
-  <script src="/desktop-editorial.js?v=2"></script>
+  <script src="/app.js?v=22"></script>
+  <script src="/desktop-editorial.js?v=3"></script>
   <script src="/interior.js?v=2"></script>
+  <script src="/workspace-refresh.js?v=1"></script>
+  <script src="/desktop-chat-dock.js?v=1"></script>
 </body>
 </html>

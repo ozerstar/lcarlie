@@ -1,0 +1,7 @@
+body{font:16px/1.5 system-ui,sans-serif;max-width:1100px;margin:auto;padding:24px;color:#242322;background:#f7f5f1}
+h1,h2{line-height:1.2}a{color:#654634}button,select,input,textarea{font:inherit;padding:9px;margin:4px 0}
+button{background:#292520;color:white;border:0;border-radius:5px;cursor:pointer}button:disabled{opacity:.5}
+.card{background:white;border:1px solid #ddd7cd;border-radius:9px;padding:18px;margin:16px 0}
+.muted{color:#645e58}.error{color:#9b231f}.ok{color:#267041}textarea{display:block;width:min(100%,650px);height:90px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}.grid img{max-width:100%;height:auto}
+.grid figure{margin:0}.grid figcaption{font-size:13px}.list button{display:block;background:transparent;color:#242322;text-align:left;width:100%;border-bottom:1px solid #eee}

@@ -50,6 +50,7 @@ from .satis_dialog import _gecer, _sade
 # once denetlenmesiyle cozulur -- olculdu, iki yon de dogru ayrilir.
 TAM_KELIME = frozenset({
     "zarar", "hasta", "agri", "ilac", "tamam", "peki", "kaca", "stop", "dur",
+    "nbr", "naber",
 })
 
 
@@ -77,6 +78,8 @@ FIYAT = "FIYAT"
 ICERIK = "ICERIK"
 KULLANIM = "KULLANIM"
 KARGO = "KARGO"
+KARGO_TAKIP = "KARGO_TAKIP"
+KATEGORI = "KATEGORI"
 SELAMLAMA = "SELAMLAMA"
 TESEKKUR = "TESEKKUR"
 # Sahibe gider
@@ -109,13 +112,14 @@ _SIRA: tuple[tuple[str, tuple[str, ...]], ...] = (
     )),
     (SIKAYET, (
         "sikayet", "memnun kalmadim", "kotu oldu", "iyi gelmedi", "yaramadi",
-        "urun bozuk", "urun hasarli", "magdur", "zarar",
+        "urun bozuk", "urun hasarli", "magdur", "zarar", "kargom gelmedi",
     )),
     (ODEME_YONLENDIR, (
         "nasil satin al", "satin almak", "satin alabilir", "nasil alabilir",
         "nereden alabilir", "siparis nasil ver", "nasil siparis ver",
         "odeme nasil", "nasil odeme", "odeme yap", "nereden satin al",
     )),
+    (KARGO_TAKIP, ("kargom", "kargo takip", "siparisim nerede", "paketim nerede")),
     # 3. SİPARİŞ / İŞLEM -- sahibe gider (sahip kararı).
     (SIPARIS, (
         "siparis", "sipariw", "satin al", "iade", "degisim", "iptal",
@@ -133,12 +137,14 @@ _SIRA: tuple[tuple[str, tuple[str, ...]], ...] = (
     # 7. KULLANIM
     (KULLANIM, ("nasil kullan", "nereye sur", "ne kadar sur", "gunde kac",
                 "sabah mi", "aksam mi", "kullanim", "uygulan")),
+    (KATEGORI, ("hangi urunler", "urunleriniz neler", "ne urunler var",
+                "urunleriniz var", "urunler var")),
     # 8. TEŞEKKÜR
     (TESEKKUR, ("tesekkur", "sagolun", "sag olun", "eyvallah", "tamamdir",
                 "tamam", "anladim", "peki")),
     # 9. SELAMLAMA
     (SELAMLAMA, ("merhaba", "selam", "iyi gunler", "gunaydin", "iyi aksamlar",
-                 "kolay gelsin", "slm")),
+                 "kolay gelsin", "slm", "naber", "nbr")),
 )
 
 

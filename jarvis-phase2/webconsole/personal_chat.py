@@ -56,7 +56,7 @@ def stream(message: str, username: str, router: Any | None = None,
                 yield {"type": "error", "message": str(exc)}
             return
     # Work uses the legacy `operator` thread. This thread is never read by it.
-    thread = "personal_" + username
+    thread = conversation_memory.scoped_thread("personal_" + username)
     history = conversation_memory.history(thread=thread)
     notes = mobile_features.memory_search(username, text, limit=8)["notes"]
     if not notes:

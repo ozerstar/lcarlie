@@ -119,6 +119,8 @@ def olaylari_ayristir(yuk: dict[str, Any]) -> list[dict[str, Any]]:
                 telefon_id = str(metadata.get("phone_number_id") or "")
                 for mesaj in (deger.get("messages") or []):
                     icerik = mesaj.get("text") or {}
+                    dugme = mesaj.get("button") or {}
+                    etkilesim = (mesaj.get("interactive") or {}).get("button_reply") or {}
                     # 🔴 REKLAM REFERANSI OKUNUYOR -- onceden `None` YAZILIYDU.
                     # Click-to-WhatsApp reklamindan gelen musterinin hangi
                     # urune baktigini SOYLEYEN TEK ALAN budur; musteri mesajin
@@ -131,6 +133,10 @@ def olaylari_ayristir(yuk: dict[str, Any]) -> list[dict[str, Any]]:
                     # diyor. Messenger'in adlarini aramak sessizce bos doner.
                     referral = mesaj.get("referral") or {}
                     ek = {"type": mesaj.get("type")}
+                    if mesaj.get("type") == "button" and dugme.get("payload"):
+                        ek["button_payload"] = str(dugme["payload"])
+                    if mesaj.get("type") == "interactive" and etkilesim.get("id"):
+                        ek["button_payload"] = str(etkilesim["id"])
                     # Tiklama kimligi reklam raporlamasiyla eslestirmeyi
                     # saglar; varsa saklanir, yoksa UYDURULMAZ.
                     if referral.get("ctwa_clid"):
@@ -143,7 +149,8 @@ def olaylari_ayristir(yuk: dict[str, Any]) -> list[dict[str, Any]]:
                         "gonderen_id": str(mesaj.get("from") or ""),
                         "alici_id": telefon_id,
                         "mesaj_id": str(mesaj.get("id") or ""),
-                        "metin": icerik.get("body") or "",
+                        "metin": (icerik.get("body") or dugme.get("text")
+                                  or etkilesim.get("title") or ""),
                         "yanki": False,
                         "zaman_ms": int(mesaj.get("timestamp") or 0) * 1000,
                         "ad_id": referral.get("source_id") or None,
@@ -177,6 +184,29 @@ def olaylari_ayristir(yuk: dict[str, Any]) -> list[dict[str, Any]]:
                 "referral_kaynak": referral.get("source"),
                 "ek": {"attachments": mesaj.get("attachments")} if mesaj.get("attachments") else {},
             })
+    return olaylar
+
+
+def teslimat_olaylari(yuk: dict[str, Any]) -> list[dict[str, Any]]:
+    if yuk.get("object") != "whatsapp_business_account":
+        return []
+    olaylar: list[dict[str, Any]] = []
+    for giris in yuk.get("entry") or []:
+        for degisim in giris.get("changes") or []:
+            if degisim.get("field") != "messages":
+                continue
+            for durum in (degisim.get("value") or {}).get("statuses") or []:
+                wamid = str(durum.get("id") or "")
+                ad = str(durum.get("status") or "")
+                if not wamid.startswith("wamid.") or ad not in {
+                        "sent", "delivered", "read", "failed", "deleted"}:
+                    continue
+                hatalar = durum.get("errors") or []
+                olaylar.append({
+                    "wamid": wamid, "durum": ad,
+                    "zaman": str(durum.get("timestamp") or ""),
+                    "hata_kodu": str(hatalar[0].get("code") or "") if hatalar else "",
+                })
     return olaylar
 
 

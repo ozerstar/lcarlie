@@ -22,12 +22,28 @@ from __future__ import annotations
 import json
 import os
 import sys
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
 STATE_DIR = Path(os.environ.get("JARVIS_STATE_DIR", "/opt/lcarlie/jarvis-phase2/state"))
 MEMORY_DIR = STATE_DIR / "conversation"
+_ACTIVE_THREAD: ContextVar[str | None] = ContextVar("jarvis_conversation_thread", default=None)
+
+
+@contextmanager
+def thread_scope(thread: str):
+    token = _ACTIVE_THREAD.set(thread)
+    try:
+        yield
+    finally:
+        _ACTIVE_THREAD.reset(token)
+
+
+def scoped_thread(default: str = "operator") -> str:
+    return _ACTIVE_THREAD.get() or default
 # Aramaya hazir dizin (jarvis.hatira) YALNIZ gercek durum dizininde yazilir.
 # Testler JARVIS_STATE_DIR'i gecici bir klasore cevirip modulu yeniden
 # yukluyor; dosya katmani boylece izole oluyor ama dizin ORTAK postgres'te
@@ -60,9 +76,23 @@ def _yazma_izni() -> None:
     Bu yüzden kapıyı kod tutuyor ve GÜRÜLTÜLÜ patlıyor: sessiz bir
     bozulma yerine, testi yazan kişinin göreceği bir hata.
 
-    `unittest` üretim servisinde hiç içe aktarılmaz; ölçüt bu.
+    Test çalıştırıcısını süreç girişinden tanırız. Bazı model bağımlılıkları
+    normal serviste de `unittest` içe aktarabildiği için yalnız modül varlığı
+    gerçek sohbeti yanlışlıkla engelleyebilir.
     """
-    if STATE_DIR == _VARSAYILAN_STATE and "unittest" in sys.modules:
+    entry = Path(sys.argv[0]).as_posix().lower() if sys.argv else ""
+    # 25.10.2026 OLCULDU: `python -m unittest` altinda sys.argv[0] bir YOL
+    # DEGIL, duz metin olur -- birebir "python -m unittest". O yuzden
+    # Path(entry).parts tek parca doner ve `part == "unittest"` esitligi
+    # HIC tutmaz. Kapi, projenin KENDI test komutuyla sessizce aciktaydi;
+    # 24.10'da uretim notlarina {"note": "test notu"} boyle girdi.
+    # Cozum: parcaya degil, metnin kendisine bak. Hem "python -m unittest"
+    # hem ".../unittest/__main__.py" hem "pytest" bu kontrolden gecer.
+    running_tests = (bool(os.environ.get("PYTEST_CURRENT_TEST"))
+                     or "unittest" in entry
+                     or "pytest" in entry
+                     or Path(entry).name.startswith("test_"))
+    if STATE_DIR == _VARSAYILAN_STATE and running_tests:
         raise UretimDokumuneTestYazamaz(
             "Test süreci üretim sohbet dökümüne yazamaz. Test modülünün "
             "başında, conversation_memory içe aktarılmadan ÖNCE "
@@ -82,6 +112,8 @@ MAX_NOTES = 60
 
 
 def _path(thread: str, name: str) -> Path:
+    if thread == "operator":
+        thread = scoped_thread()
     safe = "".join(ch for ch in thread if ch.isalnum() or ch in "-_") or "operator"
     return MEMORY_DIR / f"{safe}.{name}.jsonl"
 
@@ -169,6 +201,8 @@ def remember(note: str, source: str = "operator", thread: str = "operator") -> b
     operator cannot correct.
     """
     note = " ".join((note or "").split())
+    if thread == "operator":
+        thread = scoped_thread()
     if not note:
         return False
     try:
@@ -196,6 +230,8 @@ def remember(note: str, source: str = "operator", thread: str = "operator") -> b
 def forget(fragment: str, thread: str = "operator") -> int:
     """Drop notes containing this fragment. Returns how many went."""
     fragment = (fragment or "").strip().casefold()
+    if thread == "operator":
+        thread = scoped_thread()
     if not fragment:
         return 0
     try:
@@ -247,6 +283,8 @@ def notes_block(thread: str = "operator", limit: int = 12,
     ile "bu soruyla ilgili 12 not" birbirinden uzaklasir. Eskisi tarihe
     gore seciyordu; soru sorulduysa alaka daha iyi bir olcut.
     """
+    if thread == "operator":
+        thread = scoped_thread()
     kept = notes(thread)
     if not kept:
         return ""

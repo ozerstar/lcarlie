@@ -71,6 +71,7 @@ KNOWN_ROUTES = {
     # URETILENLER: uretilen her seyi tek yerde toplar (26.09.2026).
     "/api/uretilenler",
     "/api/activity", "/api/proposals", "/api/actions", "/api/chat", "/api/chat/stream",
+    "/api/improvement",
     "/api/plan", "/api/panel",
     # Yurutme: /api/plan planlar, /api/run planlar VE calistirir (yalniz
     # okuma analizi; eylem ureten adim PROPOSED zarfi olur). app.py sunuyor.

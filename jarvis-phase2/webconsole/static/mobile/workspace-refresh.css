@@ -1,0 +1,50 @@
+/* Phone workspace: calmer surfaces, larger text, and a shorter assistant entry. */
+:root{--paper:#071722;--surface:#102b38;--muted:#b5cdd5;--line:#355766}
+body,.shell{background:radial-gradient(circle at 85% 3%,#174456 0,transparent 32%),#071722;color:#edf9fb;font-size:15px;line-height:1.55}
+.shell{max-width:760px;margin-inline:auto}
+.header{padding-block:13px;background:#081a24eF;border-bottom:1px solid #325260}
+.brand strong{font-size:18px}.brand small{font-size:11px;color:#a8c7d0}
+.tab-nav{border-top:1px solid #456675}.tab-nav button{min-height:62px;font-size:12px;line-height:1.2}
+.tab-nav .tab-icon{font-size:21px}
+.desk-greeting{min-height:365px;background-position:center 48%}
+.desk-greeting h1{font-size:43px}.desk-greeting p:last-child{font-size:15px;max-width:250px}
+.desk-quick{gap:8px}.desk-quick button{min-height:82px;padding:9px 4px;font-size:12px;line-height:1.25}
+.desk-focus{padding:20px;border-color:#477386;background:#123847}.desk-focus h2{font-size:27px}.desk-focus p{font-size:14px}
+.desk-metrics span{font-size:12px}.desk-section-heading h2{font-size:23px}
+#daily-summary .daily-item{min-height:72px}#daily-summary .daily-item strong{font-size:15px}#daily-summary .daily-item small{font-size:13px}
+.desk-directory>summary,.overview-links a strong,.overview-links button strong{font-size:15px}.desk-directory>summary span,.overview-links a small,.overview-links button small{font-size:13px}
+.card,.mobile-card,.mobile-form,.personal-setting,.job-compose,.job-analysis{border-color:#3a6171;border-radius:13px;background:#102b38}
+.card p,.mobile-card p,.help,.intro p,.chat-mode-help{color:#b6ced5;font-size:14px;line-height:1.6}
+.intro h1,.intro h2,.mobile-form h2,.personal-settings-head h2{font-size:25px;line-height:1.25}
+label{font-size:14px}input,textarea,select,.composer input{min-height:44px;font-size:16px;line-height:1.4}
+button{line-height:1.35}.primary,.secondary,.mobile-card button{min-height:44px;font-size:14px}
+
+/* The assistant opens into conversation; less banner, more room for messages. */
+#chat-panel{min-height:calc(100dvh - 170px);display:flex;flex-direction:column}
+#chat-panel[hidden]{display:none!important}
+.chat-heading{min-height:150px;margin-bottom:14px;padding:22px 20px 18px;align-items:flex-end;background:linear-gradient(90deg,#061b28e8,#08273591),url('/mobile/editorial/assistant-silk-v1.webp') center 42%/cover no-repeat}
+.chat-heading>div{max-width:220px}.chat-heading h1{font-size:38px}.chat-heading p{max-width:210px;color:#e2f3f7;font-size:14px;line-height:1.45}
+.chat-new{min-height:42px;padding:8px 11px;font-size:13px;background:#123a4be8}
+.chat-mode{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:0 0 9px;padding:4px;border:1px solid #3b6170;border-radius:10px;background:#0d2a37}
+.chat-mode button{min-height:43px;border-radius:7px;font-size:14px;font-weight:650}
+.chat-mode-help{margin:0 0 13px;font-size:13px}
+#chat-panel .messages{flex:1;min-height:210px;max-height:none;padding-bottom:14px}
+.bubble{font-size:15px;line-height:1.6}.bubble .meta{font-size:12px}
+.chat-tools>summary{min-height:40px;font-size:13px}
+.chat-starters button,.actions button{min-height:43px;font-size:13px}
+.composer{padding-top:11px;padding-bottom:max(12px,env(safe-area-inset-bottom));border-top:1px solid #355766;background:#081a24}
+.composer input{min-height:48px}.composer button{min-height:46px}
+.personal-nav{display:flex;gap:5px;overflow-x:auto;scrollbar-width:thin}.personal-nav button{flex:none;min-height:44px;padding-inline:10px;font-size:13px}
+.personal-setting>summary{min-height:52px;padding:13px 15px;font-size:14px}
+.personal-quick-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:14px 0}
+.personal-quick-actions button{min-width:0;padding:9px 7px;font-size:12px}
+.personal-brief{display:grid;gap:11px;margin:13px 0 22px}
+.personal-brief-section{padding:16px;border:1px solid #3a6171;border-radius:12px;background:#102b38}
+.personal-brief-section h3{margin:0 0 8px;color:#ecf9fc;font-size:17px}
+.personal-brief-section p{margin:0;color:#b6ced5;font-size:14px}
+.personal-brief-row{display:grid;gap:3px;padding:9px 0;border-top:1px solid #315363}
+.personal-brief-row strong{font-size:14px;color:#eefafd}.personal-brief-row small{font-size:12px;color:#abc7d0}
+#personal-notification-form label{display:flex;align-items:center;gap:10px;min-height:42px}
+#personal-notification-form input[type=checkbox]{min-height:0;width:20px;height:20px}
+.job-filters button{font-size:14px}
+@media(max-width:390px){.chat-heading{min-height:144px;padding-inline:16px}.chat-heading h1{font-size:34px}.chat-new{font-size:12px}.desk-quick button{font-size:11px}.tab-nav button{font-size:11px}}

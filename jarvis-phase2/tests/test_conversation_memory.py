@@ -30,6 +30,19 @@ class MemoryTestBase(unittest.TestCase):
 
 
 class TranscriptTests(MemoryTestBase):
+    def test_scoped_chats_do_not_share_transcript_or_notes(self):
+        with self.mem.thread_scope("work_first"):
+            self.mem.record("first only", "first answer")
+            self.mem.remember("first note")
+        with self.mem.thread_scope("work_second"):
+            self.assertEqual([], self.mem.history())
+            self.assertEqual([], self.mem.notes())
+            self.mem.record("second only", "second answer")
+        with self.mem.thread_scope("work_first"):
+            self.assertEqual("first only", self.mem.history()[0]["content"])
+            self.assertEqual(["first note"], self.mem.notes())
+        self.assertEqual([], self.mem.history())
+
     def test_an_exchange_comes_back_as_chat_messages(self):
         self.mem.record("Vireon kampanyası", "Tamam, bakıyorum", intent="AGENCY_REQUEST")
         history = self.mem.history()

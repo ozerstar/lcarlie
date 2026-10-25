@@ -1,0 +1,12 @@
+{
+  "private": true,
+  "scripts": {
+    "build": "esbuild client.js --bundle --format=iife --global-name=JarvisRTC --minify --target=safari16 --outfile=../../webconsole/static/mobile/voice-rtc.js"
+  },
+  "dependencies": {
+    "livekit-client": "2.22.4"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12"
+  }
+}

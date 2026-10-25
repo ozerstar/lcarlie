@@ -25,6 +25,10 @@ SIMPLE_CONVERSATION = "SIMPLE_CONVERSATION"
 COMPANY_QUERY = "COMPANY_QUERY"
 ANALYSIS_REQUEST = "ANALYSIS_REQUEST"
 RESEARCH_REQUEST = "RESEARCH_REQUEST"
+# Arastirma istendi ama NEYIN arastirilacagi soylenmedi. Ayri bir niyet,
+# cunku "aradim bulamadim" ile "ne arayacagimi bilmiyorum" ayri seylerdir
+# ve ikincisinde arama HIC yapilmamalidir.
+RESEARCH_SUBJECT_MISSING = "RESEARCH_SUBJECT_MISSING"
 ACTION_REQUEST = "ACTION_REQUEST"
 GENERAL_REASONING = "GENERAL_REASONING"
 AGENCY_REQUEST = "AGENCY_REQUEST"
@@ -47,6 +51,43 @@ def _normalize(text: str) -> str:
     # all. Fold the Turkish capitals explicitly first.
     folded = (text or "").translate(_TR_CAPITALS).casefold().replace("ı", "i")
     return " ".join(folded.split())
+
+
+# Arastirma istegini TETIKLEYEN fiiller ve icerik tasimayan dolgu
+# kelimeleri. Bunlar cikarildiktan sonra geriye icerik kelimesi kalmiyorsa
+# mesaj bir KONU adlandirmiyor demektir.
+_ARASTIRMA_FIILLERI = frozenset((
+    "arastir", "arastirsin", "arastiralim", "arastirin", "arastirma",
+    "arastirsana", "research", "optimize", "optimizasyon", "iyilestir",
+    "incele", "bak", "yap", "yapalim", "yapsin", "et", "edelim", "etsin",
+))
+_DOLGU_KELIMELERI = frozenset((
+    "ve", "veya", "ile", "bir", "bunu", "bunlari", "sunu", "simdi",
+    "icin", "lutfen", "hemen", "tamam", "hadi", "biraz", "artik",
+))
+_EN_AZ_ICERIK_HARFI = 3
+
+
+def _konusuz_arastirma(text: str) -> bool:
+    """Arastirma istegi bir KONU adlandiriyor mu.
+
+    🔴 OLCULDU 16.10.2026: "Arastir ve optimize et" -> geriye hic icerik
+       kelimesi kalmiyor, yani konu yok. Eski kod mesaji ham haliyle arama
+       sorgusu yapiyor ve "optimize" KELIMESININ TDK tanimini getiriyordu.
+       Arama bir konu hakkinda degil, kullanicinin FIILI hakkinda yapildi.
+
+    🔴 KONU TAHMIN EDILMEZ. `route()` konusma gecmisi gormuyor; gecmisi
+       buraya tasimak hem genis bir degisiklik hem de YANLIS konuyu
+       tasima riski olurdu. Konu yoksa SORULUR.
+    """
+    for kelime in _normalize(text).replace("?", " ").split():
+        sade = _ascii_fold(kelime).strip(".,;:!()")
+        if len(sade) < _EN_AZ_ICERIK_HARFI:
+            continue
+        if sade in _DOLGU_KELIMELERI or sade in _ARASTIRMA_FIILLERI:
+            continue
+        return False          # icerik kelimesi var -> konu var
+    return True
 
 
 def _has(text: str, terms: tuple[str, ...]) -> bool:
@@ -234,10 +275,25 @@ def classify(message: str) -> RouteDecision:
                    "yeni kampanya", "kampanya hazır")) or _wants_production(raw):
         return RouteDecision(AGENCY_REQUEST)
     if _has(text, ("rakip", "pazar araştır", "pazar arastir", "research", "araştır", "arastir")):
+        # 🔴 KONUSU OLMAYAN ARASTIRMA ISTEGI ARATILMAZ, SORULUR.
+        if _konusuz_arastirma(text):
+            return RouteDecision(RESEARCH_SUBJECT_MISSING)
         return RouteDecision(RESEARCH_REQUEST)
     if _has(text, ("analiz", "problem", "sorunları", "sorunlari", "en önemli",
                    "en onemli", "ne yap", "yapılması", "yapilmasi", "fırsat", "firsat")):
         return RouteDecision(ANALYSIS_REQUEST)
+    # 🔴 SEO DALI, REKLAM/CRM DALLARINDAN ONCE DURUR.
+    #    "SEO basligi uzun mu" sorusu kok taramasinda REKLAM alanina duser
+    #    ("baslik" reklam koklerinde) ve SEO sorusu reklam verisiyle
+    #    cevaplanirdi. Acik dal onde oldugu icin bu olamaz.
+    #
+    #    " seo " BOSLUKLU yaziliyor: `_has` bosluklu kalipta KELIME SINIRI
+    #    arar. Bosluksuz yazilsa alt dizgi olarak eslesirdi -- "hi " kalibi
+    #    20.09.2026'da tam bu yuzden kelime ortasinda eslesmisti.
+    if _has(text, (" seo ", "arama motoru", "organik arama", "anahtar kelime",
+                   "meta etiket", "meta aciklama", "meta açıklama",
+                   "arama gorunurlug", "arama görünürlüğ", "slug")):
+        return RouteDecision(COMPANY_QUERY, "seo")
     if _has(text, ("cevapsız", "cevapsiz", "müşteri", "musteri", "crm")):
         return RouteDecision(COMPANY_QUERY, "crm")
     if _has(text, ("reklam", "meta", "harcama", "roas", "ctr", "cpa")):
@@ -332,6 +388,53 @@ def _sales_answer(message: str, orders: list[dict[str, Any]], memory: Any) -> st
     return " ".join(parcalar)
 
 
+def _seo_answer(memory: Any):
+    """SEO sorusunun cevabi = SEO EKIBININ KENDI SOYLEDIGI.
+
+    🔴 CEVAP BURADA YENIDEN YAZILMAZ. `jarvis.roster` icindeki SEO
+       konusmacilari (`seo_icerik`, `seo_anahtar`, `seo_teknik`) zaten
+       `urun_seo` ve `urun_alan_karsilastirma` verisinden deterministik
+       cumle uretiyor; panelin EKIP panosu de aynen onlari gosteriyor.
+       Ikinci bir bicimlendirici yazmak ayni seyin iki tanimi olurdu --
+       bu projede yasanmis bir hata sinifi. Panelde ne yaziyorsa
+       sohbette de O yazar.
+
+    🔴 MODEL CAGRILMAZ. Sahibin 16.10.2026'da aldigi uydurma cevap
+       (olmayan anahtar kelime siralamalari) tam olarak modelin kanitsiz
+       konusmasiydi. Bu yol deterministik; uydurabilecegi bir yer yok.
+    """
+    from jarvis import roster
+
+    onbellek: dict[str, list] = {}
+
+    def oku(ad: str) -> list:
+        if ad not in onbellek:
+            onbellek[ad] = list(memory._fetch(ad).records)
+        return onbellek[ad]
+
+    kaynak: str | None = None
+    satirlar: list[str] = []
+    for uye in roster.ROSTER:
+        if uye.key not in ("seo_icerik", "seo_anahtar", "seo_teknik"):
+            continue
+        konusmaci = roster.SPEAKERS.get(uye.key)
+        if konusmaci is None or not uye.reads:
+            continue
+        rows = {ad: oku(ad) for ad in uye.reads}
+        if kaynak is None:
+            kaynak = memory._fetch(uye.reads[0]).source
+        satirlar.append("%s: %s" % (uye.name, konusmaci(rows)))
+
+    if not satirlar:
+        # Yokluk sebebiyle soylenir; "sorun yok" demek yanlis olurdu.
+        raise RuntimeError("SEO konusmacisi bulunamadi")
+
+    class _Kanit:
+        source = kaynak or "postgres:urun_seo"
+
+    return _Kanit(), chr(10).join(satirlar)
+
+
 def _company(message: str, domain: str, memory: Any, started: float) -> dict[str, Any]:
     try:
         if domain == "crm":
@@ -358,6 +461,8 @@ def _company(message: str, domain: str, memory: Any, started: float) -> dict[str
         elif domain == "sales":
             evidence = memory._fetch("sales_orders")
             answer = _sales_answer(message, evidence.records, memory)
+        elif domain == "seo":
+            evidence, answer = _seo_answer(memory)
         elif domain == "ecommerce":
             evidence = memory._fetch("urun_karti")
             answer = _urun_karti_answer(message, evidence.records)
@@ -404,6 +509,13 @@ _DOMAIN_ROOTS = {
     # Gunluk yonetici ozeti. Uretiliyordu ama kimse okuyamiyordu.
     "brief": ("brief", "brifing", "ozet", "gunluk rapor", "sabah",
               "yonetici", "durum raporu"),
+    # Organik arama. 🔴 "seo" KOKU BURAYA YAZILMAZ: kok taramasi
+    # `len(w) >= _MIN_ROOT_WORD` (4) sartiyla calisir ve "seo" 3 harftir;
+    # yazilsa SESSIZCE ise yaramazdi. Tam kelime karsilastirmasi icin
+    # asagidaki _SEO_KELIMELERI kullanilir (bkz. _PARA_KELIMELERI, ayni
+    # sorunun daha once cozulmus hali).
+    "seo": ("arama", "organik", "anahtar", "slug", "indeks", "sirala",
+            "gorunurlu"),
 }
 
 # --- INGILIZCE KOKLER -------------------------------------------------
@@ -459,6 +571,18 @@ _PARA_KELIMELERI = frozenset((
 # Cok kelimeli tutar sorulari. Bunlar kelime degil KALIP oldugu icin
 # birlesik metinde aranir; bir kelimenin icine gizlenemezler.
 _TUTAR_KALIPLARI = ("ne kadar", "kac para", "kaca satiliyor", "kaca satiyoruz")
+
+# "seo" kok esigine takilir: _MIN_ROOT_WORD 4, "seo" ise 3 harf. Koke
+# eklemek SESSIZCE ise yaramazdi -- "tl" ile birebir ayni tuzak. Bu yuzden
+# ayri ve TAM KELIME olarak karsilastirilir; alt dizgi DEGIL.
+#
+# 🔴 BU KUME OLMADAN DUZELTMENIN TAMAMI ISE YARAMAZ. `should_use_model()`
+#    govdesi `return not _domains_of(message)`; "SEO calismalarimiz ne
+#    durumda" hicbir alan dondurmedigi icin True donuyor ve route()
+#    icindeki model kapisi soruyu COMPANY_QUERY'e yonlendirilmis OLSA BILE
+#    `_synthesize`'a, yani MODELE gonderiyordu. Olculdu 16.10.2026.
+_SEO_KELIMELERI = frozenset(("seo", "seonun", "seoyu", "seoda", "seoya",
+                             "seomuz", "seomuzu"))
 
 
 # Uretilecek sey. "kampanyasi", "kampanyasini" -> lemma "kampanya" (olculdu).
@@ -552,6 +676,9 @@ def _domains_of(message: str) -> list[str]:
             found.append(domain)
     # Fiyat bir VERI sorusudur; modele degil veriye gitmeli. Kok taramasi
     # kisa para birimlerini ve cok kelimeli tutar kaliplarini yakalayamaz.
+    # "seo" tam kelime olarak gecerse alan SEO'dur (kok esigi onu kacirir).
+    if "seo" not in found and (set(folded) & _SEO_KELIMELERI):
+        found.append("seo")
     if "ecommerce" not in found:
         birlesik = " ".join(folded)
         if (set(folded) & _PARA_KELIMELERI
@@ -1879,6 +2006,19 @@ def route(message: str, runtime: Any) -> dict[str, Any]:
     # else it looks like.
     if decision.intent == ACTION_REQUEST:
         return _action(message, started)
+    # 🔴 MODEL KAPISINDAN ONCE. Konusu olmayan arastirma istegi ne aratilir
+    #    ne modele sorulur: ne arastirilacagi SORULUR. Model kapisinin
+    #    altina konsaydi soru yine modele duser ve model konuyu UYDURABILIRDI.
+    if decision.intent == RESEARCH_SUBJECT_MISSING:
+        return _response(
+            message, RESEARCH_SUBJECT_MISSING, "NEEDS_INPUT",
+            "Neyi araştırayım? İsteğinde bir konu geçmiyor, yalnız "
+            "\"araştır/optimize et\" gibi bir fiil var. Konuyu yazarsan "
+            "(örnek: \"SEO anahtar kelimelerini araştır\") ekibe o konuyu "
+            "veririm. Fiili arama kutusuna yazmak, kelimenin sözlük "
+            "tanımını getirmekten başka bir şey yapmaz.",
+            missing_data=("research_subject",), started=started,
+            model="deterministic-local")
     # The deterministic gate comes next: a question Company Memory answers
     # exactly must never cost a model call. Only genuinely open-ended wording
     # gets past this line.

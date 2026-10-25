@@ -7,12 +7,24 @@ const state = { csrf: null, busy: false, audio: null, audioUrl: null, audioGener
   contactEditId: null };
 let voiceMode = false;
 let closeMicrophone = () => {};
+let endVoiceSession = () => { voiceMode = false; closeMicrophone(); stopAudio(); };
+let startListening = () => {};
 let selectedProposal = null;
 const PENDING_CHAT_KEY = 'jarvis-pending-chat-v1';
 
+function chatId(mode) {
+  const key = `jarvis-${mode}-chat-id`;
+  let id = sessionStorage.getItem(key);
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(id || '')) {
+    id = crypto.randomUUID();
+    sessionStorage.setItem(key, id);
+  }
+  return id;
+}
+
 function rememberChatTurn(turn) {
   try { sessionStorage.setItem(PENDING_CHAT_KEY, JSON.stringify({id: turn.id, mode: turn.mode,
-    text: turn.text, attachmentId: turn.attachmentId, at: Date.now()})); } catch (_) { /* private mode */ }
+    text: turn.text, attachmentId: turn.attachmentId, chatId: turn.chatId, at: Date.now()})); } catch (_) { /* private mode */ }
 }
 function forgetChatTurn() {
   try { sessionStorage.removeItem(PENDING_CHAT_KEY); } catch (_) { /* private mode */ }
@@ -54,7 +66,8 @@ function approvalSummary(reason) {
   return JarvisMetin.safeTitle(summary.slice(0, 180), 'Yeni bir öneri var. Ayrıntıları inceleyip karar verin.');
 }
 function showLogin() {
-  closeMicrophone(); stopAudio(); voiceMode = false;
+  endVoiceSession();
+  closeChatOverlay(false);
   $('login').hidden = false; $('app').hidden = true; $('logout').hidden = true; status('Giriş gerekli');
 }
 function showApp() {
@@ -108,14 +121,25 @@ $('login-form').addEventListener('submit', async (event) => {
 });
 
 $('logout').addEventListener('click', async () => {
-  closeMicrophone();
-  stopAudio();
+  endVoiceSession();
   forgetChatTurn();
   state.chatRows = {work: [], personal: []};
   $('messages').replaceChildren();
   try { await request('/api/logout', { method: 'POST' }); } catch (_) { /* session still expires */ }
   state.csrf = null;
   showLogin();
+});
+
+$('chat-new').addEventListener('click', () => {
+  if (state.busy) return;
+  const mode = state.chatMode;
+  sessionStorage.setItem(`jarvis-${mode}-chat-id`, crypto.randomUUID());
+  forgetChatTurn();
+  state.chatRows[mode] = [];
+  $('messages').replaceChildren();
+  $('chat-input').value = '';
+  if (mode === 'personal') clearAttachment();
+  $('chat-input').focus();
 });
 
 $('password-form').addEventListener('submit', async (event) => {
@@ -336,6 +360,7 @@ function addPlayButton(row, text) {
 async function sendMessage(text, previous = null) {
   if (!state.csrf || state.busy || !text) return;
   const turn = previous || {id: crypto.randomUUID(), mode: state.chatMode, text,
+    chatId: chatId(state.chatMode),
     attachmentId: state.chatMode === 'personal' ? state.attachment?.id : null};
   state.busy = true;
   $('send').disabled = true;
@@ -354,7 +379,8 @@ async function sendMessage(text, previous = null) {
       if (attempt) { status('Bağlantı yenileniyor'); await new Promise((resolve) => setTimeout(resolve, attempt * 700)); }
       try {
       const response = await request('/api/chat/stream', { method: 'POST', body: JSON.stringify({
-        turn_id: turn.id, message: turn.text, mode, attachment_id: turn.attachmentId, after }) });
+        turn_id: turn.id, message: turn.text, mode, chat_id: turn.chatId || chatId(mode),
+        attachment_id: turn.attachmentId, after }) });
       if (!response.ok) {
         let detail = '';
         try { detail = (await response.json()).error || ''; } catch (_) { /* proxy response */ }
@@ -436,7 +462,18 @@ async function sendMessage(text, previous = null) {
     if (!terminal) throw new Error('Bağlantı kesildi. Yanıtı kontrol et; mesaj tekrar gönderilmedi.');
     forgetChatTurn();
     const playButton = answer && !/durumunu kontrol|tamamlanamadı/i.test(answer) ? addPlayButton(row, answer) : null;
-    if (voiceMode && playButton) { voiceMode = false; playAnswer(answer, playButton); }
+    if (voiceMode && playButton) {
+      voiceMode = false;
+      const generation = voiceSession.generation;
+      playAnswer(answer, playButton).then(() => {
+        if (voiceSession.active && generation === voiceSession.generation && !document.hidden && !state.audioButton)
+          startListening();
+      });
+    }
+    if (voiceMode && !playButton) {
+      voiceMode = false;
+      setTimeout(() => { if (voiceSession.active) startListening(); }, 0);
+    }
     status(/tamamlanamadı|kontrol edin/i.test(answer) ? answer : 'Bağlı');
   } catch (error) {
     row.content.textContent = friendlyMessage(error.message, 'Bağlantı kesildi. Yanıtı kontrol et.');
@@ -446,15 +483,14 @@ async function sendMessage(text, previous = null) {
       resume.addEventListener('click', () => { resume.remove(); sendMessage(text, {...turn, row, after, streamed}); });
       row.node.append(resume);
     }
-    status('Bağlantı kesildi; mesaj tekrar gönderilmedi'); voiceMode = false;
+    status('Bağlantı kesildi; mesaj tekrar gönderilmedi'); endVoiceSession();
   }
   finally { state.busy = false; $('send').disabled = false; if (mode === 'personal') clearAttachment(); }
 }
 
 document.querySelectorAll('[data-chat-mode]').forEach((button) => button.addEventListener('click', () => {
   if (state.busy || button.dataset.chatMode === state.chatMode) return;
-  closeMicrophone();
-  stopAudio();
+  endVoiceSession();
   state.chatMode = button.dataset.chatMode;
   document.querySelectorAll('[data-chat-mode]').forEach((item) => {
     const active = item.dataset.chatMode === state.chatMode;
@@ -1433,9 +1469,45 @@ $('device-revoke-all').addEventListener('click', async () => {
     state.csrf = null; showLogin();
   } catch (error) { status(error.message); }
 });
+let chatTrigger = null;
+function fitChatOverlay() {
+  const height = window.visualViewport?.height;
+  if (height) $('chat-panel').style.setProperty('--jarvis-visible-height', `${height}px`);
+}
+function openChatOverlay(trigger) {
+  chatTrigger = trigger || document.activeElement;
+  fitChatOverlay();
+  $('chat-panel').hidden = false;
+  document.body.classList.add('chat-overlay-open');
+  document.querySelectorAll('.header, #app > :not(#chat-panel)').forEach((node) => { node.inert = true; });
+  document.querySelectorAll('[data-tab="chat"]').forEach((button) => button.setAttribute('aria-expanded', 'true'));
+  $('chat-close').focus({preventScroll: true});
+}
+function closeChatOverlay(restoreFocus = true) {
+  if ($('chat-panel').hidden) return;
+  endVoiceSession();
+  $('chat-input').blur();
+  $('chat-panel').hidden = true;
+  document.body.classList.remove('chat-overlay-open');
+  document.querySelectorAll('.header, #app > :not(#chat-panel)').forEach((node) => { node.inert = false; });
+  document.querySelectorAll('[data-tab="chat"]').forEach((button) => button.setAttribute('aria-expanded', 'false'));
+  if (restoreFocus && chatTrigger?.isConnected) chatTrigger.focus({preventScroll: true});
+  chatTrigger = null;
+}
+$('chat-close').addEventListener('click', () => closeChatOverlay());
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !$('chat-panel').hidden) closeChatOverlay();
+});
+window.visualViewport?.addEventListener('resize', fitChatOverlay);
+$('home-voice').addEventListener('click', (event) => {
+  openChatOverlay(event.currentTarget);
+  $('mic').click();
+});
 document.querySelectorAll('[data-tab]').forEach((button) => button.addEventListener('click', () => {
-  closeMicrophone();
   const tab = button.dataset.tab;
+  if (tab === 'chat') { openChatOverlay(button); return; }
+  closeChatOverlay(false);
+  endVoiceSession();
   const mainTab = ['system', 'settings', 'creative'].includes(tab) ? 'more' : tab;
   document.querySelectorAll('.tab-nav [data-tab]').forEach((item) => {
     const active = item.dataset.tab === mainTab;
@@ -1453,33 +1525,160 @@ document.querySelectorAll('[data-tab]').forEach((button) => button.addEventListe
 }));
 
 const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+const voiceSession = { active: false, generation: 0 };
+const realtimeVoice = window.JarvisRTC?.createVoiceRoom({
+  onStatus: (message) => status(message),
+  onTranscript: (speaker, text) => bubble(speaker, text),
+  onEnded: (message) => { endVoiceSession(); status(message); },
+});
+let realtimeStarting = false;
+function closeVoiceControls() {
+  voiceSession.active = false;
+  voiceSession.generation += 1;
+  realtimeStarting = false;
+  voiceMode = false;
+  realtimeVoice?.stop();
+  $('voice-stop').hidden = true;
+  $('mic').classList.remove('listening');
+  $('mic').setAttribute('aria-label', 'Sesli görüşmeyi başlat');
+}
+async function startRealtimeVoice() {
+  if (!realtimeVoice) return false;
+  const generation = voiceSession.generation;
+  realtimeStarting = true;
+  status('Sesli görüşme bağlanıyor');
+  try {
+    const microphone = realtimeVoice.prepare();
+    const response = await request('/api/voice/realtime/session', { method: 'POST',
+      body: JSON.stringify({ mode: state.chatMode, chat_id: chatId(state.chatMode) }) });
+    if (!response.ok) throw new Error('Ses oturumu kullanılamıyor');
+    const session = await response.json();
+    await microphone;
+    if (!voiceSession.active || generation !== voiceSession.generation) return true;
+    await realtimeVoice.start(session.url, session.token);
+    if (!voiceSession.active || generation !== voiceSession.generation) {
+      await realtimeVoice.stop(); return true;
+    }
+    $('mic').classList.add('listening');
+    $('mic').setAttribute('aria-label', 'Sesli görüşme sürüyor');
+    return true;
+  } catch (_) {
+    await realtimeVoice.stop();
+    if (voiceSession.active && generation === voiceSession.generation)
+      status(Recognition ? 'Canlı ses kullanılamıyor; tarayıcı mikrofonuyla devam ediliyor'
+        : 'Ses bağlantısı kurulamadı; yazarak devam edebilirsiniz');
+    return false;
+  } finally { realtimeStarting = false; }
+}
 if (Recognition) {
   const recognizer = new Recognition(); recognizer.lang = 'tr-TR'; recognizer.continuous = false;
+  recognizer.interimResults = false;
   let listening = false;
+  let speechTurnSent = false;
+  let idleRestarts = 0;
+  let restartTimer = null;
+  let recognitionWatchdog = null;
   closeMicrophone = () => {
+    clearTimeout(recognitionWatchdog);
     if (listening) { listening = false; recognizer.abort(); }
     $('mic').classList.remove('listening');
   };
-  $('mic').addEventListener('click', () => {
-    if (listening) { closeMicrophone(); status('Dinleme durduruldu'); return; }
-    if (state.busy) { status('Önce mevcut yanıt tamamlansın'); return; }
+  endVoiceSession = () => {
+    closeVoiceControls();
+    clearTimeout(restartTimer);
+    closeMicrophone();
     stopAudio();
-    try { recognizer.start(); listening = true; $('mic').classList.add('listening'); status('Dinliyor'); }
-    catch (_) { closeMicrophone(); status('Mikrofon açılamadı; yazarak devam edebilirsiniz'); }
+  };
+  startListening = () => {
+    if (!voiceSession.active || listening || state.busy || document.hidden) return;
+    speechTurnSent = false;
+    try {
+      recognizer.start(); listening = true;
+      $('mic').classList.add('listening');
+      status('Dinliyor');
+      recognitionWatchdog = setTimeout(() => {
+        if (voiceSession.active && listening) {
+          endVoiceSession();
+          status('Mikrofon yanıt vermiyor; yeniden başlatmak için dokunun');
+        }
+      }, 20000);
+    } catch (_) {
+      endVoiceSession();
+      status('Mikrofon yeniden açılamadı; yazarak devam edebilirsiniz');
+    }
+  };
+  $('mic').addEventListener('click', async () => {
+    if (state.busy) { status('Önce mevcut yanıt tamamlansın'); return; }
+    if (realtimeStarting || realtimeVoice?.active) return;
+    if (!voiceSession.active) {
+      voiceSession.active = true;
+      voiceSession.generation += 1;
+      idleRestarts = 0;
+      $('voice-stop').hidden = false;
+      $('mic').setAttribute('aria-label', 'Jarvis konuşurken söz al');
+      if (await startRealtimeVoice()) return;
+      if (!voiceSession.active) return;
+    }
+    if (listening) return;
+    clearTimeout(restartTimer);
+    stopAudio();
+    startListening();
   });
+  $('voice-stop').addEventListener('click', () => { endVoiceSession(); status('Sesli görüşme bitti'); });
+  recognizer.onspeechstart = () => {
+    clearTimeout(recognitionWatchdog);
+    recognitionWatchdog = setTimeout(() => {
+      if (voiceSession.active && listening) {
+        endVoiceSession();
+        status('Mikrofon yanıt vermiyor; yeniden başlatmak için dokunun');
+      }
+    }, 60000);
+  };
   recognizer.onresult = (event) => {
+    clearTimeout(recognitionWatchdog);
     const text = event.results[0][0].transcript.trim();
-    if (text) { voiceMode = true; if (!commandAction(text)) sendMessage(text); else voiceMode = false; }
+    if (text && !speechTurnSent && voiceSession.active) {
+      speechTurnSent = true;
+      idleRestarts = 0;
+      voiceMode = true;
+      if (!commandAction(text)) sendMessage(text);
+      else { voiceMode = false; speechTurnSent = false; }
+    }
   };
   recognizer.onerror = (event) => {
-    listening = false; voiceMode = false;
+    clearTimeout(recognitionWatchdog);
+    listening = false;
     if (event.error === 'aborted') return;
+    if (event.error === 'no-speech') { status('Ses algılanamadı; dinleme yenileniyor'); return; }
+    endVoiceSession();
     status(event.error === 'not-allowed' ? 'Mikrofon izni gerekli; yazarak devam edebilirsiniz'
-      : 'Ses algılanamadı; yazarak devam edebilirsiniz');
+      : 'Ses bağlantısı koptu; mikrofona yeniden dokunun');
   };
-  recognizer.onend = () => { listening = false; $('mic').classList.remove('listening'); };
-  document.addEventListener('visibilitychange', () => { if (document.hidden) { closeMicrophone(); stopAudio(); } });
-  window.addEventListener('pagehide', () => { closeMicrophone(); stopAudio(); });
+  recognizer.onend = () => {
+    clearTimeout(recognitionWatchdog);
+    listening = false;
+    $('mic').classList.remove('listening');
+    if (!voiceSession.active || speechTurnSent || state.busy || state.audioButton) return;
+    if (++idleRestarts > 2) { endVoiceSession(); status('Dinleme durdu; devam etmek için mikrofona dokunun'); return; }
+    const generation = voiceSession.generation;
+    restartTimer = setTimeout(() => {
+      if (generation === voiceSession.generation) startListening();
+    }, 700);
+  };
+  document.addEventListener('visibilitychange', () => { if (document.hidden) endVoiceSession(); });
+  window.addEventListener('pagehide', () => endVoiceSession());
+} else if (realtimeVoice) {
+  endVoiceSession = () => { closeVoiceControls(); stopAudio(); };
+  $('mic').addEventListener('click', async () => {
+    if (realtimeStarting || realtimeVoice.active) return;
+    voiceSession.active = true;
+    voiceSession.generation += 1;
+    $('voice-stop').hidden = false;
+    if (!await startRealtimeVoice()) endVoiceSession();
+  });
+  $('voice-stop').addEventListener('click', () => { endVoiceSession(); status('Sesli görüşme bitti'); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) endVoiceSession(); });
+  window.addEventListener('pagehide', () => endVoiceSession());
 } else $('mic').hidden = true;
 
 checkSession();

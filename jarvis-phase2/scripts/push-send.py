@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import subprocess
 import sys
 import tempfile
+from collections import deque
 from pathlib import Path
 
 from pywebpush import WebPushException, webpush
@@ -94,6 +96,39 @@ def notify_new_approvals() -> None:
                 delivered.add(action_id)
         seen[identifier] = list(delivered & set(current))
     save_seen(seen)
+
+
+def notify_whatsapp_failures(log: Path | None = None) -> None:
+    subscriptions = push_store.all_subscriptions()
+    log = log or push_store.STATE_DIR.parent / "meta_webhook" / "teslimat.jsonl"
+    if not subscriptions or not log.exists():
+        return
+    latest: dict[str, dict] = {}
+    with log.open(encoding="utf-8") as handle:
+        for line in deque(handle, maxlen=5000):
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            if str(event.get("wamid") or "").startswith("wamid."):
+                latest[event["wamid"]] = event
+    seen_path = push_store.STATE_DIR / "whatsapp-delivery-seen.json"
+    seen = json.loads(seen_path.read_text(encoding="utf-8")) if seen_path.exists() else {}
+    for identifier, subscription in subscriptions.items():
+        delivered = set(seen.get(identifier) or [])
+        for wamid, event in latest.items():
+            if event.get("durum") != "failed":
+                continue
+            marker = hashlib.sha256(wamid.encode()).hexdigest()[:16]
+            if marker in delivered:
+                continue
+            code = str(event.get("hata_kodu") or "bilinmiyor")[:20]
+            if send(subscription, "🔴 Jarvis · WhatsApp teslimatı başarısız",
+                    f"Mesaj teslim edilemedi. Meta hata kodu: {code}. Jarvis kayıtlarını inceleyin.",
+                    f"whatsapp-failed-{marker}"):
+                delivered.add(marker)
+        seen[identifier] = list(delivered)
+    save_seen(seen, seen_path)
 
 
 def notify_due_reminders() -> None:
@@ -196,6 +231,7 @@ if __name__ == "__main__":
     elif len(sys.argv) == 1:
         notify_due_reminders()
         notify_new_approvals()
+        notify_whatsapp_failures()
         notify_birthdays()
         notify_daily_digest()
     else:

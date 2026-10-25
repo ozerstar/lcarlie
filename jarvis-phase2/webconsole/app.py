@@ -30,6 +30,7 @@ import threading
 import time
 import pathlib
 import traceback
+from types import SimpleNamespace
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -53,6 +54,8 @@ from jarvis import conversation_memory as _cmem  # noqa: E402
 from jarvis.action_contract import ContractCache, ContractError  # noqa: E402
 from jarvis.execution_planner import plan_request  # noqa: E402
 from jarvis.execution_runtime import ExecutionDenied, ExecutionRuntime  # noqa: E402
+from jarvis.image_jobs import ImageJobs, MAX_UPLOAD  # noqa: E402
+from jarvis.image_team import ask as ask_image_team  # noqa: E402
 from jarvis.orchestration_status import snapshot as orchestration_snapshot  # noqa: E402
 from jarvis.context import ContextCompiler  # noqa: E402
 from jarvis import degisiklik
@@ -79,9 +82,11 @@ import personal_chat  # noqa: E402
 import mobile_features  # noqa: E402
 import google_workspace  # noqa: E402
 import unified_actions  # noqa: E402
+import voice_bridge  # noqa: E402
 import personal_planner  # noqa: E402
 
 STATE_DIR = Path(os.environ.get("JARVIS_STATE_DIR", "/opt/lcarlie/jarvis-phase2/state"))
+image_jobs = ImageJobs(STATE_DIR)
 STATIC_DIR = HERE / "static"
 # Uretilen reklam gorselleri. Statik klasorun ALTINDA DEGIL:
 # oraya konsaydi oturum acmamis herkese acik olurdu.
@@ -90,12 +95,17 @@ KREATIF_DIR = (HERE.parent / "state" / "kreatif-brief").resolve()
 # konsaydı kimlik kapısının dışında kalırdı; `/etiket/` yolu
 # `_route_kreatif` ile aynı oturum kapısından geçer.
 ETIKET_DIR = (HERE.parent / "state" / "kargo-etiket").resolve()
+# PC-1'deki Chrome worker'inin urettigi sonuclar. KREATIF_DIR ile AYNI
+# gerekce: statik klasore konsaydi oturum acmamis herkese acik olurdu ve
+# onay kuyrugundaki bir sey herkese acik olursa onay kavrami anlamsizlasir.
+TARAYICI_DIR = (HERE.parent / "state" / "tarayici").resolve()
 BIND_HOST = os.environ.get("JARVIS_WEB_BIND", "0.0.0.0")
 BIND_PORT = int(os.environ.get("JARVIS_WEB_PORT", "8091"))
 
 # Meta olay kuyruğu. STATE_DIR altında: `jarvis-web.service`'in
 # ReadWritePaths'i zaten burayı kapsıyor, yeni yazma izni açılmıyor.
 META_KUYRUK = STATE_DIR / "meta_webhook" / "gelen.jsonl"
+META_TESLIMAT = STATE_DIR / "meta_webhook" / "teslimat.jsonl"
 
 SESSION_COOKIE = "jarvis_session"
 CSRF_COOKIE = "jarvis_csrf"
@@ -786,6 +796,19 @@ def _messenger_panel_anahtari() -> str:
     return ""
 
 
+def _chat_thread(session, mode: str, chat_id: str | None) -> str:
+    if chat_id is not None and not chat_turns.TURN_ID.fullmatch(chat_id):
+        raise ValueError("Geçersiz sohbet kimliği.")
+    identity = chat_id or getattr(session, "session_id", session.username)
+    digest = hashlib.sha256(f"{session.username}:{mode}:{identity}".encode()).hexdigest()[:32]
+    return f"{mode}_{digest}"
+
+
+def _scoped_events(events, thread: str):
+    with _cmem.thread_scope(thread):
+        yield from events
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "JarvisWebConsole/1.0"
     protocol_version = "HTTP/1.1"
@@ -980,6 +1003,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._route_api_get(path, parse_qs(parsed.query))
             elif path.startswith("/kreatif/"):
                 self._route_kreatif(path)
+            elif path.startswith("/tarayici/"):
+                self._route_tarayici(path)
             elif path.startswith("/ig-foy/"):
                 self._route_ig_foy(path)
             elif path.startswith("/katalog-pdf/"):
@@ -1061,6 +1086,12 @@ class Handler(BaseHTTPRequestHandler):
 
         olaylar = meta_webhook.olaylari_ayristir(yuk)
         yazilan = meta_webhook.kuyruga_yaz(olaylar, META_KUYRUK)
+        durumlar = meta_webhook.teslimat_olaylari(yuk)
+        meta_webhook.kuyruga_yaz(durumlar, META_TESLIMAT)
+        for durum in durumlar:
+            if durum["durum"] == "failed":
+                sys.stderr.write("[whatsapp-teslimat] basarisiz "
+                                 f"wamid={durum['wamid']} kod={durum['hata_kodu']}\n")
         # Meta yanıt gecikirse AYNI olayı tekrar gönderir; burada iş
         # yapılmaz, yalnız kuyruğa alınır.
         self._send_json(200, {"alindi": yazilan})
@@ -1155,6 +1186,30 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(404, {"error": "not found"})
             return
         tur = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+               ".json": "application/json; charset=utf-8",
+               ".md": "text/markdown; charset=utf-8",
+               }.get(hedef.suffix.lower(), "application/octet-stream")
+        self._send_file(hedef, tur)
+
+    def _route_tarayici(self, path: str) -> None:
+        """Tarayici worker'inin urettigi dosyalari servis eder.
+
+        🔴 `_route_kreatif` ile AYNI kapi ve AYNI yol-kacisi kontrolu.
+           Iki ayri desen olsaydi biri gevseyip fark edilmezdi.
+        """
+        if self._current_session() is None:
+            self._send_json(401, {"error": "oturum gerekli"})
+            return
+        hedef = (TARAYICI_DIR / path[len("/tarayici/"):]).resolve()
+        if TARAYICI_DIR not in hedef.parents:
+            self._send_json(404, {"error": "not found"})
+            return
+        if not hedef.is_file():
+            self._send_json(404, {"error": "not found"})
+            return
+        tur = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+               ".webp": "image/webp", ".gif": "image/gif",
+               ".txt": "text/plain; charset=utf-8",
                ".json": "application/json; charset=utf-8",
                ".md": "text/markdown; charset=utf-8",
                }.get(hedef.suffix.lower(), "application/octet-stream")
@@ -1466,6 +1521,52 @@ class Handler(BaseHTTPRequestHandler):
         if session is None:
             self._send_json(401, {"error": "authentication required"})
             return
+
+        if path == "/api/image-jobs":
+            self._send_json(200, {"jobs": image_jobs.list()})
+            return
+        if path.startswith("/api/image-jobs/"):
+            parts = path.split("/")
+            if len(parts) == 4:
+                job = image_jobs.get(parts[3])
+                self._send_json(200 if job else 404, job or {"error": "not found"})
+                return
+            if len(parts) == 5 and parts[4] == "visual-review":
+                try:
+                    result = image_jobs.visual_observations(parts[3])
+                except ValueError:
+                    self._send_json(404, {"error": "not found"})
+                    return
+                self._send_json(200, result)
+                return
+            if len(parts) == 5 and parts[4] in ("visual-report", "visual-decision"):
+                try:
+                    raw = (image_jobs.visual_report(parts[3]) if parts[4] == "visual-report"
+                           else image_jobs.visual_decision(parts[3]))
+                except ValueError as exc:
+                    self._send_json(404, {"error": str(exc)})
+                    return
+                self.send_response(200)
+                self.send_header("Content-Type", "text/markdown; charset=utf-8")
+                self.send_header("Content-Length", str(len(raw)))
+                self.send_header("Cache-Control", "private, no-store")
+                self.end_headers()
+                self.wfile.write(raw)
+                return
+            if len(parts) == 7 and parts[4] == "images":
+                try:
+                    raw = image_jobs.member(parts[3], parts[5], parts[6])
+                except (ValueError, KeyError, FileNotFoundError):
+                    self._send_json(404, {"error": "image not found"})
+                    return
+                self.send_response(200)
+                self.send_header("Content-Type", "image/jpeg")
+                self.send_header("Content-Length", str(len(raw)))
+                self.send_header("Cache-Control", "private, no-store")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.end_headers()
+                self.wfile.write(raw)
+                return
 
         if path == "/api/devices":
             self._send_json(200, {"devices": sessions.list_devices(session.username, session.session_id)})
@@ -1897,6 +1998,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/login":
             self._handle_login()
             return
+        if path == "/api/voice/agent-turn":
+            self._handle_voice_agent_turn()
+            return
 
         session = self._current_session()
         if session is None:
@@ -1905,6 +2009,63 @@ class Handler(BaseHTTPRequestHandler):
         if not self._require_csrf(session):
             self._send_json(403, {"error": "csrf token missing or invalid"})
             return
+
+        if path == "/api/voice/realtime/session":
+            body = _read_json_body(self)
+            mode = body.get("mode", "work")
+            try:
+                self._send_json(200, voice_bridge.issue_session(session.username, mode,
+                                                               body.get("chat_id")))
+            except ValueError as exc:
+                self._send_json(400, {"error": str(exc)})
+            except RuntimeError as exc:
+                self._send_json(503, {"error": str(exc)})
+            return
+
+        if path == "/api/image-jobs/upload":
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if length < 1 or length > MAX_UPLOAD:
+                    raise ValueError("Yükleme sınırı 110 MB.")
+                name = self.headers.get("X-Filename", "image-pack.zip")
+                job = image_jobs.create_from_stream(self.rfile, length, name, session.username)
+            except (ValueError, OSError) as exc:
+                self._send_json(400, {"error": str(exc)[:200]})
+                return
+            threading.Thread(target=image_jobs.run_next, daemon=True).start()
+            self._send_json(202, job)
+            return
+        if path.startswith("/api/image-jobs/"):
+            parts = path.split("/")
+            if len(parts) == 5 and parts[4] in ("review", "retry", "team-review"):
+                try:
+                    if parts[4] == "retry":
+                        job = image_jobs.retry(parts[3])
+                        threading.Thread(target=image_jobs.run_next, daemon=True).start()
+                    elif parts[4] == "team-review":
+                        body = _read_json_body(self)
+                        department = str(body.get("department", ""))
+                        if department not in ("WEB", "TASARIM"):
+                            raise ValueError("WEB veya TASARIM seçin.")
+                        before = image_jobs.get(parts[3])
+                        if not before or before["status"] in ("QUEUED", "RUNNING", "FAILED"):
+                            raise ValueError("Önce paket denetimi tamamlanmalı.")
+                        image_jobs.begin_team_note(parts[3], department)
+                        try:
+                            response = ask_image_team(department, before)
+                        except Exception as exc:  # noqa: BLE001 - failure must stay visible on the job
+                            response = {"hata": f"Ekip görüşü tamamlanamadı: {str(exc)[:180]}"}
+                        job = image_jobs.save_team_note(parts[3], department, response)
+                    else:
+                        body = _read_json_body(self)
+                        job = image_jobs.review(parts[3], str(body.get("department", "")),
+                                                session.username, str(body.get("decision", "")),
+                                                str(body.get("comment", "")))
+                except ValueError as exc:
+                    self._send_json(400, {"error": str(exc)[:200]})
+                    return
+                self._send_json(200, job)
+                return
 
         if path == "/api/devices/revoke":
             device_id = _read_json_body(self).get("id")
@@ -2427,7 +2588,12 @@ class Handler(BaseHTTPRequestHandler):
             body = _read_json_body(self)
             message = str(body.get("message", ""))[:2000]
             try:
-                result = chat.route(message, _shadow_runner, _operator)
+                thread = _chat_thread(self._current_session(), "work", body.get("chat_id"))
+                with _cmem.thread_scope(thread):
+                    result = chat.route(message, _shadow_runner, _operator)
+            except (ValueError, TypeError) as exc:
+                self._send_json(400, {"error": str(exc)})
+                return
             except JarvisMemoryError as exc:
                 self._send_json(502, {"error": str(exc)})
                 return
@@ -2641,6 +2807,65 @@ class Handler(BaseHTTPRequestHandler):
 
         self._send_json(404, {"error": "not found"})
 
+    def _handle_voice_agent_turn(self) -> None:
+        """The local media worker uses the same durable chat turn as the web UI."""
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            length = 0
+        if length <= 0 or length > 4096:
+            self._send_json(400, {"error": "Geçersiz sesli konuşma isteği."})
+            return
+        raw = self.rfile.read(length)
+        if not voice_bridge.verify_agent(raw, self.headers.get("X-Voice-Time", ""),
+                                         self.headers.get("X-Voice-Signature", ""),
+                                         self.client_address[0]):
+            self._send_json(403, {"error": "Sesli konuşma yetkisi doğrulanamadı."})
+            return
+        try:
+            body = json.loads(raw)
+            owner = body["owner"]
+            mode = body["mode"]
+            message = body["message"]
+            turn_id = body["turn_id"]
+            chat_id = body.get("chat_id")
+            if not isinstance(owner, str) or not owner or len(owner) > 100:
+                raise ValueError("Geçersiz kullanıcı.")
+            if mode not in ("work", "personal") or not isinstance(message, str) or not message.strip() or len(message) > 2000:
+                raise ValueError("Geçersiz konuşma.")
+            thread = _chat_thread(SimpleNamespace(username=owner, session_id=owner), mode, chat_id)
+
+            def make_events():
+                if mode == "personal":
+                    events = personal_chat.stream(message, owner)
+                else:
+                    events = chat.stream(message, _shadow_runner, _operator)
+                return _scoped_events(events, thread)
+
+            chat_turns.start_or_resume(turn_id, owner, mode, message, make_events)
+            after = 0
+            deadline = time.monotonic() + 70
+            while time.monotonic() < deadline:
+                frames, state = chat_turns.read_after(turn_id, owner, after)
+                for frame in frames:
+                    after = frame["seq"]
+                    if frame["type"] == "done":
+                        result = frame.get("result") or {}
+                        self._send_json(200, {"text": result.get("answer") or result.get("text") or
+                                              result.get("message") or "Yanıt tamamlanamadı.",
+                                              "turn_id": turn_id})
+                        return
+                    if frame["type"] == "error":
+                        self._send_json(503, {"error": frame.get("message") or "Yanıt tamamlanamadı."})
+                        return
+                if state != "RUNNING":
+                    break
+                time.sleep(0.15)
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+            self._send_json(400, {"error": str(exc)[:160]})
+            return
+        self._send_json(503, {"error": "Sohbet sonucu belirsiz. İşlem durumunu kontrol edin."})
+
     def _handle_chat_stream(self) -> None:
         """Streams {"type":"stage"|"done", ...} frames as newline-delimited
         JSON (one object per line) over a single-use, Connection: close
@@ -2655,8 +2880,13 @@ class Handler(BaseHTTPRequestHandler):
         message = str(body.get("message", ""))[:2000]
         mode = body.get("mode", "work")
         turn_id = body.get("turn_id")
+        session = self._current_session()
+        try:
+            thread = _chat_thread(session, mode, body.get("chat_id"))
+        except (ValueError, TypeError) as exc:
+            self._send_json(400, {"error": str(exc)})
+            return
         if turn_id is not None:
-            session = self._current_session()
             attachment_id = body.get("attachment_id")
             try:
                 after = int(body.get("after", 0))
@@ -2665,9 +2895,11 @@ class Handler(BaseHTTPRequestHandler):
 
                 def make_events():
                     if mode == "personal":
-                        return (personal_chat.stream(message, session.username, attachment_id=attachment_id)
-                                if attachment_id else personal_chat.stream(message, session.username))
-                    return chat.stream(message, _shadow_runner, _operator)
+                        events = (personal_chat.stream(message, session.username, attachment_id=attachment_id)
+                                  if attachment_id else personal_chat.stream(message, session.username))
+                    else:
+                        events = chat.stream(message, _shadow_runner, _operator)
+                    return _scoped_events(events, thread)
 
                 chat_turns.start_or_resume(turn_id, session.username, mode,
                                            message if message else None, make_events)
@@ -2718,13 +2950,12 @@ class Handler(BaseHTTPRequestHandler):
             if mode not in ("work", "personal"):
                 events = ({"type": "error", "message": "Geçerli bir sohbet alanı seçin."},)
             elif mode == "personal":
-                session = self._current_session()
                 attachment_id = body.get("attachment_id")
                 events = (personal_chat.stream(message, session.username, attachment_id=attachment_id)
                           if attachment_id else personal_chat.stream(message, session.username))
             else:
                 events = chat.stream(message, _shadow_runner, _operator)
-            for event in events:
+            for event in _scoped_events(events, thread):
                 line = json.dumps(event, ensure_ascii=False, default=str) + "\n"
                 self.wfile.write(line.encode("utf-8"))
                 self.wfile.flush()
@@ -3523,7 +3754,7 @@ def _sayilari(metin: str) -> set:
     return out
 
 
-def _ekip_sor(kod: str, soru: str) -> dict:
+def _ekip_sor(kod: str, soru: str, extra_evidence: list[dict] | None = None) -> dict:
     """Bir departmanin sorumlusuna soru sorar. Cevap KANITA baglidir.
 
     🔴 UYDURMAYA KARSI UC YAPISAL KAPI (istem degil, kod):
@@ -3572,7 +3803,7 @@ def _ekip_sor(kod: str, soru: str) -> dict:
     # 🔴 BUTCE: compile_context yalniz ILK 12 parcayi ve 6000 karakteri alir.
     #    O yuzden satir basina bir parca DEGIL, sorgu basina TEK YOGUN ozet
     #    uretilir ve uyelerin damitilmis bulgulari ONE konur.
-    kanit: list[dict] = []
+    kanit: list[dict] = list(extra_evidence or [])
     okunamayan: list[str] = []
     sorgular: list[str] = []
 

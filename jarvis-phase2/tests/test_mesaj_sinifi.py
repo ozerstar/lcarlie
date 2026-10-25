@@ -30,7 +30,14 @@ class JarvisinCevaplayabilecekleri(unittest.TestCase):
 
     def test_selamlama_ve_tesekkur(self):
         self.assertEqual(M.siniflandir("Merhaba"), M.SELAMLAMA)
+        self.assertEqual(M.siniflandir("Nbr ben jarvis"), M.SELAMLAMA)
+        self.assertEqual(M.siniflandir("Naber?"), M.SELAMLAMA)
         self.assertEqual(M.siniflandir("Teşekkürler"), M.TESEKKUR)
+
+    def test_urun_listesi_sorusu(self):
+        self.assertEqual(M.siniflandir("hangi ürünler var"), M.KATEGORI)
+        self.assertEqual(M.siniflandir("Ürünleriniz neler?"), M.KATEGORI)
+        self.assertEqual(M.siniflandir("Hangi ürünler alerji yapar?"), M.SAGLIK)
 
     def test_hepsi_beyaz_listede(self):
         for sinif in (M.FIYAT, M.ICERIK, M.KULLANIM, M.KARGO, M.SELAMLAMA,
@@ -48,10 +55,15 @@ class SahibeGidenler(unittest.TestCase):
                 self.assertEqual(M.siniflandir(m), M.SAGLIK)
 
     def test_siparis_ve_islem(self):
-        for m in ("Siparişim nerede?", "İade etmek istiyorum",
-                  "Kargom gelmedi", "Kapıda ödeme var mı"):
+        for m in ("Siparişimi iptal etmek istiyorum", "İade etmek istiyorum",
+                  "Kapıda ödeme var mı"):
             with self.subTest(m=m):
                 self.assertEqual(M.siniflandir(m), M.SIPARIS)
+
+    def test_kargo_takibi_ayri_kalinir(self):
+        self.assertEqual(M.siniflandir("Kargom nerede?"), M.KARGO_TAKIP)
+        self.assertEqual(M.siniflandir("Siparişim nerede?"), M.KARGO_TAKIP)
+        self.assertEqual(M.siniflandir("Kargom gelmedi"), M.SIKAYET)
 
     def test_odeme_ve_sikayet_ayri(self):
         for m in ("Sipariş nasıl verilir?", "Nasıl satın alabilirim?",

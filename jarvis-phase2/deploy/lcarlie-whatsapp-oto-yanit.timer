@@ -1,9 +1,9 @@
 [Unit]
-Description=Check new WhatsApp messages every minute
+Description=Check active WhatsApp conversations every 10 seconds
 
 [Timer]
-OnBootSec=1min
-OnUnitActiveSec=1min
+OnBootSec=10s
+OnUnitActiveSec=10s
 Persistent=true
 
 [Install]

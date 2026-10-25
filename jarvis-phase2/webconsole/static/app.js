@@ -36,6 +36,25 @@ const state = {
 
 function qs(id) { return document.getElementById(id); }
 
+function chatId() {
+  const key = 'jarvis-work-chat-id';
+  let id = sessionStorage.getItem(key);
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(id || '')) {
+    id = crypto.randomUUID();
+    sessionStorage.setItem(key, id);
+  }
+  return id;
+}
+
+qs('newChatBtn').addEventListener('click', () => {
+  if (activeStreamController) return;
+  sessionStorage.setItem('jarvis-work-chat-id', crypto.randomUUID());
+  qs('chatLog').replaceChildren();
+  qs('chatLog').hidden = true;
+  qs('chatInput').value = '';
+  qs('chatInput').focus();
+});
+
 async function api(path, options = {}) {
   const headers = Object.assign({ 'Content-Type': 'application/json' }, options.headers || {});
   if (state.csrfToken && options.method && options.method !== 'GET') {
@@ -566,40 +585,53 @@ function findingSub(finding) {
   return importance[finding.severity] ? `Önem: ${importance[finding.severity]}` : '';
 }
 
-function feedItem({ cls, tag, meta, text, sub }) {
-  return `<li class="${cls}">
-    <div class="f-head"><span class="f-tag">${escapeHtml(tag)}</span><span class="f-time">${escapeHtml(meta)}</span></div>
-    <div class="f-text">${escapeHtml(text)}${sub ? `<span class="f-sub">${escapeHtml(sub)}</span>` : ''}</div>
-  </li>`;
+function feedItem({ cls, tag, meta, text, sub, kind, index }) {
+  return `<li class="${cls}"><button class="f-open" type="button" data-feed-kind="${kind}" data-feed-index="${index}" aria-label="${escapeHtml(tag)} konusunu incele: ${escapeHtml(text)}">
+    <span class="f-head"><span class="f-tag">${escapeHtml(tag)}</span><span class="f-time">${escapeHtml(meta)}</span></span>
+    <span class="f-text">${escapeHtml(text)}${sub ? `<span class="f-sub">${escapeHtml(sub)}</span>` : ''}</span>
+    <span class="f-open-hint">Konuyu aç <span aria-hidden="true">↗</span></span>
+  </button></li>`;
 }
 
 function buildFindingItems(findings) {
   const seen = new Set();
-  return findings.slice().reverse().filter((finding) => {
-    const code = finding.signal_code || finding.signature || finding.reason;
+  let slowPages = 0;
+  let seoIssues = 0;
+  state.feedFindings = findings.slice().reverse().filter((finding) => {
+    const code = finding.signal_code === 'site_seo'
+      ? `${finding.signature}:${String(finding.reason).includes('meta description') ? 'description' : 'redirect'}`
+      : ['site_erisim', 'site_gerileme'].includes(finding.signal_code)
+        ? finding.signature || finding.reason
+        : finding.signal_code || finding.signature || finding.reason;
     if (seen.has(code)) return false;
     seen.add(code);
+    if (finding.signal_code === 'site_erisim'
+        && String(finding.reason || '').startsWith('Önceki HTTP hatası kapandı')) return false;
+    if (finding.signal_code === 'site_gerileme' && ++slowPages > 3) return false;
+    if (finding.signal_code === 'site_seo' && ++seoIssues > 2) return false;
     return true;
-  }).slice(0, 10).map((f) => {
+  }).slice(0, 15);
+  return state.feedFindings.map((f, index) => {
     const [tag, cls] = SIGNAL_TAG[f.signal_code]
       || [f.severity === 'CRITICAL' ? 'ACİL BULGU' : 'YENİ BULGU', f.severity === 'CRITICAL' ? 'f-redteam' : 'f-onay'];
     return feedItem({
       cls, tag,
       meta: fmtDateTime(f.observed_at),
       text: findingText(f),
-      sub: findingSub(f),
+      sub: findingSub(f), kind: 'finding', index,
     });
   });
 }
 
 function buildAuditItems(audit) {
-  return audit.slice().reverse().filter((row) => row.result !== 'NOOP').slice(0, 5).map((row) => {
+  state.feedAudit = audit.slice().reverse().filter((row) => row.result !== 'NOOP').slice(0, 5);
+  return state.feedAudit.map((row, index) => {
     const [tag, cls] = AUDIT_TAG[row.result] || ['SİSTEM', 'f-sistem'];
     return feedItem({
       cls, tag,
       meta: `DÖNGÜ #${row.cycle}`,
       text: auditText(row),
-      sub: auditSub(row),
+      sub: auditSub(row), kind: 'audit', index,
     });
   });
 }
@@ -624,6 +656,108 @@ async function refreshActivity() {
     qs('taskCycleCount').textContent = `${auditItems.length} işlem`;
   }
 }
+
+/* A finding is a work entry, not just a status line. External edits still go
+ * through their own approval path; the action here creates a traceable work
+ * item in the existing improvement ledger. */
+const FINDING_GUIDE = {
+  open_work_aging: { title: 'Geciken işler', view: 'gelenkutusu', domain: 'operations', metric: 'stale_open_work', unit: 'iş', steps: ['Açık işleri ve en eski kaydı incele.', 'Sorumluyu ve bir sonraki somut adımı belirle.', 'Tamamlandığında sonucu ilgili işte doğrula.'] },
+  open_work_concentration: { title: 'İş yükü', view: 'gelenkutusu', domain: 'operations', metric: 'concentrated_open_work', unit: 'iş', steps: ['Biriken iş türünü ve ilgili kayıtları incele.', 'İşleri uygun sorumlulara dağıt.', 'Kuyruğun azaldığını güncel veride doğrula.'] },
+  site_seo: { title: 'Arama görünürlüğü', view: 'eticaret', domain: 'ecommerce', metric: 'seo_findings', unit: 'bulgu', steps: ['Etkilenen adresi ve sayfanın güncel açıklamasını kontrol et.', 'Eksik meta açıklamasını veya yönlendirmeyi ilgili site yönetiminde düzelt.', 'Yayın sonrası sayfayı ve arama görünürlüğünü yeniden doğrula.'] },
+  site_gerileme: { title: 'Site hızı', view: 'eticaret', domain: 'ecommerce', metric: 'slow_pages', unit: 'sayfa', steps: ['Sayfanın ölçümünü yeniden yap.', 'Görsel, üçüncü taraf kodu ve sunucu gecikmesini karşılaştır.', 'Değişiklikten sonra açılış süresini tekrar ölç.'] },
+  site_erisim: { title: 'Site erişimi', view: 'eticaret', domain: 'ecommerce', metric: 'inaccessible_pages', unit: 'sayfa', steps: ['Adresi şimdi yeniden aç ve hatanın sürüp sürmediğini doğrula.', 'Yönlendirme ve sunucu yanıtını incele.', 'Düzeltmeden sonra erişimi tekrar kontrol et.'] },
+  approval_backlog: { title: 'Bekleyen onaylar', view: 'gorevler', domain: 'operations', metric: 'pending_approvals', unit: 'karar', steps: ['Onay kuyruğundaki her önerinin içerik ve etkisini incele.', 'Uygun olanları kendi onay ekranından karara bağla.', 'Dış işlemin gerçekten yapıldığını ayrıca doğrula.'] },
+  agenda_aging: { title: 'Gündem', view: 'asistan', domain: 'strategy', metric: 'stale_agenda', unit: 'madde', steps: ['Eski gündem maddelerini ve karar sahiplerini incele.', 'Her madde için karar veya takip tarihi belirle.', 'Alınan kararı kayda geçir.'] },
+  red_team_objection: { title: 'Karar riski', view: 'gorevler', domain: 'strategy', metric: 'open_objections', unit: 'itiraz', steps: ['İtirazın dayandığı kanıtı incele.', 'Eksik doğrulamayı tamamla.', 'Kararı ancak itiraz çözüldükten sonra onayla.'] },
+};
+let selectedFeedCase = null;
+
+function feedEvidence(evidence) {
+  const labels = { url: 'Adres', stale_count: 'Geciken kayıt', checked: 'Kontrol edilen iş', by_kind: 'Biriken iş türleri', oldest_days: 'En eski kayıt (gün)', oldest_key: 'En eski iş anahtarı', count: 'Kayıt', total: 'Toplam', sure: 'Güncel süre (sn)', onceki_sure: 'Önceki süre (sn)', kind: 'İş türü', meta_refresh: 'Sayfa içi yönlendirme' };
+  const kinds = { CEVAPSIZ_MESAJ: 'Yanıt bekleyen mesaj', URUN_GORSELSIZ: 'Görseli eksik ürün', ODENMEMIS_SIPARIS: 'Ödenmemiş sipariş', FILIGRANLI_KARANTINA: 'İncelemede olan görsel', SINIFI_BILINMEYEN_GONDERI: 'Sınıflandırılmamış gönderi' };
+  const rows = Object.entries(evidence || {}).map(([key, value]) => {
+    const shown = key === 'by_kind' && value && typeof value === 'object'
+      ? Object.entries(value).map(([type, count]) => `${kinds[type] || type}: ${count}`).join(' · ')
+      : typeof value === 'object' ? JSON.stringify(value) : String(value);
+    return `<div><dt>${escapeHtml(labels[key] || key.replace(/_/g, ' '))}</dt><dd>${escapeHtml(shown)}</dd></div>`;
+  });
+  return rows.length ? `<dl class="finding-evidence">${rows.join('')}</dl>` : '<p>Ek kanıt alanı kaydedilmemiş.</p>';
+}
+
+function openFeedCase(kind, index) {
+  const row = (kind === 'finding' ? state.feedFindings : state.feedAudit)?.[index];
+  if (!row) return;
+  const guide = FINDING_GUIDE[row.signal_code] || { title: kind === 'audit' ? 'Sistem işlemi' : 'Yeni bulgu', view: 'gorevler', domain: 'operations', metric: 'open_findings', unit: 'bulgu', steps: ['Kaydı ve kanıtı incele.', 'Gerekli adımı bir takip işi olarak belirle.', 'Sonucu güncel veride doğrula.'] };
+  const title = kind === 'finding' ? guide.title : (AUDIT_TAG[row.result] || ['Sistem işlemi'])[0];
+  const summary = kind === 'finding' ? findingText(row) : auditText(row);
+  const evidence = kind === 'finding' ? feedEvidence(row.evidence) : feedEvidence(row.task_detail);
+  const url = row.evidence?.url;
+  let sourceLink = '';
+  try {
+    const parsed = new URL(url);
+    if (['http:', 'https:'].includes(parsed.protocol)) sourceLink = `<a href="${escapeHtml(parsed.href)}" target="_blank" rel="noopener noreferrer">Etkilenen sayfayı aç ↗</a>`;
+  } catch (_) { /* no external address */ }
+  selectedFeedCase = { kind, row, guide, title, summary };
+  qs('findingTitle').textContent = title;
+  qs('findingMeta').textContent = kind === 'finding' ? `${findingSub(row)} · ${fmtDateTime(row.observed_at)}` : `Döngü #${row.cycle || '—'} · ${auditSub(row)}`;
+  qs('findingBody').innerHTML = `<p class="finding-summary">${escapeHtml(summary)}</p><h3>Kaydedilen kanıt</h3>${evidence}${sourceLink}<h3>Önerilen adımlar</h3><ol>${guide.steps.map(step => `<li>${escapeHtml(step)}</li>`).join('')}</ol>`;
+  qs('findingInstruction').value = `${title}: ${summary} ${guide.steps[0]}`.slice(0, 1000);
+  qs('findingQuestion').value = '';
+  qs('findingStatus').textContent = '';
+  qs('findingView').textContent = guide.view === 'eticaret' ? 'E-ticaret bölümünü aç' : 'İlgili bölümü aç';
+  qs('findingDialog').showModal();
+}
+
+for (const id of ['activityFeed', 'taskCycleList']) {
+  qs(id).addEventListener('click', (event) => {
+    const button = event.target.closest('[data-feed-kind]');
+    if (button) openFeedCase(button.dataset.feedKind, Number(button.dataset.feedIndex));
+  });
+}
+qs('findingClose').addEventListener('click', () => qs('findingDialog').close());
+qs('findingView').addEventListener('click', () => {
+  if (!selectedFeedCase) return;
+  qs('findingDialog').close();
+  setView(selectedFeedCase.guide.view);
+});
+qs('findingAsk').addEventListener('click', () => {
+  if (!selectedFeedCase) return;
+  const question = qs('findingQuestion').value.trim() || 'Bu konunun nedenini, kaynaklarını ve yapmam gereken ilk adımı açıkla.';
+  const message = `${selectedFeedCase.title}: ${selectedFeedCase.summary}\nSorum: ${question}`;
+  qs('findingDialog').close();
+  setView('asistan');
+  sendMessage(message);
+});
+qs('findingRun').addEventListener('click', () => {
+  if (!selectedFeedCase) return;
+  const instruction = qs('findingInstruction').value.trim();
+  if (!instruction) { qs('findingStatus').textContent = 'Önce ne inceleneceğini yazın.'; return; }
+  qs('findingDialog').close();
+  setView('analiz');
+  qs('analizInput').value = instruction;
+  analizCalistir(true);
+});
+qs('findingTask').addEventListener('click', async () => {
+  if (!selectedFeedCase) return;
+  const objective = qs('findingInstruction').value.trim();
+  if (!objective) { qs('findingStatus').textContent = 'Önce yapılacak işi yazın.'; return; }
+  const button = qs('findingTask');
+  button.disabled = true;
+  qs('findingStatus').textContent = 'Takip işi kaydediliyor…';
+  const { row, guide } = selectedFeedCase;
+  try {
+    const { ok, body } = await api('/api/improvement', { method: 'POST', body: JSON.stringify({
+      operation: 'work', source_key: `operator:finding:${crypto.randomUUID()}`,
+      domain: guide.domain, objective, owner: state.username || 'operator',
+      metric: guide.metric, unit: guide.unit, target: 0,
+      source: `${selectedFeedCase.kind === 'audit' ? 'audit' : 'findings'}.jsonl:${String(row.signature || row.signal_code || row.result || 'audit').slice(0, 180)}`,
+    }) });
+    if (!ok || !body?.ok) throw new Error(body?.error || 'Takip işi kaydedilemedi.');
+    qs('findingStatus').textContent = `Takip işi #${body.id} kaydedildi. Raporlar bölümündeki Gelişim Döngüsü'nde izlenebilir; dış değişiklik uygulanmadı.`;
+  } catch (error) {
+    qs('findingStatus').textContent = error.message || 'Takip işi kaydedilemedi.';
+  } finally { button.disabled = false; }
+});
 
 const ORCHESTRATION_STATUS = {
   RUNNING: 'Çalışıyor', COMPLETED: 'Tamamlandı', COMPLETED_DEGRADED: 'Eksik veriye rağmen tamamlandı',
@@ -1213,7 +1347,7 @@ async function sendMessage(message) {
     const res = await fetch('/api/chat/stream', {
       method: 'POST', credentials: 'same-origin', signal: controller.signal,
       headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': state.csrfToken || '' },
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, chat_id: chatId() }),
     });
     if (!res.ok || !res.body) {
       stageDiv.innerHTML = 'Bağlantı hatası.';
@@ -4712,7 +4846,10 @@ document.addEventListener('click', async function (e) {
 const NAV_DURUM_ANAHTARI = 'jarvis.nav.kapali';
 
 function navKapaliOku() {
-  try { return new Set(JSON.parse(localStorage.getItem(NAV_DURUM_ANAHTARI) || '[]')); }
+  try {
+    const saved = localStorage.getItem(NAV_DURUM_ANAHTARI);
+    return new Set(saved === null ? ['is', 'kreatif', 'org'] : JSON.parse(saved));
+  }
   catch (_) { return new Set(); }
 }
 function navKapaliYaz(kume) {

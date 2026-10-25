@@ -1,5 +1,7 @@
 import importlib.util
+import json
 import os
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -11,6 +13,73 @@ SPEC.loader.exec_module(MODUL)
 
 
 class OtomatikYanitTesti(unittest.TestCase):
+    def test_uzayan_claim_gonderim_kaydiyla_eslesirse_tekrarlamaz(self):
+        with tempfile.TemporaryDirectory() as directory:
+            defter = Path(directory) / "send.jsonl"
+            defter.write_text(json.dumps({"kaynak_mesaj_id": 17,
+                                          "sonuc": "GONDERILDI", "wamid": "wamid.x"}) + "\n")
+            with patch.object(MODUL.whatsapp, "DEFTER", defter), \
+                 patch.object(MODUL, "uzayan_claimler", return_value=[{
+                     "mesaj_id": 17, "konusma_id": 9, "devir_durumu": "JARVIS",
+                     "son_mesaj": True,
+                 }]), patch.object(MODUL, "bitir") as bitir, \
+                 patch.object(MODUL.whatsapp, "gonder") as gonder:
+                MODUL.uzayanlari_incele()
+                bitir.assert_called_once_with(17, "sent", "wamid.x")
+                gonder.assert_not_called()
+
+    def test_uzayan_claim_kanitsizsa_insana_devredilir(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(MODUL.whatsapp, "DEFTER", Path(directory) / "yok"), \
+                 patch.object(MODUL, "uzayan_claimler", return_value=[{
+                     "mesaj_id": 17, "konusma_id": 9, "devir_durumu": "JARVIS",
+                     "son_mesaj": True,
+                 }]), patch.object(MODUL, "bitir") as bitir, \
+                 patch.object(MODUL.gelen_kutusu, "_calistir") as db, \
+                 patch.object(MODUL.whatsapp, "gonder") as gonder:
+                MODUL.uzayanlari_incele()
+                bitir.assert_called_once_with(17, "uncertain", "")
+                self.assertIn("OTOMATIK_YANIT_BELIRSIZ", db.call_args.args[0])
+                gonder.assert_not_called()
+
+    def test_gonderim_hatasi_otomatik_tekrar_gondermez(self):
+        with patch.object(MODUL, "sahiplen", return_value=True), \
+             patch.object(MODUL, "hala_son", return_value=True), \
+             patch.object(MODUL.gelen_kutusu, "taslak", return_value={
+                 "sinif": "KARGO_TAKIP", "devredilmeli": False,
+                 "uretildi": True, "gonderilebilir": True, "metin": "Hazırlanıyor",
+             }), patch.object(MODUL.gelen_kutusu, "telefon_bul", return_value="905550000000"), \
+             patch.object(MODUL.whatsapp, "gonder", side_effect=RuntimeError("network")) as gonder, \
+             patch.object(MODUL, "gonderim_kaydi", return_value=None), \
+             patch.object(MODUL, "bitir") as bitir, \
+             patch.object(MODUL.gelen_kutusu, "durum_yaz") as devret:
+            sonuc = MODUL.isle({"mesaj_id": 17, "konusma_id": 9},
+                                "2026-10-15T00:00:00+03:00")
+        self.assertEqual(sonuc, "uncertain_handoff")
+        bitir.assert_called_once_with(17, "uncertain", "")
+        devret.assert_called_once()
+        gonder.assert_called_once()
+
+    def test_aktif_sohbette_her_tetikte_tarar(self):
+        with patch.object(MODUL, "aktif_sohbet_var", return_value=True), \
+             patch.object(MODUL, "IDLE_SCAN_MARKER", Path("/nonexistent/idle-marker")):
+            self.assertTrue(MODUL.tarama_gerekli())
+
+    def test_bosken_dakikada_bir_tarar(self):
+        with tempfile.TemporaryDirectory() as directory:
+            marker = Path(directory) / "idle"
+            with patch.object(MODUL, "IDLE_SCAN_MARKER", marker), \
+                 patch.object(MODUL, "aktif_sohbet_var", return_value=False), \
+                 patch.object(MODUL.time, "time", return_value=1000):
+                self.assertTrue(MODUL.tarama_gerekli())
+                MODUL.bos_tarama_kaydet()
+                self.assertFalse(MODUL.tarama_gerekli())
+            os.utime(marker, (900, 900))
+            with patch.object(MODUL, "IDLE_SCAN_MARKER", marker), \
+                 patch.object(MODUL, "aktif_sohbet_var", return_value=False), \
+                 patch.object(MODUL.time, "time", return_value=1000):
+                self.assertTrue(MODUL.tarama_gerekli())
+
     def test_devir_yanitlari_sonra_insana_gider(self):
         for sinif in ("SAGLIK", "SIKAYET", "ANLASILMADI"):
             with self.subTest(sinif=sinif):

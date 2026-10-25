@@ -1,0 +1,87 @@
+/* Shared interior presentation. Keep existing controls and data contracts intact. */
+.app-view .iv-view{padding:clamp(18px,2.5vw,38px);background:radial-gradient(circle at 94% 7%,rgba(67,151,170,.17),transparent 30%),radial-gradient(circle at 8% 65%,rgba(19,82,103,.1),transparent 37%),#07151e;color:#e9f5f7;font-size:15px;line-height:1.6}
+.iv-hero,.iv-flow,.iv-chart,.iv-gallery{max-width:1660px}
+.iv-view>.panel{max-width:1660px;margin-left:auto;margin-right:auto;padding:clamp(20px,2.2vw,34px);border-radius:16px;border-color:#31515d;background:linear-gradient(145deg,rgba(15,39,52,.97),rgba(9,27,38,.98));box-shadow:0 18px 48px rgba(0,7,12,.18)}
+.iv-view .panel-head{margin-bottom:19px;padding-bottom:17px}
+.iv-view .panel-title{font-size:21px;font-weight:650;line-height:1.25;letter-spacing:-.02em}
+.iv-view .panel-count{font-size:13px}
+.iv-view .sect-body{padding:0!important}
+.iv-view .sect-card{padding:20px;margin:0 0 16px;border:1px solid #2e5260;border-radius:13px;background:rgba(17,47,62,.8);overflow:visible}
+.iv-view .sect-title,.iv-view .rp-sub{margin:0 0 14px;color:#f1fbfd;font-size:17px;font-weight:650;letter-spacing:-.01em;line-height:1.4}
+.iv-view .fm-sub,.iv-view .sect-note,.iv-view .kr-aciklama,.iv-view .empty-note,.iv-view .rp-src{font-size:14px;line-height:1.65;color:#bad1da}
+.iv-view .fm-row{gap:10px;margin:10px 0}
+.iv-view .fm-input,.iv-view input,.iv-view textarea,.iv-view select{min-height:44px;font:inherit;font-size:15px;line-height:1.35;border:1px solid #456b7b;border-radius:8px;background:#0c2937;color:#f1fafc}
+.iv-view .fm-input{padding:10px 12px}
+.iv-view input::placeholder,.iv-view textarea::placeholder{color:#aac4cd;opacity:1}
+.iv-view button,.iv-view a{font-size:inherit}
+.iv-view .btn,.iv-view .qa-btn{min-height:43px;padding:9px 15px;font-size:14px;font-weight:650;border-radius:8px}
+.iv-view .detail-block,.iv-view .sn-kart{margin:8px 0;border:1px solid #315464;border-radius:9px;background:#102d3b}
+.iv-view .detail-block>summary,.iv-view .sn-kart>summary{min-height:48px;padding:13px 15px;color:#edf9fb;font-size:14px;line-height:1.5}
+.iv-view .detail-block>summary>strong{font-size:15px;line-height:1.45}
+.iv-view .oo-govde{padding:15px 18px;border-top:1px solid #315464;color:#c9dde3;font-size:14px;line-height:1.6}
+.iv-view .pill{font-size:11px;line-height:1.25}
+.iv-view .tablo-kab,.iv-view .fm-scroll{overflow-x:auto;max-width:100%}
+.iv-view table{font-size:14px;line-height:1.5}
+.iv-view th,.iv-view td{padding:10px 12px;vertical-align:top}
+.iv-view .ek-ozet{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.iv-view .ek-tile{min-height:108px;padding:18px;border-radius:11px}
+.iv-view .ek-n{font-size:clamp(25px,2.5vw,36px);line-height:1.2}
+.iv-view .ek-k{font-size:13px;line-height:1.4}
+.iv-hero{min-height:260px;border-radius:16px;box-shadow:0 16px 44px rgba(0,8,13,.19)}
+.iv-copy{padding:35px clamp(25px,3vw,48px)}
+.iv-description{font-size:16px;line-height:1.6}
+.iv-tools button{min-height:44px;padding:10px 17px;font-size:14px}
+.iv-flow{margin-top:13px;margin-bottom:20px;border-radius:11px}
+.iv-flow-label,.iv-flow-step{font-size:13px}
+.iv-flow-step b{font-size:11px}
+.iv-chart,.iv-gallery{padding:22px 26px;border-radius:12px}
+.iv-chart-head h2,.iv-gallery-head h2{font-size:19px}
+.iv-bar-row,.iv-chart-note,.iv-chart-empty{font-size:13px}
+.iv-explain>summary{padding:14px 17px;font-size:14px}
+.iv-explain>p{padding:0 17px 16px;font-size:14px}
+
+/* Assistant: a focused reminder form, clear tabs, and readable lists. */
+#viewAsistan>.iv-flow{display:none}
+#viewAsistan>.panel{max-width:1300px}
+#viewAsistan .as-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;overflow:visible;margin:0 0 24px;padding:5px;border:1px solid #305363;border-radius:11px;background:#0a2634}
+#viewAsistan .as-tab{display:flex;justify-content:center;align-items:center;gap:8px;min-height:48px;width:100%;padding:9px 12px;border:0;border-radius:8px;color:#bdd4dc;white-space:normal;text-align:center;font-size:14px;font-weight:650;letter-spacing:0;text-transform:none}
+#viewAsistan .as-tab.is-active{background:#235668;color:#f1fbfd;box-shadow:0 2px 12px rgba(0,0,0,.16)}
+#viewAsistan .panel-body{max-width:100%}
+#viewAsistan #asPanelHatirlatici{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);align-items:start;gap:16px}
+#viewAsistan #asPanelHatirlatici[hidden],#viewAsistan #asPanelGundem[hidden],#viewAsistan #asPanelOnay[hidden]{display:none!important}
+#viewAsistan #asPanelHatirlatici>.iv-explain{grid-column:1/-1;margin:0}
+#viewAsistan #asPanelHatirlatici>.sect-card{margin:0;min-width:0}
+#viewAsistan #htrListe{max-height:520px;overflow:auto;padding-right:3px}
+#viewAsistan #htrDurum:empty{display:none}
+#viewAsistan #htrEkle{min-width:125px;background:#63cbe0;color:#082331;border-color:#63cbe0}
+#viewAsistan #asPanelGundem,#viewAsistan #asPanelOnay{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
+#viewAsistan #asPanelOnay>.iv-explain{grid-column:1/-1;margin:0}
+#viewAsistan #asPanelGundem>.sect-card,#viewAsistan #asPanelOnay>.sect-card{margin:0;min-width:0}
+
+/* Sales and advertising: distinct evidence, transparent measurement gaps. */
+.insight-block{max-width:1660px;margin:0 auto 18px;padding:23px 26px;border:1px solid #426779;border-radius:14px;background:linear-gradient(130deg,#113748,#0b2634);box-shadow:0 15px 38px rgba(0,7,12,.18)}
+.insight-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:16px}
+.insight-heading h2{margin:0;color:#f2fbfd;font-size:21px;line-height:1.3}
+.insight-heading p{margin:5px 0 0;color:#b7ced7;font-size:14px;line-height:1.55}
+.insight-source{flex:none;padding:5px 9px;border:1px solid #4c8393;border-radius:99px;color:#aee9f2;font-size:12px}
+.insight-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.insight-card{min-width:0;padding:17px 18px;border:1px solid #31596a;border-radius:10px;background:#0d2b3b}
+.insight-card strong{display:block;color:#f0fbfd;font-size:28px;line-height:1.2;font-weight:650;overflow-wrap:anywhere}
+.insight-card span{display:block;margin-top:5px;color:#a8e2ec;font-size:13px;font-weight:650}
+.insight-card p{margin:9px 0 0;color:#bed2da;font-size:13px;line-height:1.55}
+.insight-next{margin-top:15px;padding:13px 15px;border-left:3px solid #79d6e5;border-radius:0 8px 8px 0;background:#173b4c;color:#d8ebf0;font-size:14px;line-height:1.6}
+.insight-next b{color:#f3fcfd}
+.insight-link{display:inline-block;margin-top:13px;padding:9px 13px;border:1px solid #6ccce0;border-radius:7px;color:#baf1f9;text-decoration:none;font-size:13px;font-weight:650}
+.insight-link:hover{background:#205365;color:white}
+
+@media(max-width:900px){.iv-view .ek-ozet,.insight-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#viewAsistan #asPanelHatirlatici,#viewAsistan #asPanelGundem,#viewAsistan #asPanelOnay{grid-template-columns:1fr}}
+@media(max-width:760px){.app-view .iv-view{padding:13px 13px 33px;font-size:15px}.iv-hero{min-height:235px}.iv-copy{padding:27px 22px}.iv-description{font-size:14px;max-width:90%}.iv-view>.panel{padding:19px 17px}.iv-view .panel-title{font-size:19px}.iv-view .sect-card{padding:16px}.iv-view .fm-row{display:flex;flex-wrap:wrap}.iv-view .fm-row>.fm-input{flex:1 1 100%}.iv-view .ek-ozet,.insight-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.iv-view .ek-tile{min-height:95px;padding:13px}.iv-view .ek-k{font-size:12px}.iv-flow{grid-template-columns:1fr 1fr}.iv-flow-step{font-size:12px}.iv-chart,.iv-gallery{padding:17px}.insight-block{padding:19px 17px}.insight-heading{display:block}.insight-source{display:inline-block;margin-top:10px}#viewAsistan .as-tabs{gap:4px;padding:4px}#viewAsistan .as-tab{font-size:12px;line-height:1.25;padding:8px 4px;min-height:50px}#viewAsistan #htrListe{max-height:none}}
+@media(max-width:430px){.insight-grid{grid-template-columns:1fr}.iv-view .ek-ozet{gap:7px}.iv-view .ek-n{font-size:23px}.iv-hero{min-height:230px}.iv-description{max-width:100%}}
+/* Long status values and the plan form must never force a phone-wide scrollbar. */
+@media(max-width:760px){
+  .iv-view .kv{display:grid;grid-template-columns:minmax(0,1fr);gap:3px}
+  .iv-view .kv-k,.iv-view .kv-v,.iv-view .kv-v small{display:block;max-width:100%;min-width:0;white-space:normal!important;overflow-wrap:anywhere;text-align:left}
+  .iv-view .analiz-form{display:flex;flex-wrap:wrap;gap:8px}
+  .iv-view .analiz-form input{flex:1 1 100%;width:100%;min-width:0}
+  .iv-view .analiz-form button{flex:1 1 44%;min-width:0}
+}

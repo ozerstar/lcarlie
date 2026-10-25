@@ -286,7 +286,10 @@ def _etkin_sinif(saklanan: str | None, mesaj: str) -> str:
 
     guncel = mesaj_sinifi.siniflandir(mesaj)
     if guncel in {mesaj_sinifi.SAGLIK, mesaj_sinifi.SIKAYET, mesaj_sinifi.DURDURMA,
-                 mesaj_sinifi.ODEME_YONLENDIR}:
+                 mesaj_sinifi.ODEME_YONLENDIR, mesaj_sinifi.KARGO_TAKIP}:
+        return guncel
+    if saklanan == mesaj_sinifi.ANLASILMADI and guncel in {
+            mesaj_sinifi.SELAMLAMA, mesaj_sinifi.KATEGORI}:
         return guncel
     return saklanan or guncel
 
@@ -321,6 +324,7 @@ def taslak(konusma_id: int) -> dict:
 
     kayitlar = []
     kart = None
+    kargo_kimligi = ""
     if sinif == mesaj_sinifi.ANLASILMADI:
         kelimeler = re.findall(r"[a-z]+", satis_dialog._sade(mesaj))
         urun_yaniti = (0 < len(kelimeler) <= 5 and
@@ -334,6 +338,11 @@ def taslak(konusma_id: int) -> dict:
             kart = _mesajdaki_urun(kayitlar, mesaj)
             if kart:
                 sinif = mesaj_sinifi.ODEME_YONLENDIR
+        if sinif == mesaj_sinifi.ANLASILMADI and re.fullmatch(r"[A-Za-z0-9-]{3,30}", mesaj.strip()):
+            if any(mesaj_sinifi.siniflandir(onceki) == mesaj_sinifi.KARGO_TAKIP
+                   for onceki in son.get("onceki_gelenler") or []):
+                sinif = mesaj_sinifi.KARGO_TAKIP
+                kargo_kimligi = mesaj.strip()
     if sinif == mesaj_sinifi.ODEME_YONLENDIR or urun_adi:
         if not kayitlar:
             kayitlar = urun_kayitlari()
@@ -376,6 +385,37 @@ def taslak(konusma_id: int) -> dict:
         return {"uretildi": bool(metin), "devredilmeli": True, "sinif": sinif,
                 "sebep": sebep, "sebep_metni": devir.sebep_aciklamasi(sebep),
                 "metin": metin, "bulgular": [], "gonderilebilir": False}
+
+    if sinif == mesaj_sinifi.KARGO_TAKIP:
+        from jarvis import basitkargo, whatsapp_kargo
+
+        try:
+            metin, devredilmeli = whatsapp_kargo.durum_sor(
+                telefon_bul(kid), kargo_kimligi)
+        except basitkargo.KargoHatasi:
+            metin = "Kargo kaydına şu anda erişemiyorum; konuyu yetkili kişiye iletiyorum."
+            devredilmeli = True
+        return {"uretildi": True, "devredilmeli": devredilmeli, "sinif": sinif,
+                "sebep": devir.ISLEM if devredilmeli else None,
+                "metin": metin, "bulgular": [], "gonderilebilir": not devredilmeli,
+                "urun_soruluyor": False}
+
+    if sinif == mesaj_sinifi.KATEGORI:
+        adlar = sorted({str(kayit.get("urun_adi") or "").strip()
+                       for kayit in urun_kayitlari()
+                       if kayit.get("wix_yayinda") and kayit.get("gorunur")
+                       and str(kayit.get("urun_adi") or "").strip()})
+        metin = ("Ürünlerimizden bazıları: " + ", ".join(adlar[:5]) +
+                 ". Hangi ürünle ilgilendiğinizi söylerseniz ilgili ürün sayfasını paylaşabilirim.") if adlar else ""
+        return {"uretildi": bool(metin), "devredilmeli": not bool(metin),
+                "sinif": sinif, "sebep": devir.URUN_BELIRSIZ if not metin else None,
+                "metin": metin, "bulgular": [], "gonderilebilir": bool(metin),
+                "urun_soruluyor": False}
+
+    if sinif == mesaj_sinifi.SELAMLAMA:
+        return {"uretildi": True, "devredilmeli": False, "sinif": sinif,
+                "metin": "Merhaba! L’CARLIÉ ürünleriyle ilgili nasıl yardımcı olabilirim?",
+                "bulgular": [], "gonderilebilir": True, "urun_soruluyor": False}
 
     if urun_adi and kart is None:
         kart = satis_dialog.urun_bul(kayitlar, urun_adi)
