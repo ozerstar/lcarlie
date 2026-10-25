@@ -2137,7 +2137,7 @@ class Handler(BaseHTTPRequestHandler):
                 if path.endswith("/update"):
                     result = expense_vault.update(session.username, body.get("id"), body)
                 else:
-                    expense_vault.start_processing(session.username, body.get("id"))
+                    expense_vault.start_processing(session.username, body.get("id"), force=True)
                     result = {"id": body.get("id"), "status": "uploaded"}
                 self._send_json(200, result)
             except expense_vault.ExpenseError as exc:
