@@ -42,7 +42,7 @@ from pathlib import Path
 from time import perf_counter
 from typing import Any, Callable
 
-from . import business_signals
+from . import business_signals, office_events
 from .acceptance_contract import evaluate as evaluate_acceptance
 from .cache import QueryCache
 from .context import ContextCompiler
@@ -516,6 +516,7 @@ class ExecutionRuntime:
         )
         record.status = "RUNNING"
         record.finished_at = None
+        office_events.emit("run", status="WORKING", task=plan.request, run_id=run_id)
         for step in plan.steps:
             record.steps.setdefault(step.step_id, StepRecord(
                 step_id=step.step_id, capability=step.capability))
@@ -534,6 +535,9 @@ class ExecutionRuntime:
                        (STEP_PENDING, STEP_FAILED, STEP_BLOCKED_UPSTREAM)]
             if not pending:
                 continue
+            for step_id in pending:
+                office_events.emit("step", status="WORKING", task=plan.request,
+                                   run_id=run_id, capability=by_id[step_id].capability)
             workers = max(1, min(self.budget.max_concurrency, len(pending)))
             with ThreadPoolExecutor(max_workers=workers) as pool:
                 results = list(pool.map(
@@ -543,6 +547,10 @@ class ExecutionRuntime:
                 ))
             for step_record in results:
                 record.steps[step_record.step_id] = step_record
+                live_status = ("COMPLETED" if step_record.status == STEP_SUCCEEDED else
+                               "FAILED" if step_record.status == STEP_FAILED else "WAITING")
+                office_events.emit("step", status=live_status, task=plan.request,
+                                   run_id=run_id, capability=step_record.capability)
             self._save(record)
 
         record.total_ms = round((perf_counter() - started) * 1000, 3)
@@ -556,6 +564,7 @@ class ExecutionRuntime:
             record.status = RUN_COMPLETED
         record.telemetry = self._telemetry(record, counters)
         self._save(record)
+        office_events.emit("run", status=record.status, task=plan.request, run_id=run_id)
         return record
 
     def _run_step(self, plan: ExecutionPlan, step: Any, record: RunRecord,

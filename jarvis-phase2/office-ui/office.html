@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b111b">
+  <title>Ofis · Jarvis</title>
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand"><a href="/" class="back" aria-label="Jarvis ana sayfasına dön">←</a><span class="brand-mark">J</span><span class="brand-copy"><strong>JARVIS</strong><small>ŞİRKET OFİSİ</small></span></div>
+      <div class="top-center"><span class="live-led"></span><span id="connection">Bağlanıyor</span><span class="separator">/</span><span id="updated">—</span></div>
+      <div class="top-actions"><button id="refresh" class="text-button" type="button">↻ <span>Yenile</span></button><a class="text-button home-link" href="/">Ana konsol ↗</a></div>
+    </header>
+
+    <main class="layout">
+      <section class="workspace" aria-label="3D şirket ofisi">
+        <div class="workspace-heading">
+          <div><p class="eyebrow">ŞİRKET HARİTASI <span class="dot-sep">·</span> CANLI VERİ</p><h1>Jarvis Ofisi</h1><p class="subtitle">Tüm birimler, yöneticiler ve ekip üyeleri tek katta.</p></div>
+          <div class="view-controls"><button id="showChart" type="button">◇ <span>Hiyerarşi</span></button><button id="walkMode" type="button">◈ <span>Ofiste dolaş</span></button><button id="resetCamera" type="button" title="Görünümü sıfırla">⌖ <span>Görünümü sıfırla</span></button></div>
+        </div>
+        <div class="scene-frame" id="sceneFrame">
+          <div id="scene" aria-label="Birimleri seçebileceğiniz üç boyutlu ofis haritası"></div>
+          <div class="scene-top-note"><strong id="sceneTitle">Tüm şirket</strong><span id="sceneSubtitle">Birime tıklayarak kadroyu inceleyin</span></div>
+          <div class="scene-hint">Sürükle: döndür <span>·</span> Kaydır: yaklaş <span>·</span> Birime tıkla: aç</div>
+          <div class="walk-hint" id="walkHint" hidden><strong>OFİSTE GEZİYORSUNUZ</strong><span>W A S D: yürü · Fare: bak · E: seç · Shift: hızlan · Esc: çık</span></div>
+          <div class="scene-overlay" id="sceneOverlay"></div>
+          <div class="scene-fallback" id="sceneFallback" hidden>3D görünüm açılamadı. Sağdaki ekip listesi ve detaylar kullanılabilir.</div>
+        </div>
+        <div class="map-legend"><span><i class="swatch green"></i> Son ölçümde konuştu</span><span><i class="swatch amber"></i> Girdi / araştırma bekler</span><span><i class="swatch red"></i> Veri veya işlem sorunu</span><span><i class="swatch slate"></i> Ölçüm yok</span></div>
+        <div class="data-note">Renkler ajanların anlık çalışmasını değil, en son ölçülen veri okuma durumunu gösterir. Çalışma akışı ayrıca aşağıda gösterilir.</div>
+        <div class="activity-strip"><div><p class="eyebrow">CANLI ÇALIŞMA AKIŞI</p><strong id="activityTitle">Çalışmalar yükleniyor</strong><small id="activityDetail">—</small></div><a href="/?view=gorevler">Tüm görevler ↗</a></div>
+      </section>
+
+      <aside class="sidebar" aria-label="Şirket kadrosu">
+        <div class="summary"><p class="eyebrow">ORGANİZASYON</p><h2>Şirket kadrosu</h2><p id="summaryText">Veriler yükleniyor…</p><div class="stats"><div><strong id="departmentCount">—</strong><span>Birim</span></div><div><strong id="memberCount">—</strong><span>Çalışan</span></div><div><strong id="managerCount">—</strong><span>Sorumlu</span></div></div></div>
+        <div class="search-row"><label class="search"><span>⌕</span><input id="search" type="search" placeholder="Birim, yönetici veya çalışan ara" autocomplete="off"></label><button id="clearSearch" type="button" title="Aramayı temizle">×</button></div>
+        <div class="list-heading"><strong>BİRİMLER</strong><span id="filteredCount">—</span></div>
+        <div class="departments" id="departments" role="list"></div>
+      </aside>
+    </main>
+
+    <section class="detail" id="detail" aria-label="Seçili birim ve kadro">
+      <div class="detail-head"><div><p class="eyebrow" id="detailCode">BİRİM</p><h2 id="detailName">Birime tıklayın</h2><p id="detailMission">Şirket kadrosundaki bir birimi seçin.</p></div><button id="closeDetail" type="button" aria-label="Detayı kapat">×</button></div>
+      <div class="detail-meta" id="detailMeta"></div>
+      <div class="org-tree" id="orgTree"></div>
+      <div class="member-grid" id="memberGrid"></div>
+      <div class="member-detail" id="memberDetail" hidden></div>
+    </section>
+
+    <div class="chart-dialog" id="chartDialog" hidden role="dialog" aria-modal="true" aria-label="Şirket hiyerarşisi">
+      <div class="chart-shell"><div class="chart-head"><div><p class="eyebrow">YÖNETİM YAPISI</p><h2>Şirket hiyerarşisi</h2><p>Birime tıklayarak yöneticiyi ve ekibini inceleyin.</p></div><button id="closeChart" type="button" aria-label="Hiyerarşiyi kapat">×</button></div><div class="chart-body" id="chartBody"></div></div>
+    </div>
+
+    <footer><span>JARVIS · OFİS</span><span>3D ofis modeli: Arturo Paracuellos · <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener">CC BY-NC 4.0</a> · <a href="https://github.com/arturitu/the-delegation" target="_blank" rel="noopener">The Delegation</a></span></footer>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
