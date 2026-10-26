@@ -1509,6 +1509,56 @@ class Handler(BaseHTTPRequestHandler):
         self._send_file(target, content_type)
 
     # -- authenticated API --------------------------------------------------
+    def _stream_office_events(self) -> None:
+        """Short-lived SSE tail of actual role and runtime transitions."""
+        from jarvis import office_events
+
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache, no-transform")
+        self.send_header("X-Accel-Buffering", "no")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.close_connection = True
+
+        def send(kind: str, payload: dict) -> None:
+            packet = f"event: {kind}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+            self.wfile.write(packet.encode("utf-8"))
+            self.wfile.flush()
+
+        try:
+            target = office_events.path()
+            offset = target.stat().st_size if target.exists() else 0
+            send("snapshot", {"active": office_events.active_members()})
+            partial = b""
+            for tick in range(150):  # reconnect after at most five minutes
+                time.sleep(2)
+                try:
+                    size = target.stat().st_size
+                except OSError:
+                    size = 0
+                if size < offset:
+                    offset, partial = 0, b""
+                if size > offset:
+                    with target.open("rb") as stream:
+                        stream.seek(offset)
+                        chunk = stream.read(min(size - offset, 65_536))
+                    offset += len(chunk)
+                    partial += chunk
+                    while b"\n" in partial:
+                        line, partial = partial.split(b"\n", 1)
+                        try:
+                            event = json.loads(line)
+                        except (ValueError, UnicodeDecodeError):
+                            continue
+                        if isinstance(event, dict):
+                            send("office", event)
+                if tick % 7 == 0:
+                    self.wfile.write(b": keepalive\n\n")
+                    self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError, TimeoutError, OSError):
+            return
+
     def _route_api_get(self, path: str, query: dict) -> None:
         if path == "/api/login":
             self._send_json(405, {"error": "use POST"})
@@ -1527,6 +1577,9 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(401, {"error": "authentication required"})
             return
 
+        if path == "/api/office/events":
+            self._stream_office_events()
+            return
         if path == "/api/image-jobs":
             self._send_json(200, {"jobs": image_jobs.list()})
             return
@@ -1680,6 +1733,30 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/api/orchestration":
             self._send_json(200, orchestration_snapshot())
+            return
+        if path == "/api/office/activity":
+            # The team cycle and the live event stream are separate: a
+            # historical result is never described as work in progress.
+            from jarvis.role_activity import latest_report
+            from jarvis.office_events import active_members
+            report = latest_report()
+            activity = report.get("activity", {})
+            self._send_json(200, {
+                "generated_at": report.get("generated_at"),
+                "active": active_members(),
+                "members": {
+                    str(key): {
+                        "status": value.get("status"),
+                        "task": value.get("task"),
+                        "kind": value.get("kind"),
+                        "result": value.get("result"),
+                        "started_at": value.get("started_at"),
+                        "finished_at": value.get("finished_at"),
+                    }
+                    for key, value in activity.items()
+                    if isinstance(value, dict)
+                },
+            })
             return
         if path == "/api/improvement":
             from jarvis.improvement import Store

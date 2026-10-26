@@ -2202,7 +2202,9 @@ SPEAKERS: dict[str, Callable[[dict[str, list]], str]] = {
 }
 
 
-def opinions(memory: Any, only: tuple[str, ...] = (), *, activity: dict | None = None) -> list[dict[str, Any]]:
+def opinions(memory: Any, only: tuple[str, ...] = (), *, activity: dict | None = None,
+             on_member_start: Callable[[Member], None] | None = None,
+             on_member_done: Callable[[dict[str, Any]], None] | None = None) -> list[dict[str, Any]]:
     """Her ekip üyesinin bu veriye bakınca söylediği. Sıfır model çağrısı.
 
     Veri okunamazsa uye "VERI YOK" der ve hangi sorgunun okunamadigini
@@ -2217,6 +2219,8 @@ def opinions(memory: Any, only: tuple[str, ...] = (), *, activity: dict | None =
     for member in ROSTER:
         if only and member.key not in only:
             continue
+        if on_member_start:
+            on_member_start(member)
         kayit: dict[str, Any] = {
             "key": member.key, "name": member.name, "job": member.job,
             "kind": member.kind, "reads": list(member.reads),
@@ -2229,18 +2233,24 @@ def opinions(memory: Any, only: tuple[str, ...] = (), *, activity: dict | None =
                          produced_items=recorded.get("items", 0),
                          activity_status="PRODUCED")
             out.append(kayit)
+            if on_member_done:
+                on_member_done(kayit)
             continue
         if member.mode == "research":
             kayit.update(status=NEEDS_RESEARCH,
                          statement="Şirket verisinden konuşamam; dış kaynak "
                                    "araştırması gerekir.")
             out.append(kayit)
+            if on_member_done:
+                on_member_done(kayit)
             continue
         if member.mode == "synthesis":
             kayit.update(status=NEEDS_INPUT,
                          statement="Kendi verim yok; diğerlerinin bulgusunu "
                                    "girdi alırım.")
             out.append(kayit)
+            if on_member_done:
+                on_member_done(kayit)
             continue
 
         rows: dict[str, list] = {}
@@ -2290,4 +2300,6 @@ def opinions(memory: Any, only: tuple[str, ...] = (), *, activity: dict | None =
             except Exception as exc:  # noqa: BLE001
                 kayit.update(status=ISLEM_HATASI, statement=type(exc).__name__)
         out.append(kayit)
+        if on_member_done:
+            on_member_done(kayit)
     return out

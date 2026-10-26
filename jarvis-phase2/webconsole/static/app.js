@@ -226,6 +226,10 @@ function renderViewSearch() {
     option.type = 'button';
     option.textContent = navButton.textContent.trim();
     option.addEventListener('click', () => {
+      if (navButton.tagName === 'A' && navButton.href) {
+        window.location.assign(navButton.href);
+        return;
+      }
       setView(navButton.dataset.view);
       qs('viewSearchDialog').close();
     });

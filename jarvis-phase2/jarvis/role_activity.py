@@ -8,7 +8,7 @@ from typing import Any
 from .agency import AgencyCapability
 from .specialist_pool import SpecialistPool
 from .agency import classify_task, select_roles
-from . import roster
+from . import roster, office_events
 
 RESEARCH_TERMS = {
     "market_intelligence": ("pazar", "pazaryeri", "sektor", "sektör", "marka"),
@@ -60,10 +60,19 @@ def research_outputs(rows: list[dict], now: datetime) -> dict[str, dict]:
             "evidence_refs":[r["url"] for r in selected], "model_calls":0}
     return outputs
 
-def build(memory: Any, research_rows: list[dict], now: datetime | None=None) -> dict:
+def build(memory: Any, research_rows: list[dict], now: datetime | None=None,
+          *, emit_events: bool = False) -> dict:
     now=now or datetime.now(timezone.utc)
     roles={}
     activity={}
+    finished_emitted: set[str] = set()
+
+    def live_status(status: str) -> str:
+        return {"WORKED": "COMPLETED", "WAITING": "WAITING", "ERROR": "FAILED"}.get(status, "WAITING")
+
+    def member_started(key: str, task: str) -> None:
+        if emit_events:
+            office_events.emit("member", member_key=key, status="WORKING", task=task)
 
     def record(key, task, status, result, refs, started, finished, kind="ANALİZ / TASLAK"):
         if activity.get(key, {}).get("status") == "WORKED" and status == "WAITING":
@@ -74,9 +83,13 @@ def build(memory: Any, research_rows: list[dict], now: datetime | None=None) -> 
             "started_at": started.isoformat(), "finished_at": finished.isoformat(),
             "duration_ms": round((finished-started).total_seconds()*1000, 2),
         }
+        if emit_events and key not in finished_emitted:
+            office_events.emit("member", member_key=key, status=live_status(status), task=task)
 
     started=datetime.now(timezone.utc)
     try:
+        for key in RESEARCH_TERMS:
+            member_started(key, "Kayıtlı dış kaynakları yeniden değerlendir")
         roles.update(research_outputs(research_rows,now))
         finished=datetime.now(timezone.utc)
         for key in RESEARCH_TERMS:
@@ -98,6 +111,8 @@ def build(memory: Any, research_rows: list[dict], now: datetime | None=None) -> 
     selected=pool.router.route(domains).selected
     started=datetime.now(timezone.utc)
     try:
+        for key in selected:
+            member_started(key, "Şirket verilerinden alan analizi üret")
         specialist=pool.execute(
             "Şirketin güncel satış, reklam, müşteri ve operasyon bulgularını değerlendir.", domains)
         finished=datetime.now(timezone.utc)
@@ -127,6 +142,8 @@ def build(memory: Any, research_rows: list[dict], now: datetime | None=None) -> 
         selected_roles=select_roles(classify_task(task),task)
         started=datetime.now(timezone.utc)
         try:
+            for key in selected_roles:
+                member_started(key, task)
             delivery=agency.run(task,synthesize=False)
             deliveries.append(delivery)
             finished=datetime.now(timezone.utc)
@@ -153,7 +170,22 @@ def build(memory: Any, research_rows: list[dict], now: datetime | None=None) -> 
     data_opinions=[]
     started=datetime.now(timezone.utc)
     try:
-        data_opinions=roster.opinions(memory,only=data_keys)
+        def on_data_done(observation: dict) -> None:
+            key = observation.get("key", "")
+            if not key or not emit_events:
+                return
+            status = observation.get("status")
+            live = ("COMPLETED" if status == roster.SPEAKS else
+                    "FAILED" if status in (roster.NO_DATA, roster.ISLEM_HATASI) else "WAITING")
+            office_events.emit("member", member_key=key, status=live,
+                               task="Şirket verisini oku ve rol değerlendirmesi üret")
+            finished_emitted.add(key)
+
+        data_opinions=roster.opinions(
+            memory, only=data_keys,
+            on_member_start=(lambda member: member_started(
+                member.key, "Şirket verisini oku ve rol değerlendirmesi üret")) if emit_events else None,
+            on_member_done=on_data_done if emit_events else None)
         observations={item["key"]:item for item in data_opinions}
         finished=datetime.now(timezone.utc)
         for key in data_keys:
@@ -188,6 +220,7 @@ def build(memory: Any, research_rows: list[dict], now: datetime | None=None) -> 
             "external_actions":0,"model_calls":0}
 
 def run(memory: Any) -> dict:
+    office_events.emit("cycle", status="WORKING", task="Ekip değerlendirmesi başladı")
     rows=[]
     for name in ("departman_arastirma.jsonl","knowledge.jsonl"):
         try:
@@ -199,12 +232,18 @@ def run(memory: Any) -> dict:
                 rows.append(json.loads(line))
             except ValueError:
                 continue
-    result=build(memory,rows)
+    result=build(memory,rows,emit_events=True)
     target=state_dir()/"team-cycle"/"latest.json"
     target.parent.mkdir(parents=True,exist_ok=True)
     tmp=target.with_suffix(".tmp")
     tmp.write_text(json.dumps(result,ensure_ascii=False,indent=1,default=str))
-    os.chmod(tmp,0o600)
+    try:
+        import grp
+        os.chown(tmp, -1, grp.getgrnam("jarvis-web").gr_gid)
+    except (ImportError, KeyError, PermissionError):
+        pass
+    os.chmod(tmp,0o640)
     tmp.replace(target)
+    office_events.emit("cycle", status="COMPLETED", task="Ekip değerlendirmesi tamamlandı")
     return {"generated_at":result["generated_at"],"roles_produced":len(result["roles"]),
             "role_keys":sorted(result["roles"]),"model_calls":0,"external_actions":0}
