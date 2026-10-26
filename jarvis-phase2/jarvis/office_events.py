@@ -37,7 +37,8 @@ def emit(kind: str, *, member_key: str = "", status: str = "", task: str = "",
         fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o660)
         try:
             try:
-                os.fchmod(fd, 0o660)
+                if hasattr(os, "fchmod"):
+                    os.fchmod(fd, 0o660)
             except PermissionError:
                 pass
             try:

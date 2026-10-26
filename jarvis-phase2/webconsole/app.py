@@ -4007,6 +4007,9 @@ def _ekip_sor(kod: str, soru: str, extra_evidence: list[dict] | None = None) -> 
     """
     try:
         from jarvis import roster
+        from jarvis.office_questions import activity_evidence
+        from jarvis.role_activity import latest_report
+        from jarvis.office_events import active_members
         from jarvis.model_layer import ModelRouter
     except Exception as exc:  # noqa: BLE001
         return {"hata": f"model katmani yuklenemedi: {exc}"}
@@ -4043,6 +4046,10 @@ def _ekip_sor(kod: str, soru: str, extra_evidence: list[dict] | None = None) -> 
     #    O yuzden satir basina bir parca DEGIL, sorgu basina TEK YOGUN ozet
     #    uretilir ve uyelerin damitilmis bulgulari ONE konur.
     kanit: list[dict] = list(extra_evidence or [])
+    office_record = activity_evidence(
+        kod, tuple(m.key for m in uyeler), latest_report(), active_members())
+    if office_record:
+        kanit.insert(0, office_record)
     okunamayan: list[str] = []
     sorgular: list[str] = []
 
@@ -4145,11 +4152,18 @@ def _ekip_sor(kod: str, soru: str, extra_evidence: list[dict] | None = None) -> 
     #    oldugunu soyluyordu. Cekingenlik de bir hatadir: elindeki olcumu
     #    saklayan cevap, uyduran cevap kadar ise yaramaz.
     #    Cozum istemde "daha iyi ol" demek degil, BOLUM DAYATMAK.
+    manager = roster.departman_sorumlusu(kod)
     sistem = (
-        f"Sen L'CARLIÉ şirketinde {birim_adi} biriminin sorumlususun. "
+        f"Sen L'CARLIÉ şirketinde {birim_adi} biriminin sorumlusu "
+        f"{manager.name if manager else 'olarak görevli kişisin'}. "
         f"Görevin: {misyon or 'bu birimin işi'}. "
         "SADECE sana verilen kanıttan konuş; kanıtta olmayan rakamı, ürünü veya "
         "olguyu ASLA yazma.\n"
+        "Kullanıcı ne yaptığını veya neden boş göründüğünü sorarsa, önce "
+        "BİRİM FAALİYET KAYDI içindeki canlı olayları ve zamanlı son ölçümü açıkla. "
+        "Canlı olay bulunmamasını boş durma, izin veya görevsizlik kanıtı sayma. "
+        "Son ölçümde beklenen veya başarısız kalan işi saklama; neden kayıtlı "
+        "değilse bunu açıkça söyle. Yapılmayan işi yapılmış gibi anlatma.\n"
         "Kanıtta 'DIŞ KAYNAK' ile başlayan satırlar şirketin kendi ölçümü "
         "DEĞİLDİR, dışarıdan okunan iddialardır. Onları kullanırken 'dışarıda "
         "şöyle deniyor' diye ayır; şirket ölçümüyle aynı kesinlikte sunma.\n"

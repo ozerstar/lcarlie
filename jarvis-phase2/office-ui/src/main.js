@@ -2,7 +2,7 @@ import './style.css';
 import { OfficeScene, departmentStatus, statusKind } from './office-scene.js';
 
 const $ = (id) => document.getElementById(id);
-const state = { departments: [], selectedCode: null, selectedMember: null, scene: null, loading: false, lastLoaded: null, cycleAt: null, live: {}, eventSource: null };
+const state = { departments: [], selectedCode: null, selectedMember: null, scene: null, loading: false, lastLoaded: null, cycleAt: null, live: {}, eventSource: null, csrfToken: null, conversations: new Map(), drafts: new Map(), asking: new Set() };
 const STATUS_LABELS = {
   'KONUŞTU': 'Son ölçümde konuştu', 'VERİ YOK': 'Veri yok',
   'ARAŞTIRMA GEREKİR': 'Araştırma gerekir', 'GİRDİ BEKLER': 'Girdi bekler',
@@ -69,6 +69,7 @@ async function refresh() {
   try {
     const session = await fetchJson('/api/session');
     if (!session.authenticated) { showLogin(); return; }
+    state.csrfToken = session.csrf_token;
     const [agentsResult, ekipResult, flowResult, actionsResult, activityResult] = await Promise.allSettled([
       fetchJson('/api/panel/ajanlar'), fetchJson('/api/panel/ekip'),
       fetchJson('/api/orchestration'), fetchJson('/api/actions'), fetchJson('/api/office/activity')
@@ -201,7 +202,7 @@ function renderDetail(code, memberKey, focusScene) {
   const changedDepartment = state.selectedCode !== code;
   state.selectedCode = code;
   if (memberKey) state.selectedMember = memberKey;
-  else if (changedDepartment) state.selectedMember = null;
+  else if (changedDepartment) state.selectedMember = d.kadro?.find((m) => m.sorumlu_mu)?.key || null;
   $('detail').classList.add('open');
   $('detailCode').textContent = `${d.aile || 'ORGANİZASYON'} / ${d.kod}`;
   $('detailName').textContent = d.ad || d.kod;
@@ -235,6 +236,7 @@ function renderDetail(code, memberKey, focusScene) {
   $('sceneSubtitle').textContent = `${d.kadro?.length || 0} kişi · ${d.sorumlu?.name || 'Sorumlu atanmamış'}`;
   if (focusScene) state.scene?.focus(code);
   state.scene?.selectMember(state.selectedMember);
+  if (changedDepartment || !$('managerDesk').firstChild) renderManagerDesk(d);
   renderDepartments();
 }
 
@@ -302,8 +304,92 @@ function renderMemberDetail(department, m) {
     box.append(el('h4', '', 'EKSİK / BEKLENEN'));
     const chips = el('div', 'chips'); m.eksik.forEach((source) => chips.append(el('span', 'chip warning', source))); box.append(chips);
   }
-  const ask = el('a', 'ask-link', `${department.ad || department.kod} birimine soru sor ↗`);
-  ask.href = '/?view=ekip'; box.append(ask);
+}
+
+const QUICK_QUESTIONS = [
+  'Şu anda ne üzerinde çalışıyorsun?',
+  'Neden şu anda aktif çalışma görünmüyor?',
+  'Ekibin son ölçümde ne yaptı, neyi tamamlayamadı?',
+  'Bu birimin güncel durumu ve öncelikleri nedir?'
+];
+
+function renderManagerDesk(department) {
+  const desk = $('managerDesk'); desk.replaceChildren();
+  const manager = department.kadro?.find((m) => m.sorumlu_mu);
+  desk.hidden = !manager;
+  if (!manager) return;
+  const heading = el('div', 'manager-desk-heading');
+  heading.append(el('p', 'eyebrow', 'MÜDÜRE DOĞRUDAN SOR'), el('h3', '', manager.name || department.sorumlu?.name || 'Birim sorumlusu'));
+  const note = el('p', 'manager-desk-note', 'Yanıt son ölçüm, faaliyet kaydı ve okunabilen kaynaklara dayanır. Canlı kayıt yokluğu tek başına boş durduğunu göstermez.');
+  const history = el('div', 'manager-conversation'); history.setAttribute('aria-live', 'polite');
+  const messages = state.conversations.get(department.kod) || [];
+  if (!messages.length) history.append(el('p', 'conversation-empty', 'Müdüre bir soru seçin veya kendi sorunuzu yazın.'));
+  for (const message of messages) {
+    const item = el('div', `conversation-item ${message.role}`);
+    item.append(el('small', '', message.role === 'user' ? 'SİZ' : manager.name || 'MÜDÜR'));
+    item.append(el('p', '', message.text));
+    if (message.role === 'manager') {
+      if (message.warning) item.append(el('p', 'answer-warning', message.warning));
+      if (message.sources) item.append(el('small', 'answer-sources', message.sources));
+    }
+    history.append(item);
+  }
+  if (state.asking.has(department.kod)) history.append(el('p', 'answer-pending', 'Müdür kaynakları inceliyor…'));
+  const quick = el('div', 'manager-quick');
+  const field = el('textarea', 'manager-question'); field.rows = 3; field.maxLength = 600;
+  field.placeholder = `${manager.name || 'Müdür'} için sorunuzu yazın…`;
+  field.value = state.drafts.get(department.kod) || '';
+  field.addEventListener('input', () => state.drafts.set(department.kod, field.value));
+  for (const question of QUICK_QUESTIONS) {
+    const button = el('button', '', question); button.type = 'button';
+    button.addEventListener('click', () => { field.value = question; state.drafts.set(department.kod, question); field.focus(); });
+    quick.append(button);
+  }
+  const form = el('form', 'manager-form');
+  const send = el('button', 'manager-send', state.asking.has(department.kod) ? 'Yanıt bekleniyor…' : 'Müdüre sor →');
+  send.type = 'submit'; send.disabled = state.asking.has(department.kod);
+  form.append(field, send);
+  form.addEventListener('submit', (event) => { event.preventDefault(); askManager(department.kod, field.value); });
+  desk.append(heading, note, history, quick, form);
+  history.scrollTop = history.scrollHeight;
+}
+
+async function askManager(code, rawQuestion) {
+  const question = rawQuestion.trim().slice(0, 600);
+  if (!question || state.asking.has(code)) return;
+  const department = state.departments.find((d) => d.kod === code);
+  if (!department) return;
+  const messages = state.conversations.get(code) || [];
+  messages.push({ role: 'user', text: question });
+  state.conversations.set(code, messages);
+  state.drafts.set(code, ''); state.asking.add(code);
+  if (state.selectedCode === code) renderManagerDesk(department);
+  try {
+    const response = await fetch('/api/ekip/sor', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': state.csrfToken || '' },
+      body: JSON.stringify({ kod: code, soru: question })
+    });
+    if (response.status === 401) throw new Error('Oturum sona erdi. Jarvis’e yeniden giriş yapın.');
+    if (response.status === 403) throw new Error('Oturum doğrulaması yenilenmeli. Sayfayı yenileyip tekrar deneyin.');
+    const result = await response.json();
+    if (!response.ok || result.hata) throw new Error(result.hata || result.error || 'Yanıt alınamadı.');
+    const unverified = result.dogrulanmayan_sayilar || [];
+    const unread = result.okunamayan || [];
+    messages.push({
+      role: 'manager', text: result.cevap || 'Bu soru için doğrulanmış yanıt üretilemedi.',
+      warning: [
+        unverified.length ? `Doğrulanmayan sayılar: ${unverified.join(', ')}` : '',
+        unread.length ? `Okunamayan kaynaklar: ${unread.join(', ')}` : ''
+      ].filter(Boolean).join(' · '),
+      sources: `${result.kanit_sayisi || 0} kanıt parçası · ${(result.kanit_kaynaklari || []).join(' · ') || 'Kaynak yok'}`
+    });
+  } catch (error) {
+    messages.push({ role: 'manager', text: error.message || 'Yanıt alınamadı. Tekrar deneyin.', warning: 'Soru işlenemedi.' });
+  } finally {
+    state.asking.delete(code);
+    if (state.selectedCode === code) renderManagerDesk(department);
+  }
 }
 
 function renderFlow(flow, actions) {

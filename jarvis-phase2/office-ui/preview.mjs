@@ -13,6 +13,7 @@ const departments = Array.from({ length: 40 }, (_, i) => {
 const browser = await chromium.launch({ headless: true, executablePath: 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', args: ['--use-gl=angle', '--use-angle=swiftshader'] });
 const page = await browser.newPage({ viewport: { width: 1440, height: 950 }, deviceScaleFactor: 1 });
 const errors = [];
+const asked = [];
 page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
 page.on('response', (r) => { if (r.status() >= 400) errors.push(r.status() + ' ' + r.url()); });
 page.on('pageerror', (error) => errors.push(error.message));
@@ -22,7 +23,12 @@ await page.route('**/api/**', async (route) => {
     await route.fulfill({ status: 200, contentType: 'text/event-stream', body: 'event: snapshot\ndata: {"active":{}}\n\n' });
     return;
   }
-  const data = path === '/api/session' ? { authenticated: true } :
+  if (path === '/api/ekip/sor') {
+    asked.push({ ...route.request().postDataJSON(), csrf: route.request().headers()['x-csrf-token'] });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ cevap: 'Son ölçümde kaynaklar incelendi. Canlı olay yokluğu boş durma kanıtı değil.', kanit_sayisi: 2, kanit_kaynaklari: ['office:team-cycle:D0', 'roster:m0_0'], dogrulanmayan_sayilar: [] }) });
+    return;
+  }
+  const data = path === '/api/session' ? { authenticated: true, csrf_token: 'preview-token' } :
     path === '/api/panel/ajanlar' ? { departmanlar: departments } :
     path === '/api/panel/ekip' ? { departmanlar: departments } :
     path === '/api/office/activity' ? { generated_at: new Date().toISOString(), members: { m7_0: { status: 'WORKED', task: 'Şirket verisini oku', result: 'Ölçüm tamamlandı', finished_at: new Date().toISOString() } } } :
@@ -35,6 +41,10 @@ await page.screenshot({ path: 'preview.png', fullPage: true });
 await page.locator('.department-row').first().click();
 await page.waitForTimeout(500);
 await page.screenshot({ path: 'preview-detail.png', fullPage: true });
+await page.locator('.manager-quick button').first().click();
+await page.locator('.manager-send').click();
+await page.locator('.conversation-item.manager').waitFor();
+const managerAnswer = await page.locator('.conversation-item.manager p').first().textContent();
 await page.locator('.member-card').first().click();
 const memberName = await page.locator('.member-detail h3').textContent();
 const activityVisible = await page.locator('.member-activity').count();
@@ -59,6 +69,6 @@ await mobile.route('**/api/**', async (route) => {
 await mobile.goto('http://127.0.0.1:5173/office.html');
 await mobile.waitForTimeout(1500);
 await mobile.screenshot({ path: 'preview-mobile.png', fullPage: true });
-console.log(JSON.stringify({ errors, searchCount, memberName, activityVisible, chartCount, walkActive, mobileOverflow: await mobile.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), title: await page.title() }));
+console.log(JSON.stringify({ errors, asked, managerAnswer, searchCount, memberName, activityVisible, chartCount, walkActive, mobileOverflow: await mobile.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), title: await page.title() }));
 await browser.close();
 await server.close();
