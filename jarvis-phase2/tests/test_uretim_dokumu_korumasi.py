@@ -51,6 +51,11 @@ class UretimDizininiKorur(unittest.TestCase):
     """unittest yüklüyken üretim dizinine yazma yasak."""
 
     def setUp(self):
+        # Other legacy test modules replace sys.argv globally. This guard
+        # must test the actual unittest entry point independent of order.
+        previous_argv = sys.argv
+        sys.argv = ["python -m unittest"]
+        self.addCleanup(setattr, sys, "argv", previous_argv)
         # Bu suite bittiğinde modül geçici bir dizine bağlı kalsın ki
         # sonraki testler kazara üretime bakmasın.
         self.addCleanup(_modulu_yukle, tempfile.mkdtemp(prefix="jarvis-test-"))
