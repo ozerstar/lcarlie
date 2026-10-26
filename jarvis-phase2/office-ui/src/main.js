@@ -237,13 +237,19 @@ function renderDetail(code, memberKey, focusScene) {
   if (focusScene) state.scene?.focus(code);
   state.scene?.selectMember(state.selectedMember);
   if (changedDepartment || !$('managerDesk').firstChild) renderManagerDesk(d);
+  if (focusScene && memberKey) {
+    const selected = d.kadro?.find((person) => person.key === memberKey);
+    requestAnimationFrame(() => (selected?.sorumlu_mu ? $('managerDesk') : $('memberDetail'))
+      .scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
+  }
   renderDepartments();
 }
 
 function selectMember(d, m) {
   state.selectedMember = m.key;
   renderDetail(d.kod, m.key, false);
-  $('memberDetail').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  (m.sorumlu_mu ? $('managerDesk') : $('memberDetail'))
+    .scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function renderOrgTree(department) {
