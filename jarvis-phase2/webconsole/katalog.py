@@ -310,11 +310,15 @@ def ig_plan(durum: str = "", limit: int = 50) -> dict:
              -- Uretilen gorsel PANELDE GORUNSUN. Once bu alanlar
              -- SELECT'te yoktu: gorsel uretiliyor, diske yaziliyor,
              -- ama hicbir ekranda cikmiyordu.
-             gorsel_dosya, gorsel_taslak_mi, gorsel_rapor
+             gorsel_dosya, gorsel_taslak_mi, gorsel_rapor,
+             -- Gunluk paket (30.10.2026): senaryo, kareler ve uzman
+             -- incelemesi GORUNMEZSE uretilmemis sayilir.
+             kaynak, gun, sira, ekran_kancasi, kanca_formulu, kanca_puani,
+             senaryo, uzman_karari, uzman_notu, bicim_notu
         FROM core.ig_gonderi_plani %s
        ORDER BY CASE durum WHEN 'ONERI' THEN 0 WHEN 'ONAYLANDI' THEN 1
                            WHEN 'YAYINLANDI' THEN 2 ELSE 3 END,
-                uretim_at DESC
+                gun DESC NULLS LAST, sira NULLS LAST, uretim_at DESC
        LIMIT %d) t;""" % (kosul, limit)
     paketler = _yaz(sql, degiskenler) if degiskenler else _oku(sql)
     for p in paketler:
@@ -434,7 +438,8 @@ def ig_foy(plan_id) -> tuple:
     satir = _oku(
         "SELECT row_to_json(t) FROM (SELECT plan_id, urun_slug, amac, bicim,"
         " kanca, caption, hashtagler, cta, cta_gerekce, dayanak,"
-        " gorsel_dosya, gorsel_brief FROM core.ig_gonderi_plani"
+        " gorsel_dosya, gorsel_brief, ekran_kancasi, senaryo,"
+        " uzman_notu FROM core.ig_gonderi_plani"
         " WHERE plan_id = %d) t;" % pid)
     if not satir:
         raise KatalogHatasi("plan bulunamadi: %d" % pid)

@@ -1,0 +1,28 @@
+[Unit]
+# GÜNLÜK Instagram paketi: her gün bir ürün için 5 içerik
+# (2 reels + karusel + story + tek görsel), başında Instagram İçerik
+# Direktörü incelemesi. Sahip kararı 30.10.2026.
+#
+# Haftalık hattan (lcarlie-ig-gonderi) farkı: o şablonla, ölçümden 7 ürün
+# paketi yazar; bu, model ile TEK ürünü derin işler. İkisi aynı tabloya ve
+# aynı onay kapılarına yazar.
+#
+# Üretilen paket YAYINLANMAZ. Dış eylem kapalı; sahip panelden onaylar.
+# Aynı gün ikinci kez koşarsa betik "bugünün paketi zaten var" der.
+Description=LCARLIE Instagram gunluk paket (1 urun, 5 icerik)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+Environment=JARVIS_STATE_DIR=/opt/lcarlie/jarvis-phase2/state
+ExecStart=/opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/ig-gunluk-uret.py
+# Kapak kareleri: urun pikselleri korunarak (AI cizimi degil) kompozit.
+# "-" on eki: kapak uretilemezse paket yine panelde kalir.
+ExecStartPost=-/opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/ig-gorsel-uret.py
+TimeoutStartSec=900
+Nice=15
+UMask=0077
+NoNewPrivileges=true

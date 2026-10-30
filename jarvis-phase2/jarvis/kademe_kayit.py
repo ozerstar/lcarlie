@@ -26,6 +26,7 @@ GOMULU: dict[str, str] = {
     "satis_ogrenme": "muhakeme",
     "guncel_olaylar": "muhakeme",
     "kreatif_brief": "muhakeme",
+    "ig_gunluk": "muhakeme",
     "tasarim_gorevi": "muhakeme",
     "query_planner": "hizli",
     "sohbet": "hizli",

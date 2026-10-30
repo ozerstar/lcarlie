@@ -232,6 +232,23 @@ def b_site() -> str:
     return "\n".join(g)
 
 
+def b_instagram() -> str:
+    """Gunluk Instagram paketi (30.10.2026). Sahip sabah raporda gorsun."""
+    def bic(s):
+        g = [f"  Ürün: {s[0][0]}  ·  {len(s)} içerik  ·  panel: KATALOG > INSTAGRAM PLANI"]
+        for r in s:
+            bulgu = "  MEVZUAT BULGUSU" if r[4] != "TEMIZ" else ""
+            g.append(f"  {r[1]}) {r[2]:<10} puan {r[5]:>3} · {r[6]:<11} · {r[7]}{bulgu}")
+            g.append(f"       “{r[3][:90]}”")
+        return g
+    return bolum(
+        "12) INSTAGRAM GÜNLÜK PAKET (bugün)",
+        "select urun_slug, sira, bicim, kanca, denetim, coalesce(kanca_puani::text,'-'), "
+        "coalesce(uzman_karari,'-'), durum from core.ig_gonderi_plani "
+        "where kaynak='GUNLUK' and gun=current_date order by sira;",
+        bic, "bugün paket üretilmedi -- lcarlie-ig-gunluk.timer 07:30'da koşar")
+
+
 def rapor() -> str:
     bugun = dt.datetime.now().strftime("%d.%m.%Y %A")
     bas = [
@@ -242,7 +259,7 @@ def rapor() -> str:
     ]
     parcalar = [b_ozet(), b_para(), b_satis(), b_elle(), b_reklam(),
                 b_musteri(), b_gundem(), b_itibar(), b_departman(),
-                b_sistem(), b_site()]
+                b_sistem(), b_site(), b_instagram()]
     son = ["", "=" * 52,
            "Panel: https://jarvis.lcarlie.shop",
            "Bu raporu üreten: lcarlie-gunluk-rapor.timer (her gün 09:00)"]

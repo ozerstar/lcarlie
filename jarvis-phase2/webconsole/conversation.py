@@ -294,6 +294,13 @@ def classify(message: str) -> RouteDecision:
                    "meta etiket", "meta aciklama", "meta açıklama",
                    "arama gorunurlug", "arama görünürlüğ", "slug")):
         return RouteDecision(COMPANY_QUERY, "seo")
+    # GUNLUK INSTAGRAM PAKETI (30.10.2026). "reklam" gecen soru reklam
+    # alanina kalir; organik icerik sorusu pakete gider.
+    if (_has(text, ("instagram", "reels", "günlük paket", "gunluk paket",
+                    "karusel", "story", "hikâye", "hikaye", "içerik paketi",
+                    "icerik paketi", "içerik direktör", "icerik direktor"))
+            and not _has(text, ("reklam", "kampanya", "harcama"))):
+        return RouteDecision(COMPANY_QUERY, "instagram")
     if _has(text, ("cevapsız", "cevapsiz", "müşteri", "musteri", "crm")):
         return RouteDecision(COMPANY_QUERY, "crm")
     if _has(text, ("reklam", "meta", "harcama", "roas", "ctr", "cpa")):
@@ -458,6 +465,9 @@ def _company(message: str, domain: str, memory: Any, started: float) -> dict[str
             spend = sum(float(row.get("harcama") or 0) for row in latest)
             answer = (f"30 günlük görünümde {len(latest)} reklam kaydı ve toplam {spend:,.2f} TL "
                       "harcama var. Meta satış iddiaları ticari doğrulama olmadan kesin satış sayılmadı.")
+        elif domain == "instagram":
+            evidence = memory._fetch("ig_gunluk_paket")
+            answer = _ig_paket_answer(evidence.records)
         elif domain == "sales":
             evidence = memory._fetch("sales_orders")
             answer = _sales_answer(message, evidence.records, memory)
@@ -815,6 +825,36 @@ def _brief_answer(rows: list[dict]) -> str:
         onceki = str(rows[1].get("created_at") or "")[:10]
         parcalar.append(f"(Bir önceki özet: {onceki}.)")
     return " ".join(parcalar)
+
+_IG_KARAR = {"GECER": "direktör: geçer", "DUZELT": "direktör: düzeltme istedi",
+             "INCELENMEDI": "direktör incelemedi"}
+_IG_DURUM = {"ONERI": "onay bekliyor", "ONAYLANDI": "onaylandı",
+             "REDDEDILDI": "reddedildi", "YAYINLANDI": "yayınlandı"}
+
+
+def _ig_paket_answer(rows: list[dict]) -> str:
+    """Son gunluk paket, kayittan. Kayit yoksa SEBEBIYLE soylenir."""
+    if not rows:
+        return ("Son 7 günde günlük Instagram paketi yok. Paket her sabah 07:30'da "
+                "lcarlie-ig-gunluk zamanlayıcısıyla üretilir.")
+    son_gun = max(str(r.get("gun")) for r in rows)
+    bugun = sorted((r for r in rows if str(r.get("gun")) == son_gun),
+                   key=lambda r: int(r.get("sira") or 0))
+    bekleyen = sum(1 for r in rows if r.get("durum") == "ONERI")
+    satirlar = [f"{son_gun} paketi: {bugun[0].get('urun_slug')}, {len(bugun)} içerik."]
+    for r in bugun:
+        bulgu = " · MEVZUAT BULGUSU" if r.get("denetim") != "TEMIZ" else ""
+        satirlar.append(
+            f"{r.get('sira')}) {r.get('bicim')}: “{r.get('kanca') or ''}” "
+            f"(kanca puanı {r.get('kanca_puani')}, "
+            f"{_IG_KARAR.get(r.get('uzman_karari'), r.get('uzman_karari'))}, "
+            f"{_IG_DURUM.get(r.get('durum'), r.get('durum'))}{bulgu})")
+    gun_sayisi = len({str(r.get("gun")) for r in rows})
+    satirlar.append(f"Son 7 günde {gun_sayisi} paket, {bekleyen} içerik kararınızı bekliyor. "
+                    "Senaryo, kareler ve çekim föyü: KATALOG > INSTAGRAM PLANI. "
+                    "Hiçbiri yayınlanmadı; yayın sizin onayınızla olur.")
+    return "\n".join(satirlar)
+
 
 def _gundem_answer(rows: list[dict]) -> str:
     """Şirket gündemi: ne bekliyor, kimde, ne kadar süredir.

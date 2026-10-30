@@ -52,6 +52,25 @@ def _instagram(rows: dict[str, list]) -> str:
             "olmadığından etkileşim oranı hesaplanmadı; yayın yapılmadı.")
 
 
+def _ig_direktor(rows: dict[str, list]) -> str:
+    paket = rows.get("ig_gunluk_paket", [])
+    if not paket:
+        return "Son 7 günde günlük paket yok; inceleme yapılmadı."
+    gunler = sorted({str(r.get("gun")) for r in paket})
+    duzelt = sum(r.get("uzman_karari") == "DUZELT" for r in paket)
+    bulgulu = sum(r.get("denetim") != "TEMIZ" for r in paket)
+    bekleyen = sum(r.get("durum") == "ONERI" for r in paket)
+    puanlar = [int(r["kanca_puani"]) for r in paket if r.get("kanca_puani") is not None]
+    ort = round(sum(puanlar) / len(puanlar)) if puanlar else None
+    son = [r for r in paket if str(r.get("gun")) == gunler[-1]]
+    return (f"{len(gunler)} günde {len(paket)} içerik inceledim; {duzelt} tanesini "
+            f"düzelttirdim, {bulgulu} tanesi mevzuat bulgusuyla onaya kapalı. "
+            f"Son paket {gunler[-1]}: {son[0].get('urun_slug')}. "
+            f"Ortalama kanca puanı {ort if ort is not None else 'yok'} (eleme ölçüsü, "
+            f"izlenme tahmini değil). {bekleyen} içerik sahip kararını bekliyor; "
+            "yayın yapılmadı.")
+
+
 def _stock_coverage(rows: dict[str, list]) -> str:
     products = rows.get("urun_bilgi", [])
     known = [row for row in products if row.get("wix_stok") not in (None, "")]
@@ -87,6 +106,7 @@ SPEAKERS: dict[str, Callable[[dict[str, list]], str]] = {
     "deney_izleme": _experimentation,
     "karar_hafizasi": _decision_memory,
     "instagram_olcum": _instagram,
+    "ig_icerik_direktoru": _ig_direktor,
     "stok_kapsama": _stock_coverage,
     "video_brief": _video_brief,
     "yeni_urun_on_arastirma": _new_product_research,

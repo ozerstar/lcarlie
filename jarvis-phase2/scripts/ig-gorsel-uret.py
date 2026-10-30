@@ -38,7 +38,8 @@ _sp.loader.exec_module(gk)
 
 # Paket biçimi -> görsel biçimi. REELS video olduğu için kapak karesi
 # yine 9:16 üretilir.
-BICIM_ESLEME = {"REELS": "REELS", "KARUSEL": "AKIS", "TEK_GORSEL": "KARE"}
+BICIM_ESLEME = {"REELS": "REELS", "KARUSEL": "AKIS", "TEK_GORSEL": "KARE",
+                "STORY": "REELS"}  # story de 9:16
 
 
 def psql(sql: str, degiskenler: dict | None = None) -> list:

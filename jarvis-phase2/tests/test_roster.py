@@ -146,14 +146,23 @@ class GorusTests(unittest.TestCase):
 
 class YeniBirimTests(unittest.TestCase):
     def test_yeni_birimler_rol_ve_sorumlu_sahibi(self):
+        # INSTAGRAM 30.10.2026'da tek kisilik birim olmaktan cikti:
+        # sahip "basina uzman ver" dedi -- asagida ayri denetleniyor.
         codes = ("CS", "CUSTOMER_INT", "EXPERIMENT", "DECISION_MEM",
-                 "INSTAGRAM", "INVENTORY", "UGC", "RND")
+                 "INVENTORY", "UGC", "RND")
         for code in codes:
             members = roster.departman_uyeleri()[code]
             self.assertEqual(1, len(members), code)
             self.assertEqual(members[0], roster.departman_sorumlusu(code))
             self.assertIn(members[0].key, roster.SPEAKERS)
         self.assertEqual((), roster.eslenmeyen_uyeler())
+
+    def test_instagram_basinda_icerik_direktoru(self):
+        uyeler = {m.key for m in roster.departman_uyeleri()["INSTAGRAM"]}
+        self.assertEqual({"ig_icerik_direktoru", "instagram_olcum"}, uyeler)
+        sorumlu = roster.departman_sorumlusu("INSTAGRAM")
+        self.assertEqual("ig_icerik_direktoru", sorumlu.key)
+        self.assertIn(sorumlu.key, roster.SPEAKERS)
 
     def test_kaynak_bossa_aktif_gorunmez(self):
         for key in ("musteri_hizmetleri", "musteri_istihbarati", "deney_izleme",

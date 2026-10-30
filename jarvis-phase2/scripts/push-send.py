@@ -222,6 +222,37 @@ def notify_daily_digest(now: datetime | None = None) -> None:
                 save_seen(seen, seen_path)
 
 
+def notify_ig_gunluk() -> None:
+    """Gunluk Instagram paketi hazir oldugunda gunde BIR kez haber ver."""
+    subscriptions = push_store.all_subscriptions()
+    if not subscriptions:
+        return
+    sql = ("SELECT row_to_json(x) FROM (SELECT gun::text, min(urun_slug) urun, count(*) n, "
+           "count(*) FILTER (WHERE denetim <> 'TEMIZ') bulgulu "
+           "FROM core.ig_gonderi_plani WHERE kaynak='GUNLUK' AND gun=current_date "
+           "GROUP BY gun) x;")
+    result = subprocess.run(
+        ["docker", "exec", "lcarlie-postgres", "psql", "-X", "-q", "-v", "ON_ERROR_STOP=1",
+         "-U", "n8n", "-d", "n8n", "-Atc", sql],
+        capture_output=True, text=True, timeout=20, check=False)
+    satir = [json.loads(s) for s in result.stdout.splitlines() if s.strip()]
+    if result.returncode or not satir:
+        return
+    paket = satir[0]
+    seen_path = push_store.STATE_DIR / "ig-gunluk-seen.json"
+    seen = json.loads(seen_path.read_text(encoding="utf-8")) if seen_path.exists() else {}
+    govde = (f"{paket['urun']} için {paket['n']} içerik hazır"
+             + (f", {paket['bulgulu']} tanesinde mevzuat bulgusu" if paket["bulgulu"] else "")
+             + ". Katalog > Instagram Planı.")
+    for identifier, subscription in subscriptions.items():
+        anahtar = f"{paket['gun']}:{identifier}"
+        if seen.get(anahtar):
+            continue
+        if send(subscription, "Jarvis · Günün Instagram paketi", govde, f"ig-gunluk-{paket['gun']}"):
+            seen[anahtar] = True
+    save_seen({k: v for k, v in seen.items() if k[:10] >= paket["gun"]}, seen_path)
+
+
 if __name__ == "__main__":
     if len(sys.argv) == 3 and sys.argv[1] == "--test":
         subscription = push_store.get(sys.argv[2])
@@ -234,5 +265,6 @@ if __name__ == "__main__":
         notify_whatsapp_failures()
         notify_birthdays()
         notify_daily_digest()
+        notify_ig_gunluk()
     else:
         raise SystemExit(2)

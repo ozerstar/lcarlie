@@ -181,8 +181,9 @@ ROSTER: tuple[Member, ...] = (
            "Reklam kayıtlarından hangi kreatifin tuttuğunu okur.",
            ("advertising_performance",)),
     Member("social_media", "Sosyal Medya Uzmanı",
-           "Kanal performansını reklam verisinden okur.",
-           ("advertising_performance",)),
+           "Kanal performansını reklam verisinden okur; organik tarafta "
+           "günlük paketin onay/yayın durumunu izler.",
+           ("advertising_performance", "ig_gunluk_paket")),
     Member("crm_customer", "Müşteri İlişkileri Uzmanı",
            "Cevapsız mesajları ve bekleme sürelerini okur.",
            ("crm_customers", "crm_unanswered", "open_work")),
@@ -348,8 +349,8 @@ ROSTER: tuple[Member, ...] = (
            ("tasarim_sablonlari", "tasarim_isleri")),
     Member("video_editoru", "Video Editörü",
            "Videoya dönecek kreatifleri okur: hangi tasarım Reels/Story "
-           "ölçüsünde üretilmiş.",
-           ("tasarim_isleri", "tasarim_sablonlari")),
+           "ölçüsünde üretilmiş; günlük paketin çekilecek reels/story'lerini izler.",
+           ("tasarim_isleri", "tasarim_sablonlari", "ig_gunluk_paket")),
 
     # ── Marka ve uyum
     Member("marka_muhafizi", "Marka Muhafızı",
@@ -372,8 +373,8 @@ ROSTER: tuple[Member, ...] = (
            ("kreatif_performans", "tasarim_isleri")),
     Member("sosyal_editor", "Sosyal Medya Editörü",
            "Format uyumunu okur: feed, kare ve story ölçülerinden "
-           "hangileri üretilmiş, hangisi eksik.",
-           ("tasarim_isleri", "tasarim_sablonlari")),
+           "hangileri üretilmiş, hangisi eksik; günlük paketin biçimlerini izler.",
+           ("tasarim_isleri", "tasarim_sablonlari", "ig_gunluk_paket")),
     Member("baski_uzmani", "Baskı ve Katalog Uzmanı",
            "Baskıya giden işleri okur: katalog, afiş, raf etiketi — ölçü "
            "ve oran uyarısı almış olanları ayırır.",
@@ -401,8 +402,9 @@ ROSTER: tuple[Member, ...] = (
     # bicimde uretiyoruz. Ayni cumleyi uc kez soyletmemek icin sorular ayrildi.
     Member("content_cadence", "İçerik Ritmi Analisti",
            "Yayın ritmini ve metin alışkanlığını okur: ayda kaç gönderi, "
-           "ne uzunlukta metin, kaç etiket, reklam ibaresi var mı.",
-           ("content_performance",)),
+           "ne uzunlukta metin, kaç etiket, reklam ibaresi var mı; günlük "
+           "paketten kaçının yayına çıktığını izler.",
+           ("content_performance", "ig_gunluk_paket")),
     Member("social_engagement", "Sosyal Etkileşim Analisti",
            "Gönderi başına beğeni ve yorumu okur: hangi biçim karşılık görüyor.",
            ("content_performance",)),
@@ -493,6 +495,12 @@ ROSTER: tuple[Member, ...] = (
     Member("karar_hafizasi", "Karar Hafızası Uzmanı",
            "Öneri, insan kararı ve öğrenme kayıtlarının kapsamını izler.",
            ("own_proposals", "decision_outcomes", "learning_loop")),
+    # 30.10.2026 sahip: "basina uzman ver". Gunluk paketi (1 urun, 5 icerik)
+    # inceleyen uzman; departmanin sorumlusu. Yayin YAPMAZ, onay sahibindir.
+    Member("ig_icerik_direktoru", "Instagram İçerik Direktörü",
+           "Günlük paketin başında durur: 5 içeriği kanca gücü, tekrar, "
+           "mevzuat ve çekilebilirlik açısından inceler; yayın yapmaz.",
+           ("ig_gunluk_paket",)),
     Member("instagram_olcum", "Instagram İçerik Ölçüm Uzmanı",
            "Organik gönderi kayıtlarını ölçüm sınırlarıyla izler; yayın yapmaz.",
            ("content_performance",)),
@@ -646,6 +654,7 @@ UYE_DEPARTMAN: dict[str, str] = {
     "deney_izleme": "EXPERIMENT",
     "karar_hafizasi": "DECISION_MEM",
     "instagram_olcum": "INSTAGRAM",
+    "ig_icerik_direktoru": "INSTAGRAM",
     "stok_kapsama": "INVENTORY",
     "video_brief": "UGC",
     "yeni_urun_on_arastirma": "RND",
@@ -704,7 +713,8 @@ DEPARTMAN_SORUMLUSU: dict[str, str] = {
     "CUSTOMER_INT": "musteri_istihbarati",
     "EXPERIMENT": "deney_izleme",
     "DECISION_MEM": "karar_hafizasi",
-    "INSTAGRAM": "instagram_olcum",
+    # 30.10.2026 sahip karari: departmanin basina icerik direktoru.
+    "INSTAGRAM": "ig_icerik_direktoru",
     "INVENTORY": "stok_kapsama",
     "UGC": "video_brief",
     "RND": "yeni_urun_on_arastirma",
@@ -2112,6 +2122,43 @@ def _say_site_izleme(rows: dict[str, list]) -> str:
             "kaynaklarının durumu.")
 
 
+def _ig_paket_eki(rol: str, rows: dict[str, list]) -> str:
+    """Gunluk Instagram paketinin bu role dusen kismi (30.10.2026)."""
+    paket = rows.get("ig_gunluk_paket") or []
+    if not paket:
+        return ""
+    son = max(str(r.get("gun")) for r in paket)
+    bugun = [r for r in paket if str(r.get("gun")) == son]
+    urun = bugun[0].get("urun_slug")
+    if rol == "video":
+        cekim = [r for r in bugun if r.get("bicim") in ("REELS", "STORY")]
+        onayli = sum(r.get("durum") == "ONAYLANDI" for r in cekim)
+        return (f" Günlük paket {son} ({urun}): {len(cekim)} reels/story çekim "
+                f"föyü hazır, {onayli} tanesi onaylı ve çekime açık.")
+    if rol == "bicim":
+        sayim = {}
+        for r in bugun:
+            sayim[r.get("bicim")] = sayim.get(r.get("bicim"), 0) + 1
+        dagilim = ", ".join(f"{v} {k.lower()}" for k, v in sorted(sayim.items()))
+        return f" Günlük paket {son} ({urun}) biçimleri: {dagilim}."
+    if rol == "ritim":
+        gun = len({str(r.get("gun")) for r in paket})
+        yayin = sum(r.get("durum") == "YAYINLANDI" for r in paket)
+        bekleyen = sum(r.get("durum") == "ONERI" for r in paket)
+        return (f" Günlük hat 7 günde {gun} paket / {len(paket)} içerik üretti; "
+                f"{yayin} yayında, {bekleyen} karar bekliyor.")
+    onay = sum(r.get("durum") in ("ONAYLANDI", "YAYINLANDI") for r in paket)
+    return (f" Organik: günlük paketlerden {onay}/{len(paket)} içerik onaylı "
+            f"(son paket {son}, {urun}).")
+
+
+def _ig_ekli(konusmaci, rol: str):
+    def konus(rows: dict[str, list]) -> str:
+        return konusmaci(rows) + _ig_paket_eki(rol, rows)
+    konus.__name__ = getattr(konusmaci, "__name__", "konus")
+    return konus
+
+
 SPEAKERS: dict[str, Callable[[dict[str, list]], str]] = {
     "web_gelistirici": _say_web_gelistirici,
     "sayfa_donusum": _say_sayfa_donusum,
@@ -2165,8 +2212,8 @@ SPEAKERS: dict[str, Callable[[dict[str, list]], str]] = {
     "tasarim_mevzuat": _say_tasarim_mevzuat,
     "meta_kreatif": _say_meta_reklam_kreatifci,
     "tasarim_performans": _say_kreatif_performans_analisti,
-    "video_editoru": _say_video_editoru,
-    "sosyal_editor": _say_sosyal_medya_editoru,
+    "video_editoru": _ig_ekli(_say_video_editoru, "video"),
+    "sosyal_editor": _ig_ekli(_say_sosyal_medya_editoru, "bicim"),
     "baski_uzmani": _say_baski_katalog,
     "finance": _say_finance,
     "accounting_control": _say_accounting,
@@ -2183,14 +2230,14 @@ SPEAKERS: dict[str, Callable[[dict[str, list]], str]] = {
     "creative_coverage": _say_creative_coverage,
     "brand_strategy": _say_brand_strategy,
     "bizdev": _say_bizdev,
-    "content_cadence": _say_content_cadence,
+    "content_cadence": _ig_ekli(_say_content_cadence, "ritim"),
     "social_engagement": _say_social_engagement,
     "art_format": _say_art_format,
     "ecommerce_sales": _say_sales,
     "field_b2b_sales": _say_b2b,
     "meta_performance": _say_ads,
     "creative_intelligence": _say_creative,
-    "social_media": _say_social,
+    "social_media": _ig_ekli(_say_social, "sosyal"),
     "data_measurement": _say_measurement,
     "crm_customer": _say_crm,
     "product_portfolio": _say_products,

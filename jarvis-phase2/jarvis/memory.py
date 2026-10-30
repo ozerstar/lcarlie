@@ -272,6 +272,17 @@ class CompanyMemory:
         # 🔴 ERISIM/GOSTERIM YOK: insights ucu "(#10) permission" ile reddediliyor,
         #    o yuzden ETKILESIM bir SAYIDIR, oran degil. 'olcum_siniri' alani
         #    bunu her satirda tasir ve cevaplarda gizlenmez.
+        # Gunluk Instagram paketi (30.10.2026). Ic. Direktorunun okudugu
+        # kaynak: kendi inceledigi icerikler. Caption bilerek alinmaz --
+        # karar ozeti icin puan, denetim ve uzman karari yeter.
+        "ig_gunluk_paket": (
+            "SELECT row_to_json(x) FROM (SELECT plan_id AS entity_id,"
+            "'core.ig_gonderi_plani' AS source,plan_id AS source_record_id,"
+            "uretim_at AS observed_at,gun,sira,urun_slug,bicim,kanca,kanca_formulu,"
+            "kanca_puani,denetim,uzman_karari,durum "
+            "FROM core.ig_gonderi_plani WHERE kaynak='GUNLUK' "
+            "AND gun >= current_date - 7 ORDER BY gun DESC, sira) x;"
+        ),
         "content_performance": (
             "SELECT row_to_json(x) FROM (SELECT medya_id AS entity_id,"
             "'mart.icerik_performans' AS source,medya_id AS source_record_id,"

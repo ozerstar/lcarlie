@@ -22,6 +22,7 @@ okunur; orada bir kural değişince föy de değişir. Elle yazılsaydı föy,
 kuralın altı ay önceki hâlini ezberlemiş olurdu.
 """
 from __future__ import annotations
+import json
 
 # Reels iskeleti: toplam 18 sn. Kısaltılabilir, ama SIRA değişmez --
 # ilk 2 saniyede ürün görünmezse izleyici kaydırır (ölçülmüş sebep
@@ -109,6 +110,10 @@ def foy_metni(paket: dict, urun: dict | None = None) -> str:
         p.append("15-25 sn · dikey 1080x1920 · altyazı ZORUNLU")
         p.append("(izleyicinin büyük kısmı sessiz izler; altyazısız video "
                  "izlenmiş sayılmaz)")
+    elif bicim == "STORY":
+        p.append("hikâye · dikey 1080x1920 · kare başına 5-7 sn")
+    elif bicim == "KARUSEL":
+        p.append("karusel · 1080x1350 · ilk kare kancadır")
     else:
         p.append("tek kare · 1080x1080")
 
@@ -124,10 +129,41 @@ def foy_metni(paket: dict, urun: dict | None = None) -> str:
         p.append("")
         p.append("neden bu ürün: " + paket["dayanak"])
 
-    plan = REELS_PLANI if bicim == "REELS" else TEK_GORSEL_PLANI
+    # Gunluk paket (30.10.2026) kendi senaryosunu/karelerini tasir; varsa
+    # genel plan yerine O basilir. Genel plan yalniz haftalik paket icindir.
+    sen = paket.get("senaryo") or {}
+    if isinstance(sen, str):
+        try:
+            sen = json.loads(sen)
+        except ValueError:
+            sen = {}
+    satirlar = sen.get("senaryo") or []
+    kareler = sen.get("kareler") or []
     p.append(_cizgi("2. PLAN PLAN ÇEKİM"))
-    for an, ad, tarif in plan:
-        p.append("%-12s %-10s %s" % (an, ad, tarif))
+    if paket.get("ekran_kancasi"):
+        p.append("ekran kancası (ilk kare): " + paket["ekran_kancasi"])
+        p.append("")
+    if satirlar:
+        for s in satirlar:
+            p.append("%-8s görüntü: %s" % (s.get("sn", ""), s.get("goruntu", "")))
+            if s.get("ses"):
+                p.append("%-8s ses    : %s" % ("", s["ses"]))
+            if s.get("ekran"):
+                p.append("%-8s ekran  : %s" % ("", s["ekran"]))
+    elif kareler:
+        for k in kareler:
+            p.append("KARE %s · %s" % (k.get("no", ""), k.get("baslik", "")))
+            if k.get("metin"):
+                p.append("         " + k["metin"])
+            if k.get("etkilesim") and k["etkilesim"] != "yok":
+                p.append("         etkileşim: " + k["etkilesim"])
+    else:
+        plan = REELS_PLANI if bicim == "REELS" else TEK_GORSEL_PLANI
+        for an, ad, tarif in plan:
+            p.append("%-12s %-10s %s" % (an, ad, tarif))
+    if paket.get("uzman_notu"):
+        p.append("")
+        p.append("İNSTAGRAM İÇERİK DİREKTÖRÜ: " + paket["uzman_notu"])
 
     p.append(_cizgi("3. EKRANDAKİ YAZI"))
     p.append("🔴 Yazı TASARIM KATMANINDA dizilir. AI'ya yazı yazdırılmaz --")

@@ -7692,9 +7692,13 @@ function igKart(p) {
     +   '<span class="ig-bicim">' + escapeHtml(p.bicim) + '</span>'
     +   '<span class="ig-urun">' + escapeHtml(p.urun_slug) + '</span>'
     +   '<span class="ig-durum">' + escapeHtml(p.durum) + '</span>'
+    +   (p.kaynak === 'GUNLUK'
+          ? '<span class="ig-gunluk">GÜNLÜK ' + escapeHtml(String(p.gun || ''))
+            + ' · ' + escapeHtml(String(p.sira || '')) + '/5</span>' : '')
     +   (bulgulu ? '<span class="ig-bulgu">DENETİM: BULGULU</span>' : '')
     + '</header>'
     + igGorsel(p)
+    + igGunlukUst(p)
     + '<pre class="ig-caption">' + escapeHtml(p.caption) + '</pre>'
     + '<p class="ig-etiket">' + escapeHtml(etiketler) + '</p>'
     + igSatir('EYLEM DÜĞMESİ', escapeHtml(JarvisMetin.label(p.cta, 'Belirtilmedi')) + ' — ' + escapeHtml(p.cta_gerekce || ''))
@@ -7721,6 +7725,46 @@ function igKart(p) {
     +   '<span class="is-sonuc ig-sonuc" data-id="' + p.plan_id + '"></span>'
     + '</div>'
     + '</article>';
+}
+
+/* Gunluk paket (30.10.2026): kanca, ekran yazisi, saniye saniye senaryo
+ * ya da kareler ve Instagram Icerik Direktoru'nun karari. Bunlar panelde
+ * gorunmezse uretilmemis sayilir -- caption tek basina cekilemez. */
+function igGunlukUst(p) {
+  if (p.kaynak !== 'GUNLUK') return '';
+  let sen = p.senaryo || {};
+  if (typeof sen === 'string') {
+    try { sen = JSON.parse(sen); } catch (_) { sen = {}; }
+  }
+  const satirlar = sen.senaryo || [];
+  const kareler = sen.kareler || [];
+  let govde = '';
+  if (satirlar.length) {
+    govde = '<ol class="ig-senaryo">' + satirlar.map(function (s) {
+      return '<li><b>' + escapeHtml(String(s.sn || '')) + ' sn</b> '
+        + escapeHtml(String(s.goruntu || ''))
+        + (s.ses ? '<br><i>ses:</i> ' + escapeHtml(String(s.ses)) : '')
+        + (s.ekran ? '<br><i>ekran:</i> ' + escapeHtml(String(s.ekran)) : '')
+        + '</li>';
+    }).join('') + '</ol>';
+  } else if (kareler.length) {
+    govde = '<ol class="ig-senaryo">' + kareler.map(function (k) {
+      return '<li><b>' + escapeHtml(String(k.baslik || '')) + '</b> '
+        + escapeHtml(String(k.metin || ''))
+        + (k.etkilesim && k.etkilesim !== 'yok'
+            ? '<br><i>etkileşim:</i> ' + escapeHtml(String(k.etkilesim)) : '')
+        + '</li>';
+    }).join('') + '</ol>';
+  }
+  const puan = (p.kanca_puani === null || p.kanca_puani === undefined)
+    ? '—' : String(p.kanca_puani) + '/100';
+  return igSatir('KANCA', escapeHtml(p.kanca || '') + ' <span class="ig-puan">puan '
+        + escapeHtml(puan) + ' · ' + escapeHtml(p.kanca_formulu || '') + '</span>')
+    + igSatir('EKRAN YAZISI', escapeHtml(p.ekran_kancasi || ''))
+    + (govde ? igSatir(satirlar.length ? 'SENARYO' : 'KARELER', govde) : '')
+    + igSatir('İÇERİK DİREKTÖRÜ', '<b>' + escapeHtml(p.uzman_karari || '') + '</b> '
+        + escapeHtml(p.uzman_notu || ''), 'ig-uzman')
+    + (p.bicim_notu ? igSatir('BİÇİM NOTU', escapeHtml(p.bicim_notu), 'ig-bulgu-not') : '');
 }
 
 function igSatir(baslik, govde, sinif) {
