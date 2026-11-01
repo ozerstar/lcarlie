@@ -97,6 +97,24 @@ def _mime(data):
     raise ExpenseError("JPG, PNG, WebP veya PDF yükleyin.")
 
 
+def _heic_to_jpeg(data):
+    """Gallery photos from phones are often HEIC; archive them as upright JPEG."""
+    if data[4:8] != b"ftyp" or data[8:12] not in {b"heic", b"heix", b"hevc", b"heim", b"heis", b"mif1", b"msf1"}:
+        return data
+    try:
+        import pillow_heif
+        from PIL import Image, ImageOps
+        pillow_heif.register_heif_opener()
+        image = ImageOps.exif_transpose(Image.open(BytesIO(data))).convert("RGB")
+        buffer = BytesIO()
+        image.save(buffer, "JPEG", quality=90)
+    except Exception as exc:
+        raise ExpenseError("HEIC fotoğraf okunamadı; telefonda JPG olarak paylaşmayı deneyin.") from exc
+    if len(buffer.getvalue()) > MAX_BYTES:
+        raise ExpenseError("Dosya 12 MB veya daha küçük olmalı.")
+    return buffer.getvalue()
+
+
 def upload(owner, data, filename, kind, company="unknown", *, origin="upload",
            message_id="", attachment_id="", note=""):
     if not isinstance(data, bytes) or not 0 < len(data) <= MAX_BYTES:
@@ -110,6 +128,7 @@ def upload(owner, data, filename, kind, company="unknown", *, origin="upload",
         company = "common"
     elif company not in COMPANIES:
         raise ExpenseError("Fatura şirketi geçersiz.")
+    data = _heic_to_jpeg(data)
     mime = _mime(data)
     digest = hashlib.sha256(data).hexdigest()
     doc_id = uuid.uuid4().hex
@@ -299,7 +318,89 @@ def _quick_extract(text):
     return result
 
 
-def _ocr(data, mime):
+_RECEIPT_AMOUNT = re.compile(r"(?<![\d.,])(\d{1,3}(?:\.\d{3})+|\d{1,6})\s?[.,]\s?(\d{2})(?!\d)")
+_RECEIPT_TOTAL = re.compile(r"\bTOPLAM\b|^TOP\b|TUTAR|KRED[İI]|KART|NAK[İI]T|EFT[- ]?POS", re.I)
+_RECEIPT_TAX = re.compile(r"KDV", re.I)
+_VAT_RATES = (1, 10, 20)
+
+
+def _receipt_amounts(line):
+    values = []
+    for match in _RECEIPT_AMOUNT.finditer(line):
+        try:
+            value = _money(match[1].replace(".", "") + "." + match[2], "Tutar")
+        except ExpenseError:
+            continue
+        if value:
+            values.append(value)
+    return values
+
+
+def _receipt_extract(text):
+    """Turkish cash-register slip (ÖKC fişi): TOPLAM/TOPKDV, dd/mm/yy dates.
+
+    Photo OCR misreads digits (700,00 -> "700 , 20"), so every total-like line
+    votes and a total whose VAT matches a printed KDV amount wins.
+    """
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    result = {}
+    totals, taxes = [], []
+    for index, line in enumerate(lines):
+        near = lines[max(0, index - 1):index + 2]
+        if _RECEIPT_TAX.search(line):
+            taxes.extend(value for candidate in near for value in _receipt_amounts(candidate))
+        elif _RECEIPT_TOTAL.search(line):
+            own = _receipt_amounts(line)
+            totals.extend(own or [value for candidate in near for value in _receipt_amounts(candidate)])
+    pair = None
+    for gross in sorted(set(totals), key=lambda value: (-totals.count(value), -value)):
+        for tax in set(taxes):
+            if tax < gross and any(abs(gross * rate / (100 + rate) - tax) <= 1 for rate in _VAT_RATES):
+                pair = (gross, tax)
+                break
+        if pair:
+            break
+    if pair:
+        result["gross"], result["tax"] = (f"{value / 100:.2f}" for value in pair)
+    elif totals:
+        gross = max(set(totals), key=lambda value: (totals.count(value), value))
+        result["gross"] = f"{gross / 100:.2f}"
+        smaller = [value for value in taxes if value < gross]
+        if smaller:
+            result["tax"] = f"{max(smaller, key=taxes.count) / 100:.2f}"
+    today = datetime.now(ZONE).date()
+    for line in lines:
+        for match in re.finditer(r"(?<!\d)(\d{1,2})[./-](\d{1,2})[./-](20\d{2}|\d{2})(?!\d)", line):
+            year = int(match[3]) if len(match[3]) == 4 else 2000 + int(match[3])
+            try:
+                found = date(year, int(match[2]), int(match[1]))
+            except ValueError:
+                continue
+            if today - timedelta(days=3 * 365) <= found <= today + timedelta(days=1):
+                result["date"] = found.isoformat()
+                break
+        if "date" in result:
+            break
+    number = re.search(r"F[İI]Ş\s*NO\s*[:.]?\s*(\d{1,8})", text, re.I)
+    if number:
+        result["invoice_number"] = number[1]
+    for line in lines[:8]:
+        if len(re.findall(r"[A-Za-zÇĞİÖŞÜçğıöşü]", line)) >= 6 and not re.search(r"\d{3}", line):
+            result["supplier"] = line[:200]
+            break
+    result["currency"] = "EUR" if re.search(r"\bEUR\b", text) else "USD" if re.search(r"\bUSD\b", text) else "TRY"
+    return result
+
+
+def _prepare_image(data, side):
+    """Phone photos store rotation in EXIF; OCR and the vision model need it applied."""
+    from PIL import Image, ImageOps
+    image = ImageOps.exif_transpose(Image.open(BytesIO(data)))
+    image.thumbnail((side, side))
+    return image
+
+
+def _ocr(data, mime, kind="invoice"):
     import fitz
     text = ""
     image = None
@@ -312,13 +413,26 @@ def _ocr(data, mime):
         image = data
     if image:
         try:
+            buffer = BytesIO()
+            _prepare_image(image, 2400).convert("L").save(buffer, "PNG")
+            image = buffer.getvalue()
+        except Exception:  # noqa: BLE001 - unreadable image still goes to OCR as uploaded
+            pass
+        try:
             run = subprocess.run(["tesseract", "stdin", "stdout", "-l", "tur+eng"],
-                input=image, capture_output=True, timeout=30, check=True)
+                input=image, capture_output=True, timeout=60, check=True)
             text = (text + "\n" + run.stdout.decode("utf-8", "replace"))[:30000]
         except (FileNotFoundError, subprocess.SubprocessError):
             pass
     if len(text.strip()) >= 120:
-        return _quick_extract(text), text[:30000]
+        parsed = _quick_extract(text)
+        if kind == "receipt":
+            parsed.update(_receipt_extract(text))
+        return parsed, text[:30000]
+    if image:
+        buffer = BytesIO()
+        _prepare_image(image, 1280).convert("RGB").save(buffer, "JPEG", quality=85)
+        image = buffer.getvalue()
     prompt = ("Fiş veya faturadan yalnız görünen veriyi JSON olarak çıkar; tahmin etme. "
               "Şema: {\"supplier\":\"\",\"buyer\":\"\",\"date\":\"YYYY-MM-DD veya boş\","
               "\"invoice_number\":\"\",\"currency\":\"TRY\",\"gross\":\"0.00 veya boş\","
@@ -366,7 +480,7 @@ def process(owner, document_id, *, force=False):
     if row["status"] != "uploaded" and not (force and row["status"] == "review"):
         return {"id": document_id, "status": row["status"]}
     try:
-        parsed, evidence = _ocr(bytes(row["content"]), row["mime_type"])
+        parsed, evidence = _ocr(bytes(row["content"]), row["mime_type"], row["kind"])
         if not parsed.get("invoice_number") and row["kind"] == "invoice":
             filename_number = re.search(r"(?:fatura|invoice)[-_ ]([A-Z0-9-]{5,40})", row["filename"], re.I)
             if filename_number:

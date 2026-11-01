@@ -78,3 +78,4 @@ six==1.17.0
 #   VNLP           -> AGPL-3.0, ticari sunucuda lisans riski
 #   gpt-researcher -> 0.16.0 upstream kırık (NameError: name 'Any')
 #   pandasai       -> Python 3.12 desteklemiyor
+pillow-heif==1.8.1
