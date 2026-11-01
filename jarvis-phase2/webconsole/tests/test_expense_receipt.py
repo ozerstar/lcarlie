@@ -97,6 +97,31 @@ class ReceiptExtractTest(unittest.TestCase):
         self.assertEqual(got["invoice_number"], "ABC2026000001")
 
 
+class DuplicateTest(unittest.TestCase):
+    reason = staticmethod(expense_vault._duplicate_reason)
+
+    def test_same_slip_number_is_sure(self):
+        # Ayabakan 235,00 fiş no 000011 üç kez yüklenmişti
+        self.assertEqual(self.reason({"number": "000011"}, {"number": "000011"}), (True, "aynı fiş/fatura no 000011"))
+
+    def test_different_numbers_are_separate_documents(self):
+        # Aynı gün 360,00 TL'lik altı ayrı fatura (379828…379833) tekrar sayılmaz
+        self.assertIsNone(self.reason({"number": "379828"}, {"number": "379829"}))
+
+    def test_time_decides_when_number_missing(self):
+        self.assertEqual(self.reason({"time": "13:06"}, {"time": "13:06"}), (True, "aynı saat 13:06"))
+        self.assertIsNone(self.reason({"time": "13:06"}, {"time": "19:01"}))
+
+    def test_only_amount_and_date_is_a_warning(self):
+        self.assertEqual(self.reason({"supplier": "OVALI DÖNER"}, {"supplier": "Ovalı Döner Lahmacun"}),
+                         (False, "aynı tutar ve tarih"))
+        self.assertIsNone(self.reason({"supplier": "Bilgin Pide"}, {"supplier": "Ayabakan"}))
+
+    def test_slip_time_is_read(self):
+        self.assertEqual(expense_vault._receipt_extract(LAHMACUN)["time"], "13:06")
+        self.assertEqual(expense_vault._receipt_extract("SAAT: 19 01\nTOPLAM *10,00")["time"], "19:01")
+
+
 class PhotoOrientationTest(unittest.TestCase):
     def test_exif_rotation_is_applied(self):
         from PIL import Image
@@ -116,6 +141,14 @@ class PhotoOrientationTest(unittest.TestCase):
         pillow_heif.from_pillow(Image.new("RGB", (300, 200), "white")).save(buffer, format="HEIF")
         converted = expense_vault._heic_to_jpeg(buffer.getvalue())
         self.assertEqual(expense_vault._mime(converted), "image/jpeg")
+
+    def test_iphone_hdr_jpeg_is_accepted(self):
+        # IMG_4719.jpeg: iPhone HDR JPEG'i Pillow'da "MPO"; "JPG yükleyin" diye reddediliyordu
+        from PIL import Image
+        buffer = BytesIO()
+        Image.new("RGB", (400, 300), "white").save(buffer, "MPO", save_all=True,
+                                                    append_images=[Image.new("RGB", (200, 150))])
+        self.assertEqual(expense_vault._mime(buffer.getvalue()), "image/jpeg")
 
     def test_non_heic_passes_through(self):
         self.assertEqual(expense_vault._heic_to_jpeg(b"%PDF-1.7 x"), b"%PDF-1.7 x")

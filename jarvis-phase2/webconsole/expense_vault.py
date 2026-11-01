@@ -6,6 +6,7 @@ import hashlib
 import json
 import re
 import subprocess
+import sys
 import threading
 import urllib.parse
 import urllib.request
@@ -89,11 +90,16 @@ def _mime(data):
     try:
         with Image.open(BytesIO(data)) as image:
             image.verify()
-            mime = {"JPEG": "image/jpeg", "PNG": "image/png", "WEBP": "image/webp"}.get(image.format)
+            # MPO: iPhone HDR photos are JPEGs carrying a second (gain map) frame
+            mime = {"JPEG": "image/jpeg", "MPO": "image/jpeg", "PNG": "image/png",
+                    "WEBP": "image/webp"}.get(image.format)
             if mime:
                 return mime
+            rejected = image.format
     except Exception as exc:
+        print(f"[expense] görsel okunamadı: {data[:12].hex()} {exc}", file=sys.stderr)
         raise ExpenseError("Görsel okunamadı.") from exc
+    print(f"[expense] desteklenmeyen biçim: {rejected}", file=sys.stderr)
     raise ExpenseError("JPG, PNG, WebP veya PDF yükleyin.")
 
 
@@ -384,6 +390,13 @@ def _receipt_extract(text):
     number = re.search(r"F[İI]Ş\s*NO\s*[:.]?\s*(\d{1,8})", text, re.I)
     if number:
         result["invoice_number"] = number[1]
+    for pattern in (r"SAAT\s*[:.]?\s*(\d{1,2})[:. ](\d{2})(?!\d)", r"(?<![\d:])(\d{1,2}):(\d{2})(?::\d{2})?(?![\d:])"):
+        for match in re.finditer(pattern, text, re.I):
+            if int(match[1]) < 24 and int(match[2]) < 60:
+                result["time"] = f"{int(match[1]):02d}:{match[2]}"
+                break
+        if "time" in result:
+            break
     for line in lines[:8]:
         if len(re.findall(r"[A-Za-zÇĞİÖŞÜçğıöşü]", line)) >= 6 and not re.search(r"\d{3}", line):
             result["supplier"] = line[:200]
@@ -456,6 +469,49 @@ def _ocr(data, mime, kind="invoice"):
     return parsed, text[:30000]
 
 
+def _duplicate_reason(new, other):
+    """Same amount and date is not enough: six real invoices share 360,00 TL.
+
+    Returns (sure, reason) when `other` looks like the same document, else None.
+    A differing receipt/invoice number or time rules a duplicate out.
+    """
+    new_number, other_number = new.get("number") or "", other.get("number") or ""
+    if new_number and other_number:
+        return (True, "aynı fiş/fatura no " + new_number) if new_number == other_number else None
+    new_time, other_time = new.get("time") or "", other.get("time") or ""
+    if new_time and other_time:
+        return (True, "aynı saat " + new_time) if new_time == other_time else None
+    def name(value):  # OCR mixes I/ı/İ: "OVALI" and "Ovalı" are the same shop
+        return re.sub(r"\W", "", (value or "").casefold().replace("ı", "i").replace("i̇", "i"))[:6]
+    new_name, other_name = name(new.get("supplier")), name(other.get("supplier"))
+    if new_name and other_name and new_name != other_name:
+        return None
+    return False, "aynı tutar ve tarih"
+
+
+def _find_duplicate(cur, owner, document_id, kind, data):
+    if data["gross_cents"] is None or data["document_date"] is None:
+        return None
+    cur.execute("""SELECT document_id,filename,created_at,supplier,invoice_number,
+        extracted->'fields'->>'time' AS time FROM core.jarvis_expense_document
+        WHERE owner=%s AND kind=%s AND document_id<>%s AND status<>'excluded'
+        AND gross_cents=%s AND document_date=%s ORDER BY created_at LIMIT 20""",
+        (owner, kind, document_id, data["gross_cents"], data["document_date"]))
+    new = {"number": data["invoice_number"], "time": data["extracted"]["fields"].get("time"),
+           "supplier": data["supplier"]}
+    possible = None
+    for row in cur.fetchall():
+        found = _duplicate_reason(new, {"number": row["invoice_number"], "time": row["time"],
+                                        "supplier": row["supplier"]})
+        if found:
+            match = {"id": row["document_id"], "filename": row["filename"],
+                     "uploaded_at": row["created_at"].isoformat(), "sure": found[0], "reason": found[1]}
+            if found[0]:
+                return match
+            possible = possible or match
+    return possible
+
+
 def _company_from_buyer(buyer):
     if "@" in str(buyer):
         return "unknown"
@@ -481,6 +537,7 @@ def process(owner, document_id, *, force=False):
         return {"id": document_id, "status": row["status"]}
     try:
         parsed, evidence = _ocr(bytes(row["content"]), row["mime_type"], row["kind"])
+        parsed.setdefault("time", "")
         if not parsed.get("invoice_number") and row["kind"] == "invoice":
             filename_number = re.search(r"(?:fatura|invoice)[-_ ]([A-Z0-9-]{5,40})", row["filename"], re.I)
             if filename_number:
@@ -503,18 +560,28 @@ def process(owner, document_id, *, force=False):
         data = {"extracted": {"error": str(exc)[:180]}}
     with _connect() as conn, conn.cursor() as cur:
         if "supplier" in data:
+            # Same slip photographed twice: a sure match is left out of the package,
+            # a possible one only gets a warning; both stay editable in the archive.
+            duplicate = _find_duplicate(cur, owner, document_id, row["kind"], data)
+            status, note = "review", ""
+            if duplicate:
+                data["extracted"]["duplicate"] = duplicate
+                if duplicate["sure"]:
+                    status = "excluded"
+                    note = f"Tekrar: {duplicate['filename']} ile aynı belge ({duplicate['reason']})."
             cur.execute("""UPDATE core.jarvis_expense_document SET
                 supplier=CASE WHEN supplier='' THEN %s ELSE supplier END,
                 buyer=CASE WHEN buyer='' THEN %s ELSE buyer END,
                 invoice_number=CASE WHEN invoice_number='' THEN %s ELSE invoice_number END,
                 document_date=COALESCE(document_date,%s),
                 gross_cents=COALESCE(gross_cents,%s),tax_cents=COALESCE(tax_cents,%s),
-                currency=%s,company=%s,extracted=%s,status='review',
+                currency=%s,company=%s,extracted=%s,status=%s,
+                note=CASE WHEN note='' THEN %s ELSE note END,
                 updated_at=clock_timestamp() WHERE owner=%s AND document_id=%s
                 AND status IN ('uploaded','review')""",
                 (data["supplier"], data["buyer"], data["invoice_number"],
                  data["document_date"], data["gross_cents"], data["tax_cents"],
-                 data["currency"], data["company"], Jsonb(data["extracted"]),
+                 data["currency"], data["company"], Jsonb(data["extracted"]), status, note,
                  owner, document_id))
         else:
             cur.execute("""UPDATE core.jarvis_expense_document SET extracted=%s,
