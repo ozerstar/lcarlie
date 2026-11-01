@@ -72,7 +72,8 @@ class ReceiptExtractTest(unittest.TestCase):
         self.assertEqual(got["gross"], "350.00")
         self.assertEqual(got["tax"], "31.82")
         self.assertEqual(got["date"], "2026-10-30")
-        self.assertEqual(got["supplier"], "OVALI DÖNER LAHMACUN")
+        # muhasebe için tabeladaki ad değil, unvan satırı (LTD/ŞTİ/A.Ş.) seçilir
+        self.assertTrue(got["supplier"].startswith("BONE GID.TIC.LTD"))
         self.assertEqual(got["currency"], "TRY")
 
     def test_vat_consistency_beats_misread_total(self):
@@ -97,6 +98,60 @@ class ReceiptExtractTest(unittest.TestCase):
         self.assertEqual(got["invoice_number"], "ABC2026000001")
 
 
+BIM = """BIRLESIK MAGAZALAR A.S.
+BULASK DETERJN 650ML %20 *119.00
+ALIŞVERİŞ POŞETİ BiM %20 *2.00
+TOPLAM KDV *97.21
+Odenecek KDV Dahil Tutar *721.50
+Banka Kredi Kartı *721.50
+01.11.2026 20:35 B:42 S:41
+KDV MATRAH KDV TUTAR KDV DAHIL
+%1. 145.54 *1.46 *147.00
+%20 478.75 *95.75 *574.50
+"""
+
+
+class MixedRateTest(unittest.TestCase):
+    def test_bim_slip_printed_vat_and_payable_total(self):
+        # IMG_4719: iki oranlı fiş; "Ödenecek KDV Dahil Tutar" KDV satırı sanılıyordu,
+        # tablo satırı 147,00 / 1,46 tek oranla tutarlı diye yanlış çift seçilebiliyordu
+        got = expense_vault._receipt_extract(BIM)
+        self.assertEqual(got["gross"], "721.50")
+        self.assertEqual(got["tax"], "97.21")
+        self.assertEqual(got["date"], "2026-11-01")
+        self.assertEqual(got["time"], "20:35")
+
+    def test_payable_line_outvotes_misread_card_line(self):
+        # Gerçek OCR: "Ö" düştü, TOPLAM KDV satırı hiç okunmadı, kart satırı 721.60 çıktı
+        got = expense_vault._receipt_extract("is denecek KDV Dahil Tutar *721.50.\n>< Banka Kredi Kartı 721.60\n")
+        self.assertEqual(got["gross"], "721.50")
+
+
+class PaddleTextTest(unittest.TestCase):
+    """PaddleOCR çıktısı: Türkçe harfsiz ("FIS", "SAPKACI"), tarih-saat bitişik olabilir."""
+
+    def test_glued_date_time_and_legal_seller(self):
+        text = ("BaySoy\nE-Arsiv Fatura\nBIM BIRLESIK MAGAZALAR A.S.\nYENIMAHALLE / ANKARA\n"
+                "01.11.202620:34 Sira No :280\nSU0.5L %1. *81.00\nTOPLAM KDV *97.21\n"
+                "Odenecek KDV Dahil Tutar *721.50\nBanka Kredi Karti *721.50\nYAPI KREDI A.S.\n")
+        got = expense_vault._receipt_extract(text)
+        self.assertEqual(got["date"], "2026-11-01")
+        self.assertEqual(got["supplier"], "BIM BIRLESIK MAGAZALAR A.S.")
+        self.assertEqual((got["gross"], got["tax"]), ("721.50", "97.21"))
+
+    def test_ascii_fis_no_and_saat_with_stray_digit(self):
+        text = ("PASA KIRIK\nINCEK GOLBASI ANKARA\nTARIH 26/10/2026\nSAAT 3 20:19:22\nFIS NO 0020\n"
+                "PIDE %10 *555,00\nTOPKDV *50,45\nTOPLAM *555,00\nKREDI *555,00\n")
+        got = expense_vault._receipt_extract(text)
+        self.assertEqual(got["invoice_number"], "0020")
+        self.assertEqual(got["time"], "20:19")
+        self.assertEqual(got["date"], "2026-10-26")
+
+    def test_bank_below_items_is_not_the_seller(self):
+        text = "SAPKACI UMIT\nUMIT CIRITCIOGLU\nSAPKA %10 *700,00\nKDV *63,64\nTOP *700,00\nT.IS BANKASI A.S.\n"
+        self.assertEqual(expense_vault._receipt_extract(text)["supplier"], "SAPKACI UMIT")
+
+
 class DuplicateTest(unittest.TestCase):
     reason = staticmethod(expense_vault._duplicate_reason)
 
@@ -110,7 +165,8 @@ class DuplicateTest(unittest.TestCase):
 
     def test_time_decides_when_number_missing(self):
         self.assertEqual(self.reason({"time": "13:06"}, {"time": "13:06"}), (True, "aynı saat 13:06"))
-        self.assertIsNone(self.reason({"time": "13:06"}, {"time": "19:01"}))
+        # saat OCR'da kayabilir (20:35 -> 20:34): fark tekrarı dışlamaz, uyarıya düşer
+        self.assertEqual(self.reason({"time": "20:35"}, {"time": "20:34"}), (False, "aynı tutar ve tarih"))
 
     def test_only_amount_and_date_is_a_warning(self):
         self.assertEqual(self.reason({"supplier": "OVALI DÖNER"}, {"supplier": "Ovalı Döner Lahmacun"}),

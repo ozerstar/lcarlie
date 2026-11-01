@@ -327,6 +327,10 @@ def _quick_extract(text):
 _RECEIPT_AMOUNT = re.compile(r"(?<![\d.,])(\d{1,3}(?:\.\d{3})+|\d{1,6})\s?[.,]\s?(\d{2})(?!\d)")
 _RECEIPT_TOTAL = re.compile(r"\bTOPLAM\b|^TOP\b|TUTAR|KRED[İI]|KART|NAK[İI]T|EFT[- ]?POS", re.I)
 _RECEIPT_TAX = re.compile(r"KDV", re.I)
+# "Ödenecek KDV Dahil Tutar" is the total, not the tax
+_RECEIPT_GROSS_WITH_KDV = re.compile(r"DENECEK|KDV\s*DAH", re.I)
+# The slip's own printed VAT total; mixed-rate slips (BİM: %1 + %20) fit no single rate
+_RECEIPT_PRINTED_TAX = re.compile(r"TOP\w*\s*KDV|^KDV\b", re.I)
 _VAT_RATES = (1, 10, 20)
 
 
@@ -350,14 +354,21 @@ def _receipt_extract(text):
     """
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     result = {}
-    totals, taxes = [], []
+    totals, taxes, printed = [], [], []
     for index, line in enumerate(lines):
         near = lines[max(0, index - 1):index + 2]
-        if _RECEIPT_TAX.search(line):
+        own = _receipt_amounts(line)
+        if _RECEIPT_TAX.search(line) and not _RECEIPT_GROSS_WITH_KDV.search(line):
             taxes.extend(value for candidate in near for value in _receipt_amounts(candidate))
-        elif _RECEIPT_TOTAL.search(line):
-            own = _receipt_amounts(line)
-            totals.extend(own or [value for candidate in near for value in _receipt_amounts(candidate)])
+            if _RECEIPT_PRINTED_TAX.search(line):
+                printed.extend(own)
+        elif _RECEIPT_TOTAL.search(line) or _RECEIPT_GROSS_WITH_KDV.search(line):
+            found = own or [value for candidate in near for value in _receipt_amounts(candidate)]
+            # the payable/total line outvotes a card line misread as 721.60
+            weight = 2 if re.search(r"DENECEK|KDV\s*DAH\w*\s*TUTAR|\bTOPLAM\b|^TOP\b", line, re.I) else 1
+            totals.extend(found * weight)
+    if printed:
+        taxes = printed
     pair = None
     for gross in sorted(set(totals), key=lambda value: (-totals.count(value), -value)):
         for tax in set(taxes):
@@ -368,6 +379,7 @@ def _receipt_extract(text):
             break
     if pair:
         result["gross"], result["tax"] = (f"{value / 100:.2f}" for value in pair)
+        result["vat_match"] = True
     elif totals:
         gross = max(set(totals), key=lambda value: (totals.count(value), value))
         result["gross"] = f"{gross / 100:.2f}"
@@ -376,7 +388,8 @@ def _receipt_extract(text):
             result["tax"] = f"{max(smaller, key=taxes.count) / 100:.2f}"
     today = datetime.now(ZONE).date()
     for line in lines:
-        for match in re.finditer(r"(?<!\d)(\d{1,2})[./-](\d{1,2})[./-](20\d{2}|\d{2})(?!\d)", line):
+        # PaddleOCR may glue the time on: "01.11.202620:34"
+        for match in re.finditer(r"(?<!\d)(\d{1,2})[./-](\d{1,2})[./-](20\d{2}(?=\d{1,2}:\d{2})|20\d{2}(?!\d)|\d{2}(?!\d))", line):
             year = int(match[3]) if len(match[3]) == 4 else 2000 + int(match[3])
             try:
                 found = date(year, int(match[2]), int(match[1]))
@@ -387,17 +400,25 @@ def _receipt_extract(text):
                 break
         if "date" in result:
             break
-    number = re.search(r"F[İI]Ş\s*NO\s*[:.]?\s*(\d{1,8})", text, re.I)
+    number = re.search(r"F[İI][ŞS]\s*NO\s*[:.]?\s*(\d{1,8})", text, re.I)
     if number:
         result["invoice_number"] = number[1]
-    for pattern in (r"SAAT\s*[:.]?\s*(\d{1,2})[:. ](\d{2})(?!\d)", r"(?<![\d:])(\d{1,2}):(\d{2})(?::\d{2})?(?![\d:])"):
+    # colon forms first: "SAAT 3 20:19:22" must not become 03:20
+    for pattern in (r"SAAT\s*[:.]?\s*(?:\d\s+)?(\d{1,2})[:.](\d{2})(?!\d)",
+                    r"(?<![\d:])(\d{1,2}):(\d{2})(?::\d{2})?(?![\d:])",
+                    r"SAAT\s*[:.]?\s*(\d{1,2}) (\d{2})(?!\d)"):
         for match in re.finditer(pattern, text, re.I):
             if int(match[1]) < 24 and int(match[2]) < 60:
                 result["time"] = f"{int(match[1]):02d}:{match[2]}"
                 break
         if "time" in result:
             break
-    for line in lines[:8]:
+    # seller is in the header, above the first priced line (the bank "A.Ş." is below)
+    priced = next((index for index, line in enumerate(lines) if _receipt_amounts(line)), len(lines))
+    head = [line for line in lines[:min(priced, 12)]
+            if not re.search(r"FATURA|F[İI][ŞS]\b|E-?AR[ŞS]", line, re.I)]
+    legal = [line for line in head if re.search(r"\bA\.?\s?[ŞS]\b|\bLTD\b|\b[ŞS]T[İI]\b|\bT[İI]C\b", line, re.I)]
+    for line in legal or head[:8]:
         if len(re.findall(r"[A-Za-zÇĞİÖŞÜçğıöşü]", line)) >= 6 and not re.search(r"\d{3}", line):
             result["supplier"] = line[:200]
             break
@@ -413,6 +434,49 @@ def _prepare_image(data, side):
     return image
 
 
+PADDLE_PYTHON = "/opt/lcarlie/ocr-venv/bin/python"
+PADDLE_SCRIPT = "/opt/lcarlie/ocr/paddle_ocr.py"
+PADDLE_CACHE = "/opt/lcarlie/ocr/cache"
+
+
+def _paddle(image):
+    """PaddleOCR (separate venv): reads curled, faint slips tesseract garbles.
+
+    Measured on four real slips: dates 3/4 vs 1/4, seller names readable.
+    Empty string when the engine is missing or fails; tesseract then runs.
+    """
+    import os
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix=".img") as handle:
+        handle.write(image)
+        handle.flush()
+        try:
+            run = subprocess.run([PADDLE_PYTHON, PADDLE_SCRIPT, handle.name], capture_output=True,
+                timeout=240, check=True,
+                env={"PATH": "/usr/bin:/bin", "HOME": PADDLE_CACHE, "PADDLE_PDX_CACHE_HOME": PADDLE_CACHE,
+                     "PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK": "True", "OMP_NUM_THREADS": "2",
+                     "LANG": os.environ.get("LANG", "C.UTF-8")})
+        except (FileNotFoundError, subprocess.SubprocessError) as exc:
+            print(f"[expense] paddleocr kullanılamadı: {str(exc)[:160]}", file=sys.stderr)
+            return ""
+    return run.stdout.decode("utf-8", "replace")
+
+
+def _tesseract(image, side):
+    try:
+        buffer = BytesIO()
+        _prepare_image(image, side).convert("L").save(buffer, "PNG")
+        image = buffer.getvalue()
+    except Exception:  # noqa: BLE001 - unreadable image still goes to OCR as uploaded
+        pass
+    try:
+        run = subprocess.run(["tesseract", "stdin", "stdout", "-l", "tur+eng"],
+            input=image, capture_output=True, timeout=60, check=True)
+    except (FileNotFoundError, subprocess.SubprocessError):
+        return ""
+    return run.stdout.decode("utf-8", "replace")
+
+
 def _ocr(data, mime, kind="invoice"):
     import fitz
     text = ""
@@ -424,23 +488,29 @@ def _ocr(data, mime, kind="invoice"):
                 image = pdf[0].get_pixmap(matrix=fitz.Matrix(1.5, 1.5), alpha=False).tobytes("png")
     else:
         image = data
+    readings = []
     if image:
-        try:
-            buffer = BytesIO()
-            _prepare_image(image, 2400).convert("L").save(buffer, "PNG")
-            image = buffer.getvalue()
-        except Exception:  # noqa: BLE001 - unreadable image still goes to OCR as uploaded
-            pass
-        try:
-            run = subprocess.run(["tesseract", "stdin", "stdout", "-l", "tur+eng"],
-                input=image, capture_output=True, timeout=60, check=True)
-            text = (text + "\n" + run.stdout.decode("utf-8", "replace"))[:30000]
-        except (FileNotFoundError, subprocess.SubprocessError):
-            pass
+        paddle = _paddle(image) if kind == "receipt" else ""
+        if paddle.strip() and _receipt_extract(paddle).get("gross"):
+            readings.append(paddle)
+        else:
+            # Tesseract twice: 3600 px keeps digits on long slips (BİM 721,50 was
+            # unreadable at 2400) but 2400 kept a fiş no that 3600 lost.
+            for side in (2400, 3600) if kind == "receipt" else (2400,):
+                readings.append(_tesseract(image, side))
+            if paddle.strip():
+                readings.insert(0, paddle)
+        text = (text + "\n" + readings[0])[:30000]
     if len(text.strip()) >= 120:
         parsed = _quick_extract(text)
         if kind == "receipt":
-            parsed.update(_receipt_extract(text))
+            candidates = [_receipt_extract(reading) for reading in readings if reading.strip()]
+            candidates = candidates or [_receipt_extract(text)]
+            best = max(candidates, key=lambda found: (bool(found.get("vat_match")),
+                                                      bool(found.get("gross")), len(found)))
+            for found in candidates:
+                parsed.update({key: value for key, value in found.items() if value})
+            parsed.update({key: value for key, value in best.items() if value})
         return parsed, text[:30000]
     if image:
         buffer = BytesIO()
@@ -473,14 +543,15 @@ def _duplicate_reason(new, other):
     """Same amount and date is not enough: six real invoices share 360,00 TL.
 
     Returns (sure, reason) when `other` looks like the same document, else None.
-    A differing receipt/invoice number or time rules a duplicate out.
+    A differing receipt/invoice number rules a duplicate out.
     """
     new_number, other_number = new.get("number") or "", other.get("number") or ""
     if new_number and other_number:
         return (True, "aynı fiş/fatura no " + new_number) if new_number == other_number else None
     new_time, other_time = new.get("time") or "", other.get("time") or ""
-    if new_time and other_time:
-        return (True, "aynı saat " + new_time) if new_time == other_time else None
+    if new_time and new_time == other_time:
+        return True, "aynı saat " + new_time
+    # a differing time is not proof: OCR read BİM's 20:35 as 20:34
     def name(value):  # OCR mixes I/ı/İ: "OVALI" and "Ovalı" are the same shop
         return re.sub(r"\W", "", (value or "").casefold().replace("ı", "i").replace("i̇", "i"))[:6]
     new_name, other_name = name(new.get("supplier")), name(other.get("supplier"))

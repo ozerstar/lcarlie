@@ -1,0 +1,5 @@
+# PaddleOCR ayri venv: /opt/lcarlie/ocr-venv (Jarvis venv DEGIL)
+# python3 -m venv /opt/lcarlie/ocr-venv && ocr-venv/bin/pip install paddlepaddle==3.2.0 -i https://www.paddlepaddle.org.cn/packages/stable/cpu/ && ocr-venv/bin/pip install paddleocr==3.3.3
+# script: /opt/lcarlie/ocr/paddle_ocr.py, modeller: /opt/lcarlie/ocr/cache (sahibi jarvis-web)
+paddlepaddle==3.2.0
+paddleocr==3.3.3
