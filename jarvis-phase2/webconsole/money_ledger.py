@@ -79,7 +79,8 @@ HAND_ACCOUNT = "Elle eklenen"
 # Lemos pays his salary from QNB: in one book it is Lemos' spending, in the other his income —
 # mixed in one ledger it would be counted twice.
 BOOKS = {"kisisel": "Kişisel", "lemos": "Lemos şirket", "moy": "MOY şirket"}
-_BOOK_MARKS = (("lemos", re.compile(r"146275187")), ("moy", re.compile(r"enpara sirketim|sirketim")))
+# MOY's two TEB accounts (owner, 02.11.2026: "bazıları TEB şirketten ödeniyor")
+_BOOK_MARKS = (("lemos", re.compile(r"146275187")), ("moy", re.compile(r"enpara sirketim|sirketim|70698775|80396150")))
 
 
 def book_of(text, hint=""):
@@ -217,6 +218,8 @@ def parse_statement(text, today=None):
     whole = plain(text)
     if re.search(r"hareketi bulunmamaktadir", whole):
         return []  # Enpara Şirketim: "… döneminde hareketi bulunmamaktadır" — the fee notice is no movement
+    if "islem ozel aciklamasi" in whole and "dekont" in whole:
+        return _parse_teb(text)
     if "devreden bakiye" in whole and _US_AMOUNT.search(text):
         return _parse_qnb(text)
     account_mode = "bakiye" in whole and not re.search(r"ekstre borcu|kredi karti ekstresi", whole)
@@ -307,6 +310,53 @@ def _qnb_row(day, words, amount, account):
     return {"date": day, "direction": "in" if amount > 0 else "out", "kind": kind, "party": party or "QNB",
             "description": description, "amount": abs(amount), "account": account, "note": "",
             "foreign_currency": None, "foreign_cents": None, "category": category}
+
+
+# TEB "Hesap Hareketleri" (MOY, 02.11.2026): a record is date / valör / saat / açıklama… /
+# işlem tipi / tutar (signed, "-3.090,00") / bakiye / dekont no / alıcı…, newest first.
+_TEB_DATE = re.compile(r"^(\d{2})/(\d{2})/(20\d{2})$")
+_TEB_AMOUNT = re.compile(r"^(-?)(\d{1,3}(?:\.\d{3})*),(\d{2})$")
+
+
+def _parse_teb(text):
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    number = next((line for line in lines[:20] if re.fullmatch(r"\d{6,10}", line)), "")
+    account = f"TEB vadesiz ···{number[-4:]}" if number else "TEB vadesiz"
+    starts = [i for i in range(len(lines) - 2) if _TEB_DATE.match(lines[i]) and _TEB_DATE.match(lines[i + 1])
+              and re.fullmatch(r"\d{2}:\d{2}", lines[i + 2])]
+    rows = []
+    for a, b in zip(starts, starts[1:] + [len(lines)], strict=True):
+        record = lines[a:b]
+        at = next((j for j in range(4, len(record)) if _TEB_AMOUNT.match(record[j])), None)
+        if at is None:
+            continue
+        found = _TEB_AMOUNT.match(record[at])
+        amount = int(found[2].replace(".", "")) * 100 + int(found[3])
+        day = date(int(record[0][6:]), int(record[0][3:5]), int(record[0][:2]))
+        words, receiver = record[3:at - 1], [w for w in record[at + 3:at + 5] if not plain(w).startswith("sayfa")]
+        first, lowered = words[0] if words else "", plain(" ".join(words))
+        description = " ".join(words)[:300]
+        kind, party = ("diger", "")
+        if re.search(r"ucreti|bsmv|masraf|komisyon", plain(first)):
+            kind, party = "banka", "TEB " + ("EFT" if "eft" in plain(first) else "FAST") + " ücreti"
+        elif "virman" in lowered or (not found[1] and re.search(r"^moy dan", plain(first))):
+            kind, party = INTERNAL, "MOY TEB hesapları arası"
+        elif found[1]:  # out: the açıklama names the receiving bank, the alıcı column the person
+            kind, party = "transfer", " ".join(receiver) or first
+        else:
+            kind = "transfer"
+            party = re.split(r"\s+den gelen", first, flags=re.I)[0]
+            if re.search(r"(\s(ve|san|tic)\.?|\.)$", plain(party)) and len(words) > 1 and not re.search(r"ile gelen", plain(words[1])):
+                party = f"{party} {words[1]}"
+        rows.append({"date": day, "direction": "out" if found[1] else "in", "kind": kind, "party": party.strip()[:80] or "TEB",
+                     "description": description, "amount": amount, "account": account, "note": "",
+                     "foreign_currency": None, "foreign_cents": None, "category": "banka" if kind == "banka" else ""})
+    seen = {}
+    for item in rows:
+        identity = (item["date"], item["direction"], item["amount"], key_of(item["party"]))
+        seen[identity] = seen.get(identity, 0) + 1
+        item["ordinal"] = seen[identity]
+    return rows
 
 
 def _parse_qnb(text):
@@ -1348,6 +1398,9 @@ def find_links(rows, links=()):
             continue
         third = best[1]
         own = any(o["category"] in OWN_OBLIGATIONS for o in third) or any(i["category"] in SUPPORT_IN for i in ins)
+        # 02.11.2026: in a company book a customer's payment passed on to the owner is revenue, not
+        # aracılık — counting it as pass-through hid MOY's sales. Only explained there, never excluded.
+        own = own or any(i.get("book", "kisisel") != "kisisel" for i in ins)
         kind = "kullanim" if own else PASS
         left = {i["id"]: i["amount_cents"] for i in ins}
         for out in third:

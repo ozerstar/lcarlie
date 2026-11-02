@@ -632,5 +632,111 @@ class QnbStatementTest(unittest.TestCase):
         self.assertTrue(money_ledger.parse_statement(SCREENSHOT, TODAY))
 
 
+
+TEB_SAMPLE = """Şube
+Hesap Numarası
+IBAN
+Hesap Türü
+Bakiye
+6-Ankara
+12345678
+TR00 0003 2000 0000 0012 3456 78
+Vadesiz TL
+246,49
+TARİH
+VALÖR
+SAAT
+AÇIKLAMA
+İŞLEM ÖZEL AÇIKLAMASI
+İŞLEM TİPİ
+TUTAR
+BAKİYE
+DEKONT
+NO
+ALICI
+27/09/2026
+27/09/2026
+16:34
+FAST Ücreti BSMV
+117 nolu ofis aidat ve dogalgaz
+odemeis
+FAST
+-0,40
+246,49
+2642
+dosima plaza yönetimi
+27/09/2026
+27/09/2026
+16:34
+AKBANK T.A.Ş.
+117 nolu ofis aidat ve dogalgaz
+odemeis
+FAST
+-3.090,00
+254,86
+2642
+dosima plaza yönetimi
+27/09/2026
+28/09/2026
+16:33
+Murat Özer Yıldız den gelen havale
+tutarı
+FAST ile Gelen Havale
+FAST
+3.100,00
+3.344,86
+2637
+Moy Danısmalık Tekn Org San Ve
+Tic Aş
+20/09/2026
+20/09/2026
+10:00
+99999999 nolu hesaba virman
+Virman
+-100,00
+244,86
+2600
+02/09/2026
+02/09/2026
+11:20
+GEMİ BİLİŞİM TEKNOLOJİLERİ VE
+TİCARET A.Ş.
+EFT ile Gelen Havale
+EFT
+23.670,00
+344,86
+2500
+MOY DANIŞMANLIK
+"""
+
+
+class CompanyBookLinkTest(unittest.TestCase):
+    def test_customer_money_passed_to_owner_is_not_aracilik(self):
+        rows = [{"id": "in", "account": "TEB", "tx_date": date(2026, 7, 8), "direction": "in", "party": "CABA EMLAK",
+                 "party_key": "cabaemlak", "amount_cents": 16000000, "category": "", "book": "moy"},
+                {"id": "out", "account": "TEB", "tx_date": date(2026, 7, 8), "direction": "out", "party": "Murat özer yıldız",
+                 "party_key": "muratozeryildiz", "amount_cents": 15998000, "category": "", "book": "moy"}]
+        links = money_ledger.find_links(rows)
+        self.assertEqual([link["kind"] for link in links], ["kullanim"])
+
+
+class TebStatementTest(unittest.TestCase):
+    """MOY's TEB account (02.11.2026): fees, out to the alıcı, in from the sender, virman = own."""
+
+    def test_records(self):
+        rows = money_ledger.parse_statement(TEB_SAMPLE)
+        self.assertEqual([(r["date"], r["direction"], r["amount"], r["kind"], r["party"], r["category"]) for r in rows], [
+            (date(2026, 9, 27), "out", 40, "banka", "TEB FAST ücreti", "banka"),
+            (date(2026, 9, 27), "out", 309000, "transfer", "dosima plaza yönetimi", ""),
+            (date(2026, 9, 27), "in", 310000, "transfer", "Murat Özer Yıldız", ""),
+            (date(2026, 9, 20), "out", 10000, "ic_transfer", "MOY TEB hesapları arası", ""),
+            (date(2026, 9, 2), "in", 2367000, "transfer", "GEMİ BİLİŞİM TEKNOLOJİLERİ VE TİCARET A.Ş.", "")])
+        self.assertEqual(rows[0]["account"], "TEB vadesiz ···5678")
+
+    def test_moy_accounts_go_to_the_moy_book(self):
+        self.assertEqual(money_ledger.book_of("Hesap Numarası\n70698775\n"), "moy")
+        self.assertEqual(money_ledger.book_of("Hesap Numarası\n80396150\n"), "moy")
+
+
 if __name__ == "__main__":
     unittest.main()
