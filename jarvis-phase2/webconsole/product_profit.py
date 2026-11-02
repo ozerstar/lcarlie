@@ -27,14 +27,17 @@ from expense_vault import ZONE, ExpenseError, _connect, _money, _text
 ALLOCATIONS = {"esit": "Ürünlere eşit", "adet": "Üretim adedine göre", "ciro": "Satışa (ciroya) göre"}
 # genel maliyetin türü — sahip 02.11.2026: "ÜGR 108 bin görünüyor, testlerin maliyeti yok": testler ile ÜGR ayrı satır
 GENERAL_KINDS = {"tester": "Tester / numune (marka tanıtımı)", "test": "Laboratuvar testleri (TTS)",
-                 "ugr": "ÜGR raporları (Regnovis)", "diger": "Diğer genel"}
+                 "ugr": "ÜGR raporları (Regnovis)",
+                 # sahip 02.11.2026: Mim katalog/broşür, Pusula lightbox — marka tanıtımı, ürünlere dağıtılır
+                 "reklam": "Promosyon / reklam materyali (katalog, broşür, lightbox)", "diger": "Diğer genel"}
 _UGR = re.compile(r"regnovis|\bugr\b|guvenlik|guvenlilik")
 _TEST = re.compile(r"\btts\b|laborat|analiz|stabilite|challenge|mikrobiyo|test")
+_AD = re.compile(r"katalog|brosur|lightbox|light box|reklam|promosyon|matbaa|afis|kartvizit|roll ?up|banner")
 
 
 def general_kind(text):
     t = invoice_topics.plain(text or "")
-    return "ugr" if _UGR.search(t) else "test" if _TEST.search(t) else "diger"
+    return "ugr" if _UGR.search(t) else "test" if _TEST.search(t) else "reklam" if _AD.search(t) else "diger"
 
 
 def _spread(amount, weights):
