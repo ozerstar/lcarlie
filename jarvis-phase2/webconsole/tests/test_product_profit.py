@@ -30,12 +30,14 @@ class BuildTest(unittest.TestCase):
     def test_layers_and_coverage(self):
         got = pp.build(ROWS, [], "esit")
         v = next(x for x in got["products"] if x["product"] == "Vireon")
-        self.assertEqual((v["produced"], v["production"], v["tester"]), (252, 1386000, 2058000))
-        self.assertEqual(v["general"], 2775000)                  # 55.500 TL ÜGR iki ürüne eşit
-        self.assertEqual(v["total_cost"], 1386000 + 2058000 + 2775000)
+        self.assertEqual((v["produced"], v["production"], v["tester"]), (252, 1386000, 0))
+        # sahip: testerlar marka tanıtımı, ürün bazlı değil — ÜGR gibi ürünlere eşit bölünür
+        self.assertEqual(v["general"], (5550000 + 2058000) // 2)
+        self.assertEqual(v["total_cost"], 1386000 + v["general"])
+        self.assertEqual(got["totals"]["general_tester"], 2058000)
         self.assertEqual(v["profit"], 8498928 - v["total_cost"])
         self.assertEqual(v["coverage"], round(8498928 / v["total_cost"] * 100, 1))
-        self.assertEqual(got["totals"]["general"], 5550000)      # dağıtılan genel maliyet kuruşu kuruşuna
+        self.assertEqual(got["totals"]["general"], 5550000 + 2058000)  # dağıtılan genel maliyet kuruşu kuruşuna
 
     def test_added_costs(self):
         extras = [{"cost_id": "a" * 32, "spent_on": "2026-11-01", "description": "TTS analiz", "net_cents": 300000, "target": "genel", "product": None},
@@ -43,7 +45,7 @@ class BuildTest(unittest.TestCase):
         got = pp.build(ROWS, extras, "esit")
         f = next(x for x in got["products"] if x["product"] == "Femisia")
         self.assertEqual(f["special"], 100000)
-        self.assertEqual(got["totals"]["general"], 5550000 + 300000)
+        self.assertEqual(got["totals"]["general"], 5550000 + 2058000 + 300000)
 
     def test_breakeven_units(self):
         rows = [row("in", "lcarlie_urun", "Liftelle", "L'Carlié Liftelle", 1000000, q=100), row("out", "lcarlie_urun", "Liftelle", "x", 400000, q=4)]
@@ -53,7 +55,7 @@ class BuildTest(unittest.TestCase):
     def test_allocation_by_quantity(self):
         got = pp.build(ROWS, [], "adet")
         shares = {x["product"]: x["general"] for x in got["products"]}
-        self.assertEqual(shares["Vireon"] + shares["Femisia"], 5550000)
+        self.assertEqual(shares["Vireon"] + shares["Femisia"], 5550000 + 2058000)  # ÜGR + tester
         self.assertGreater(shares["Femisia"], shares["Vireon"] * 0.9)  # 255 ↔ 252 adet
 
 

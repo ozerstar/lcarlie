@@ -6,7 +6,8 @@ butonu: eklenen maliyet genel maliyete ya da seçtiğim ürüne etki etsin."
 
 Costs, all VAT-exclusive (the company deducts the VAT):
   üretim   production invoice lines of the product (NEVA prices include box, label, packaging)
-  tester   tester lines, charged to the product they are a tester of ("testerlar dağıtılıyor")
+  tester   tester lines are GENERAL: "testerları L'CARLIÉ reklamı için harcıyorum, ürün bazlı değil"
+           (owner, 02.11.2026) — split over the products like the other general costs
   genel    product-test / safety-report invoices (TTS, Regnovis ÜGR) + costs added as general, split over
            the products by the chosen key (equal by default: the reports are per product)
   özel     costs added for one product
@@ -25,7 +26,8 @@ from expense_vault import ZONE, ExpenseError, _connect, _money, _text
 
 ALLOCATIONS = {"esit": "Ürünlere eşit", "adet": "Üretim adedine göre", "ciro": "Satışa (ciroya) göre"}
 # genel maliyetin türü — sahip 02.11.2026: "ÜGR 108 bin görünüyor, testlerin maliyeti yok": testler ile ÜGR ayrı satır
-GENERAL_KINDS = {"test": "Laboratuvar testleri (TTS)", "ugr": "ÜGR raporları (Regnovis)", "diger": "Diğer genel"}
+GENERAL_KINDS = {"tester": "Tester / numune (marka tanıtımı)", "test": "Laboratuvar testleri (TTS)",
+                 "ugr": "ÜGR raporları (Regnovis)", "diger": "Diğer genel"}
 _UGR = re.compile(r"regnovis|\bugr\b|guvenlik|guvenlilik")
 _TEST = re.compile(r"\btts\b|laborat|analiz|stabilite|challenge|mikrobiyo|test")
 
@@ -54,7 +56,7 @@ def build(rows, extras, allocation="esit"):
     item = lambda name: p.setdefault(name, {"product": name, "produced": 0.0, "production": 0, "tester": 0, "tester_qty": 0.0,
                                             "general": 0, "special": 0, "sold": 0.0, "sales_net": 0, "sales_gross": 0,
                                             "first_made": None, "first_sold": None})
-    general_items, tester_unassigned = [], 0
+    general_items, tester_qty = [], 0.0
     for r in rows:
         if r["k"] != "lemos" or r["z"] == "grup":
             continue
@@ -64,13 +66,9 @@ def build(rows, extras, allocation="esit"):
             x["production"] += r["v"]
             x["first_made"] = min(filter(None, (x["first_made"], r["m"])))
         elif r["b"] == "in" and r["t"] == "numune_tester":
-            product = invoice_topics.product_of(r["n"])
-            if product:
-                x = item(product)
-                x["tester"] += r["v"]
-                x["tester_qty"] += r["q"]
-            else:
-                tester_unassigned += r["v"]
+            tester_qty += r["q"]
+            general_items.append({"source": "fatura", "month": r["m"], "description": r["n"] or r["f"], "party": r["f"], "net": r["v"],
+                                  "gross": r["g"], "kind": "tester", "qty": r["q"]})
         elif r["b"] == "in" and r["t"] == "urun_test":
             general_items.append({"source": "fatura", "month": r["m"], "description": r["n"] or r["f"], "party": r["f"], "net": r["v"],
                                   "gross": r["g"], "kind": general_kind(f"{r['n']} {r['f']}")})
@@ -80,9 +78,6 @@ def build(rows, extras, allocation="esit"):
             x["sales_net"] += r["v"]
             x["sales_gross"] += r["g"]
             x["first_sold"] = min(filter(None, (x["first_sold"], r["m"])))
-    if tester_unassigned:
-        general_items.append({"source": "tester", "month": "", "description": "Ürünü belli olmayan tester", "party": "", "net": tester_unassigned,
-                              "gross": tester_unassigned, "kind": "diger"})
     for e in extras:
         if e["target"] == "urun":
             item(e["product"])["special"] += e["net_cents"]
@@ -113,7 +108,7 @@ def build(rows, extras, allocation="esit"):
     for kind in GENERAL_KINDS:
         totals[f"general_{kind}"] = sum(g["net"] for g in general_items if g["kind"] == kind)
         totals[f"general_{kind}_gross"] = sum(g["gross"] for g in general_items if g["kind"] == kind)
-    totals.update({"produced": sum(x["produced"] for x in out), "sold": sum(x["sold"] for x in out), "tester_qty": sum(x["tester_qty"] for x in out),
+    totals.update({"produced": sum(x["produced"] for x in out), "sold": sum(x["sold"] for x in out), "tester_qty": tester_qty,
                    "coverage": round(totals["sales_net"] / totals["total_cost"] * 100, 1) if totals["total_cost"] else None,
                    "products": len(out), "products_with_cost": len(made), "in_profit": sum(1 for x in out if x["profit"] >= 0 and x["total_cost"])})
     return {"products": out, "totals": totals, "general_items": general_items, "allocation": allocation, "allocations": ALLOCATIONS,
