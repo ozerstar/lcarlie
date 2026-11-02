@@ -7,10 +7,11 @@ lines do not add up keeps its totals and gets no lines.
 import re
 from decimal import Decimal, InvalidOperation
 
-_NAME = re.compile(r"mal\s*/?\s*hizmet$|malzeme\s*/\s*hizmet$|ürün|hizmet\s*/\s*ürün|açıklama|cinsi|malzeme|^hizmet$", re.I)
-_QTY = re.compile(r"miktar", re.I)
-_NET = re.compile(r"(mal\s*/?\s*hizmet\s*tutar|malzeme\s*/\s*hizmet\s*tutar|tutar[ıi]?$|^toplam$|net\s*tutar)", re.I)
-_PCT = re.compile(r"kdv\s*oran|kdv\s*%|^kdv$|%\s*kdv", re.I)
+# Python's re.I does not fold Turkish İ/ı: "MİKTAR", "AÇIKLAMA", "ORANI" are spelled out (TYA, 02.11.2026)
+_NAME = re.compile(r"mal\s*/?\s*hizmet$|malzeme\s*/\s*hizmet$|ürün|ÜRÜN|hizmet\s*/\s*ürün|açıklama|AÇIKLAMA|cinsi|malzeme|^hizmet$", re.I)
+_QTY = re.compile(r"miktar|MİKTAR", re.I)
+_NET = re.compile(r"(mal\s*/?\s*hizmet\s*tutar|malzeme\s*/\s*hizmet\s*tutar|tutar[ıi]?$|TUTARI?$|^toplam$|net\s*tutar)", re.I)
+_PCT = re.compile(r"kdv\s*oran|KDV\s*ORAN|kdv\s*%|^kdv$|%\s*kdv", re.I)
 VAT_RATES = (Decimal("1.01"), Decimal("1.08"), Decimal("1.10"), Decimal("1.18"), Decimal("1.20"))
 
 
@@ -77,23 +78,26 @@ def from_tables(pages):
 
 
 def from_text(text):
-    """GİB default layout as plain text: sıra / ad / '1 Adet' / birim fiyat / %KDV / KDV / tutar."""
+    """GİB-like layout as plain text: sıra / ad (one or more lines) / '1 Adet' / birim fiyat / %KDV / KDV / tutar."""
     tokens = [t.strip() for t in text.splitlines() if t.strip()]
-    starts = [i for i, t in enumerate(tokens) if re.search(r"(mal|malzeme)\s*/?\s*hizmet\s*tutar[ıi]|^tutar[ıi]$", t, re.I)]
+    starts = [i for i, t in enumerate(tokens)
+              if re.search(r"(mal|malzeme)\s*/?\s*hizmet\s*tutar[ıi]|^tutar[ıi]$|^TUTARI?$", t, re.I)]
     if not starts:
         return []
+    qty_line = re.compile(r"^([\d.,]+)\s+([A-Za-zÇĞİÖŞÜçğıöşü.]+)$")
     lines, i = [], starts[0] + 1
     while i < len(tokens) - 3:
-        quantity = re.match(r"^([\d.,]+)\s+([A-Za-zÇĞİÖŞÜçğıöşü.]+)$", tokens[i + 2]) if i + 2 < len(tokens) else None
-        if re.fullmatch(r"\d{1,3}", tokens[i]) and quantity:
-            name, j, money_tokens, pct = tokens[i + 1], i + 3, [], None
+        at = next((k for k in range(i + 2, min(i + 6, len(tokens))) if qty_line.match(tokens[k])), None)
+        if re.fullmatch(r"\d{1,3}", tokens[i]) and at is not None:
+            name, quantity = " ".join(tokens[i + 1:at]), qty_line.match(tokens[at])
+            j, money_tokens, pct = at + 1, [], None
             while j < len(tokens) and len(money_tokens) < 5:
                 tok = tokens[j]
                 if re.match(r"^%\s*[\d,]+$", tok):
                     pct = _pct(tok)
                 elif re.fullmatch(r"\d[\d.]*,\d{2}\s*(TL)?", tok):
                     money_tokens.append(tok)
-                elif re.fullmatch(r"\d{1,3}", tok) or re.search(r"genel açıklama|toplam|yalnız|hesaplanan", tok, re.I):
+                elif re.fullmatch(r"\d{1,3}", tok) or re.search(r"genel açıklama|toplam|yalnız|hesaplanan|ARA TUTAR", tok, re.I):
                     break
                 j += 1
             if money_tokens:
@@ -125,6 +129,10 @@ def read_lines(pages, text, payable, tax, party=""):
                             "net_cents": payable - tax, "vat_percent": None}])
     for lines in candidates:
         if adds_up(lines, payable, tax):
+            net = sum(line["net_cents"] for line in lines)
+            if tax and abs(net - payable) <= max(200, payable // 500):  # the column was VAT-inclusive (TYA)
+                for line in lines:
+                    line["net_cents"] = round(line["net_cents"] * (payable - tax) / net)
             for number, line in enumerate(lines, 1):
                 line["line_no"] = number
                 rate = line["vat_percent"]

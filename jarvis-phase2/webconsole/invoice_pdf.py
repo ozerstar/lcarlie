@@ -52,7 +52,9 @@ def _block_after(text, marker, size=700):
     return text[at:at + size] if at >= 0 else ""
 
 
-OWN_SERIES = ("LMS", "LEM")  # Lemos' e-fatura and e-arşiv series: only Lemos issues these
+# Lemos' e-fatura and e-arşiv series (only Lemos issues these); TYA = e-arşiv Trendyol issues in
+# Lemos' name for its Trendyol sales (owner sent them 02.11.2026, each carries the Trendyol order no)
+OWN_SERIES = ("LMS", "LEM", "TYA")
 _SAYIN = re.compile(r"\bsay[ıi]n\b", re.I)
 _FORM = re.compile(r"(A\.?\s?Ş\.?|ANON[İI]M|L[İI]M[İI]TED|LTD|ŞT[İI]|DERNE[ĞG][İI]|[İI]ŞLETMES[İI]|T[İI]CARET|A\.S\.)", re.I)
 
@@ -93,7 +95,8 @@ def read(invoice, lemos):
     if day and len(day[1]) == 4:  # ISO 2026-10-12
         day = [None, day[3], day[2], day[1]]
     total = re.findall(r"(?:Ödenecek\s*Tutar|Vergiler\s*Dahil\s*Toplam\s*Tutar)\s*:?\s*\n?\s*:?\s*(\d[\d.]*,\d{2}|\d+\.\d{2})", text, re.I)
-    vat = re.findall(r"Hesaplanan\s*K\.?D\.?V\.?(?:\s*\(%\s*[\d,]+\))?\s*:?\s*\n?\s*:?\s*(\d[\d.]*,\d{2})", text, re.I)
+    vat = re.findall(r"(?:Hesaplanan|HESAPLANAN)\s*K\.?D\.?V\.?(?:\s*\(%\s*[\d.,]+\))?\s*:?\s*\n?\s*:?\s*(\d[\d.]*,\d{2})", text, re.I)
+    order = re.search(r"(?:Sipariş|SİPARİŞ)\s*(?:No|NO)\s*:?\s*(\d{6,})", text)
     payable = _money_any(total[-1]) if total else None
     found_lines = parse_lines(text)
     if payable is None or abs(sum(l["net_cents"] + l["vat_cents"] for l in found_lines) - payable) > 100:
@@ -102,7 +105,8 @@ def read(invoice, lemos):
             "date": date(int(day[3]), int(day[2]), int(day[1])) if day else None,
             "party": party.strip()[:200], "party_vkn": next((i for i in ids if i != lemos), ""),
             "payable_cents": payable, "tax_cents": _tl(vat[-1]) if vat else 0,
-            "lines": found_lines, "witness": {"buyer_is_lemos": lemos_buys, "own_series": own_series}}
+            "lines": found_lines, "order_no": order.group(1) if order else "",
+            "witness": {"buyer_is_lemos": lemos_buys, "own_series": own_series}}
 
 
 def _seller(lines, buyer_area):

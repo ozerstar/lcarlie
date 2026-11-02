@@ -201,11 +201,11 @@ def import_pdf(owner, book, rows):
                 continue
             category = "tahsilat" if row["box"] == "out" else guess_category(row["party"], row["lines"], rules)
             cur.execute("""INSERT INTO core.jarvis_invoice (owner,document_id,book,box,scenario,number,issue_date,party,
-                    party_key,party_vkn,payable_cents,tax_cents,currency,status,category)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'TRY','PDF',%s) ON CONFLICT DO NOTHING RETURNING document_id""",
-                (owner, row["ettn"], book, row["box"], "eArchive" if row["number"].upper().startswith("LEM") else "eInvoice",
+                    party_key,party_vkn,payable_cents,tax_cents,currency,status,category,order_no)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'TRY','PDF',%s,%s) ON CONFLICT DO NOTHING RETURNING document_id""",
+                (owner, row["ettn"], book, row["box"], "eArchive" if row["number"].upper().startswith(("LEM", "TYA")) else "eInvoice",
                  row["number"][:40], row["date"], row["party"], key_of(row["party"]), row["party_vkn"][:11],
-                 row["payable_cents"], row["tax_cents"], category))
+                 row["payable_cents"], row["tax_cents"], category, row.get("order_no", "")[:40]))
             if cur.fetchone() is None:
                 continue
             added += 1

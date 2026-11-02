@@ -44,20 +44,42 @@ def classify_all(owner):
 def _parts(owner, book, start, end):
     """One part per line, or one per line-less invoice: (box, theme, business, product, name, party, net, qty, day)."""
     with _connect() as conn, conn.cursor() as cur:
-        cur.execute("""SELECT i.box, i.issue_date, i.party, i.payable_cents, i.tax_cents, i.theme AS itheme, i.business AS ibusiness,
+        cur.execute("""SELECT i.document_id, i.box, i.issue_date, i.party, i.payable_cents, i.tax_cents, i.theme AS itheme, i.business AS ibusiness,
                 l.name, l.theme, l.business, l.product, l.net_cents, l.quantity::float AS quantity
             FROM core.jarvis_invoice i LEFT JOIN core.jarvis_invoice_line l USING (owner, document_id)
             WHERE i.owner=%s AND i.book=%s AND i.issue_date >= %s AND i.issue_date < %s AND i.status <> ALL(%s)""",
                     (owner, book, start, end, list(DEAD)))
         for row in cur.fetchall():
             if row["name"] is None:
-                yield {"box": row["box"], "theme": row["itheme"] or "diger", "business": row["ibusiness"] or "ortak",
+                yield {"doc": row["document_id"], "box": row["box"], "theme": row["itheme"] or "diger", "business": row["ibusiness"] or "ortak",
                        "product": "", "name": row["party"], "party": row["party"], "qty": 1,
                        "net": row["payable_cents"] - (row["tax_cents"] or 0), "day": row["issue_date"], "read": False}
             else:
-                yield {"box": row["box"], "theme": row["theme"] or "diger", "business": row["business"] or "ortak",
+                yield {"doc": row["document_id"], "box": row["box"], "theme": row["theme"] or "diger", "business": row["business"] or "ortak",
                        "product": row["product"], "name": row["name"], "party": row["party"], "qty": row["quantity"] or 0,
                        "net": row["net_cents"], "day": row["issue_date"], "read": True}
+
+
+CHANNELS = {"dogrudan": "Doğrudan (muayenehane / etkinlik / kurumsal)", "wix": "Web sitesi (Wix)", "trendyol": "Trendyol"}
+
+
+def _channel_parts(owner, start, end):
+    """Wix / Trendyol lines that have no sales invoice of their own (the invoiced ones are counted
+    through the invoice). Returns, discounts and coupons come in negative."""
+    with _connect() as conn, conn.cursor() as cur:
+        cur.execute("""SELECT DISTINCT invoice_document_id AS doc, channel FROM core.jarvis_channel_sale
+            WHERE owner=%s AND invoice_document_id IS NOT NULL""", (owner,))
+        invoiced = {row["doc"]: row["channel"] for row in cur.fetchall()}
+        cur.execute("""SELECT channel, kind, sale_date, item, product, business, quantity::float AS quantity, net_cents
+            FROM core.jarvis_channel_sale WHERE owner=%s AND invoice_document_id IS NULL AND sale_date >= %s AND sale_date < %s""",
+                    (owner, start, end))
+        parts = [{"doc": None, "box": "out", "channel": row["channel"],
+                  "theme": "kargo" if row["kind"] == "shipping" else invoice_topics.classify("out", row["item"], "")[0],
+                  "business": row["business"],
+                  "product": row["product"] if row["kind"] in ("sale", "return") else "", "name": row["item"], "party": "",
+                  "qty": (row["quantity"] or 0) * (-1 if row["kind"] == "return" else 1), "net": row["net_cents"],
+                  "day": row["sale_date"], "read": True} for row in cur.fetchall()]
+    return invoiced, parts
 
 
 def analysis(owner, book="lemos", year=None, month=""):
@@ -71,6 +93,12 @@ def analysis(owner, book="lemos", year=None, month=""):
     else:
         start, end = date(year, 1, 1), date(year + 1, 1, 1)
     parts = list(_parts(owner, book, start, end))
+    invoiced, extra = _channel_parts(owner, start, end) if book == "lemos" else ({}, [])
+    for part in parts:
+        part["channel"] = invoiced.get(part["doc"], "dogrudan") if part["box"] == "out" else ""
+    parts += extra
+    channels = defaultdict(lambda: {"net": 0, "from_invoice": 0, "orders_only": 0})
+    channel_months = defaultdict(lambda: defaultdict(int))
     sales = defaultdict(int)       # business → net sales
     costs = defaultdict(int)       # business → direct net costs
     themes = defaultdict(lambda: {"in": 0, "out": 0})
@@ -86,6 +114,11 @@ def analysis(owner, book="lemos", year=None, month=""):
         unread += not p["read"]
         if p["box"] == "out":
             sales[p["business"]] += p["net"]
+            if p["business"] != "grup":
+                channel = channels[p["channel"]]
+                channel["net"] += p["net"]
+                channel["from_invoice" if p["doc"] else "orders_only"] += p["net"]
+                channel_months[key][p["channel"]] += p["net"]
             monthly[key][f"out_{p['business']}"] += p["net"]
             if p["product"]:
                 products[p["product"]]["qty"] += p["qty"]
@@ -122,8 +155,13 @@ def analysis(owner, book="lemos", year=None, month=""):
         "supplements": {"bought": top(supplements["in"], 10), "sold": top(supplements["out"], 10),
                         "bought_total": sum(supplements["in"].values()), "sold_total": sum(supplements["out"].values())},
         "monthly": [{"month": k, **v} for k, v in sorted(monthly.items())],
+        "channels": [{"key": k, "label": CHANNELS[k], **v} for k, v in sorted(channels.items(), key=lambda kv: -kv[1]["net"])],
+        "channel_monthly": [{"month": k, **v} for k, v in sorted(channel_months.items())],
+        "total_sales": sum(v["net"] for v in channels.values()),
         "parts": len(parts), "unread": unread, "method": (
             "KDV hariç tutarlar. Kalemler içeriğine göre ayrıldı; ortak giderler (telefon, araç, ofis, etkinlik, genel "
             "promosyon) iki işe dönemin net satış payına göre bölüştürüldü. Ürünü yazmayan 'gıda takviyesi' satışları "
-            "belirsiz bırakıldı; MOY ile grup içi faturalar ayrı tutuldu."),
+            "Lemos'un satışı sayıldı; MOY ile grup içi faturalar ayrı tutuldu. Wix ve Trendyol siparişlerinin faturası "
+            "varsa fatura sayılır (sipariş yalnız kanalı söyler), yoksa sipariş eklenir; iade, indirim ve kuponlar düşülür. "
+            "Trendyol tutarlarında KDV %20 varsayıldı."),
     }
