@@ -49,15 +49,49 @@ def _parts(owner, book, start, end):
             FROM core.jarvis_invoice i LEFT JOIN core.jarvis_invoice_line l USING (owner, document_id)
             WHERE i.owner=%s AND i.book=%s AND i.issue_date >= %s AND i.issue_date < %s AND i.status <> ALL(%s)""",
                     (owner, book, start, end, list(DEAD)))
-        for row in cur.fetchall():
-            if row["name"] is None:
-                yield {"doc": row["document_id"], "box": row["box"], "theme": row["itheme"] or "diger", "business": row["ibusiness"] or "ortak",
-                       "product": "", "name": row["party"], "party": row["party"], "qty": 1,
-                       "net": row["payable_cents"] - (row["tax_cents"] or 0), "day": row["issue_date"], "read": False}
-            else:
-                yield {"doc": row["document_id"], "box": row["box"], "theme": row["theme"] or "diger", "business": row["business"] or "ortak",
-                       "product": row["product"], "name": row["name"], "party": row["party"], "qty": row["quantity"] or 0,
-                       "net": row["net_cents"], "day": row["issue_date"], "read": True}
+        rows = cur.fetchall()
+    by_doc = {}
+    for row in rows:
+        by_doc.setdefault(row["document_id"], []).append(row)
+    for doc_rows in by_doc.values():
+        yield from invoice_parts(doc_rows)
+
+
+def invoice_parts(doc_rows):
+    """Pure: one invoice's parts, always adding up to the invoice itself (payable − VAT).
+
+    Owner, 02.11.2026: "rakamlarda hata istemiyorum". Lines that do not add up — an invoice-level
+    discount (Kaya: 1.000 TL "SATIR İSK."), an allowance printed as a positive line (TTNET "Paket
+    Ücreti"), a VAT-included single line (TT Mobil) — are scaled to the invoice's net, so the
+    line split survives and the total is the invoice's."""
+    head = doc_rows[0]
+    net = head["payable_cents"] - (head["tax_cents"] or 0)
+    lines = [row for row in doc_rows if row["name"] is not None]
+    if not lines or not sum(row["net_cents"] for row in lines):
+        yield {"doc": head["document_id"], "box": head["box"], "theme": head["itheme"] or "diger",
+               "business": head["ibusiness"] or "ortak", "product": "", "name": head["party"], "party": head["party"],
+               "qty": 1, "net": net, "gross": head["payable_cents"], "day": head["issue_date"], "read": False}
+        return
+    total = sum(row["net_cents"] for row in lines)
+    shares = [row["net_cents"] for row in lines]
+    if total != net:  # the invoice decides, to the kuruş
+        shares = _spread(net, [row["net_cents"] for row in lines])
+    # VAT-included amount of each part: its share of the payable (owner: "KDV dahil de göreyim")
+    grosses = _spread(head["payable_cents"], shares) if net else list(shares)
+    for row, share, gross in zip(lines, shares, grosses, strict=True):
+        yield {"doc": row["document_id"], "box": row["box"], "theme": row["theme"] or "diger", "business": row["business"] or "ortak",
+               "product": row["product"], "name": row["name"], "party": row["party"], "qty": row["quantity"] or 0,
+               "net": share, "gross": gross, "day": row["issue_date"], "read": True}
+
+
+def _spread(amount, weights):
+    """Split amount in proportion to weights; the rounding remainder goes to the largest part."""
+    total = sum(weights)
+    if not total:
+        return [0] * (len(weights) - 1) + [amount] if weights else []
+    parts = [round(w * amount / total) for w in weights]
+    parts[max(range(len(parts)), key=lambda i: abs(parts[i]))] += amount - sum(parts)
+    return parts
 
 
 CHANNELS = {"dogrudan": "Doğrudan (muayenehane / etkinlik / kurumsal)", "wix": "Web sitesi (Wix)", "trendyol": "Trendyol"}
@@ -70,7 +104,7 @@ def _channel_parts(owner, start, end):
         cur.execute("""SELECT DISTINCT invoice_document_id AS doc, channel FROM core.jarvis_channel_sale
             WHERE owner=%s AND invoice_document_id IS NOT NULL""", (owner,))
         invoiced = {row["doc"]: row["channel"] for row in cur.fetchall()}
-        cur.execute("""SELECT channel, kind, sale_date, item, product, business, quantity::float AS quantity, net_cents
+        cur.execute("""SELECT channel, kind, sale_date, item, product, business, quantity::float AS quantity, net_cents, gross_cents
             FROM core.jarvis_channel_sale WHERE owner=%s AND invoice_document_id IS NULL AND sale_date >= %s AND sale_date < %s""",
                     (owner, start, end))
         parts = [{"doc": None, "box": "out", "channel": row["channel"],
@@ -78,7 +112,7 @@ def _channel_parts(owner, start, end):
                   "business": row["business"],
                   "product": row["product"] if row["kind"] in ("sale", "return") else "", "name": row["item"], "party": "",
                   "qty": (row["quantity"] or 0) * (-1 if row["kind"] == "return" else 1), "net": row["net_cents"],
-                  "day": row["sale_date"], "read": True} for row in cur.fetchall()]
+                  "gross": row["gross_cents"], "day": row["sale_date"], "read": True} for row in cur.fetchall()]
     return invoiced, parts
 
 
@@ -95,7 +129,7 @@ def explore_rows(owner, start, end):
         for p in parts + extra:
             rows.append({"k": book, "b": p["box"], "t": p["theme"], "z": p["business"], "c": p["channel"],
                          "p": p["product"] or "", "n": (p["name"] or "")[:90], "f": (p["party"] or "")[:60],
-                         "v": p["net"], "q": round(p["qty"] or 0, 2), "m": p["day"].strftime("%Y-%m")})
+                         "v": p["net"], "g": p.get("gross", p["net"]), "q": round(p["qty"] or 0, 2), "m": p["day"].strftime("%Y-%m")})
     return rows
 
 
@@ -114,12 +148,13 @@ def analysis(owner, book="lemos", year=None, month=""):
     for part in parts:
         part["channel"] = invoiced.get(part["doc"], "dogrudan") if part["box"] == "out" else ""
     parts += extra
-    channels = defaultdict(lambda: {"net": 0, "from_invoice": 0, "orders_only": 0})
+    channels = defaultdict(lambda: {"net": 0, "gross": 0, "from_invoice": 0, "orders_only": 0})
+    sales_g, costs_g = defaultdict(int), defaultdict(int)  # VAT-included twins (owner: "KDV dahil de göreyim")
     channel_months = defaultdict(lambda: defaultdict(int))
     sales = defaultdict(int)       # business → net sales
     costs = defaultdict(int)       # business → direct net costs
-    themes = defaultdict(lambda: {"in": 0, "out": 0})
-    products = defaultdict(lambda: {"qty": 0.0, "net": 0, "lines": 0})
+    themes = defaultdict(lambda: {"in": 0, "out": 0, "in_gross": 0, "out_gross": 0})
+    products = defaultdict(lambda: {"qty": 0.0, "net": 0, "gross": 0, "lines": 0})
     bought_products = defaultdict(lambda: {"qty": 0.0, "net": 0})
     items_in = defaultdict(int)
     monthly = defaultdict(lambda: defaultdict(int))
@@ -128,21 +163,26 @@ def analysis(owner, book="lemos", year=None, month=""):
     for p in parts:
         key = p["day"].strftime("%Y-%m")
         themes[p["theme"]][p["box"]] += p["net"]
+        themes[p["theme"]][p["box"] + "_gross"] += p.get("gross", p["net"])
         unread += not p["read"]
         if p["box"] == "out":
             sales[p["business"]] += p["net"]
+            sales_g[p["business"]] += p.get("gross", p["net"])
             if p["business"] != "grup":
                 channel = channels[p["channel"]]
                 channel["net"] += p["net"]
+                channel["gross"] += p.get("gross", p["net"])
                 channel["from_invoice" if p["doc"] else "orders_only"] += p["net"]
                 channel_months[key][p["channel"]] += p["net"]
             monthly[key][f"out_{p['business']}"] += p["net"]
             if p["product"]:
                 products[p["product"]]["qty"] += p["qty"]
                 products[p["product"]]["net"] += p["net"]
+                products[p["product"]]["gross"] += p.get("gross", p["net"])
                 products[p["product"]]["lines"] += 1
         else:
             costs[p["business"]] += p["net"]
+            costs_g[p["business"]] += p.get("gross", p["net"])
             monthly[key][f"in_{p['business']}"] += p["net"]
             items_in[(p["name"] or p["party"])[:60]] += p["net"]
             if p["product"]:
@@ -156,7 +196,8 @@ def analysis(owner, book="lemos", year=None, month=""):
     share = {b: (sales[b] / clear if clear else 0.5) for b in ("lcarlie", "lemos")}
     shared = costs["ortak"]
     split = {b: round(shared * share[b]) for b in ("lcarlie", "lemos")}
-    result = {b: {"label": invoice_topics.BUSINESSES[b], "sales": sales[b], "direct_cost": costs[b],
+    result = {b: {"label": invoice_topics.BUSINESSES[b], "sales": sales[b], "sales_gross": sales_g[b], "direct_cost": costs[b],
+                  "direct_cost_gross": costs_g[b],
                   "shared_cost": split[b], "share": round(share[b] * 100, 1),
                   "result": sales[b] - costs[b] - split[b]} for b in ("lcarlie", "lemos")}
     top = lambda d, n=12: sorted(({"name": k, "net": v} for k, v in d.items()), key=lambda x: -x["net"])[:n]
@@ -175,6 +216,7 @@ def analysis(owner, book="lemos", year=None, month=""):
         "channels": [{"key": k, "label": CHANNELS[k], **v} for k, v in sorted(channels.items(), key=lambda kv: -kv[1]["net"])],
         "channel_monthly": [{"month": k, **v} for k, v in sorted(channel_months.items())],
         "total_sales": sum(v["net"] for v in channels.values()),
+        "total_sales_gross": sum(v["gross"] for v in channels.values()),
         "parts": len(parts), "unread": unread, "rows": explore_rows(owner, start, end),
         "themes_all": invoice_topics.THEMES, "channel_labels": CHANNELS,
         "business_labels": invoice_topics.BUSINESSES, "method": (

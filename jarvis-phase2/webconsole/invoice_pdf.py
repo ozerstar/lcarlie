@@ -66,6 +66,40 @@ def _money_any(text):
     return int(Decimal(text) * 100)
 
 
+_GOODS = re.compile(r"Mal\s*/?\s*Hizmet\s*Toplam\s*Tutar[ıi]\s*:?\s*\n?\s*:?\s*(\d[\d.]*,\d{2})", re.I)
+_DISCOUNT = re.compile(r"Toplam\s*(?:[İI]skonto|[İI]ndirim)\s*:?\s*\n?\s*:?\s*(\d[\d.]*,\d{2})", re.I)
+# every VAT rate has its own line: "Hesaplanan KDV(%20) 1.000,00 / Hesaplanan KDV(%1) 53,96";
+# some issuers write "Hesaplanan KDV GERÇEK (%20.0)"
+_VATS = re.compile(r"Hesaplanan\s*K\.?D\.?V\.?(?:\s*GER[ÇC]EK)?\s*(?:\(\s*%?\s*[\d.,]+\s*\)\s*)?:?\s*\n?\s*:?\s*(\d[\d.]*,\d{2})", re.I)
+
+_MOBILE_VAT = re.compile(r"\bKDV\s*\(\s*\d+\s*%\s*\)\s*\(\s*Matrah[^)]*\)\s*\n?\s*(\d+\.\d{2})")
+
+
+def tax_of(text, payable):
+    """VAT of the whole invoice (owner, 02.11.2026: "rakamlarda hata istemiyorum").
+
+    Only the last "Hesaplanan KDV" was read before, so an invoice with %20 and %1 lost the %20, and
+    layouts that print labels and amounts in two columns lost it all - the invoice then counted with
+    VAT as cost. Witness: goods − discount + VAT = payable. When the VAT lines cannot be read, the
+    difference between the payable and the goods total is the tax. Returns (tax_cents, how)."""
+    vats = [_tl(v) for v in _VATS.findall(text)]
+    # TT Mobil: "KDV (20%) (Matrah 1385.79 TL ) 277.16"; ÖİV and the licence fee are not VAT, they stay cost
+    mobile = _MOBILE_VAT.findall(text)
+    if mobile and not vats:
+        return sum(_money_any(v) for v in mobile), "kdv"
+    goods = _GOODS.search(text)
+    if goods is None or payable is None:
+        return (sum(vats), "kdv") if vats else (0, "okunamadi")
+    net = _tl(goods[1]) - (_tl(_DISCOUNT.search(text)[1]) if _DISCOUNT.search(text) else 0)
+    if vats and abs(net + sum(vats) - payable) <= 100:
+        return sum(vats), "kdv"
+    if vats and net + sum(vats) < payable:
+        return sum(vats), "kdv_diger_vergi"  # accommodation tax etc. stays in the cost
+    if 0 <= payable - net <= payable * 0.21 + 100:
+        return payable - net, "fark"
+    return (sum(vats), "kdv_tutarsiz") if vats else (0, "okunamadi")
+
+
 def read(invoice, lemos):
     text = invoice["text"]
     lines = [l.strip() for l in text.splitlines() if l.strip()]
@@ -95,7 +129,6 @@ def read(invoice, lemos):
     if day and len(day[1]) == 4:  # ISO 2026-10-12
         day = [None, day[3], day[2], day[1]]
     total = re.findall(r"(?:Ödenecek\s*Tutar|Vergiler\s*Dahil\s*Toplam\s*Tutar)\s*:?\s*\n?\s*:?\s*(\d[\d.]*,\d{2}|\d+\.\d{2})", text, re.I)
-    vat = re.findall(r"(?:Hesaplanan|HESAPLANAN)\s*K\.?D\.?V\.?(?:\s*\(%\s*[\d.,]+\))?\s*:?\s*\n?\s*:?\s*(\d[\d.]*,\d{2})", text, re.I)
     order = re.search(r"(?:Sipariş|SİPARİŞ)\s*(?:No|NO)\s*:?\s*(\d{6,})", text)
     payable = _money_any(total[-1]) if total else None
     found_lines = parse_lines(text)
@@ -104,7 +137,7 @@ def read(invoice, lemos):
     return {"ettn": invoice["ettn"], "box": box, "number": number,
             "date": date(int(day[3]), int(day[2]), int(day[1])) if day else None,
             "party": party.strip()[:200], "party_vkn": next((i for i in ids if i != lemos), ""),
-            "payable_cents": payable, "tax_cents": _tl(vat[-1]) if vat else 0,
+            "payable_cents": payable, "tax_cents": tax_of(text, payable)[0],
             "lines": found_lines, "order_no": order.group(1) if order else "",
             "witness": {"buyer_is_lemos": lemos_buys, "own_series": own_series}}
 
@@ -125,6 +158,9 @@ def _seller(lines, buyer_area):
         if line in buyer_area or "LEMOS" in line.upper() or not _FORM.search(line) or len(line) < 6:
             continue
         if re.match(r"(vergi|ticaret ?sicil|mersis|adres|e-posta|web|tel|özelleştirme|not\b|bu fatura|ve tic)", line, re.I):
+            continue
+        # invoice notes: "e-Arşiv izni kapsamında elektronik ortamda iletilmiştir" ("iletilmiştir" holds "ŞTİ")
+        if re.search(r"e-?ar[şs]iv\s*izni|elektronik\s*ortamda|irsaliye\s*yerine|yaz[ıi]\s*ile", line, re.I):
             continue
         prev = lines[i - 1] if i else ""
         head = prev if prev.isupper() and not _FORM.search(prev) and "LEMOS" not in prev.upper() and not re.search(r"[:\d]", prev) else ""
