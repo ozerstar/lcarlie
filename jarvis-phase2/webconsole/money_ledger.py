@@ -286,14 +286,15 @@ def _qnb_row(day, words, amount, account):
     description = " ".join(words)[:300]
     lowered = plain(description)
     category, kind = "", "diger"
-    party = description[:80]
+    # the daily statement writes "Mevduat İşlemleri - Faiz Tahakkuku", the KMH ekstresi "Faiz Tahakkuku"
+    party = re.sub(r"^\w+ İşlemleri - ", "", description)[:80]
     if re.search(r"bereketli ticari hesa", lowered):
         kind, party = INTERNAL, "QNB Bereketli Ticari Hesap"
     elif amount < 0 and re.search(r"kart islemleri|kredi kartlari otomatik|nolu kart ode", lowered):
         # "Kart İşlemleri - 3901 ile biten QNB KOBİ…", "CEP_ŞUBE 547567******4651 nolu kart ödemesi"
         last4 = re.search(r"(\d{4}) ile biten|\*+(\d{4})", description)
         party = "QNB kredi kartı ödemesi" + (f" ****{last4[1] or last4[2]}" if last4 else "")
-        kind = "transfer"
+        kind, category = "transfer", "kart_borcu"  # the company's own card: never a third party (aracılık)
     elif found := re.search(r"(?:gonderen|alici)\s*:\s*(.+?)(?:\s+sorgu no|\s+-\s|$)", lowered):
         start = lowered.index(found[1])
         party, kind = description[start:start + len(found[1])].strip()[:80], "transfer"
@@ -310,7 +311,9 @@ def _qnb_row(day, words, amount, account):
 
 def _parse_qnb(text):
     lines = [line.strip() for line in text.splitlines() if line.strip()]
-    account = "QNB KMH hesabı" if "kmh" in plain(" ".join(lines[:12])) else "QNB Bereketli Ticari Hesap"
+    # The KMH ekstresi is the same account as the daily "Hesap Hareketleri" (02.11.2026: every
+    # July row of both matched one to one), so both write one account and a row is stored once.
+    account = "QNB Bereketli Ticari Hesap"
     starts = [i for i, line in enumerate(lines) if plain(line).startswith("devreden bakiye")]
     if not starts:
         return []
@@ -393,7 +396,7 @@ def _read_file(data, mime):
     return expense_vault._paddle(image) or expense_vault._tesseract(image, 2400)
 
 
-def upload(owner, data, filename, book=""):
+def upload(owner, data, filename, book="", *, gmail_message=None, keep_empty=False):
     import expense_vault
     if not isinstance(data, bytes) or not 0 < len(data) <= expense_vault.MAX_BYTES:
         raise ExpenseError("Dosya 12 MB veya daha küçük olmalı.")
@@ -404,35 +407,61 @@ def upload(owner, data, filename, book=""):
     text = _read_file(data, mime)
     book = book_of(f"{filename}\n{text}" if not book else text, book)
     movements = parse_statement(text)
-    if not movements:
+    if not movements and not keep_empty:
         raise ExpenseError("Bu dosyada para hareketi okunamadı. Hesap dökümü, kart ekstresi PDF'i veya "
                            "hareket listesinin ekran görüntüsünü yükleyin.")
-    added = 0
     with _connect() as conn, conn.cursor() as cur:
-        cur.execute("""INSERT INTO core.jarvis_money_upload (owner,sha256,filename,mime_type,content,line_count,book)
-            VALUES (%s,%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING""",
-            (owner, digest, filename, mime, data, len(movements), book))
-        for item in movements:
-            category, receipt = _auto(item)
-            if book != "kisisel":  # "Enpara hesap" of MOY must never merge with his own "Enpara hesap"
-                item = dict(item, account=f"{item['account']} · {BOOKS[book]}"[:80])
-            cur.execute("""INSERT INTO core.jarvis_money_movement
-                (movement_id,owner,source_sha256,account,tx_date,direction,kind,party,party_key,
-                 description,amount_cents,foreign_currency,foreign_cents,ordinal,category,receipt,note,book,scope)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                ON CONFLICT DO NOTHING RETURNING movement_id""",
-                (uuid.uuid4().hex, owner, digest, item["account"], item["date"], item["direction"], item["kind"],
-                 item["party"], key_of(item["party"]), item["description"], item["amount"],
-                 item["foreign_currency"], item["foreign_cents"], item["ordinal"], category, receipt, item["note"],
-                 book, "" if book == "kisisel" else book))
-            added += cur.fetchone() is not None
+        # an empty statement (Kliq, Enpara Şirketim) is kept with 0 lines so Gmail never fetches it again;
+        # reread_empty() reads it once more whenever the reader learns a new layout
+        cur.execute("""INSERT INTO core.jarvis_money_upload (owner,sha256,filename,mime_type,content,line_count,book,gmail_message)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING""",
+            (owner, digest, filename, mime, data, len(movements), book, gmail_message))
+        added = _store(cur, owner, digest, book, movements)
+    if not movements:
+        return {"read": 0, "added": 0, "already": 0, "matched": 0, "account": "", "book": book, "book_label": BOOKS[book]}
     apply_rules(owner)
     matched = match_receipts(owner)
     return {"read": len(movements), "added": added, "already": len(movements) - added, "matched": matched,
             "account": movements[0]["account"], "book": book, "book_label": BOOKS[book]}
 
 
-def sync_gmail_statements(owner, *, days=120):
+def _store(cur, owner, digest, book, movements):
+    added = 0
+    for item in movements:
+        category, receipt = _auto(item)
+        if book != "kisisel":  # "Enpara hesap" of MOY must never merge with his own "Enpara hesap"
+            item = dict(item, account=f"{item['account']} · {BOOKS[book]}"[:80])
+        cur.execute("""INSERT INTO core.jarvis_money_movement
+            (movement_id,owner,source_sha256,account,tx_date,direction,kind,party,party_key,
+             description,amount_cents,foreign_currency,foreign_cents,ordinal,category,receipt,note,book,scope)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            ON CONFLICT DO NOTHING RETURNING movement_id""",
+            (uuid.uuid4().hex, owner, digest, item["account"], item["date"], item["direction"], item["kind"],
+             item["party"], key_of(item["party"]), item["description"], item["amount"],
+             item["foreign_currency"], item["foreign_cents"], item["ordinal"], category, receipt, item["note"],
+             book, "" if book == "kisisel" else book))
+        added += cur.fetchone() is not None
+    return added
+
+
+def reread_empty(owner):
+    """Statements stored with 0 lines are read again with today's reader; nothing is downloaded."""
+    added = 0
+    with _connect() as conn, conn.cursor() as cur:
+        cur.execute("""SELECT sha256, mime_type, content, book FROM core.jarvis_money_upload
+            WHERE owner=%s AND line_count=0""", (owner,))
+        for row in cur.fetchall():
+            movements = parse_statement(_read_file(bytes(row["content"]), row["mime_type"]))
+            if movements:
+                added += _store(cur, owner, row["sha256"], row["book"], movements)
+                cur.execute("UPDATE core.jarvis_money_upload SET line_count=%s WHERE owner=%s AND sha256=%s",
+                            (len(movements), owner, row["sha256"]))
+    if added:
+        apply_rules(owner)
+    return added
+
+
+def sync_gmail_statements(owner, *, days=120, pages=10):
     """Banks mail the monthly statement ("10.10.2026 tarihli Enpara Kredi Kartı
     ekstreniz"); read those PDFs so the owner never uploads them by hand."""
     import base64
@@ -447,9 +476,22 @@ def sync_gmail_statements(owner, *, days=120):
     after = (datetime.now(ZONE).date() - timedelta(days=days)).strftime("%Y/%m/%d")
     query = (f'after:{after} has:attachment filename:pdf '
              '{ekstre ekstreniz "hesap hareketleri" "hesap özeti" "hesap hareketleriniz"} -in:spam -in:trash')
-    listing = expense_vault._gmail_json("messages?" + urllib.parse.urlencode({"q": query, "maxResults": "50"}), token)
-    result = {"files": 0, "added": 0, "skipped": []}
-    for item in listing.get("messages", []):
+    messages, page = [], None
+    for _ in range(pages):  # QNB mails a statement every day: one page of 50 reached back only 5 weeks
+        params = {"q": query, "maxResults": "100"} | ({"pageToken": page} if page else {})
+        listing = expense_vault._gmail_json("messages?" + urllib.parse.urlencode(params), token)
+        messages += listing.get("messages", [])
+        page = listing.get("nextPageToken")
+        if not page:
+            break
+    with _connect() as conn, conn.cursor() as cur:
+        cur.execute("SELECT gmail_message FROM core.jarvis_money_upload WHERE owner=%s AND gmail_message IS NOT NULL",
+                    (owner,))
+        done = {row["gmail_message"] for row in cur.fetchall()}
+    result = {"listed": len(messages), "files": 0, "added": 0, "reread": reread_empty(owner), "skipped": []}
+    for item in messages:
+        if item["id"] in done:
+            continue
         try:  # one unreachable message must not stop the rest
             message = expense_vault._gmail_json("messages/" + urllib.parse.quote(item["id"]) + "?format=full", token)
         except OSError as exc:
@@ -458,7 +500,7 @@ def sync_gmail_statements(owner, *, days=120):
         headers = {h.get("name", "").lower(): h.get("value", "") for h in (message.get("payload") or {}).get("headers", [])}
         context = f"{headers.get('from', '')} {headers.get('subject', '')}"
         hint = book_of(context) if book_of(context) != "kisisel" else ""
-        stack = [message.get("payload") or {}]
+        stack, failed, stored = [message.get("payload") or {}], False, []
         while stack:
             part = stack.pop()
             stack.extend(part.get("parts") or [])
@@ -473,20 +515,28 @@ def sync_gmail_statements(owner, *, days=120):
                                                 urllib.parse.quote(attachment), token).get("data") or ""
             except OSError as exc:
                 result["skipped"].append(f"{filename}: {type(exc).__name__}"[:200])
+                failed = True
                 continue
             data = base64.urlsafe_b64decode(blob + "=" * (-len(blob) % 4))
             digest = hashlib.sha256(data).hexdigest()
             with _connect() as conn, conn.cursor() as cur:
-                cur.execute("SELECT 1 FROM core.jarvis_money_upload WHERE owner=%s AND sha256=%s", (owner, digest))
+                cur.execute("""UPDATE core.jarvis_money_upload SET gmail_message=coalesce(gmail_message,%s)
+                    WHERE owner=%s AND sha256=%s RETURNING sha256""", (item["id"], owner, digest))
                 if cur.fetchone():
                     continue
             try:
-                found = upload(owner, data, filename, hint)
+                found = upload(owner, data, filename, hint, gmail_message=item["id"], keep_empty=True)
             except ExpenseError as exc:
                 result["skipped"].append(f"{filename}: {exc}"[:200])
+                failed = True
                 continue
+            stored.append(digest)
             result["files"] += 1
             result["added"] += found["added"]
+        if failed and stored:  # come back for the attachment that did not arrive
+            with _connect() as conn, conn.cursor() as cur:
+                cur.execute("UPDATE core.jarvis_money_upload SET gmail_message=NULL WHERE owner=%s AND sha256=ANY(%s)",
+                            (owner, stored))
     return result
 
 
@@ -505,6 +555,8 @@ def apply_rules(owner):
             FROM core.jarvis_money_rule r
             WHERE r.owner=m.owner AND r.party_key=m.party_key AND m.owner=%s AND NOT m.manual
             AND (r.direction=m.direction OR r.category='ic_transfer')
+            -- a personal answer ("Meral = gelir desteği, kişisel") never relabels the company book
+            AND (m.book='kisisel' OR r.scope IN ('', m.book))
             AND m.receipt<>'matched'
             AND (m.category IS DISTINCT FROM CASE WHEN r.category<>'' THEN r.category ELSE m.category END
                  OR m.scope IS DISTINCT FROM CASE WHEN r.scope<>'' THEN r.scope ELSE m.scope END

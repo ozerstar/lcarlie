@@ -610,12 +610,18 @@ class QnbStatementTest(unittest.TestCase):
         self.assertEqual([(r["direction"], r["amount"], r["kind"], r["category"]) for r in rows],
                          [("in", 36041, "transfer", "tahsilat"), ("in", 771000, "diger", "tahsilat"),
                           ("out", 207041, "ic_transfer", "")])
-        self.assertEqual(rows[0]["account"], "QNB KMH hesabı")
+        self.assertEqual(rows[0]["account"], "QNB Bereketli Ticari Hesap")  # same account as the dailies
+
+    def test_daily_and_kmh_rows_get_the_same_key(self):
+        daily = money_ledger._qnb_row(date(2026, 7, 31), ["Mevduat İşlemleri - Faiz Tahakkuku"], -785, "A")
+        kmh = money_ledger._qnb_row(date(2026, 7, 31), ["Faiz Tahakkuku"], -785, "A")
+        self.assertEqual(money_ledger.key_of(daily["party"]), money_ledger.key_of(kmh["party"]))
 
     def test_company_card_payments_have_one_name(self):
         text = QNB_DAILY.replace("Transfer İşlemleri - Alıcı: SİNEM AĞCA Sorgu No: 4047099",
                                  "Kart İşlemleri - 3901 ile biten QNB KOBİ kart ödemesi")
         self.assertEqual(money_ledger.parse_statement(text)[1]["party"], "QNB kredi kartı ödemesi ****3901")
+        self.assertEqual(money_ledger.parse_statement(text)[1]["category"], "kart_borcu")
 
     def test_empty_company_statement_has_no_movement(self):
         text = ("Moy Danışmanlık A.ş. Enpara Şirketim Günlük Hesap 0,00 TL\nFirmanızın Eylül - 2026 döneminde Enpara "
