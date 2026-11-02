@@ -514,5 +514,117 @@ class BookTest(unittest.TestCase):
             money_ledger.book_of("x", "baska")
 
 
+
+class GmailRetryTest(unittest.TestCase):
+    """02.11.2026: a stalled TLS handshake to Google stopped the whole statement sync."""
+
+    def test_network_hiccup_is_retried_but_a_refusal_is_not(self):
+        import io
+        import urllib.error
+        from unittest import mock
+        import expense_vault
+        ok = mock.MagicMock()
+        ok.__enter__.return_value = io.BytesIO(b'{"messages": []}')
+        with mock.patch("urllib.request.urlopen", side_effect=[urllib.error.URLError("handshake timed out"), ok]) as op,                 mock.patch("time.sleep"):
+            self.assertEqual(expense_vault._gmail_json("messages", "t"), {"messages": []})
+        self.assertEqual(op.call_count, 2)
+        refused = urllib.error.HTTPError("u", 401, "no", {}, None)
+        with mock.patch("urllib.request.urlopen", side_effect=refused) as op, mock.patch("time.sleep"):
+            with self.assertRaises(urllib.error.HTTPError):
+                expense_vault._gmail_json("messages", "t")
+        self.assertEqual(op.call_count, 1)
+
+
+
+QNB_DAILY = """Hesap Hareketleri
+29/10/2026
+:
+IBAN
+TR680011100000000146275187
+Hesap Adı
+TL Bereketli Ticari Hesap
+28/10/2026 - 28/10/2026
+LEMOS MEDİKAL SAĞLIK İŞ GÜVENLİĞİ İNŞAAT
+İşlem Tarihi
+Kanal*
+İşlem Açıklaması
+Tutar
+Bakiye
+DEVREDEN BAKİYE
+4,107.67
+28/10/2026
+ŞB
+Transfer İşlemleri - Gönderen: PAYTR ÖDEME VE ELEKTRONİK PARA KURULUŞU
+ANONİM ŞİRKETİ Sorgu No: 4047043 - PAYTR NET TUTAR
+2,014.74
+6,122.41
+28/10/2026
+MB
+Transfer İşlemleri - Alıcı: SİNEM AĞCA Sorgu No: 4047099
+-1,500.00
+4,622.41
+Bu doküman bilgi amaçlı hazırlanmıştır.
+Sayfa: 1/1
+"""
+
+QNB_KMH = """Aylık KMH Faiz Oranı
+: 4.25 %
+Son Ödeme Tarihi
+: 31/07/2026
+Toplam Bakiye
+:54,993.79 TL
+İŞLEM TARİHİ
+AÇIKLAMA
+TUTAR
+BAKİYE
+DEVREDEN BAKİYENİZ
+4,000.00 +
+01/07/2026
+Gönderen: PAYTR ÖDEME VE ELEKTRONİK PARA KURULUŞU ANONİ
+360.41 +
+4,360.41 +
+03/07/2026
+İşyeri:132600000013961 (Satış) N003 Yurt İçi Kredi Kart
+7,710.00 +
+12,070.41 +
+09/07/2026
+Bereketli Ticari Hesaba giden tutar (Faiz oranı %40.5)
+2,070.41 -
+10,000.00 +
+"""
+
+
+class QnbStatementTest(unittest.TestCase):
+    """Lemos' QNB statements (02.11.2026): "2,014.74" amounts, the balance tells the direction."""
+
+    def test_daily_statement(self):
+        rows = money_ledger.parse_statement(QNB_DAILY)
+        self.assertEqual([(r["direction"], r["amount"], r["party"]) for r in rows],
+                         [("in", 201474, "PAYTR ÖDEME VE ELEKTRONİK PARA KURULUŞU ANONİM ŞİRKETİ"), ("out", 150000, "SİNEM AĞCA")])
+        self.assertEqual(rows[0]["category"], "tahsilat")
+        self.assertEqual(rows[0]["account"], "QNB Bereketli Ticari Hesap")
+        self.assertEqual(rows[0]["date"], date(2026, 10, 28))
+
+    def test_kmh_statement_with_sweeps_and_pos(self):
+        rows = money_ledger.parse_statement(QNB_KMH)
+        self.assertEqual([(r["direction"], r["amount"], r["kind"], r["category"]) for r in rows],
+                         [("in", 36041, "transfer", "tahsilat"), ("in", 771000, "diger", "tahsilat"),
+                          ("out", 207041, "ic_transfer", "")])
+        self.assertEqual(rows[0]["account"], "QNB KMH hesabı")
+
+    def test_company_card_payments_have_one_name(self):
+        text = QNB_DAILY.replace("Transfer İşlemleri - Alıcı: SİNEM AĞCA Sorgu No: 4047099",
+                                 "Kart İşlemleri - 3901 ile biten QNB KOBİ kart ödemesi")
+        self.assertEqual(money_ledger.parse_statement(text)[1]["party"], "QNB kredi kartı ödemesi ****3901")
+
+    def test_empty_company_statement_has_no_movement(self):
+        text = ("Moy Danışmanlık A.ş. Enpara Şirketim Günlük Hesap 0,00 TL\nFirmanızın Eylül - 2026 döneminde Enpara "
+                "Şirketim Günlük hesabına ait hareketi bulunmamaktadır.\n09/10/2026 itibarıyla SWIFT ücreti 1.500,00 TL")
+        self.assertEqual(money_ledger.parse_statement(text), [])
+
+    def test_personal_statements_still_use_the_old_reader(self):
+        self.assertTrue(money_ledger.parse_statement(SCREENSHOT, TODAY))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -215,6 +215,10 @@ def parse_statement(text, today=None):
     """
     today = today or datetime.now(ZONE).date()
     whole = plain(text)
+    if re.search(r"hareketi bulunmamaktadir", whole):
+        return []  # Enpara Şirketim: "… döneminde hareketi bulunmamaktadır" — the fee notice is no movement
+    if "devreden bakiye" in whole and _US_AMOUNT.search(text):
+        return _parse_qnb(text)
     account_mode = "bakiye" in whole and not re.search(r"ekstre borcu|kredi karti ekstresi", whole)
     account = _account(text)
     movements, last = [], 0
@@ -265,10 +269,96 @@ def parse_statement(text, today=None):
     return movements
 
 
+# QNB (Lemos şirket hesabı, 02.11.2026): one row is date / channel / description / amount /
+# balance on separate lines, amounts written "2,014.74" (KMH ekstresi adds "+" or "-").
+# The balance column decides the direction: it is never ambiguous.
+_US_AMOUNT = re.compile(r"^(-?)(\d{1,3}(?:,\d{3})*)\.(\d{2})(?:\s*([+-]))?$", re.M)
+_QNB_DATE = re.compile(r"^(\d{2})/(\d{2})/(20\d{2})$")
+_QNB_CHANNELS = {"sb", "int", "mb", "cm", "go"}
+
+
+def _us_cents(match):
+    value = int(match[2].replace(",", "")) * 100 + int(match[3])
+    return -value if match[1] or match[4] == "-" else value
+
+
+def _qnb_row(day, words, amount, account):
+    description = " ".join(words)[:300]
+    lowered = plain(description)
+    category, kind = "", "diger"
+    party = description[:80]
+    if re.search(r"bereketli ticari hesa", lowered):
+        kind, party = INTERNAL, "QNB Bereketli Ticari Hesap"
+    elif amount < 0 and re.search(r"kart islemleri|kredi kartlari otomatik|nolu kart ode", lowered):
+        # "Kart İşlemleri - 3901 ile biten QNB KOBİ…", "CEP_ŞUBE 547567******4651 nolu kart ödemesi"
+        last4 = re.search(r"(\d{4}) ile biten|\*+(\d{4})", description)
+        party = "QNB kredi kartı ödemesi" + (f" ****{last4[1] or last4[2]}" if last4 else "")
+        kind = "transfer"
+    elif found := re.search(r"(?:gonderen|alici)\s*:\s*(.+?)(?:\s+sorgu no|\s+-\s|$)", lowered):
+        start = lowered.index(found[1])
+        party, kind = description[start:start + len(found[1])].strip()[:80], "transfer"
+        if amount > 0 and "paytr" in lowered:
+            category = "tahsilat"  # PayTR NET TUTAR: online sales paid out
+    elif re.search(r"isyeri\s*:.*satis", lowered):
+        party, category = "Kredi kartı satışı (QNB POS)", "tahsilat"
+    elif re.search(r"faiz|masraf|komisyon|bsmv|kkdf|ucret", lowered):
+        kind = "banka"
+    return {"date": day, "direction": "in" if amount > 0 else "out", "kind": kind, "party": party or "QNB",
+            "description": description, "amount": abs(amount), "account": account, "note": "",
+            "foreign_currency": None, "foreign_cents": None, "category": category}
+
+
+def _parse_qnb(text):
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    account = "QNB KMH hesabı" if "kmh" in plain(" ".join(lines[:12])) else "QNB Bereketli Ticari Hesap"
+    starts = [i for i, line in enumerate(lines) if plain(line).startswith("devreden bakiye")]
+    if not starts:
+        return []
+    balance, rows, current = None, [], None
+
+    def close(entry):
+        nonlocal balance
+        if not entry or len(entry["numbers"]) < 2:
+            return
+        amount, new_balance = entry["numbers"][-2], entry["numbers"][-1]
+        if balance is not None and abs(new_balance - balance) == abs(amount):
+            amount = new_balance - balance  # the balance says in or out
+        balance = new_balance
+        if amount:
+            rows.append(_qnb_row(entry["date"], entry["words"], amount, account))
+
+    for line in lines[starts[0] + 1:]:
+        if found := _QNB_DATE.match(line):
+            close(current)
+            current = {"date": date(int(found[3]), int(found[2]), int(found[1])), "words": [], "numbers": []}
+            continue
+        number = _US_AMOUNT.match(line)
+        if current is None:
+            if number and balance is None:
+                balance = _us_cents(number)
+            continue
+        if number:
+            current["numbers"].append(_us_cents(number))
+        elif not current["numbers"] and plain(line) not in _QNB_CHANNELS:
+            current["words"].append(line)
+        elif len(current["numbers"]) >= 2:
+            close(current)  # page footer after the last row
+            current = None
+    close(current)
+    seen = {}
+    for item in rows:
+        identity = (item["date"], item["direction"], item["amount"], key_of(item["party"]))
+        seen[identity] = seen.get(identity, 0) + 1
+        item["ordinal"] = seen[identity]
+    return rows
+
+
 def _auto(item):
     """Category and receipt need before any owner rule is applied."""
     import expense_insights
     kind, direction = item["kind"], item["direction"]
+    if item.get("category"):  # the statement itself says what it is (QNB POS / PayTR payout)
+        return item["category"], "not_needed"
     if kind == INTERNAL:
         return INTERNAL, "not_needed"
     if direction == "in":
@@ -360,7 +450,11 @@ def sync_gmail_statements(owner, *, days=120):
     listing = expense_vault._gmail_json("messages?" + urllib.parse.urlencode({"q": query, "maxResults": "50"}), token)
     result = {"files": 0, "added": 0, "skipped": []}
     for item in listing.get("messages", []):
-        message = expense_vault._gmail_json("messages/" + urllib.parse.quote(item["id"]) + "?format=full", token)
+        try:  # one unreachable message must not stop the rest
+            message = expense_vault._gmail_json("messages/" + urllib.parse.quote(item["id"]) + "?format=full", token)
+        except OSError as exc:
+            result["skipped"].append(f"{item['id']}: {type(exc).__name__}"[:200])
+            continue
         headers = {h.get("name", "").lower(): h.get("value", "") for h in (message.get("payload") or {}).get("headers", [])}
         context = f"{headers.get('from', '')} {headers.get('subject', '')}"
         hint = book_of(context) if book_of(context) != "kisisel" else ""
@@ -374,8 +468,12 @@ def sync_gmail_statements(owner, *, days=120):
                 continue
             if not re.search(r"ekstre|hareket|ozet|özet|statement", plain(filename)):
                 continue
-            blob = expense_vault._gmail_json("messages/" + urllib.parse.quote(item["id"]) + "/attachments/" +
-                                            urllib.parse.quote(attachment), token).get("data") or ""
+            try:
+                blob = expense_vault._gmail_json("messages/" + urllib.parse.quote(item["id"]) + "/attachments/" +
+                                                urllib.parse.quote(attachment), token).get("data") or ""
+            except OSError as exc:
+                result["skipped"].append(f"{filename}: {type(exc).__name__}"[:200])
+                continue
             data = base64.urlsafe_b64decode(blob + "=" * (-len(blob) % 4))
             digest = hashlib.sha256(data).hexdigest()
             with _connect() as conn, conn.cursor() as cur:
@@ -1025,7 +1123,7 @@ def report(owner, view="month", day=None, scope="", account="", book="kisisel"):
         rows = [dict(row) for row in cur.fetchall()]  # before _links(), which reuses the cursor
         links = _links(cur, owner)
         rows = net_links(rows, links)
-        cur.execute(f"""SELECT count(*) AS n, coalesce(sum(m.amount_cents - coalesce(p.passed,0)),0) AS total
+        cur.execute(f"""SELECT count(*) AS n, coalesce(sum(m.amount_cents - coalesce(p.passed,0)),0)::bigint AS total
             FROM core.jarvis_money_movement m LEFT JOIN ({_PASSED}) p ON p.id=m.movement_id
             WHERE m.owner=%s AND m.book=%s AND m.category='' AND m.amount_cents > coalesce(p.passed,0)""",
                     (owner, owner, owner, book))
@@ -1063,7 +1161,8 @@ def questions(owner, limit=300, book="kisisel"):
     """
     with _connect() as conn, conn.cursor() as cur:
         cur.execute(f"""SELECT movement_id AS id,party,party_key,kind,account,direction,tx_date,
-            m.amount_cents - coalesce(p.passed,0) AS amount_cents, coalesce(p.passed,0) AS passed_cents, description,
+            (m.amount_cents - coalesce(p.passed,0))::bigint AS amount_cents, coalesce(p.passed,0)::bigint AS passed_cents,
+            description,
             count(*) OVER (PARTITION BY party_key, direction) AS party_count
             FROM core.jarvis_money_movement m LEFT JOIN ({_PASSED}) p ON p.id=m.movement_id
             WHERE m.owner=%s AND m.book=%s AND category='' AND m.amount_cents > coalesce(p.passed,0)
@@ -1150,7 +1249,9 @@ OWN_OBLIGATIONS = ("kart_borcu", "borc", INTERNAL)
 SUPPORT_IN = ("gelir", "gelir_destegi", "aile_gelen")
 LINK_WINDOW_DAYS = 2
 LINK_MIN_IN = 1000000  # 10.000 TL; smaller sums meet unrelated payments by chance
-_PASSED = """SELECT id, sum(amount_cents) AS passed FROM (
+# sum() of bigint is numeric; the API writes numeric as a string and the page then joined
+# "21 hareket · 1.199.850.010.000…" (02.11.2026) — keep money integer all the way
+_PASSED = """SELECT id, sum(amount_cents)::bigint AS passed FROM (
         SELECT in_id AS id, amount_cents FROM core.jarvis_money_link WHERE owner=%s AND kind='aracilik' AND status<>'rejected'
         UNION ALL
         SELECT out_id, amount_cents FROM core.jarvis_money_link WHERE owner=%s AND kind='aracilik' AND status<>'rejected'

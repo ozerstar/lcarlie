@@ -8,6 +8,7 @@ import re
 import subprocess
 import sys
 import threading
+import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
@@ -754,11 +755,23 @@ def start_processing(owner, document_id, *, force=False):
     threading.Thread(target=run, name="expense-ocr", daemon=True).start()
 
 
-def _gmail_json(path, token):
+def _gmail_json(path, token, *, attempts=3):
+    """One in six TLS handshakes to Google stalled from the VDS (measured 02.11.2026; the
+    30-31.10 sync failures too) — retry those, never a 4xx answer."""
+    import time
     request = urllib.request.Request("https://gmail.googleapis.com/gmail/v1/users/me/" + path,
         headers={"Authorization": "Bearer " + token})
-    with urllib.request.urlopen(request, timeout=40) as response:
-        return json.loads(response.read(20_000_000))
+    for attempt in range(attempts):
+        try:
+            with urllib.request.urlopen(request, timeout=40) as response:
+                return json.loads(response.read(20_000_000))
+        except urllib.error.HTTPError as exc:
+            if exc.code != 429 and exc.code < 500 or attempt == attempts - 1:
+                raise
+        except (urllib.error.URLError, TimeoutError, ConnectionError):
+            if attempt == attempts - 1:
+                raise
+        time.sleep(2 * (attempt + 1))
 
 
 _RECEIPT_WORDS = ("receipt", "fiş", "fis", "makbuz")
