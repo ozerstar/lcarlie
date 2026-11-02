@@ -987,21 +987,18 @@ def report(owner, view="month", day=None, scope="", account=""):
     return result
 
 
-def questions(owner, limit=40):
-    """Money with no known purpose, biggest first; one row per person/shop and direction.
+def questions(owner, limit=300):
+    """Every movement with no known purpose, one by one with its date, biggest first.
 
-    Money in was never asked (owner, 02.11.2026: "geçen aylık paranın nereden geldiği neden
-    belirlenmedi"), so 670.000 TL of income stayed "Belirlenmedi".
+    Owner, 02.11.2026: "ayrı ayrı tarihleri ile gösterilsin, toplu gösterilmesin, böylece ne
+    için geldiğini ayrı ayrı bölebilirim" — five transfers from one person can mean five things.
     """
     with _connect() as conn, conn.cursor() as cur:
-        cur.execute("""SELECT DISTINCT ON (party_key, direction) movement_id AS id,party,party_key,kind,account,
-            direction,tx_date,amount_cents,
-            sum(amount_cents) OVER (PARTITION BY party_key, direction) AS party_total,
+        cur.execute("""SELECT movement_id AS id,party,party_key,kind,account,direction,tx_date,amount_cents,description,
             count(*) OVER (PARTITION BY party_key, direction) AS party_count
             FROM core.jarvis_money_movement WHERE owner=%s AND category=''
-            ORDER BY party_key, direction, amount_cents DESC""", (owner,))
-        rows = [dict(row, tx_date=row["tx_date"].isoformat()) for row in cur.fetchall()]
-    return sorted(rows, key=lambda row: -row["party_total"])[:limit]
+            ORDER BY amount_cents DESC, tx_date DESC LIMIT %s""", (owner, limit))
+        return [dict(row, tx_date=row["tx_date"].isoformat()) for row in cur.fetchall()]
 
 
 def agreements(owner, today=None):
