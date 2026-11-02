@@ -27,6 +27,9 @@ OUT_CATEGORIES = {
     "alisveris": "Online alışveriş", "giyim": "Giyim / aksesuar", "saglik": "Sağlık",
     "eglence": "Eğlence / dışarıda", "aile": "Aile", "borc": "Borç verme / ödeme",
     "kira": "Kira", "banka": "Banka faiz / masraf", "nakit": "Nakit çekim", "diger": "Diğer",
+    # owner, 02.11.2026: own-name EFTs pay old credit cards at other banks, no new spending
+    # there — real money out (those cards are not in the ledger, so nothing is counted twice)
+    "kart_borcu": "Eski kart borcu ödemesi",
     # owner, 02.11.2026: some transfers he cannot place; counted as spending, shown apart
     "hatirlanmiyor": "Hatırlamıyorum",
 }
@@ -50,6 +53,7 @@ SUBCATEGORIES = {
     "kargo": ["Kargo", "Kurye", "Nakliye"],
     "aile": ["Hediye", "Ev", "Çocuk"],
     "borc": ["Arkadaş", "Aile", "İş"],
+    "kart_borcu": ["Başka banka kredi kartı", "Kredi", "Taksit"],
     "saglik": ["Doktor", "İlaç", "Bakım"],
     "eglence": ["Yemek / gece", "Etkinlik", "Tatil"],
     "kira": ["Ev", "İş yeri"],
@@ -359,6 +363,7 @@ def apply_rules(owner):
             updated_at=clock_timestamp()
             FROM core.jarvis_money_rule r
             WHERE r.owner=m.owner AND r.party_key=m.party_key AND m.owner=%s AND NOT m.manual
+            AND (r.direction=m.direction OR r.category='ic_transfer')
             AND m.receipt<>'matched'
             AND (m.category IS DISTINCT FROM CASE WHEN r.category<>'' THEN r.category ELSE m.category END
                  OR m.scope IS DISTINCT FROM CASE WHEN r.scope<>'' THEN r.scope ELSE m.scope END
@@ -410,11 +415,13 @@ def classify(owner, movement_id, body):
     sub_given = "subcategory" in body
     subcategory = _text(body.get("subcategory"), "Alt kalem", 40) if sub_given else ""
     with _connect() as conn, conn.cursor() as cur:
-        cur.execute("""SELECT party,party_key,kind FROM core.jarvis_money_movement
+        cur.execute("""SELECT party,party_key,kind,direction FROM core.jarvis_money_movement
             WHERE owner=%s AND movement_id=%s""", (owner, movement_id))
         row = cur.fetchone()
         if not row:
             raise ExpenseError("Hareket bulunamadı.")
+        if category and category not in (INTERNAL,) and (category in IN_CATEGORIES) != (row["direction"] == "in"):
+            raise ExpenseError("Gelen paraya gelir kategorisi, giden paraya gider kategorisi seçin.")
         receipt_sql = ("CASE WHEN %(category)s='ic_transfer' OR %(scope)s='kisisel' THEN "
                        "CASE WHEN receipt='matched' THEN receipt ELSE 'not_needed' END ELSE receipt END")
         cur.execute(f"""UPDATE core.jarvis_money_movement SET category=%(category)s,scope=%(scope)s,
@@ -424,12 +431,12 @@ def classify(owner, movement_id, body):
             {"category": category, "scope": scope, "note": note, "owner": owner, "id": movement_id,
              "sub": subcategory, "sub_given": sub_given})
         if body.get("remember"):
-            cur.execute("""INSERT INTO core.jarvis_money_rule (owner,party_key,label,category,scope,subcategory)
-                VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT (owner,party_key) DO UPDATE SET
+            cur.execute("""INSERT INTO core.jarvis_money_rule (owner,party_key,direction,label,category,scope,subcategory)
+                VALUES (%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (owner,party_key,direction) DO UPDATE SET
                 category=EXCLUDED.category,scope=EXCLUDED.scope,
                 subcategory=CASE WHEN %s THEN EXCLUDED.subcategory ELSE core.jarvis_money_rule.subcategory END,
                 updated_at=clock_timestamp()""",
-                (owner, row["party_key"], row["party"][:80], category, scope, subcategory, sub_given))
+                (owner, row["party_key"], row["direction"], row["party"][:80], category, scope, subcategory, sub_given))
     changed = apply_rules(owner) if body.get("remember") else 0
     return {"id": movement_id, "applied_to": changed}
 
@@ -466,7 +473,7 @@ def set_rule(owner, body):
     with _connect() as conn, conn.cursor() as cur:
         cur.execute("""INSERT INTO core.jarvis_money_rule
             (owner,party_key,label,category,scope,monthly_cents,start_month,end_month,opening_cents,note)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (owner,party_key) DO UPDATE SET
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (owner,party_key,direction) DO UPDATE SET
             label=EXCLUDED.label,category=EXCLUDED.category,scope=EXCLUDED.scope,
             monthly_cents=EXCLUDED.monthly_cents,start_month=EXCLUDED.start_month,
             end_month=EXCLUDED.end_month,opening_cents=EXCLUDED.opening_cents,note=EXCLUDED.note,
@@ -490,7 +497,7 @@ def set_receipt(owner, movement_id, action, document_id=None, remember=False):
                 raise ExpenseError("Hareket bulunamadı.")
             if remember:
                 cur.execute("""INSERT INTO core.jarvis_money_rule (owner,party_key,label,receipt_policy)
-                    VALUES (%s,%s,%s,'not_needed') ON CONFLICT (owner,party_key) DO UPDATE SET
+                    VALUES (%s,%s,%s,'not_needed') ON CONFLICT (owner,party_key,direction) DO UPDATE SET
                     receipt_policy='not_needed',updated_at=clock_timestamp()""",
                     (owner, row["party_key"], row["party"][:80]))
         elif action == "reopen":
@@ -972,7 +979,7 @@ def report(owner, view="month", day=None, scope="", account=""):
             ORDER BY tx_date DESC, amount_cents DESC""", (owner, since, end))
         rows = [dict(row) for row in cur.fetchall()]
         cur.execute("""SELECT count(*) AS n, coalesce(sum(amount_cents),0) AS total
-            FROM core.jarvis_money_movement WHERE owner=%s AND category='' AND direction='out'""", (owner,))
+            FROM core.jarvis_money_movement WHERE owner=%s AND category=''""", (owner,))
         unknown = cur.fetchone()
     result = build_report(rows, view, day, scope, account=account)
     result["unknown_all"] = {"count": unknown["n"], "total": unknown["total"]}
@@ -980,15 +987,19 @@ def report(owner, view="month", day=None, scope="", account=""):
     return result
 
 
-def questions(owner, limit=25):
-    """Money out with no known purpose, biggest first; one row per person/shop."""
+def questions(owner, limit=40):
+    """Money with no known purpose, biggest first; one row per person/shop and direction.
+
+    Money in was never asked (owner, 02.11.2026: "geçen aylık paranın nereden geldiği neden
+    belirlenmedi"), so 670.000 TL of income stayed "Belirlenmedi".
+    """
     with _connect() as conn, conn.cursor() as cur:
-        cur.execute("""SELECT DISTINCT ON (party_key) movement_id AS id,party,party_key,kind,account,
-            tx_date,amount_cents,
-            sum(amount_cents) OVER (PARTITION BY party_key) AS party_total,
-            count(*) OVER (PARTITION BY party_key) AS party_count
-            FROM core.jarvis_money_movement WHERE owner=%s AND direction='out' AND category=''
-            ORDER BY party_key, amount_cents DESC""", (owner,))
+        cur.execute("""SELECT DISTINCT ON (party_key, direction) movement_id AS id,party,party_key,kind,account,
+            direction,tx_date,amount_cents,
+            sum(amount_cents) OVER (PARTITION BY party_key, direction) AS party_total,
+            count(*) OVER (PARTITION BY party_key, direction) AS party_count
+            FROM core.jarvis_money_movement WHERE owner=%s AND category=''
+            ORDER BY party_key, direction, amount_cents DESC""", (owner,))
         rows = [dict(row, tx_date=row["tx_date"].isoformat()) for row in cur.fetchall()]
     return sorted(rows, key=lambda row: -row["party_total"])[:limit]
 
@@ -999,7 +1010,7 @@ def agreements(owner, today=None):
     with _connect() as conn, conn.cursor() as cur:
         cur.execute("""SELECT party_key,label,category,scope,monthly_cents,start_month,end_month,
             opening_cents,note FROM core.jarvis_money_rule
-            WHERE owner=%s AND monthly_cents IS NOT NULL AND monthly_cents>0 ORDER BY label""", (owner,))
+            WHERE owner=%s AND direction='out' AND monthly_cents IS NOT NULL AND monthly_cents>0 ORDER BY label""", (owner,))
         rules = cur.fetchall()
         result = []
         for rule in rules:
