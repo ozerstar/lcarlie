@@ -12,7 +12,7 @@ from datetime import date, datetime, timedelta
 
 from expense_vault import ZONE, ExpenseError, _connect
 from money_ledger import (BOOKS, CATEGORIES, IN_CATEGORIES, NOT_COUNTED, OUT_CATEGORIES, SCOPES, _links,
-                          _MOVEMENT_COLUMNS, net_links)
+                          _MOVEMENT_COLUMNS, net_links, plain)
 
 WORKSPACES = {"tumu": ("kisisel", "lemos", "moy"), "sirketler": ("lemos", "moy"), "sahsi": ("kisisel",),
               "lemos": ("lemos",), "moy": ("moy",)}
@@ -93,7 +93,69 @@ def _group(rows, key, labels=None):
     return sorted(out.values(), key=lambda item: -item["total"])
 
 
-def summarize(rows, books, start, end, prev_start, prev_end, pair_ids=frozenset()):
+_BANKS = (("enpara", "Enpara"), ("deniz", "DenizBank"), ("ziraat", "Ziraat"), ("garanti", "Garanti"), ("akbank", "Akbank"),
+          ("yapi ?kredi", "Yapı Kredi"), ("is ?bank|isbank", "İş Bankası"), ("qnb|finansbank", "QNB"), ("teb", "TEB"),
+          ("vakif", "VakıfBank"), ("halk", "Halkbank"), ("kuveyt", "Kuveyt Türk"), ("albaraka", "Albaraka"))
+
+
+def _bank(text):
+    t = plain(text or "")
+    return next((name for pattern, name in _BANKS if re.search(pattern, t)), "")
+
+
+def owner_gaps(in_period, pair_ids, statement_starts):
+    """Pure: company → owner money with no matching row in the owner's recorded accounts, by reason.
+
+    Owner, 02.11.2026 asked about "şirketten size giden paranın bir kısmı görünmüyor". Measured: every
+    MOY transfer after 19.06.2026 matched Enpara one to one; the ones before went to Enpara too, whose
+    statement only starts on 19.06 — and two went to DenizBank, which is not in the ledger. The Lemos
+    salary arrives with no Lemos-side row (paid from an account not in the ledger): a different gap."""
+    shown = [r for r in in_period if r["internal"] == "Şirket ↔ şahsi aktarım"]
+    sent = [r for r in shown if r.get("book", "kisisel") != "kisisel" and r["direction"] == "out"]
+    own_banks = {_bank(account) for account in statement_starts} - {""}
+    first = {}
+    for account, day in statement_starts.items():
+        bank = _bank(account)
+        first[bank] = min(first.get(bank, day), day)
+    gaps = {"no_statement": [], "other_bank": [], "unmatched": []}
+    matched = 0
+    for r in sent:
+        if r["id"] in pair_ids:
+            matched += r["amount_cents"]
+            continue
+        bank = _bank(r.get("description") or "") or _bank(r["party"])
+        if bank and own_banks and bank not in own_banks:
+            gaps["other_bank"].append((r, bank))
+        elif bank in first and r["tx_date"] < first[bank]:
+            gaps["no_statement"].append((r, bank))
+        else:
+            gaps["unmatched"].append((r, bank))
+
+    def group(items):
+        out = {}
+        for r, bank in items:
+            g = out.setdefault(bank or "?", {"bank": bank, "total": 0, "count": 0, "first": None, "last": None,
+                                             "statement_from": first[bank].isoformat() if bank in first else None})
+            g["total"] += r["amount_cents"]
+            g["count"] += 1
+            g["first"] = min(filter(None, (g["first"], r["tx_date"].isoformat())))
+            g["last"] = max(filter(None, (g["last"], r["tx_date"].isoformat())))
+        return sorted(out.values(), key=lambda g: -g["total"])
+
+    arrived = [r for r in shown if r.get("book", "kisisel") == "kisisel" and r["direction"] == "in" and r["id"] not in pair_ids
+               and r.get("category") != "sirketten"]
+    no_company_side = {}
+    for r in arrived:
+        g = no_company_side.setdefault(r["party"], {"party": r["party"], "total": 0, "count": 0})
+        g["total"] += r["amount_cents"]
+        g["count"] += 1
+    return {"company_to_owner": sum(r["amount_cents"] for r in sent), "matched": matched,
+            "no_statement": group(gaps["no_statement"]), "other_bank": group(gaps["other_bank"]),
+            "unmatched": group(gaps["unmatched"]),
+            "no_company_side": sorted(no_company_side.values(), key=lambda g: -g["total"])}
+
+
+def summarize(rows, books, start, end, prev_start, prev_end, pair_ids=frozenset(), statement_starts=None):
     """Pure: everything the overview pages show, from movement dicts (tx_date: date)."""
     marked = []
     for row in (r for r in rows if r.get("book", "kisisel") in books):
@@ -126,12 +188,7 @@ def summarize(rows, books, start, end, prev_start, prev_end, pair_ids=frozenset(
     in_period = [r for r in marked if start <= r["tx_date"] < end]
     internal = [r for r in in_period if r["internal"] or r["category"] in NOT_COUNTED]
     in_total, out_total = total(current, "in"), total(current, "out")
-    # both sides of owner ↔ company money: when they differ, one side's account is not in the ledger
-    # (2026: MOY sent the owner 904 bin TL, his recorded accounts show 300 bin) — said, not hidden
-    side = lambda book_is_personal, d: sum(r["amount_cents"] for r in in_period if r["internal"] == "Şirket ↔ şahsi aktarım"
-                                           and (r.get("book", "kisisel") == "kisisel") == book_is_personal and r["direction"] == d)
-    owner_flow = {"company_to_owner": side(False, "out"), "owner_received": side(True, "in"),
-                  "owner_to_company": side(True, "out"), "company_received": side(False, "in")}
+    owner_flow = owner_gaps(in_period, pair_ids, statement_starts or {})
     return {
         "owner_flow": owner_flow,
         "start": start.isoformat(), "end": (end - timedelta(days=1)).isoformat(),
@@ -166,14 +223,18 @@ def overview(owner, workspace="tumu", view="month", day=None, start=None, end=No
     s, e, ps, pe = period(view, day, start, end)
     since = min(ps, date.fromisoformat(_month_keys(e)[0] + "-01"))
     with _connect() as conn, conn.cursor() as cur:
-        cur.execute(f"""SELECT {_MOVEMENT_COLUMNS} FROM core.jarvis_money_movement
+        cur.execute(f"""SELECT {_MOVEMENT_COLUMNS}, description FROM core.jarvis_money_movement
             WHERE owner=%s AND book = ANY(%s) AND tx_date >= %s AND tx_date < %s""", (owner, list(books), since, e))
         rows = [dict(row) for row in cur.fetchall()]  # before _links(), which reuses the cursor
         links = _links(cur, owner)
         cur.execute("""SELECT company_id, personal_id FROM core.jarvis_money_transfer
             WHERE owner=%s AND status <> 'rejected'""", (owner,))
         pairs = frozenset(i for row in cur.fetchall() for i in (row["company_id"], row["personal_id"]))
-    result = summarize(net_links(rows, links), books, s, e, ps, pe, pairs)
+        # when each personal account's statements begin: money sent before that cannot be seen arriving
+        cur.execute("""SELECT account, min(tx_date) AS first FROM core.jarvis_money_movement
+            WHERE owner=%s AND book='kisisel' GROUP BY account""", (owner,))
+        starts = {row["account"]: row["first"] for row in cur.fetchall()}
+    result = summarize(net_links(rows, links), books, s, e, ps, pe, pairs, starts)
     result.update({"workspace": workspace, "view": view, "categories": CATEGORIES, "out_categories": OUT_CATEGORIES,
                    "in_categories": IN_CATEGORIES, "scopes": SCOPES, "book_labels": BOOKS,
                    "not_counted": list(NOT_COUNTED)})

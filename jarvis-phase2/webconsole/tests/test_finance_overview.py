@@ -49,8 +49,7 @@ class InternalTest(unittest.TestCase):
         self.assertEqual(reasons["p1"], "Şirket ↔ şahsi aktarım")
         self.assertEqual(reasons["c4"], "Grup içi (Lemos ↔ MOY)")
         self.assertIsNone(reasons["p3"])
-        self.assertEqual(got["owner_flow"], {"company_to_owner": 10000000, "owner_received": 10000000,
-                                             "owner_to_company": 5000000, "company_received": 5000000})
+        self.assertEqual(got["owner_flow"]["company_to_owner"], 10000000)
 
     def test_single_book_is_counted_as_its_own_ledger_says(self):
         got = fo.summarize(ROWS, fo.WORKSPACES["sahsi"], *OCT)
@@ -67,6 +66,28 @@ class InternalTest(unittest.TestCase):
         rows = [mv("x1", "lemos", "2026-10-05", "out", "Ayşe", 100000), mv("x2", "kisisel", "2026-10-05", "in", "Ayşe", 100000)]
         got = fo.summarize(rows, fo.WORKSPACES["tumu"], *OCT, pair_ids=frozenset({"x1", "x2"}))
         self.assertEqual((got["in_total"], got["out_total"]), (0, 0))
+
+
+class OwnerGapTest(unittest.TestCase):
+    """02.11.2026 ölçüldü: MOY → sahip transferleri Enpara'ya gidiyor, Enpara dökümü 19.06'da başlıyor."""
+
+    def test_gap_reasons(self):
+        def sent(rid, day, cents, desc):
+            r = mv(rid, "moy", day, "out", "Murat özer yıldız", cents, "")
+            r["description"] = desc
+            return r
+        rows = [sent("a", "2026-03-30", 4329700, "ENPARA BANK A.Ş./IBAN MERKEZ ŞUBESİ gönderilen havale .ozer"),
+                sent("b", "2026-04-08", 385400, "DENIZBANK A.Ş. ozer"),
+                sent("c", "2026-07-16", 11998500, "ENPARA BANK A.Ş. ozer"),
+                mv("d", "kisisel", "2026-07-16", "in", "MOY DAN.TEK.ORG.SAN.VE TİC.AŞ.", 11998500, "sirketten"),
+                mv("e", "kisisel", "2026-07-31", "in", "LEMOS MEDİKAL SAĞLIK", 6666667, "gelir")]
+        got = fo.summarize(rows, fo.WORKSPACES["tumu"], date(2026, 1, 1), date(2027, 1, 1), date(2025, 1, 1), date(2026, 1, 1),
+                           pair_ids=frozenset({"c", "d"}), statement_starts={"Enpara hesap": date(2026, 6, 19)})["owner_flow"]
+        self.assertEqual(got["matched"], 11998500)
+        self.assertEqual([(g["bank"], g["total"], g["statement_from"]) for g in got["no_statement"]], [("Enpara", 4329700, "2026-06-19")])
+        self.assertEqual([(g["bank"], g["total"]) for g in got["other_bank"]], [("DenizBank", 385400)])
+        self.assertEqual(got["unmatched"], [])
+        self.assertEqual([(g["party"], g["total"]) for g in got["no_company_side"]], [("LEMOS MEDİKAL SAĞLIK", 6666667)])
 
 
 class PeriodTest(unittest.TestCase):
