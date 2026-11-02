@@ -497,5 +497,22 @@ class ExcludeTest(unittest.TestCase):
         self.assertEqual(money_ledger.category_detail_from(rows, "haric", date(2026, 10, 1))["count"], 2)
 
 
+
+class BookTest(unittest.TestCase):
+    """Owner, 02.11.2026: Lemos (QNB) and MOY (Enpara Şirketim) accounts stay in their own books."""
+
+    def test_own_statement_naming_lemos_as_counterparty_stays_personal(self):
+        text = ("Hesap adı Murat Özer Yıldız Vadesiz TL\n02.10.2026 Gelen Transfer LEMOS MEDİKAL SAĞLIK 13.333,00 TL "
+                "Gelen Transfer MOY DAN.TEK.ORG.SAN.VE TİC.AŞ. 100.000,00 TL")
+        self.assertEqual(money_ledger.book_of(text), "kisisel")
+
+    def test_company_accounts_are_recognised(self):
+        self.assertEqual(money_ledger.book_of("QNB 146275187 no'lu hesabınızın Günlük hareketleri"), "lemos")
+        self.assertEqual(money_ledger.book_of("Enpara Şirketim <bilgi@enpara.com> 2026 Eylül ayı Moy Danışmanlık A.ş."), "moy")
+        self.assertEqual(money_ledger.book_of("herhangi bir metin", "lemos"), "lemos")
+        with self.assertRaises(money_ledger.ExpenseError):
+            money_ledger.book_of("x", "baska")
+
+
 if __name__ == "__main__":
     unittest.main()
