@@ -54,7 +54,7 @@ def build(rows, extras, allocation="esit"):
         raise ExpenseError("Dağıtım anahtarı geçersiz.")
     p = {}
     item = lambda name: p.setdefault(name, {"product": name, "produced": 0.0, "production": 0, "tester": 0, "tester_qty": 0.0,
-                                            "general": 0, "special": 0, "sold": 0.0, "sales_net": 0, "sales_gross": 0,
+                                            "general": 0, "general_by": {}, "special": 0, "sold": 0.0, "sales_net": 0, "sales_gross": 0,
                                             "first_made": None, "first_sold": None})
     general_items, tester_qty = [], 0.0
     for r in rows:
@@ -84,12 +84,15 @@ def build(rows, extras, allocation="esit"):
         else:
             general_items.append({"source": "elle", "month": e["spent_on"][:7], "description": e["description"], "party": "", "net": e["net_cents"],
                                   "gross": e["net_cents"] + e.get("vat_cents", 0), "kind": general_kind(e["description"]), "id": e["cost_id"]})
-    general = sum(g["net"] for g in general_items)
     made = {k: v for k, v in p.items() if v["produced"] > 0}
     weights = {"esit": {k: 1 for k in made}, "adet": {k: v["produced"] for k, v in made.items()},
                "ciro": {k: max(v["sales_net"], 0) for k, v in made.items()}}[allocation]
-    for k, share in _spread(general, weights).items():
-        p[k]["general"] = share
+    # each kind spread on its own, so the page can leave one out (owner: "maliyet katmanlarının yanına
+    # kutucuklar koy, istediğimi çıkarayım, genel toplam ona göre düşsün") and still add up to the kuruş
+    for kind in GENERAL_KINDS:
+        for k, share in _spread(sum(g["net"] for g in general_items if g["kind"] == kind), weights).items():
+            p[k]["general_by"][kind] = share
+            p[k]["general"] += share
     out = []
     for x in p.values():
         total = x["production"] + x["tester"] + x["general"] + x["special"]

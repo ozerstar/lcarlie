@@ -35,6 +35,8 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(v["general"], (5550000 + 2058000) // 2)
         self.assertEqual(v["total_cost"], 1386000 + v["general"])
         self.assertEqual(got["totals"]["general_tester"], 2058000)
+        self.assertEqual(sum(x["general_by"].get("tester", 0) for x in got["products"]), 2058000)  # tür türüne kuruşu kuruşuna
+        self.assertEqual(v["general_by"]["tester"] + v["general_by"]["ugr"], v["general"])
         self.assertEqual(v["profit"], 8498928 - v["total_cost"])
         self.assertEqual(v["coverage"], round(8498928 / v["total_cost"] * 100, 1))
         self.assertEqual(got["totals"]["general"], 5550000 + 2058000)  # dağıtılan genel maliyet kuruşu kuruşuna
