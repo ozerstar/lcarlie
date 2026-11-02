@@ -200,6 +200,90 @@ class ScreenshotTest(unittest.TestCase):
         self.assertEqual(accounts, {"Yapı Kredi kredi kartı ****8111"})
 
 
+def movement(day, amount, party="X", category="yemek", direction="out", scope="kisisel"):
+    return {"id": f"{day}{party}{amount}", "tx_date": date.fromisoformat(day), "direction": direction, "party": party,
+            "party_key": money_ledger.key_of(party), "amount_cents": amount, "category": category, "scope": scope,
+            "account": "A", "kind": "kart", "receipt": "not_needed", "note": "", "document_id": None,
+            "foreign_currency": None, "foreign_cents": None}
+
+
+class BuildReportTest(unittest.TestCase):
+    ROWS = [
+        movement("2026-09-07", 500000, "Sinem Ağca", "sosyal_medya"),
+        movement("2026-10-08", 500000, "Sinem Ağca", "sosyal_medya"),
+        movement("2026-10-20", 700000, "Sinem Ağca", "sosyal_medya"),
+        movement("2026-09-03", 30000, "Yemekpay"), movement("2026-09-10", 32000, "Yemekpay"),
+        movement("2026-10-02", 31000, "Yemekpay"), movement("2026-11-01", 29000, "Yemekpay"),
+        movement("2026-11-02", 400000, "Yemekpay"),
+        movement("2026-11-01", 4000000, "Kendim", "ic_transfer"),
+        movement("2026-10-31", 2807550, "Maaş", "gelir", direction="in"),
+    ]
+
+    def test_internal_transfer_not_counted_and_pace_against_same_day(self):
+        got = money_ledger.build_report(self.ROWS, "month", date(2026, 11, 2), today=date(2026, 11, 2))
+        self.assertEqual(got["out_total"], 429000)          # 40.000 TL kendine transfer hariç
+        self.assertEqual(got["elapsed_days"], 2)
+        self.assertEqual(got["same_point_prev"], 31000)     # Ekim'in ilk 2 günü
+        self.assertEqual(got["pace"]["current"], [29000, 429000])
+        self.assertIsNone(got["forecast"])                  # 3 günden az: tahmin yok
+
+    def test_recurring_and_unusual(self):
+        got = money_ledger.build_report(self.ROWS, "month", date(2026, 11, 2), today=date(2026, 11, 2))
+        self.assertEqual(got["unusual"][0]["party"], "Yemekpay")   # 4.000 TL, olağanı ~300 TL
+        oct_report = money_ledger.build_report(self.ROWS, "month", date(2026, 10, 15), today=date(2026, 11, 2))
+        self.assertEqual(oct_report["in_total"], 2807550)
+        self.assertIn("Yemekpay", [item["party"] for item in oct_report["recurring"]])
+        sinem = [item for item in oct_report["recurring"] if item["party"] == "Sinem Ağca"]
+        self.assertEqual(sinem, [])  # 5.000 ve 7.000: tutarlar düzenli değil, abonelik sayılmaz
+
+    def test_closed_month_compares_whole_months_and_forecast_mid_month(self):
+        got = money_ledger.build_report(self.ROWS, "month", date(2026, 10, 15), today=date(2026, 10, 15))
+        self.assertEqual(got["forecast"], round(got["out_total"] / 15 * 31))
+        full = money_ledger.build_report(self.ROWS, "month", date(2026, 10, 1), today=date(2026, 11, 2))
+        self.assertEqual(full["prev_out_total"], 562000)
+        self.assertEqual(len(full["trend"]), 6)
+        self.assertEqual(full["trend"][-1]["month"], "2026-10")
+
+    def test_scope_filter(self):
+        rows = self.ROWS + [movement("2026-10-10", 150000, "Derin", "personel", scope="lcarlie")]
+        got = money_ledger.build_report(rows, "month", date(2026, 10, 1), scope="lcarlie", today=date(2026, 11, 2))
+        self.assertEqual(got["out_total"], 150000)
+
+
+class DeeperAnalysisTest(unittest.TestCase):
+    ROWS = BuildReportTest.ROWS + [
+        movement("2026-10-10", 150000, "Derin Kocatepe", "personel", scope="lcarlie"),
+        movement("2026-10-12", 90000, "Opet", "akaryakit", scope="kisisel"),
+    ]
+
+    def test_scope_trend_per_month(self):
+        got = money_ledger.build_report(self.ROWS, "month", date(2026, 10, 1), today=date(2026, 11, 2))
+        october = got["trend"][-1]["scopes"]
+        self.assertEqual(october["lcarlie"], 150000)
+        self.assertEqual(october["kisisel"], 500000 + 700000 + 31000 + 90000)
+
+    def test_review_is_plain_turkish_from_numbers(self):
+        got = money_ledger.build_report(self.ROWS, "month", date(2026, 10, 1), today=date(2026, 11, 2))
+        self.assertTrue(got["review"][0].startswith("Ekim 2026 döneminde"))
+        self.assertTrue(any("Gelen" in sentence for sentence in got["review"]))
+
+    def test_budget_pace_and_states(self):
+        limits = {"yemek": 30000, "akaryakit": 200000, "sosyal_medya": 1500000}
+        got = {item["category"]: item for item in
+               money_ledger.budget_status(self.ROWS, limits, date(2026, 10, 1), today=date(2026, 10, 15))}
+        self.assertEqual(got["yemek"]["state"], "over")         # 310 / 300 TL
+        self.assertEqual(got["akaryakit"]["state"], "ok")       # 900 / 2.000 TL, ayın yarısı
+        self.assertEqual(got["sosyal_medya"]["state"], "warn")  # %80'e ayın ortasında ulaşıldı
+        self.assertEqual(got["akaryakit"]["expected_pct"], 48)
+
+    def test_category_detail(self):
+        got = money_ledger.category_detail_from(self.ROWS, "sosyal_medya", date(2026, 10, 1), today=date(2026, 11, 2))
+        self.assertEqual(got["total"], 1200000)
+        self.assertEqual(got["count"], 2)
+        self.assertEqual([m["total"] for m in got["trend"]][-2:], [500000, 1200000])
+        self.assertEqual(got["parties"][0]["label"], "Sinem Ağca")
+
+
 class RuleFormTest(unittest.TestCase):
     def test_turkish_thousands_in_monthly_amount(self):
         cursor = mock.MagicMock()

@@ -27,6 +27,8 @@ OUT_CATEGORIES = {
     "alisveris": "Online alışveriş", "giyim": "Giyim / aksesuar", "saglik": "Sağlık",
     "eglence": "Eğlence / dışarıda", "aile": "Aile", "borc": "Borç verme / ödeme",
     "kira": "Kira", "banka": "Banka faiz / masraf", "nakit": "Nakit çekim", "diger": "Diğer",
+    # owner, 02.11.2026: some transfers he cannot place; counted as spending, shown apart
+    "hatirlanmiyor": "Hatırlamıyorum",
 }
 IN_CATEGORIES = {
     "gelir": "Maaş / ücret geliri", "aile_gelen": "Aileden gelen", "tahsilat": "Tahsilat / satış",
@@ -515,43 +517,405 @@ def _bucket(rows, key, labels):
     return sorted(out.values(), key=lambda item: -item["total"])
 
 
+def _months_back(day, count):
+    first = day.replace(day=1)
+    for _ in range(count):
+        first = (first - timedelta(days=1)).replace(day=1)
+    return first
+
+
+def _previous_range(view, start):
+    if view == "day":
+        return start - timedelta(days=1), start
+    if view == "week":
+        return start - timedelta(days=7), start
+    return (start - timedelta(days=1)).replace(day=1), start
+
+
+def _median(values):
+    ordered = sorted(values)
+    if not ordered:
+        return 0
+    middle = len(ordered) // 2
+    return ordered[middle] if len(ordered) % 2 else (ordered[middle - 1] + ordered[middle]) / 2
+
+
+def _money_text(cents):
+    return f"{cents / 100:,.0f} ₺".replace(",", ".")
+
+
+def _party(row):
+    return row.get("party_key") or key_of(row["party"])
+
+
+def build_report(rows, view, day, scope="", today=None):
+    """Pure report over movement dicts (tx_date: date); report() feeds it from the DB.
+
+    Beyond the period's totals it answers what finance apps answer first (Monarch,
+    Copilot, Simplifi): versus the previous period, spending pace against the last
+    period, six-month cash flow, unusual payments, recurring payments, month-end forecast.
+    """
+    today = today or datetime.now(ZONE).date()
+    start, end = period_range(view, day)
+    prev_start, prev_end = _previous_range(view, start)
+    if scope:
+        rows = [row for row in rows if (row["scope"] or "none") == scope]
+    counted = [row for row in rows if row["category"] != INTERNAL]
+    spend = [row for row in counted if row["direction"] == "out"]
+    current = [row for row in rows if start <= row["tx_date"] < end]
+    out = [row for row in spend if start <= row["tx_date"] < end]
+    incoming = [row for row in counted if row["direction"] == "in" and start <= row["tx_date"] < end]
+    prev_out = [row for row in spend if prev_start <= row["tx_date"] < prev_end]
+    prev_in = [row for row in counted if row["direction"] == "in" and prev_start <= row["tx_date"] < prev_end]
+    out_total = sum(row["amount_cents"] for row in out)
+    in_total = sum(row["amount_cents"] for row in incoming)
+    prev_out_total = sum(row["amount_cents"] for row in prev_out)
+    prev_in_total = sum(row["amount_cents"] for row in prev_in)
+
+    prev_by_category = {}
+    for row in prev_out:
+        prev_by_category[row["category"]] = prev_by_category.get(row["category"], 0) + row["amount_cents"]
+    by_category = _bucket(out, "category", CATEGORIES)
+    for item in by_category:
+        item["previous"] = prev_by_category.get(item["key"], 0)
+
+    # pace: cumulative spend by day of the period, this period against the previous one
+    length = (end - start).days
+    daily = [0] * length
+    for row in out:
+        daily[(row["tx_date"] - start).days] += row["amount_cents"]
+    prev_daily = [0] * (prev_end - prev_start).days
+    for row in prev_out:
+        prev_daily[(row["tx_date"] - prev_start).days] += row["amount_cents"]
+
+    def cumulative(values):
+        total, result = 0, []
+        for value in values:
+            total += value
+            result.append(total)
+        return result
+
+    elapsed = length if today >= end else max(0, (today - start).days + 1)
+    forecast = round(out_total / elapsed * length) if view == "month" and today < end and elapsed >= 3 else None
+    same_point_prev = sum(prev_daily[:elapsed]) if elapsed < length else prev_out_total
+
+    # six-month cash flow and category mix, ending at the period's month
+    month0 = _months_back(start, 5)
+    months, cursor = [], month0
+    while cursor <= start.replace(day=1):
+        months.append(cursor)
+        cursor = (cursor + timedelta(days=32)).replace(day=1)
+    trend_end = (months[-1] + timedelta(days=32)).replace(day=1)
+    trend_rows = [row for row in counted if month0 <= row["tx_date"] < trend_end]
+    category_totals = {}
+    for row in trend_rows:
+        if row["direction"] == "out":
+            category_totals[row["category"]] = category_totals.get(row["category"], 0) + row["amount_cents"]
+    top_categories = [key for key, _ in sorted(category_totals.items(), key=lambda kv: -kv[1])[:5]]
+    trend = []
+    for month in months:
+        nxt = (month + timedelta(days=32)).replace(day=1)
+        in_month = [row for row in trend_rows if month <= row["tx_date"] < nxt]
+        mix = dict.fromkeys(top_categories, 0)
+        other = 0
+        for row in in_month:
+            if row["direction"] != "out":
+                continue
+            if row["category"] in mix:
+                mix[row["category"]] += row["amount_cents"]
+            else:
+                other += row["amount_cents"]
+        scopes = dict.fromkeys(("lemos", "moy", "lcarlie", "kisisel", "none"), 0)
+        for row in in_month:
+            if row["direction"] == "out":
+                scopes[row["scope"] or "none"] += row["amount_cents"]
+        trend.append({"month": month.strftime("%Y-%m"), "scopes": scopes,
+                      "out": sum(r["amount_cents"] for r in in_month if r["direction"] == "out"),
+                      "in": sum(r["amount_cents"] for r in in_month if r["direction"] == "in"),
+                      "mix": [{"key": key, "total": mix[key]} for key in top_categories] + [{"key": "__other", "total": other}]})
+
+    # weekday habit over the 90 days before the period end
+    weekday = [0] * 7
+    for row in spend:
+        if end - timedelta(days=90) <= row["tx_date"] < end:
+            weekday[row["tx_date"].weekday()] += row["amount_cents"]
+
+    # recurring: same person/shop in 2+ months, every amount within ±35% of their median
+    window = _months_back(end - timedelta(days=1), 5)
+    pool = {}
+    for row in spend:
+        if window <= row["tx_date"] < end:
+            pool.setdefault(_party(row), []).append(row)
+    recurring = []
+    for items in pool.values():
+        months_seen = {row["tx_date"].strftime("%Y-%m") for row in items}
+        median = _median([row["amount_cents"] for row in items])
+        if len(months_seen) < 2 or not all(abs(row["amount_cents"] - median) <= 0.35 * median for row in items):
+            continue
+        last = max(items, key=lambda row: row["tx_date"])
+        recurring.append({"party": last["party"], "category": last["category"], "scope": last["scope"],
+                          "months": len(months_seen), "typical": round(median), "last_date": last["tx_date"].isoformat(),
+                          "monthly_estimate": round(sum(row["amount_cents"] for row in items) / len(months_seen))})
+    recurring.sort(key=lambda item: -item["monthly_estimate"])
+
+    # unusual: far above what this person/shop or category usually costs (prior 120 days)
+    history = [row for row in spend if start - timedelta(days=120) <= row["tx_date"] < start]
+    unusual = []
+    for row in sorted(out, key=lambda r: -r["amount_cents"]):
+        party_hist = [r["amount_cents"] for r in history if _party(r) == _party(row)]
+        cat_hist = [r["amount_cents"] for r in history if row["category"] and r["category"] == row["category"]]
+        reason = ""
+        if len(party_hist) >= 2 and row["amount_cents"] > 2.5 * _median(party_hist):
+            reason = f"bu kişi/firma için olağan tutar {_money_text(_median(party_hist))}"
+        elif len(cat_hist) >= 4 and row["amount_cents"] >= 100000 and row["amount_cents"] > 4 * _median(cat_hist):
+            reason = f"{CATEGORIES.get(row['category'], row['category'])} için olağan tutar {_money_text(_median(cat_hist))}"
+        if reason:
+            unusual.append({"id": row["id"], "party": row["party"], "date": row["tx_date"].isoformat(),
+                            "amount": row["amount_cents"], "reason": reason})
+        if len(unusual) == 4:
+            break
+
+    insights = []
+    versus = {"month": "geçen aya", "week": "geçen haftaya", "day": "önceki güne"}[view]
+    if prev_out_total and out_total:
+        if view == "month" and elapsed < length and same_point_prev:
+            change = (out_total - same_point_prev) / same_point_prev * 100
+            insights.append({"tone": "warn" if change > 10 else "good" if change < -10 else "info",
+                             "title": f"Ayın ilk {elapsed} gününde {versus} göre %{abs(change):.0f} {'fazla' if change > 0 else 'az'}",
+                             "text": f"Bu ay {_money_text(out_total)}; geçen ay aynı noktada {_money_text(same_point_prev)}."})
+        elif not (view == "month" and elapsed < length):
+            change = (out_total - prev_out_total) / prev_out_total * 100
+            insights.append({"tone": "warn" if change > 10 else "good" if change < -10 else "info",
+                             "title": f"Harcama {versus} göre %{abs(change):.0f} {'arttı' if change > 0 else 'azaldı'}",
+                             "text": f"{_money_text(out_total)}; önceki dönem {_money_text(prev_out_total)}."})
+    grew = [item for item in by_category if item["key"] and item["key"] != "hatirlanmiyor" and item["total"] > item["previous"]]
+    if grew and prev_out_total:
+        top = max(grew, key=lambda item: item["total"] - item["previous"])
+        insights.append({"tone": "warn", "title": f"En çok büyüyen kalem: {top['label']}",
+                         "text": (f"{_money_text(top['previous'])} → {_money_text(top['total'])} "
+                                  f"(+{_money_text(top['total'] - top['previous'])})." if top["previous"] else
+                                  f"Önceki dönemde yoktu; bu dönem {_money_text(top['total'])}.")})
+    if forecast:
+        insights.append({"tone": "info", "title": f"Bu tempoyla ay sonu yaklaşık {_money_text(forecast)}",
+                         "text": f"{elapsed} günde {_money_text(out_total)}; günlük ortalama {_money_text(out_total / elapsed)}."})
+    if in_total:
+        rate = (in_total - out_total) / in_total * 100
+        insights.append({"tone": "good" if rate >= 20 else "warn" if rate < 0 else "info",
+                         "title": f"Birikim oranı %{rate:.0f}" if rate >= 0 else f"Gelenin %{-rate:.0f} fazlası harcandı",
+                         "text": f"Gelen {_money_text(in_total)}, harcanan {_money_text(out_total)}; kendi hesaplar arası hariç."})
+    unclear = sum(r["amount_cents"] for r in out if r["category"] in ("", "hatirlanmiyor"))
+    if out_total and unclear / out_total >= 0.15:
+        insights.append({"tone": "warn", "title": f"Harcamanın %{unclear * 100 / out_total:.0f} kadarı belirsiz",
+                         "text": f"{_money_text(unclear)} ne için olduğu bilinmiyor ya da hatırlanmıyor."})
+    if unusual:
+        first = unusual[0]
+        insights.append({"tone": "warn", "title": f"Olağandışı ödeme: {first['party']}",
+                         "text": f"{_money_text(first['amount'])}; {first['reason']}."})
+
+    movements = sorted(current, key=lambda r: (r["tx_date"], r["amount_cents"]), reverse=True)
+    review = _review(view, start, out, incoming, out_total, in_total, prev_out_total, by_category, recurring,
+                     unusual, forecast, elapsed, length)
+    return {
+        "review": review,
+        "view": view, "start": start.isoformat(), "end": (end - timedelta(days=1)).isoformat(),
+        "prev_start": prev_start.isoformat(), "prev_end": (prev_end - timedelta(days=1)).isoformat(),
+        "out_total": out_total, "in_total": in_total, "prev_out_total": prev_out_total, "prev_in_total": prev_in_total,
+        "same_point_prev": same_point_prev, "elapsed_days": elapsed, "length_days": length, "forecast": forecast,
+        "active_days": sum(1 for value in daily if value),
+        "internal_total": sum(r["amount_cents"] for r in current if r["category"] == INTERNAL and r["direction"] == "out"),
+        "by_category": by_category,
+        "by_scope": _bucket(out, "scope", SCOPES),
+        "in_by_category": _bucket(incoming, "category", CATEGORIES),
+        "top_parties": _bucket(out, "party", {})[:12],
+        "series": [{"date": (start + timedelta(days=i)).isoformat(), "total": value} for i, value in enumerate(daily) if value],
+        "pace": {"current": cumulative(daily)[:elapsed], "previous": cumulative(prev_daily)},
+        "trend": trend,
+        "trend_categories": [{"key": key, "label": CATEGORIES.get(key, key or "Belirlenmedi")} for key in top_categories],
+        "weekday": weekday, "recurring": recurring[:12], "unusual": unusual, "insights": insights[:6],
+        "largest": [{"id": r["id"], "party": r["party"], "date": r["tx_date"].isoformat(), "amount": r["amount_cents"],
+                     "category": r["category"]} for r in sorted(out, key=lambda r: -r["amount_cents"])[:5]],
+        "movements": [dict(r, tx_date=r["tx_date"].isoformat()) for r in movements[:500]],
+    }
+
+
+def _review(view, start, out, incoming, out_total, in_total, prev_out_total, by_category, recurring, unusual,
+            forecast, elapsed, length):
+    """The period in plain Turkish, built only from these numbers (nothing leaves the server)."""
+    if not out and not incoming:
+        return []
+    name = {"month": start.strftime("%Y-%m"), "week": "bu hafta", "day": "bu gün"}[view]
+    if view == "month":
+        months = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim",
+                  "Kasım", "Aralık"]
+        name = f"{months[start.month - 1]} {start.year}"
+    sentences = []
+    known = [item for item in by_category if item["key"] and item["key"] not in ("hatirlanmiyor", INTERNAL)]
+    lead = f"{name} döneminde {_money_text(out_total)} harcandı"
+    if prev_out_total and not (view == "month" and elapsed < length):
+        change = (out_total - prev_out_total) / prev_out_total * 100
+        lead += f"; bu, önceki döneme göre %{abs(change):.0f} {'daha fazla' if change > 0 else 'daha az'}"
+    sentences.append(lead + ".")
+    if known:
+        top = known[:3]
+        parts = [f"{item['label'].split(' /')[0].lower()} {_money_text(item['total'])}" for item in top]
+        share = sum(item["total"] for item in top) * 100 / out_total if out_total else 0
+        sentences.append(f"En büyük kalemler {', '.join(parts)}; üçü birlikte harcamanın %{share:.0f} kadarı.")
+    moved = [item for item in known if item["previous"] and abs(item["total"] - item["previous"]) >= 50000]
+    if moved:
+        down = min(moved, key=lambda item: item["total"] - item["previous"])
+        up = max(moved, key=lambda item: item["total"] - item["previous"])
+        if up["total"] > up["previous"]:
+            sentences.append(f"{up['label'].split(' /')[0]} {_money_text(up['total'] - up['previous'])} arttı.")
+        if down["total"] < down["previous"]:
+            sentences.append(f"{down['label'].split(' /')[0]} ise {_money_text(down['previous'] - down['total'])} azaldı.")
+    if in_total:
+        rate = (in_total - out_total) / in_total * 100
+        sentences.append(f"Gelen {_money_text(in_total)}; " +
+                         (f"gelirin %{rate:.0f} kadarı kenarda kaldı." if rate >= 0 else
+                          f"harcama geliri {_money_text(out_total - in_total)} aştı."))
+    if recurring:
+        sentences.append(f"Düzenli ödemeler ayda yaklaşık {_money_text(sum(r['monthly_estimate'] for r in recurring))} tutuyor.")
+    if unusual:
+        sentences.append(f"Dikkat: {unusual[0]['party']} ödemesi ({_money_text(unusual[0]['amount'])}) olağanın çok üstünde.")
+    if forecast:
+        sentences.append(f"Bu tempoyla ay {_money_text(forecast)} civarında kapanır.")
+    return sentences
+
+
+# ---------------------------------------------------------------- bütçe
+def budgets(owner):
+    with _connect() as conn, conn.cursor() as cur:
+        cur.execute("SELECT category, monthly_cents FROM core.jarvis_money_budget WHERE owner=%s", (owner,))
+        return {row["category"]: row["monthly_cents"] for row in cur.fetchall()}
+
+
+def set_budget(owner, category, monthly):
+    if category not in OUT_CATEGORIES:
+        raise ExpenseError("Kategori geçersiz.")
+    import expense_vault
+    raw = str(monthly or "").replace("₺", "").replace("TL", "").strip()
+    if re.fullmatch(r"\d{1,3}(?:\.\d{3})+", raw):
+        raw = raw.replace(".", "")
+    cents = expense_vault._money(raw, "Bütçe") if raw else None
+    with _connect() as conn, conn.cursor() as cur:
+        if not cents:
+            cur.execute("DELETE FROM core.jarvis_money_budget WHERE owner=%s AND category=%s", (owner, category))
+            return {"category": category, "deleted": True}
+        cur.execute("""INSERT INTO core.jarvis_money_budget (owner,category,monthly_cents) VALUES (%s,%s,%s)
+            ON CONFLICT (owner,category) DO UPDATE SET monthly_cents=EXCLUDED.monthly_cents,updated_at=clock_timestamp()""",
+            (owner, category, cents))
+    return {"category": category, "monthly": cents}
+
+
+def budget_status(rows, limits, day, today=None):
+    """Spent this calendar month per budgeted category, against where you should be today."""
+    today = today or datetime.now(ZONE).date()
+    start, end = period_range("month", day)
+    length = (end - start).days
+    elapsed = length if today >= end else max(0, (today - start).days + 1) if today >= start else 0
+    spent = {}
+    for row in rows:
+        if row["direction"] == "out" and row["category"] in limits and start <= row["tx_date"] < end:
+            spent[row["category"]] = spent.get(row["category"], 0) + row["amount_cents"]
+    result = []
+    for category, limit in limits.items():
+        used = spent.get(category, 0)
+        result.append({"category": category, "label": CATEGORIES.get(category, category), "limit": limit, "spent": used,
+                       "pct": round(used * 100 / limit), "expected_pct": round(elapsed * 100 / length),
+                       "left": limit - used,
+                       "state": "over" if used > limit else "warn" if used >= 0.8 * limit or
+                       (elapsed and used / limit > elapsed / length + 0.15) else "ok"})
+    return sorted(result, key=lambda item: -item["pct"])
+
+
+def budget_alerts(owner, today=None):
+    """80% and 100% crossings, once per category per month."""
+    import expense_insights
+    today = today or datetime.now(ZONE).date()
+    limits = budgets(owner)
+    if not limits:
+        return []
+    start, end = period_range("month", today)
+    with _connect() as conn, conn.cursor() as cur:
+        cur.execute("""SELECT tx_date,direction,category,amount_cents FROM core.jarvis_money_movement
+            WHERE owner=%s AND tx_date >= %s AND tx_date < %s""", (owner, start, end))
+        rows = cur.fetchall()
+    alerts = []
+    for item in budget_status(rows, limits, today, today):
+        level = 100 if item["spent"] > item["limit"] else 80 if item["spent"] >= 0.8 * item["limit"] else 0
+        if not level or not expense_insights._claim_notice(owner, f"butce:{item['category']}:{start:%Y-%m}:{level}"):
+            continue
+        alerts.append({"title": f"{item['label']} bütçesi %{item['pct']}",
+                       "body": (f"{_money_text(item['spent'])} / {_money_text(item['limit'])}; "
+                                + ("bütçe aşıldı." if level == 100 else f"kalan {_money_text(item['left'])}."))})
+    return alerts
+
+
+# ----------------------------------------------------------- kategori detayı
+def category_detail_from(rows, key, day, scope="", today=None):
+    today = today or datetime.now(ZONE).date()
+    start, end = period_range("month", day)
+    if scope:
+        rows = [row for row in rows if (row["scope"] or "none") == scope]
+    wanted = "" if key == "__none" else key
+    picked = [row for row in rows if row["direction"] == "out" and (row["category"] or "") == wanted]
+    months, cursor = [], _months_back(start, 5)
+    while cursor <= start:
+        months.append(cursor)
+        cursor = (cursor + timedelta(days=32)).replace(day=1)
+    trend = []
+    for month in months:
+        nxt = (month + timedelta(days=32)).replace(day=1)
+        inside = [row for row in picked if month <= row["tx_date"] < nxt]
+        trend.append({"month": month.strftime("%Y-%m"), "total": sum(r["amount_cents"] for r in inside), "count": len(inside)})
+    current = [row for row in picked if start <= row["tx_date"] < end]
+    window = [row for row in picked if months[0] <= row["tx_date"] < end]
+    totals = [item["total"] for item in trend[:-1] if item["total"]]
+    return {
+        "key": key, "label": CATEGORIES.get(wanted, "Belirlenmedi"), "month": start.strftime("%Y-%m"),
+        "total": sum(r["amount_cents"] for r in current), "count": len(current),
+        "average_ticket": round(sum(r["amount_cents"] for r in window) / len(window)) if window else 0,
+        "monthly_average": round(sum(totals) / len(totals)) if totals else 0,
+        "trend": trend,
+        "parties": _bucket(window, "party", {})[:8],
+        "movements": [dict(r, tx_date=r["tx_date"].isoformat()) for r in
+                      sorted(current, key=lambda r: (r["tx_date"], r["amount_cents"]), reverse=True)[:100]],
+    }
+
+
+def category_detail(owner, key, day=None, scope=""):
+    if key != "__none" and key not in CATEGORIES:
+        raise ExpenseError("Kategori geçersiz.")
+    day = _parse_day(day)
+    start, end = period_range("month", day)
+    with _connect() as conn, conn.cursor() as cur:
+        cur.execute("""SELECT movement_id AS id,account,tx_date,direction,kind,party,party_key,amount_cents,
+            foreign_currency,foreign_cents,category,scope,receipt,document_id,note
+            FROM core.jarvis_money_movement WHERE owner=%s AND tx_date >= %s AND tx_date < %s""",
+            (owner, _months_back(start, 5), end))
+        rows = [dict(row) for row in cur.fetchall()]
+    return category_detail_from(rows, key, day, scope)
+
+
 def report(owner, view="month", day=None, scope=""):
     day = _parse_day(day)
     start, end = period_range(view, day)
     if scope and scope not in SCOPES and scope != "none":
         raise ExpenseError("Hesap başlığı geçersiz.")
+    since = min(_months_back(start, 5), _previous_range(view, start)[0], end - timedelta(days=120))
     with _connect() as conn, conn.cursor() as cur:
-        cur.execute("""SELECT movement_id AS id,account,tx_date,direction,kind,party,amount_cents,
+        cur.execute("""SELECT movement_id AS id,account,tx_date,direction,kind,party,party_key,amount_cents,
             foreign_currency,foreign_cents,category,scope,receipt,document_id,note
             FROM core.jarvis_money_movement WHERE owner=%s AND tx_date >= %s AND tx_date < %s
-            ORDER BY tx_date DESC, amount_cents DESC""", (owner, start, end))
-        rows = [dict(row, tx_date=row["tx_date"].isoformat()) for row in cur.fetchall()]
+            ORDER BY tx_date DESC, amount_cents DESC""", (owner, since, end))
+        rows = [dict(row) for row in cur.fetchall()]
         cur.execute("""SELECT count(*) AS n, coalesce(sum(amount_cents),0) AS total
             FROM core.jarvis_money_movement WHERE owner=%s AND category='' AND direction='out'""", (owner,))
         unknown = cur.fetchone()
-    if scope:
-        rows = [row for row in rows if (row["scope"] or "none") == scope]
-    counted = [row for row in rows if row["category"] != INTERNAL]
-    out = [row for row in counted if row["direction"] == "out"]
-    incoming = [row for row in counted if row["direction"] == "in"]
-    series = {}
-    for row in out:
-        bucket = row["tx_date"] if view != "day" else row["tx_date"]
-        series[bucket] = series.get(bucket, 0) + row["amount_cents"]
-    parties = _bucket(out, "party", {})[:15]
-    return {
-        "view": view, "start": start.isoformat(), "end": (end - timedelta(days=1)).isoformat(),
-        "out_total": sum(row["amount_cents"] for row in out),
-        "in_total": sum(row["amount_cents"] for row in incoming),
-        "internal_total": sum(row["amount_cents"] for row in rows if row["category"] == INTERNAL and row["direction"] == "out"),
-        "by_category": _bucket(out, "category", CATEGORIES),
-        "by_scope": _bucket(out, "scope", SCOPES),
-        "in_by_category": _bucket(incoming, "category", CATEGORIES),
-        "top_parties": parties,
-        "series": [{"date": key, "total": value} for key, value in sorted(series.items())],
-        "movements": rows[:400],
-        "unknown_all": {"count": unknown["n"], "total": unknown["total"]},
-    }
+    result = build_report(rows, view, day, scope)
+    result["unknown_all"] = {"count": unknown["n"], "total": unknown["total"]}
+    result["budgets"] = budget_status(rows, budgets(owner), day)
+    return result
 
 
 def questions(owner, limit=25):
