@@ -262,6 +262,17 @@ class DeeperAnalysisTest(unittest.TestCase):
         self.assertEqual(october["lcarlie"], 150000)
         self.assertEqual(october["kisisel"], 500000 + 700000 + 31000 + 90000)
 
+    def test_family_is_its_own_scope(self):
+        """Owner, 02.11.2026: "kişisel harcama ve aileyi de ayır"."""
+        rows = self.ROWS + [movement("2026-10-20", 120000, "Göksel Çiçek", "aile", scope="aile")]
+        got = money_ledger.build_report(rows, "month", date(2026, 10, 1), today=date(2026, 11, 2))
+        october = got["trend"][-1]["scopes"]
+        self.assertEqual(october["aile"], 120000)
+        self.assertEqual(october["kisisel"], 500000 + 700000 + 31000 + 90000)
+        only = money_ledger.build_report(rows, "month", date(2026, 10, 1), scope="aile", today=date(2026, 11, 2))
+        self.assertEqual(only["out_total"], 120000)
+        self.assertEqual(money_ledger.SCOPES["aile"], "Aile")
+
     def test_review_is_plain_turkish_from_numbers(self):
         got = money_ledger.build_report(self.ROWS, "month", date(2026, 10, 1), today=date(2026, 11, 2))
         self.assertTrue(got["review"][0].startswith("Ekim 2026 döneminde"))
@@ -409,6 +420,81 @@ class ReminderTest(unittest.TestCase):
             self.assertIn("3 kart harcamasının fişi yok (1.234,50 TL)", notice["body"])
             self.assertIsNone(expense_insights.reminder("o", date(2026, 11, 29)))
             self.assertEqual(claim.call_count, 2)
+
+
+
+class FlowLinkTest(unittest.TestCase):
+    """Owner, 02.11.2026: money that comes in and leaves within two days belongs together."""
+
+    def test_passed_on_to_a_third_party_is_neither_income_nor_spending(self):
+        # 08.07: MOY 159.980 in; Can Bostan 100.000 + own savings 50.000 + 10.000 out the same day
+        rows = [movement("2026-07-08", 15998000, "MOY DAN.TEK.ORG", "", "in", ""),
+                movement("2026-07-08", 10000000, "Ahmet Can Bostan", "hizmet"),
+                movement("2026-07-08", 5000000, "tatil hesabıma", "ic_transfer", scope=""),
+                movement("2026-07-08", 1000000, "tatil hesabıma 2", "ic_transfer", scope=""),
+                movement("2026-07-10", 1000000, "Erkan Azazi", "hatirlanmiyor")]
+        found = money_ledger.find_links(rows)
+        self.assertEqual([(l["out_id"], l["amount_cents"], l["kind"]) for l in found],
+                         [(rows[1]["id"], 10000000, "aracilik")])
+        links = [dict(l, status="auto") for l in found]
+        net = money_ledger.net_links(rows, links)
+        got = money_ledger.build_report(net, "month", date(2026, 7, 1), today=date(2026, 8, 1))
+        self.assertEqual(got["in_total"], 5998000)           # 59.980 TL stayed with us
+        self.assertEqual(got["out_total"], 1000000)          # only Erkan; Can Bostan was MOY's business
+        self.assertEqual(got["passthrough_total"], 10000000)
+        flows = money_ledger.flow_groups(net, links, date(2026, 7, 1), date(2026, 8, 1))
+        self.assertEqual(flows[0]["amount"], 15998000)
+        self.assertEqual(flows[0]["outs"][0]["party"], "Ahmet Can Bostan")
+
+    def test_paying_own_debts_is_explanation_only(self):
+        # 23.06: MOY 100.000 + 20.000 in; Orhan (debt) 70.000 + own card 48.000 + 2.000 out
+        rows = [movement("2026-06-23", 10000000, "MOY", "", "in", ""), movement("2026-06-23", 2000000, "MOY", "", "in", ""),
+                movement("2026-06-23", 7000000, "Orhan Talha Canal", "borc"),
+                movement("2026-06-23", 4800000, "Murat Özer Yıldız", "kart_borcu"),
+                movement("2026-06-23", 1200000, "Murat Özer Yıldız ", "kart_borcu"),
+                movement("2026-06-23", 200000, "Sümeyye Bozkurt", "hatirlanmiyor")]
+        found = money_ledger.find_links(rows)
+        self.assertEqual({l["kind"] for l in found}, {"kullanim"})
+        self.assertEqual(sum(l["amount_cents"] for l in found), 12000000)
+        net = money_ledger.net_links(rows, [dict(l, status="auto") for l in found])
+        self.assertEqual(sum(r["amount_cents"] for r in net if r["direction"] == "out"), 13200000)
+
+    def test_salary_support_spent_the_same_day_is_not_cancelled(self):
+        rows = [movement("2026-10-02", 5000000, "MERAL YILDIZ", "gelir_destegi", "in"),
+                movement("2026-10-02", 5000000, "Moy Danışmanlık", "ofis", scope="moy")]
+        self.assertEqual(money_ledger.find_links(rows)[0]["kind"], "kullanim")
+
+    def test_rejected_match_never_comes_back_and_small_money_is_ignored(self):
+        rows = [movement("2026-07-08", 10000000, "MOY", "", "in", ""), movement("2026-07-09", 10000000, "Can Bostan", "hizmet")]
+        first = money_ledger.find_links(rows)[0]
+        self.assertEqual(money_ledger.find_links(rows, [dict(first, status="rejected")]), [])
+        self.assertEqual(money_ledger.find_links(rows, [dict(first, status="auto")]), [])
+        late = [rows[0], movement("2026-07-11", 10000000, "Can Bostan", "hizmet")]
+        self.assertEqual(money_ledger.find_links(late), [])  # three days later: not the same money
+        small = [movement("2026-07-04", 100000, "Orhan", "", "in", ""), movement("2026-07-05", 100600, "Macit", "diger")]
+        self.assertEqual(money_ledger.find_links(small), [])
+
+    def test_coincidences_from_the_live_dry_run_are_not_matched(self):
+        # Lemos salary 66.666: card payment 64.188 + savings — only 2.500 to a person
+        salary = [movement("2026-06-30", 6666600, "LEMOS", "", "in", ""),
+                  movement("2026-06-30", 6418800, "Enpara kart", "ic_transfer", scope=""),
+                  movement("2026-07-02", 250000, "Macit", "diger")]
+        self.assertEqual(money_ledger.find_links(salary), [])
+        sale = [movement("2026-09-08", 600000, "Ömer", "tahsilat", "in"), movement("2026-09-10", 600000, "Mehmet", "personel")]
+        self.assertEqual(money_ledger.find_links(sale), [])  # under 10.000 TL
+
+
+class ExcludeTest(unittest.TestCase):
+    """Owner: "Can için gelip giden parayı o ayki harcama kaleminden çıkartabilmeliyim"."""
+
+    def test_excluded_and_passed_rows_are_shown_but_not_counted(self):
+        rows = [movement("2026-10-03", 300000, "Can", "hizmet"), movement("2026-10-04", 200000, "Ali", "haric"),
+                movement("2026-10-05", 100000, "Veli", "aracilik"), movement("2026-10-06", 50000, "Para", "haric", "in")]
+        got = money_ledger.build_report(rows, "month", date(2026, 10, 1), today=date(2026, 11, 2))
+        self.assertEqual(got["out_total"], 300000)
+        self.assertEqual(got["in_total"], 0)
+        self.assertEqual(len(got["movements"]), 4)
+        self.assertEqual(money_ledger.category_detail_from(rows, "haric", date(2026, 10, 1))["count"], 2)
 
 
 if __name__ == "__main__":

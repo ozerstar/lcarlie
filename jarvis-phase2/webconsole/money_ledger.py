@@ -14,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import re
 import uuid
+from itertools import combinations
 from datetime import date, datetime, timedelta
 
 from expense_vault import ZONE, ExpenseError, _connect, _id, _text
@@ -34,7 +35,9 @@ OUT_CATEGORIES = {
     "hatirlanmiyor": "Hatırlamıyorum",
 }
 IN_CATEGORIES = {
-    "gelir": "Maaş / ücret geliri", "aile_gelen": "Aileden gelen", "tahsilat": "Tahsilat / satış",
+    "gelir": "Maaş / ücret geliri",
+    # owner, 02.11.2026: Muharrem Murat / Meral Yıldız transfers are mostly salary, unlabelled
+    "gelir_destegi": "Gelir desteği (maaş)", "aile_gelen": "Aileden gelen", "tahsilat": "Tahsilat / satış",
     "iade": "İade / kampanya", "borc_donus": "Borç geri ödemesi", "diger_gelen": "Diğer gelen",
 }
 # alt kalem: owner, 02.11.2026 — "ofisin içinde kira, muhasebe ödemesi gibi ödemeler var"
@@ -58,11 +61,23 @@ SUBCATEGORIES = {
     "eglence": ["Yemek / gece", "Etkinlik", "Tatil"],
     "kira": ["Ev", "İş yeri"],
     "gelir": ["Maaş", "Ücret", "Prim"],
+    "gelir_destegi": ["Maaş", "Destek"],
     "tahsilat": ["Satış", "Müşteri", "Pazaryeri"],
 }
 INTERNAL = "ic_transfer"
-CATEGORIES = {**OUT_CATEGORIES, **IN_CATEGORIES, INTERNAL: "Kendi hesapların arası"}
-SCOPES = {"lemos": "Lemos", "moy": "MOY", "lcarlie": "L'CARLIÉ", "kisisel": "Kişisel / aile"}
+# owner, 02.11.2026: "100 bin MOY'dan gelmiş, aynı gün Can Bostan'a gitmiş — aracılık yapmışız,
+# bizim harcamamız değil". Money that only passed through is neither income nor spending.
+PASS = "aracilik"
+# owner, 02.11.2026: "tablolardan ekleyip çıkarabilmek isterim … birine para göndermişimdir,
+# onu çıkartabilmeliyim" — kept and visible, but not counted anywhere.
+EXCLUDED = "haric"
+NOT_COUNTED = (INTERNAL, PASS, EXCLUDED)
+CATEGORIES = {**OUT_CATEGORIES, **IN_CATEGORIES, INTERNAL: "Kendi hesapların arası",
+              PASS: "Aracılık (başkası adına)", EXCLUDED: "Hesaba katılmasın"}
+HAND_ACCOUNT = "Elle eklenen"
+# owner, 02.11.2026: "kişisel harcama ve aileyi de ayır"
+SCOPES = {"lemos": "Lemos", "moy": "MOY", "lcarlie": "L'CARLIÉ", "kisisel": "Kişisel", "aile": "Aile"}
+PRIVATE_SCOPES = ("kisisel", "aile")  # no receipt is asked for these
 
 _ASCII = str.maketrans("çğıöşüâîû", "cgiosuaiu")
 
@@ -356,7 +371,7 @@ def apply_rules(owner):
             category=CASE WHEN r.category<>'' THEN r.category ELSE m.category END,
             scope=CASE WHEN r.scope<>'' THEN r.scope ELSE m.scope END,
             subcategory=CASE WHEN r.subcategory<>'' THEN r.subcategory ELSE m.subcategory END,
-            receipt=CASE WHEN r.category='ic_transfer' OR r.scope='kisisel'
+            receipt=CASE WHEN r.category='ic_transfer' OR r.scope IN ('kisisel','aile')
                               OR r.receipt_policy='not_needed' THEN 'not_needed'
                          WHEN m.receipt='not_needed' AND m.kind IN ('kart','fatura') THEN 'needed'
                          ELSE m.receipt END,
@@ -420,9 +435,9 @@ def classify(owner, movement_id, body):
         row = cur.fetchone()
         if not row:
             raise ExpenseError("Hareket bulunamadı.")
-        if category and category not in (INTERNAL,) and (category in IN_CATEGORIES) != (row["direction"] == "in"):
+        if category and category not in NOT_COUNTED and (category in IN_CATEGORIES) != (row["direction"] == "in"):
             raise ExpenseError("Gelen paraya gelir kategorisi, giden paraya gider kategorisi seçin.")
-        receipt_sql = ("CASE WHEN %(category)s='ic_transfer' OR %(scope)s='kisisel' THEN "
+        receipt_sql = ("CASE WHEN %(category)s IN ('ic_transfer','aracilik','haric') OR %(scope)s IN ('kisisel','aile') THEN "
                        "CASE WHEN receipt='matched' THEN receipt ELSE 'not_needed' END ELSE receipt END")
         cur.execute(f"""UPDATE core.jarvis_money_movement SET category=%(category)s,scope=%(scope)s,
             subcategory=CASE WHEN %(sub_given)s THEN %(sub)s ELSE subcategory END,
@@ -597,7 +612,7 @@ def build_report(rows, view, day, scope="", today=None, account=""):
     prev_start, prev_end = _previous_range(view, start)
     accounts = {}
     for row in rows:
-        if start <= row["tx_date"] < end and row["category"] != INTERNAL and row["direction"] == "out":
+        if start <= row["tx_date"] < end and row["category"] not in NOT_COUNTED and row["direction"] == "out":
             accounts[row["account"]] = accounts.get(row["account"], 0) + row["amount_cents"]
         else:
             accounts.setdefault(row["account"], 0)
@@ -605,7 +620,7 @@ def build_report(rows, view, day, scope="", today=None, account=""):
         rows = [row for row in rows if row["account"] == account]
     if scope:
         rows = [row for row in rows if (row["scope"] or "none") == scope]
-    counted = [row for row in rows if row["category"] != INTERNAL]
+    counted = [row for row in rows if row["category"] not in NOT_COUNTED]
     spend = [row for row in counted if row["direction"] == "out"]
     current = [row for row in rows if start <= row["tx_date"] < end]
     out = [row for row in spend if start <= row["tx_date"] < end]
@@ -672,7 +687,7 @@ def build_report(rows, view, day, scope="", today=None, account=""):
                 mix[row["category"]] += row["amount_cents"]
             else:
                 other += row["amount_cents"]
-        scopes = dict.fromkeys(("lemos", "moy", "lcarlie", "kisisel", "none"), 0)
+        scopes = dict.fromkeys(("lemos", "moy", "lcarlie", "kisisel", "aile", "none"), 0)
         for row in in_month:
             if row["direction"] == "out":
                 scopes[row["scope"] or "none"] += row["amount_cents"]
@@ -771,6 +786,7 @@ def build_report(rows, view, day, scope="", today=None, account=""):
         "same_point_prev": same_point_prev, "elapsed_days": elapsed, "length_days": length, "forecast": forecast,
         "active_days": sum(1 for value in daily if value),
         "internal_total": sum(r["amount_cents"] for r in current if r["category"] == INTERNAL and r["direction"] == "out"),
+        "passthrough_total": sum(r.get("passed_cents", 0) for r in current if r["direction"] == "in"),
         "by_category": by_category,
         "by_scope": _bucket(out, "scope", SCOPES),
         "in_by_category": _bucket(incoming, "category", CATEGORIES),
@@ -797,7 +813,7 @@ def _review(view, start, out, incoming, out_total, in_total, prev_out_total, by_
                   "Kasım", "Aralık"]
         name = f"{months[start.month - 1]} {start.year}"
     sentences = []
-    known = [item for item in by_category if item["key"] and item["key"] not in ("hatirlanmiyor", INTERNAL)]
+    known = [item for item in by_category if item["key"] and item["key"] not in ("hatirlanmiyor", *NOT_COUNTED)]
     lead = f"{name} döneminde {_money_text(out_total)} harcandı"
     if prev_out_total and not (view == "month" and elapsed < length):
         change = (out_total - prev_out_total) / prev_out_total * 100
@@ -916,7 +932,7 @@ def category_detail_from(rows, key, day, scope="", today=None, account="", month
     wanted = "" if key == "__none" else key
     direction = "in" if wanted in IN_CATEGORIES else "out"
     picked = [row for row in rows if (row["category"] or "") == wanted and
-              (row["direction"] == direction or wanted == INTERNAL)]
+              (row["direction"] == direction or wanted in NOT_COUNTED)]
     months, cursor = [], _months_back(start, 5)
     while cursor <= start:
         months.append(cursor)
@@ -949,7 +965,8 @@ def category_detail_from(rows, key, day, scope="", today=None, account="", month
 
 
 _MOVEMENT_COLUMNS = """movement_id AS id,account,tx_date,direction,kind,party,party_key,amount_cents,
-            foreign_currency,foreign_cents,category,subcategory,scope,receipt,document_id,note"""
+            foreign_currency,foreign_cents,category,subcategory,scope,receipt,document_id,note,
+            (source_sha256='manual') AS hand"""
 
 
 def category_detail(owner, key, day=None, scope="", account="", month=""):
@@ -963,7 +980,7 @@ def category_detail(owner, key, day=None, scope="", account="", month=""):
     with _connect() as conn, conn.cursor() as cur:
         cur.execute(f"""SELECT {_MOVEMENT_COLUMNS} FROM core.jarvis_money_movement
             WHERE owner=%s AND tx_date >= %s AND tx_date < %s""", (owner, _months_back(start, 5), end))
-        rows = [dict(row) for row in cur.fetchall()]
+        rows = net_links([dict(row) for row in cur.fetchall()], _links(cur, owner))
     return category_detail_from(rows, key, day, scope, account=account, month=month or None)
 
 
@@ -977,11 +994,16 @@ def report(owner, view="month", day=None, scope="", account=""):
         cur.execute(f"""SELECT {_MOVEMENT_COLUMNS}
             FROM core.jarvis_money_movement WHERE owner=%s AND tx_date >= %s AND tx_date < %s
             ORDER BY tx_date DESC, amount_cents DESC""", (owner, since, end))
-        rows = [dict(row) for row in cur.fetchall()]
-        cur.execute("""SELECT count(*) AS n, coalesce(sum(amount_cents),0) AS total
-            FROM core.jarvis_money_movement WHERE owner=%s AND category=''""", (owner,))
+        rows = [dict(row) for row in cur.fetchall()]  # before _links(), which reuses the cursor
+        links = _links(cur, owner)
+        rows = net_links(rows, links)
+        cur.execute(f"""SELECT count(*) AS n, coalesce(sum(m.amount_cents - coalesce(p.passed,0)),0) AS total
+            FROM core.jarvis_money_movement m LEFT JOIN ({_PASSED}) p ON p.id=m.movement_id
+            WHERE m.owner=%s AND m.category='' AND m.amount_cents > coalesce(p.passed,0)""", (owner, owner, owner))
         unknown = cur.fetchone()
     result = build_report(rows, view, day, scope, account=account)
+    start, end = period_range(view, day)
+    result["flows"] = flow_groups(rows, links, start, end)
     result["unknown_all"] = {"count": unknown["n"], "total": unknown["total"]}
     result["budgets"] = budget_status(rows, budgets(owner), day)
     return result
@@ -994,10 +1016,12 @@ def questions(owner, limit=300):
     için geldiğini ayrı ayrı bölebilirim" — five transfers from one person can mean five things.
     """
     with _connect() as conn, conn.cursor() as cur:
-        cur.execute("""SELECT movement_id AS id,party,party_key,kind,account,direction,tx_date,amount_cents,description,
+        cur.execute(f"""SELECT movement_id AS id,party,party_key,kind,account,direction,tx_date,
+            m.amount_cents - coalesce(p.passed,0) AS amount_cents, coalesce(p.passed,0) AS passed_cents, description,
             count(*) OVER (PARTITION BY party_key, direction) AS party_count
-            FROM core.jarvis_money_movement WHERE owner=%s AND category=''
-            ORDER BY amount_cents DESC, tx_date DESC LIMIT %s""", (owner, limit))
+            FROM core.jarvis_money_movement m LEFT JOIN ({_PASSED}) p ON p.id=m.movement_id
+            WHERE m.owner=%s AND category='' AND m.amount_cents > coalesce(p.passed,0)
+            ORDER BY 8 DESC, tx_date DESC LIMIT %s""", (owner, owner, owner, limit))
         return [dict(row, tx_date=row["tx_date"].isoformat()) for row in cur.fetchall()]
 
 
@@ -1064,3 +1088,209 @@ def receipt_lines(owner, period):
               "ignored": sum(row["status"] in ("not_needed", "ignored") for row in rows)}
     return {"lines": rows, "counts": counts,
             "open_total": sum(row["amount_cents"] for row in rows if row["status"] == "needed")}
+
+
+# ------------------------------------------------------- para akışı eşleşmesi
+# Owner, 02.11.2026: "para geldiği gibi aynı gün veya 2 gün içinde harcanıp başka yerlere
+# dağılıyorsa o gelirin o giderlerle eşlenmesi mantıklı". An incoming payment is matched to
+# the payments that left the same account within two days and add up to it (±0,2 %).
+#   aracılık  — the money went on to a third party (MOY 100.000 → Can Bostan 100.000): it was
+#               somebody else's business, so it is taken out of both income and spending.
+#   kullanım  — it paid my own obligations (card debt, a debt, a transfer from salary support):
+#               shown as the explanation only; nothing is taken out.
+# Links live in their own table, so a wrong match is undone with one click and never comes back.
+OWN_OBLIGATIONS = ("kart_borcu", "borc", INTERNAL)
+SUPPORT_IN = ("gelir", "gelir_destegi", "aile_gelen")
+LINK_WINDOW_DAYS = 2
+LINK_MIN_IN = 1000000  # 10.000 TL; smaller sums meet unrelated payments by chance
+_PASSED = """SELECT id, sum(amount_cents) AS passed FROM (
+        SELECT in_id AS id, amount_cents FROM core.jarvis_money_link WHERE owner=%s AND kind='aracilik' AND status<>'rejected'
+        UNION ALL
+        SELECT out_id, amount_cents FROM core.jarvis_money_link WHERE owner=%s AND kind='aracilik' AND status<>'rejected'
+    ) x GROUP BY id"""  # two owner parameters
+
+
+def find_links(rows, links=()):
+    """New in→out matches for rows (pure). `links` are the stored ones, rejected included."""
+    rejected = {(l["in_id"], l["out_id"]) for l in links if l["status"] == "rejected"}
+    busy_in = {l["in_id"] for l in links if l["status"] != "rejected"}
+    busy_out = {l["out_id"] for l in links if l["status"] != "rejected"}
+    groups = {}
+    for row in rows:
+        if (row["direction"] == "in" and row["category"] not in NOT_COUNTED and row["amount_cents"] >= LINK_MIN_IN
+                and row["id"] not in busy_in):
+            groups.setdefault((row["account"], row["tx_date"], row["party_key"]), []).append(row)
+    outs = sorted((row for row in rows if row["direction"] == "out" and row["amount_cents"] >= 50000),
+                  key=lambda row: (row["tx_date"], -row["amount_cents"]))
+    found = []
+    for (account, day, _), ins in sorted(groups.items(), key=lambda kv: (kv[0][1], -sum(r["amount_cents"] for r in kv[1]))):
+        target = sum(row["amount_cents"] for row in ins)
+        tolerance = max(5000, target // 500)
+        pool = [row for row in outs if row["account"] == account and row["id"] not in busy_out
+                and day <= row["tx_date"] <= day + timedelta(days=LINK_WINDOW_DAYS)][:14]
+        best = None
+        for size in range(1, 5):
+            for combo in combinations(pool, size):
+                gap = abs(sum(row["amount_cents"] for row in combo) - target)
+                if gap > tolerance:
+                    continue
+                third = [row for row in combo if row["category"] != INTERNAL]
+                if not third or any((i["id"], o["id"]) in rejected for i in ins for o in third):
+                    continue
+                if 2 * sum(row["amount_cents"] for row in third) < target:  # mostly my own savings: no story
+                    continue
+                rank = (gap, sum((row["tx_date"] - day).days for row in combo))
+                if best is None or rank < best[0]:
+                    best = (rank, third)
+            if best:
+                break
+        if not best:
+            continue
+        third = best[1]
+        own = any(o["category"] in OWN_OBLIGATIONS for o in third) or any(i["category"] in SUPPORT_IN for i in ins)
+        kind = "kullanim" if own else PASS
+        left = {i["id"]: i["amount_cents"] for i in ins}
+        for out in third:
+            need = out["amount_cents"]
+            for i in ins:
+                part = min(need, left[i["id"]])
+                if part <= 0:
+                    continue
+                found.append({"in_id": i["id"], "out_id": out["id"], "amount_cents": part, "kind": kind})
+                left[i["id"]] -= part
+                need -= part
+                if not need:
+                    break
+            busy_out.add(out["id"])
+        busy_in.update(i["id"] for i in ins)
+    return found
+
+
+def net_links(rows, links):
+    """Rows with pass-through taken out (pure). A row fully passed on becomes "aracilik"."""
+    passed = {}
+    for link in links:
+        if link["status"] != "rejected" and link["kind"] == PASS:
+            for key in (link["in_id"], link["out_id"]):
+                passed[key] = passed.get(key, 0) + link["amount_cents"]
+    result = []
+    for row in rows:
+        cut = min(passed.get(row["id"], 0), row["amount_cents"])
+        if cut:
+            row = dict(row, passed_cents=cut, gross_cents=row["amount_cents"])
+            if cut >= row["amount_cents"]:
+                row["category"] = PASS
+            else:
+                row["amount_cents"] -= cut
+        result.append(row)
+    return result
+
+
+def flow_groups(rows, links, start, end):
+    """Matches whose incoming money falls in the period, one card per incoming payment."""
+    by_id = {row["id"]: row for row in rows}
+    cards = {}
+    for link in links:
+        i, o = by_id.get(link["in_id"]), by_id.get(link["out_id"])
+        if not i or not o or not start <= i["tx_date"] < end:
+            continue
+        card = cards.setdefault(i["id"], {
+            "in_id": i["id"], "party": i["party"], "date": i["tx_date"].isoformat(), "account": i["account"],
+            "amount": i.get("gross_cents", i["amount_cents"]), "kind": link["kind"], "status": link["status"], "outs": []})
+        card["outs"].append({"id": o["id"], "party": o["party"], "date": o["tx_date"].isoformat(),
+                             "amount": link["amount_cents"], "category": o.get("category", "")})
+        if link["status"] == "rejected":
+            card["status"] = "rejected"
+    return sorted((c for c in cards.values() if c["status"] != "rejected"), key=lambda c: c["date"], reverse=True)
+
+
+def _links(cur, owner):
+    cur.execute("""SELECT in_id,out_id,amount_cents,kind,status FROM core.jarvis_money_link
+        WHERE owner=%s""", (owner,))
+    return [dict(row) for row in cur.fetchall()]
+
+
+def link_flows(owner):
+    """Store new matches as 'auto'; the owner confirms, changes or rejects them on the page."""
+    with _connect() as conn, conn.cursor() as cur:
+        cur.execute(f"""SELECT {_MOVEMENT_COLUMNS} FROM core.jarvis_money_movement WHERE owner=%s""", (owner,))
+        rows = [dict(row) for row in cur.fetchall()]
+        found = find_links(rows, _links(cur, owner))
+        for link in found:
+            cur.execute("""INSERT INTO core.jarvis_money_link (owner,in_id,out_id,amount_cents,kind,status)
+                VALUES (%s,%s,%s,%s,%s,'auto') ON CONFLICT DO NOTHING""",
+                        (owner, link["in_id"], link["out_id"], link["amount_cents"], link["kind"]))
+        return len(found)
+
+
+def set_link(owner, body):
+    """One card at a time: confirm, call it aracılık / kullanım, or say the match is wrong."""
+    in_id, action = str(body.get("in_id") or ""), body.get("action")
+    actions = {"ok": "status='ok'", "pass": "status='ok', kind='aracilik'",
+               "info": "status='ok', kind='kullanim'", "reject": "status='rejected'"}
+    if not re.fullmatch(r"[0-9a-f]{32}", in_id) or action not in actions:
+        raise ExpenseError("Eşleşme bulunamadı.")
+    with _connect() as conn, conn.cursor() as cur:
+        cur.execute(f"""UPDATE core.jarvis_money_link SET {actions[action]}, updated_at=clock_timestamp()
+            WHERE owner=%s AND in_id=%s""", (owner, in_id))
+        if not cur.rowcount:
+            raise ExpenseError("Eşleşme bulunamadı.")
+        return {"ok": True, "changed": cur.rowcount}
+
+
+# ------------------------------------------------------------- elle ekleme
+def add_movement(owner, body):
+    """A movement no statement shows (cash, a payment from another person's card)."""
+    import expense_vault
+    try:
+        day = date.fromisoformat(str(body.get("date") or ""))
+    except ValueError:
+        raise ExpenseError("Tarih geçersiz.") from None
+    if day > datetime.now(ZONE).date() + timedelta(days=1):
+        raise ExpenseError("İleri tarihli hareket eklenemez.")
+    party = _text(body.get("party"), "Kişi / firma", 80)
+    if not party:
+        raise ExpenseError("Kişi veya firma adı gerekli.")
+    direction = body.get("direction")
+    if direction not in ("in", "out"):
+        raise ExpenseError("Giren mi çıkan mı seçin.")
+    raw = str(body.get("amount") or "").replace("₺", "").replace("TL", "").strip()
+    if re.fullmatch(r"\d{1,3}(?:\.\d{3})+", raw):
+        raw = raw.replace(".", "")
+    amount = expense_vault._money(raw, "Tutar")
+    if not amount or amount <= 0:
+        raise ExpenseError("Tutar gerekli.")
+    category, scope = body.get("category") or "", body.get("scope") or ""
+    if category and category not in CATEGORIES:
+        raise ExpenseError("Kategori geçersiz.")
+    if category and category not in NOT_COUNTED and (category in IN_CATEGORIES) != (direction == "in"):
+        raise ExpenseError("Gelen paraya gelir kategorisi, giden paraya gider kategorisi seçin.")
+    if scope and scope not in SCOPES:
+        raise ExpenseError("Hesap başlığı geçersiz.")
+    note = _text(body.get("note"), "Not", 300)
+    subcategory = _text(body.get("subcategory"), "Alt kalem", 40)
+    movement_id = uuid.uuid4().hex
+    with _connect() as conn, conn.cursor() as cur:
+        cur.execute("""SELECT coalesce(max(ordinal),0)+1 AS n FROM core.jarvis_money_movement
+            WHERE owner=%s AND account=%s AND tx_date=%s AND direction=%s AND amount_cents=%s AND party_key=%s""",
+                    (owner, HAND_ACCOUNT, day, direction, amount, key_of(party)))
+        ordinal = cur.fetchone()["n"]
+        cur.execute("""INSERT INTO core.jarvis_money_movement (movement_id,owner,source_sha256,account,tx_date,
+            direction,kind,party,party_key,description,amount_cents,ordinal,category,scope,subcategory,note,
+            receipt,manual) VALUES (%s,%s,'manual',%s,%s,%s,'diger',%s,%s,'Elle eklendi',%s,%s,%s,%s,%s,%s,'not_needed',true)""",
+                    (movement_id, owner, HAND_ACCOUNT, day, direction, party, key_of(party), amount, ordinal,
+                     category, scope, subcategory, note))
+    return {"id": movement_id}
+
+
+def delete_movement(owner, movement_id):
+    """Only what was added by hand can be deleted; bank lines are excluded instead."""
+    movement_id = _id(movement_id)
+    with _connect() as conn, conn.cursor() as cur:
+        cur.execute("""DELETE FROM core.jarvis_money_link WHERE owner=%s AND (in_id=%s OR out_id=%s)""",
+                    (owner, movement_id, movement_id))
+        cur.execute("""DELETE FROM core.jarvis_money_movement WHERE owner=%s AND movement_id=%s
+            AND source_sha256='manual'""", (owner, movement_id))
+        if not cur.rowcount:
+            raise ExpenseError("Yalnız elle eklenen hareket silinebilir; banka hareketini “Hesaba katılmasın” yapın.")
+    return {"ok": True}
