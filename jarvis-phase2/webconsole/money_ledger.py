@@ -831,7 +831,7 @@ def _party(row):
     return row.get("party_key") or key_of(row["party"])
 
 
-def build_report(rows, view, day, scope="", today=None, account=""):
+def build_report(rows, view, day, scope="", today=None, account="", rules=None):
     """Pure report over movement dicts (tx_date: date); report() feeds it from the DB.
 
     Beyond the period's totals it answers what finance apps answer first (Monarch,
@@ -939,8 +939,27 @@ def build_report(rows, view, day, scope="", today=None, account=""):
     for row in spend:
         if window <= row["tx_date"] < end:
             pool.setdefault(_party(row), []).append(row)
+    # owner, 02.11.2026: "bunlar düzenli ödeme değil" (Mehmet Demirtaş, Emre Küçük, MOY) and
+    # "düzenli ödemelere aylık 5 bin Salih Tekintaş ekle": what he declares wins over the guess
+    rules = rules or []
+    hidden = {rule["party_key"] for rule in rules if rule.get("recurring") is False or rule.get("monthly_cents")}
     recurring = []
-    for items in pool.values():
+    for rule in rules:
+        if not rule.get("monthly_cents") or rule.get("recurring") is False:
+            continue
+        if rule.get("end_month") and rule["end_month"] < _months_back(end - timedelta(days=1), 0):
+            continue
+        if scope and (rule.get("scope") or "none") != scope:
+            continue
+        paid = pool.get(rule["party_key"], [])
+        last = max(paid, key=lambda row: row["tx_date"]) if paid else None
+        recurring.append({"party": rule["label"], "category": rule.get("category") or "", "scope": rule.get("scope") or "",
+                          "months": len({row["tx_date"].strftime("%Y-%m") for row in paid}),
+                          "typical": rule["monthly_cents"], "last_date": last["tx_date"].isoformat() if last else "",
+                          "monthly_estimate": rule["monthly_cents"], "declared": True})
+    for key, items in pool.items():
+        if key in hidden:
+            continue
         months_seen = {row["tx_date"].strftime("%Y-%m") for row in items}
         median = _median([row["amount_cents"] for row in items])
         if len(months_seen) < 2 or not all(abs(row["amount_cents"] - median) <= 0.35 * median for row in items):
@@ -1234,7 +1253,12 @@ def report(owner, view="month", day=None, scope="", account="", book="kisisel"):
             WHERE m.owner=%s AND m.book=%s AND m.category='' AND m.amount_cents > coalesce(p.passed,0)""",
                     (owner, owner, owner, book))
         unknown = cur.fetchone()
-    result = build_report(rows, view, day, scope, account=account)
+        cur.execute("""SELECT party_key,label,category,scope,monthly_cents,end_month,recurring
+            FROM core.jarvis_money_rule WHERE owner=%s AND direction='out'
+            AND (recurring IS NOT NULL OR monthly_cents > 0)""", (owner,))
+        # a company book shows only its own agreements; the personal page shows every monthly commitment
+        rules = [dict(rule) for rule in cur.fetchall() if book == "kisisel" or rule["scope"] == book]
+    result = build_report(rows, view, day, scope, account=account, rules=rules)
     start, end = period_range(view, day)
     result["flows"] = flow_groups(rows, links, start, end)
     result["unknown_all"] = {"count": unknown["n"], "total": unknown["total"]}
@@ -1281,14 +1305,15 @@ def agreements(owner, today=None):
     today = today or datetime.now(ZONE).date()
     with _connect() as conn, conn.cursor() as cur:
         cur.execute("""SELECT party_key,label,category,scope,monthly_cents,start_month,end_month,
-            opening_cents,note FROM core.jarvis_money_rule
+            opening_cents,note,skip_months FROM core.jarvis_money_rule
             WHERE owner=%s AND direction='out' AND monthly_cents IS NOT NULL AND monthly_cents>0 ORDER BY label""", (owner,))
         rules = cur.fetchall()
         result = []
         for rule in rules:
             start = rule["start_month"] or today.replace(day=1)
+            # any book: MOY's rent to Meral Yıldız leaves the MOY account, Sinem is paid personally
             cur.execute("""SELECT tx_date,amount_cents FROM core.jarvis_money_movement
-                WHERE owner=%s AND party_key=%s AND direction='out' AND book='kisisel' AND tx_date >= %s
+                WHERE owner=%s AND party_key=%s AND direction='out' AND tx_date >= %s
                 ORDER BY tx_date""",
                 (owner, rule["party_key"], start - timedelta(days=10)))
             payments = cur.fetchall()
@@ -1301,12 +1326,15 @@ def agreements(owner, today=None):
                 months.append(cursor)
                 cursor = (cursor + timedelta(days=32)).replace(day=1)
             pool = sum(payment["amount_cents"] for payment in payments) - (rule["opening_cents"] or 0)
+            # a month with no work owes nothing (owner: Mina Dilara, "geçen ay çalışma olmadı bu ay olacak")
+            skipped = set(rule.get("skip_months") or [])
             rows = []
             for month in months:
-                covered = max(0, min(rule["monthly_cents"], pool))
+                due = 0 if month in skipped else rule["monthly_cents"]
+                covered = max(0, min(due, pool))
                 pool -= covered
-                rows.append({"month": month.strftime("%Y-%m"), "due": rule["monthly_cents"], "paid": covered,
-                             "open": rule["monthly_cents"] - covered, "current": month == this_month})
+                rows.append({"month": month.strftime("%Y-%m"), "due": due, "paid": covered,
+                             "open": due - covered, "current": month == this_month, "skipped": month in skipped})
             closed = [row for row in rows if not row["current"]]
             result.append({
                 "party": rule["label"], "category": rule["category"], "scope": rule["scope"],

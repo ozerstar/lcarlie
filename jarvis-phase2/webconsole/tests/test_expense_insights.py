@@ -236,6 +236,25 @@ class BuildReportTest(unittest.TestCase):
         sinem = [item for item in oct_report["recurring"] if item["party"] == "Sinem Ağca"]
         self.assertEqual(sinem, [])  # 5.000 ve 7.000: tutarlar düzenli değil, abonelik sayılmaz
 
+    def test_declared_rules_override_recurring_guess(self):
+        rows = self.ROWS + [movement("2026-08-08", 200000, "Mehmet Demirtaş"),
+                            movement("2026-09-16", 200000, "Mehmet Demirtaş")]
+        rules = [{"party_key": money_ledger.key_of("Mehmet Demirtaş"), "label": "Mehmet Demirtaş", "recurring": False},
+                 {"party_key": money_ledger.key_of("Salih Tekintaş"), "label": "Salih Tekintaş", "category": "ofis",
+                  "scope": "moy", "monthly_cents": 500000, "end_month": None, "recurring": None},
+                 {"party_key": money_ledger.key_of("Eski"), "label": "Eski", "monthly_cents": 100000,
+                  "end_month": date(2026, 8, 1), "recurring": None}]
+        got = money_ledger.build_report(rows, "month", date(2026, 10, 15), today=date(2026, 11, 2), rules=rules)
+        parties = [item["party"] for item in got["recurring"]]
+        self.assertNotIn("Mehmet Demirtaş", parties)                  # sahip: düzenli değil
+        self.assertNotIn("Eski", parties)                             # biten anlaşma
+        salih = next(item for item in got["recurring"] if item["party"] == "Salih Tekintaş")
+        self.assertEqual((salih["monthly_estimate"], salih["declared"], salih["last_date"]), (500000, True, ""))
+        self.assertIn("Yemekpay", parties)                            # tahmin edilen düzenli ödeme kalır
+        scoped = money_ledger.build_report(rows, "month", date(2026, 10, 15), scope="kisisel",
+                                           today=date(2026, 11, 2), rules=rules)
+        self.assertNotIn("Salih Tekintaş", [item["party"] for item in scoped["recurring"]])
+
     def test_closed_month_compares_whole_months_and_forecast_mid_month(self):
         got = money_ledger.build_report(self.ROWS, "month", date(2026, 10, 15), today=date(2026, 10, 15))
         self.assertEqual(got["forecast"], round(got["out_total"] / 15 * 31))
@@ -376,6 +395,18 @@ class AgreementTest(unittest.TestCase):
         got = self.run_agreement(rule, payments, date(2026, 11, 2))
         self.assertEqual([row["month"] for row in got["months"]], ["2026-08", "2026-09"])
         self.assertEqual(got["owed_closed_months"], 0)
+
+    def test_month_without_work_owes_nothing(self):
+        # Mina Dilara, 02.11.2026: "geçen ay çalışma olmadı bu ay çalışma olacak"
+        rule = self.rule(label="Mina Dilara", monthly_cents=1000000, start_month=date(2026, 8, 1),
+                         skip_months=[date(2026, 10, 1)])
+        payments = [{"tx_date": date(2026, 8, 3), "amount_cents": 1000000},
+                    {"tx_date": date(2026, 9, 5), "amount_cents": 1000000}]
+        got = self.run_agreement(rule, payments, date(2026, 11, 2))
+        months = {row["month"]: row for row in got["months"]}
+        self.assertEqual((months["2026-10"]["due"], months["2026-10"]["skipped"]), (0, True))
+        self.assertEqual(got["owed_closed_months"], 0)
+        self.assertEqual(got["this_month"]["open"], 1000000)          # Kasım'da çalışma var
 
 
 class CategoryTest(unittest.TestCase):
