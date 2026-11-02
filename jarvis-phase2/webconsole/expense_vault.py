@@ -164,17 +164,18 @@ def list_documents(owner, period=None):
     with _connect() as conn, conn.cursor() as cur:
         cur.execute("""SELECT document_id AS id,kind,company,origin,filename,mime_type,
             document_date,supplier,buyer,invoice_number,currency,gross_cents,tax_cents,
-            note,status,extracted,created_at,updated_at
+            note,status,related_document_id,category,extracted,created_at,updated_at
             FROM core.jarvis_expense_document WHERE owner=%s
             AND (%s::text IS NULL OR to_char(created_at AT TIME ZONE 'Europe/Istanbul','YYYY-MM')=%s)
             ORDER BY created_at DESC,document_id DESC LIMIT 500""", (owner, period, period))
         rows = [dict(row, document_date=str(row["document_date"]) if row["document_date"] else "",
                      created_at=row["created_at"].isoformat(),
                      updated_at=row["updated_at"].isoformat()) for row in cur.fetchall()]
-        cur.execute("""SELECT period,part,status,document_count,sent_at,error
+        cur.execute("""SELECT period,part,status,document_count,sent_at,error,created_at
             FROM core.jarvis_expense_dispatch WHERE owner=%s
             ORDER BY period DESC,part DESC LIMIT 24""", (owner,))
-        runs = [dict(row, sent_at=row["sent_at"].isoformat() if row["sent_at"] else "")
+        runs = [dict(row, sent_at=row["sent_at"].isoformat() if row["sent_at"] else "",
+                     created_at=row["created_at"].isoformat())
                 for row in cur.fetchall()]
     return {"documents": rows, "dispatches": runs}
 
@@ -187,6 +188,42 @@ def content(owner, document_id):
     if not row:
         raise ExpenseError("Belge bulunamadı.")
     return row["filename"], row["mime_type"], bytes(row["content"])
+
+
+# preview, request_dispatch_retry and the receipt->invoice link were live on
+# 26.10 03:05 and lost when an older copy was deployed over them; the page
+# kept calling them. Restored 02.11.2026.
+def preview(owner, document_id):
+    _, mime, raw = content(owner, document_id)
+    if mime != "application/pdf":
+        return mime, raw
+    import fitz
+    with fitz.open(stream=raw, filetype="pdf") as pdf:
+        page = pdf[0]
+        scale = min(1.5, 1800 / max(page.rect.width, page.rect.height, 1))
+        image = page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False)
+        return "image/png", image.tobytes("png")
+
+
+def request_dispatch_retry(owner, period, part):
+    if not isinstance(period, str) or not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", period):
+        raise ExpenseError("Gönderim ayı geçersiz.")
+    try:
+        part = int(part)
+    except (TypeError, ValueError) as exc:
+        raise ExpenseError("Paket numarası geçersiz.") from exc
+    if part < 1:
+        raise ExpenseError("Paket numarası geçersiz.")
+    with _connect() as conn, conn.cursor() as cur:
+        cur.execute("""UPDATE core.jarvis_expense_dispatch SET status='retry_requested',
+            error='Kullanıcı yeniden gönderim istedi; alıcı kutusu kontrol edilmeli.'
+            WHERE owner=%s AND period=%s AND part=%s AND sent_at IS NULL
+            AND (status='failed' OR
+                 (status='sending' AND created_at < clock_timestamp()-interval '30 minutes'))
+            RETURNING part""", (owner, period, part))
+        if not cur.fetchone():
+            raise ExpenseError("Bu gönderim yeniden denenemez; durumu yenileyin.")
+    return {"period": period, "part": part, "status": "retry_requested"}
 
 
 def update(owner, document_id, body):
@@ -210,18 +247,49 @@ def update(owner, document_id, body):
     tax = _money(body.get("tax"), "KDV")
     if gross is not None and tax is not None and tax > gross:
         raise ExpenseError("KDV toplamdan büyük olamaz.")
+    import expense_insights
+    category = body.get("category") or ""
+    if category and category not in expense_insights.CATEGORIES:
+        raise ExpenseError("Gider kategorisi geçersiz.")
+    document_id = _id(document_id)
+    related_id = body.get("related_document_id") or None
+    if related_id is not None:
+        related_id = _id(related_id)
+        if kind != "receipt" or related_id == document_id:
+            raise ExpenseError("Yalnız fiş, başka bir faturaya bağlanabilir.")
     with _connect() as conn, conn.cursor() as cur:
+        cur.execute("""SELECT kind FROM core.jarvis_expense_document
+            WHERE owner=%s AND document_id=%s FOR UPDATE""", (owner, document_id))
+        existing = cur.fetchone()
+        if existing is None:
+            raise ExpenseError("Belge bulunamadı.")
+        if existing["kind"] == "invoice" and kind != "invoice":
+            cur.execute("""SELECT 1 FROM core.jarvis_expense_document
+                WHERE owner=%s AND related_document_id=%s LIMIT 1""", (owner, document_id))
+            if cur.fetchone():
+                raise ExpenseError("Önce faturaya bağlı fişi ayırın.")
+        if related_id:
+            cur.execute("""SELECT kind FROM core.jarvis_expense_document
+                WHERE owner=%s AND document_id=%s FOR UPDATE""", (owner, related_id))
+            linked = cur.fetchone()
+            if not linked or linked["kind"] != "invoice":
+                raise ExpenseError("İlişkili fatura bu hesapta bulunamadı.")
+            cur.execute("""SELECT document_id FROM core.jarvis_expense_document
+                WHERE owner=%s AND related_document_id=%s AND document_id<>%s LIMIT 1""",
+                (owner, related_id, document_id))
+            if cur.fetchone():
+                raise ExpenseConflict("Bu fatura başka bir fişle eşleştirilmiş.")
         cur.execute("""UPDATE core.jarvis_expense_document SET
             kind=%s,company=%s,document_date=%s,supplier=%s,buyer=%s,
             invoice_number=%s,currency=%s,gross_cents=%s,tax_cents=%s,
-            note=%s,status=%s,updated_at=clock_timestamp()
+            note=%s,status=%s,related_document_id=%s,category=%s,updated_at=clock_timestamp()
             WHERE owner=%s AND document_id=%s RETURNING document_id""",
             (kind, company, _day(body.get("document_date")),
              _text(body.get("supplier"), "Satıcı", 200),
              _text(body.get("buyer"), "Alıcı", 200),
              _text(body.get("invoice_number"), "Fatura numarası", 100),
              currency, gross, tax, _text(body.get("note"), "Not", 2000),
-             status, owner, _id(document_id)))
+             status, related_id, category, owner, document_id))
         if cur.fetchone() is None:
             raise ExpenseError("Belge bulunamadı.")
     return {"id": document_id, "status": status}
@@ -276,7 +344,7 @@ def _quick_extract(text):
             if re.fullmatch(r"[A-Z0-9-]{5,40}", candidate, re.I):
                 result["invoice_number"] = candidate
                 break
-    if "$" in text or re.search(r"\bUSD\b", text):
+    if re.search(r"\bUSD\b|\$\s*\d+(?:[.,]\d{2})\b", text):
         result["currency"] = "USD"
     amounts = []
     money_pattern = re.compile(r"(?<!\d)(\d{1,3}(?:[.,]\d{3})*[.,]\d{2}|\d+[.,]\d{2})(?!\d)")
@@ -627,6 +695,8 @@ def process(owner, document_id, *, force=False):
                 "document_date": day, "gross_cents": gross, "tax_cents": tax,
                 "currency": parsed.get("currency") if parsed.get("currency") in {"TRY", "EUR", "USD"} else "TRY",
                 "company": company, "extracted": {"fields": parsed, "evidence": evidence[:5000]}}
+        import expense_insights
+        data["category"] = expense_insights.categorize(data["supplier"], evidence)
     except Exception as exc:  # noqa: BLE001 - original always remains available
         data = {"extracted": {"error": str(exc)[:180]}}
     with _connect() as conn, conn.cursor() as cur:
@@ -648,12 +718,13 @@ def process(owner, document_id, *, force=False):
                 gross_cents=COALESCE(gross_cents,%s),tax_cents=COALESCE(tax_cents,%s),
                 currency=%s,company=%s,extracted=%s,status=%s,
                 note=CASE WHEN note='' THEN %s ELSE note END,
+                category=CASE WHEN category='' THEN %s ELSE category END,
                 updated_at=clock_timestamp() WHERE owner=%s AND document_id=%s
                 AND status IN ('uploaded','review')""",
                 (data["supplier"], data["buyer"], data["invoice_number"],
                  data["document_date"], data["gross_cents"], data["tax_cents"],
                  data["currency"], data["company"], Jsonb(data["extracted"]), status, note,
-                 owner, document_id))
+                 data["category"], owner, document_id))
         else:
             cur.execute("""UPDATE core.jarvis_expense_document SET extracted=%s,
                 status='review',updated_at=clock_timestamp()
@@ -690,15 +761,28 @@ def _gmail_json(path, token):
         return json.loads(response.read(20_000_000))
 
 
-def _mail_kind(filename, subject):
+_RECEIPT_WORDS = ("receipt", "fiş", "fis", "makbuz")
+
+
+def _mail_kind(filename, subject, *, size=0, disposition=""):
     lowered = filename.casefold()
-    if not lowered.endswith((".pdf", ".png", ".jpg", ".jpeg", ".webp")):
+    if not lowered.endswith((".pdf", ".png", ".jpg", ".jpeg", ".webp", ".heic", ".heif")):
+        return None
+    if lowered.startswith(("inline_", "logo.", "signature.", "sig.")):
+        return None
+    image = lowered.endswith((".png", ".jpg", ".jpeg", ".webp", ".heic", ".heif"))
+    if image and ((size and size < 10_000) or "inline" in disposition.casefold()):
         return None
     if not any(word in lowered + " " + subject.casefold() for word in
-               ("fatura", "invoice", "receipt", "fiş", "fis", "makbuz")):
+               ("fatura", "invoice") + _RECEIPT_WORDS):
         return None
-    return ("receipt" if any(word in lowered for word in
-            ("receipt", "fiş", "fis", "makbuz")) else "invoice")
+    if any(word in lowered for word in _RECEIPT_WORDS):
+        return "receipt"
+    # Owner mails a phone photo to himself with subject "fiş": IMG_1234.jpg is a receipt
+    subject_words = re.findall(r"\w+", subject.casefold())
+    if image and any(word in subject_words for word in _RECEIPT_WORDS):
+        return "receipt"
+    return "invoice"
 
 
 def sync_gmail(owner, *, days=90):
@@ -709,7 +793,7 @@ def sync_gmail(owner, *, days=90):
         raise ExpenseError("Gmail fatura okuma izni gerekli. Jarvis'te Google bağlantısını yenileyin.")
     token = google_workspace._access_token(owner)
     after = (datetime.now(ZONE).date() - timedelta(days=days)).strftime("%Y/%m/%d")
-    query = f"after:{after} has:attachment {{fatura invoice receipt fiş makbuz e-arşiv e-fatura}} -in:spam -in:trash"
+    query = f"after:{after} has:attachment {{fatura invoice receipt fiş fis makbuz e-arşiv e-fatura}} -in:spam -in:trash"
     page = ""
     added = reused = 0
     seen_numbered_files = set()
@@ -733,7 +817,10 @@ def sync_gmail(owner, *, days=90):
                 lowered = filename.casefold()
                 body = part.get("body") or {}
                 attachment_id = body.get("attachmentId") or ""
-                kind = _mail_kind(filename, subject)
+                part_headers = {header.get("name", "").casefold(): header.get("value", "")
+                                for header in part.get("headers") or []}
+                kind = _mail_kind(filename, subject, size=int(body.get("size") or 0),
+                                  disposition=part_headers.get("content-disposition", ""))
                 if not kind or not attachment_id:
                     continue
                 numbered = re.search(r"\d{5,}", lowered)
