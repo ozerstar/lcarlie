@@ -127,7 +127,9 @@ _NOISE = re.compile(r"kredi kartlarim|adios|premium|asil kart|son hareketler|kar
                     # the bank's type column alone on a line ("Para Çekme"), never the description
                     r"^(gelen transfer|giden transfer|encard|harcamasi|encard harcamasi|odeme|diger|"
                     r"iptal/iade|para cekme|masraf/ucret|vergi kesintisi|faiz gideri)$", re.I)
-_HEADER = re.compile(r"limit|ekstre borcu|kart numarasi|ad soyad|minimum odeme|hesap adi|iban", re.I)
+_TYPE_ONLY = re.compile(r"^(gelen transfer|giden transfer|encard|harcamasi|encard harcamasi|odeme|diger|"
+                        r"iptal/iade|para cekme|masraf/ucret|vergi kesintisi|faiz gideri|tarih|bakiye)$")
+_HEADER = re.compile(r"limit(?!ed)|ekstre borcu|kart numarasi|ad soyad|minimum odeme|hesap adi|iban", re.I)
 
 
 def _date_in(chunk, today):
@@ -177,6 +179,16 @@ def _merchant(chunk):
         if _score(cleaned) > _score(best):
             best = cleaned
     return best[:160]
+
+
+def _account_party(chunk):
+    """An account statement row whose description itself says "kredi kartı borcu" or
+    "Youtube Premium kampanyası" — words _NOISE drops from card screenshots. The row is
+    still money moved (owner's Enpara, 02.11.2026: 13 rows, 232.750 TL in, were lost)."""
+    lines = [" ".join(line.split()) for line in chunk.splitlines()]
+    lines = [line for line in lines if re.search(r"[A-Za-zÇĞİÖŞÜçğıöşü]{3}", line)
+             and not _TYPE_ONLY.search(plain(line).strip())]
+    return max(lines, key=len, default="")[:160]
 
 
 def _kind(text, direction):
@@ -245,7 +257,7 @@ def parse_statement(text, today=None):
         if not amount:
             continue
         after = plain(text[line_start:match.end() + 40])
-        party = _merchant(chunk)
+        party = _merchant(chunk) or (_account_party(chunk) if account_mode else "")
         if not party:
             continue
         kind = _kind(lowered, direction)
