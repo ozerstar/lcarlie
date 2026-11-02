@@ -720,6 +720,40 @@ class CompanyBookLinkTest(unittest.TestCase):
         self.assertEqual([link["kind"] for link in links], ["kullanim"])
 
 
+def _row(rid, book, day, direction, party, cents, category=""):
+    return {"id": rid, "book": book, "tx_date": day, "direction": direction, "party": party,
+            "party_key": money_ledger.key_of(party), "amount_cents": cents, "category": category, "account": "A"}
+
+
+class TransferTest(unittest.TestCase):
+    """02.11.2026: MOY ↔ his Enpara — 13 of 14 pairs since 16.06 met on the same day."""
+
+    def test_both_directions(self):
+        rows = [_row("c1", "moy", date(2026, 7, 8), "out", "Murat özer yıldız", 15998000),
+                _row("p1", "kisisel", date(2026, 7, 8), "in", "MOY DAN.TEK.ORG.SAN.VE TİC.A.Ş.", 15998000),
+                _row("p2", "kisisel", date(2026, 10, 2), "out", "Moy Danışmanlık Tekn Org San", 5000000),
+                _row("c2", "moy", date(2026, 10, 2), "in", "Murat Özer Yıldız", 5000000)]
+        self.assertEqual([(f["company_id"], f["personal_id"]) for f in money_ledger.find_transfers(rows)],
+                         [("c1", "p1"), ("c2", "p2")])
+
+    def test_needs_company_name_amount_window_and_opposite_side(self):
+        base = _row("c", "moy", date(2026, 6, 23), "out", "Murat özer yıldız", 10000000)
+        self.assertEqual(money_ledger.find_transfers([base, _row("p", "kisisel", date(2026, 6, 23), "in", "Orhan Talha", 10000000)]), [])
+        self.assertEqual(money_ledger.find_transfers([base, _row("p", "kisisel", date(2026, 6, 26), "in", "MOY DAN", 10000000)]), [])
+        self.assertEqual(money_ledger.find_transfers([base, _row("p", "kisisel", date(2026, 6, 23), "out", "MOY DAN", 10000000)]), [])
+        self.assertEqual(money_ledger.find_transfers([base, _row("p", "kisisel", date(2026, 6, 23), "in", "MOY DAN", 10020000)]), [])
+        self.assertEqual(money_ledger.find_transfers([base, _row("p", "kisisel", date(2026, 6, 23), "in", "MOY DAN", 10000000)],
+                                                     [{"company_id": "c", "personal_id": "p", "status": "rejected"}]), [])
+
+    def test_same_amount_twice_pairs_one_to_one(self):
+        rows = [_row("c1", "moy", date(2026, 6, 23), "out", "Murat özer yıldız", 2000000),
+                _row("c2", "moy", date(2026, 6, 24), "out", "Murat özer yıldız", 2000000),
+                _row("p1", "kisisel", date(2026, 6, 23), "in", "MOY DAN", 2000000),
+                _row("p2", "kisisel", date(2026, 6, 24), "in", "MOY DAN", 2000000)]
+        self.assertEqual([(f["company_id"], f["personal_id"]) for f in money_ledger.find_transfers(rows)],
+                         [("c1", "p1"), ("c2", "p2")])
+
+
 class TebStatementTest(unittest.TestCase):
     """MOY's TEB account (02.11.2026): fees, out to the alıcı, in from the sender, virman = own."""
 

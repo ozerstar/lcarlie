@@ -27,11 +27,11 @@ _GUESS = (
     ("faturalar", r"enerjisa|elektrik|ttnet|turk telekom|turkcell|vodafone|superonline|dogalgaz|igdas|\baski\b|internet|telefon"),
     ("akaryakit", r"akaryakit|petrol|opet|shell|motorin|benzin|ikmal"),
     ("kargo", r"kargo|lojistik|yurtici|aras|surat"),
-    ("ofis", r"bilgisayar|kirtasiye|ofis|ambalaj|mobilya|teknik servis"),
+    ("ofis", r"bilgisayar|kirtasiye|ofis|ambalaj|mobilya|teknik servis|kagitcilik|mukavva|promosyon|matbaa|sunger"),
     ("market", r"gida|market|ihtiyac|iht\."),
     ("yemek", r"restoran|lokanta|cafe|kafe|yemek"),
     ("ulasim", r"turizm|seyahat|otel|enuygun|havayol|thy|pegasus"),
-    ("hizmet", r"danismanlik|musavir|muhasebe|hukuk"),
+    ("hizmet", r"danismanlik|musavir|muhasebe|hukuk|trendyol|hepsiburada|kargo hizmet"),
 )
 
 
@@ -80,20 +80,21 @@ def _names_meet(a, b):
 
 
 def find_payments(invoices, movements, links=()):
-    """Pure: each incoming invoice gets at most one outgoing movement with the same amount
-    (±1 TL), the same counterparty name and a date that fits; a movement pays one invoice.
-    The amount alone is not enough: 3 of 9 amount-only matches were coincidences (02.11.2026)."""
+    """Pure: an incoming invoice gets at most one outgoing movement (we paid), a sales invoice
+    one incoming movement (the customer paid), with the same amount (±1 TL), the same name and
+    a date that fits; a movement settles one invoice. The amount alone is not enough: 3 of 9
+    amount-only matches were coincidences (02.11.2026)."""
     taken = {link["movement_id"] for link in links if link["status"] != "rejected"}
     settled = {link["document_id"] for link in links if link["status"] != "rejected"}
     refused = {(link["document_id"], link["movement_id"]) for link in links if link["status"] == "rejected"}
     found = []
     for invoice in sorted(invoices, key=lambda i: (i["issue_date"], i["document_id"])):
-        if invoice["box"] != "in" or invoice["document_id"] in settled:
+        if invoice["document_id"] in settled:
             continue
-        best = None
+        wanted, best = ("out" if invoice["box"] == "in" else "in"), None
         for move in movements:
             gap = (move["tx_date"] - invoice["issue_date"]).days
-            if (move["direction"] != "out" or move["movement_id"] in taken
+            if (move["direction"] != wanted or move["movement_id"] in taken
                     or (invoice["document_id"], move["movement_id"]) in refused
                     or abs(move["amount_cents"] - invoice["payable_cents"]) > PAY_TOLERANCE
                     or not PAY_WINDOW[0] <= gap <= PAY_WINDOW[1]
@@ -188,13 +189,41 @@ def reguess(owner):
         return changed
 
 
+def import_pdf(owner, book, rows):
+    """Invoices read from e-invoice PDFs (Lemos, 02.11.2026): same tables as Uyumsoft, no UBL.
+    Rows without a direction, date or total are never filed — the caller lists them."""
+    with _connect() as conn, conn.cursor() as cur:
+        cur.execute("SELECT party_key, category FROM core.jarvis_money_rule WHERE owner=%s AND category<>''", (owner,))
+        rules = {row["party_key"]: row["category"] for row in cur.fetchall() if row["category"] in OUT_CATEGORIES}
+        added = 0
+        for row in rows:
+            if row["box"] not in ("in", "out") or not row["date"] or row["payable_cents"] is None:
+                continue
+            category = "tahsilat" if row["box"] == "out" else guess_category(row["party"], row["lines"], rules)
+            cur.execute("""INSERT INTO core.jarvis_invoice (owner,document_id,book,box,scenario,number,issue_date,party,
+                    party_key,party_vkn,payable_cents,tax_cents,currency,status,category)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'TRY','PDF',%s) ON CONFLICT DO NOTHING RETURNING document_id""",
+                (owner, row["ettn"], book, row["box"], "eArchive" if row["number"].upper().startswith("LEM") else "eInvoice",
+                 row["number"][:40], row["date"], row["party"], key_of(row["party"]), row["party_vkn"][:11],
+                 row["payable_cents"], row["tax_cents"], category))
+            if cur.fetchone() is None:
+                continue
+            added += 1
+            for line in row["lines"]:
+                cur.execute("""INSERT INTO core.jarvis_invoice_line (owner,document_id,line_no,name,quantity,unit,net_cents,
+                        vat_percent,vat_cents) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING""",
+                    (owner, row["ettn"], line["line_no"], line["name"], line["quantity"], line["unit"][:10],
+                     line["net_cents"], line["vat_percent"], line["vat_cents"]))
+    return {"added": added, "payments": match_payments(owner)}
+
+
 def match_payments(owner):
     with _connect() as conn, conn.cursor() as cur:
         cur.execute("""SELECT document_id, box, issue_date, party, payable_cents FROM core.jarvis_invoice
-            WHERE owner=%s AND box='in' AND status NOT IN ('Canceled','Declined','Return','Draft')""", (owner,))
+            WHERE owner=%s AND status NOT IN ('Canceled','Declined','Return','Draft')""", (owner,))
         invoices = [dict(row) for row in cur.fetchall()]
         cur.execute("""SELECT movement_id, direction, tx_date, party, amount_cents FROM core.jarvis_money_movement
-            WHERE owner=%s AND direction='out'""", (owner,))
+            WHERE owner=%s""", (owner,))
         movements = [dict(row) for row in cur.fetchall()]
         cur.execute("SELECT document_id, movement_id, status FROM core.jarvis_invoice_payment WHERE owner=%s", (owner,))
         links = [dict(row) for row in cur.fetchall()]
@@ -202,10 +231,12 @@ def match_payments(owner):
         for link in found:
             cur.execute("""INSERT INTO core.jarvis_invoice_payment (owner,document_id,movement_id)
                 VALUES (%s,%s,%s) ON CONFLICT DO NOTHING""", (owner, link["document_id"], link["movement_id"]))
-            # paid from his own pocket for MOY: show it under the MOY heading unless he already chose one
-            cur.execute("""UPDATE core.jarvis_money_movement SET scope='moy', updated_at=clock_timestamp()
-                WHERE owner=%s AND movement_id=%s AND book='kisisel' AND coalesce(scope,'')=''""",
-                        (owner, link["movement_id"]))
+            # paid from his own pocket for the company: show it under that company unless he chose one
+            cur.execute("""UPDATE core.jarvis_money_movement m SET scope=i.book, updated_at=clock_timestamp()
+                FROM core.jarvis_invoice i
+                WHERE m.owner=%s AND m.movement_id=%s AND m.book='kisisel' AND coalesce(m.scope,'')=''
+                  AND i.owner=m.owner AND i.document_id=%s AND i.box='in'""",
+                        (owner, link["movement_id"], link["document_id"]))
         return len(found)
 
 
@@ -259,6 +290,8 @@ def invoices(owner, book="moy", month=""):
         "in_total": sum(r["payable_cents"] for r in counted if r["box"] == "in"),
         "out_total": sum(r["payable_cents"] for r in counted if r["box"] == "out"),
         "unpaid": sum(1 for r in counted if r["box"] == "in" and not r["movement_id"]),
+        "uncollected": sum(1 for r in counted if r["box"] == "out" and not r["movement_id"]),
+        "source": "uyumsoft" if book == "moy" else "pdf",
         "by_category": sorted(({"key": k, "label": OUT_CATEGORIES.get(k, k), "total": v} for k, v in by_category.items()),
                               key=lambda x: -x["total"]),
         "categories": OUT_CATEGORIES,

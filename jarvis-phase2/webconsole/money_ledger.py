@@ -33,12 +33,15 @@ OUT_CATEGORIES = {
     "kart_borcu": "Eski kart borcu ödemesi",
     # owner, 02.11.2026: some transfers he cannot place; counted as spending, shown apart
     "hatirlanmiyor": "Hatırlamıyorum",
+    # owner, 02.11.2026: MOY's money is drawn to his Enpara and sent on from there
+    "ortaga": "Ortağa aktarılan (şirketten sahibine)",
 }
 IN_CATEGORIES = {
     "gelir": "Maaş / ücret geliri",
     # owner, 02.11.2026: Muharrem Murat / Meral Yıldız transfers are mostly salary, unlabelled
     "gelir_destegi": "Gelir desteği (maaş)", "aile_gelen": "Aileden gelen", "tahsilat": "Tahsilat / satış",
     "iade": "İade / kampanya", "borc_donus": "Borç geri ödemesi", "diger_gelen": "Diğer gelen",
+    "sirketten": "Şirketten gelen (MOY / Lemos)", "ortaktan": "Ortaktan gelen (sahibinden şirkete)",
 }
 # alt kalem: owner, 02.11.2026 — "ofisin içinde kira, muhasebe ödemesi gibi ödemeler var"
 SUBCATEGORIES = {
@@ -1224,7 +1227,8 @@ def report(owner, view="month", day=None, scope="", account="", book="kisisel"):
             ORDER BY tx_date DESC, amount_cents DESC""", (owner, _book(book), since, end))
         rows = [dict(row) for row in cur.fetchall()]  # before _links(), which reuses the cursor
         links = _links(cur, owner)
-        rows = net_links(rows, links)
+        notes = _transfer_notes(cur, owner)
+        rows = [dict(row, transfer=notes[row["id"]]) if row["id"] in notes else row for row in net_links(rows, links)]
         cur.execute(f"""SELECT count(*) AS n, coalesce(sum(m.amount_cents - coalesce(p.passed,0)),0)::bigint AS total
             FROM core.jarvis_money_movement m LEFT JOIN ({_PASSED}) p ON p.id=m.movement_id
             WHERE m.owner=%s AND m.book=%s AND m.category='' AND m.amount_cents > coalesce(p.passed,0)""",
@@ -1449,12 +1453,90 @@ def flow_groups(rows, links, start, end):
             continue
         card = cards.setdefault(i["id"], {
             "in_id": i["id"], "party": i["party"], "date": i["tx_date"].isoformat(), "account": i["account"],
-            "amount": i.get("gross_cents", i["amount_cents"]), "kind": link["kind"], "status": link["status"], "outs": []})
+            "amount": i.get("gross_cents", i["amount_cents"]), "kind": link["kind"], "status": link["status"], "outs": [],
+            "transfer": i.get("transfer")})
         card["outs"].append({"id": o["id"], "party": o["party"], "date": o["tx_date"].isoformat(),
                              "amount": link["amount_cents"], "category": o.get("category", "")})
         if link["status"] == "rejected":
             card["status"] = "rejected"
     return sorted((c for c in cards.values() if c["status"] != "rejected"), key=lambda c: c["date"], reverse=True)
+
+
+# ------------------------------------------------------------------ şirket ↔ şahsi aktarım
+# owner, 02.11.2026: "MOY'a Enpara'dan giriyor para; çekilip gönderilecekse Enpara'ya çekilip
+# gönderiliyor". The same money shows in two books; tie the two rows so each one says where
+# it came from / went, and the chain (customer → MOY → Enpara → X) can be read end to end.
+OWNER_KEY = "ozeryildiz"
+_COMPANY_KEYS = {"moy": re.compile(r"^moy"), "lemos": re.compile(r"lemos")}
+TRANSFER_WINDOW = 2
+
+
+def find_transfers(rows, known=()):
+    """Pure: company-book row to/from the owner ↔ personal row from/to that company, opposite
+    direction, same amount (±1 TL), at most 2 days apart; closest date wins, one to one."""
+    taken = {k["company_id"] for k in known if k["status"] != "rejected"} | {k["personal_id"] for k in known if k["status"] != "rejected"}
+    refused = {(k["company_id"], k["personal_id"]) for k in known if k["status"] == "rejected"}
+    personal = [r for r in rows if r.get("book", "kisisel") == "kisisel"]
+    found = []
+    for company in sorted((r for r in rows if r.get("book") in _COMPANY_KEYS and OWNER_KEY in r["party_key"]),
+                          key=lambda r: (r["tx_date"], r["id"])):
+        if company["id"] in taken:
+            continue
+        mark, best = _COMPANY_KEYS[company["book"]], None
+        for row in personal:
+            gap = abs((row["tx_date"] - company["tx_date"]).days)
+            if (row["id"] in taken or row["direction"] == company["direction"] or not mark.search(row["party_key"])
+                    or abs(row["amount_cents"] - company["amount_cents"]) > 100 or gap > TRANSFER_WINDOW
+                    or (company["id"], row["id"]) in refused):
+                continue
+            if best is None or gap < best[0]:
+                best = (gap, row)
+        if best:
+            taken |= {company["id"], best[1]["id"]}
+            found.append({"company_id": company["id"], "personal_id": best[1]["id"], "amount_cents": company["amount_cents"]})
+    return found
+
+
+def link_transfers(owner):
+    with _connect() as conn, conn.cursor() as cur:
+        cur.execute(f"""SELECT {_MOVEMENT_COLUMNS} FROM core.jarvis_money_movement WHERE owner=%s""", (owner,))
+        rows = [dict(row) for row in cur.fetchall()]
+        cur.execute("SELECT company_id, personal_id, status FROM core.jarvis_money_transfer WHERE owner=%s", (owner,))
+        found = find_transfers(rows, [dict(row) for row in cur.fetchall()])
+        for pair in found:
+            cur.execute("""INSERT INTO core.jarvis_money_transfer (owner,company_id,personal_id,amount_cents)
+                VALUES (%s,%s,%s,%s) ON CONFLICT DO NOTHING""", (owner, pair["company_id"], pair["personal_id"], pair["amount_cents"]))
+        # name what was blank; never overwrite the owner's own choice
+        cur.execute("""UPDATE core.jarvis_money_movement m SET updated_at=clock_timestamp(),
+                category=CASE WHEN m.book='kisisel' THEN 'sirketten' WHEN m.direction='out' THEN 'ortaga' ELSE 'ortaktan' END
+            FROM core.jarvis_money_transfer t
+            WHERE t.owner=m.owner AND m.owner=%s AND t.status<>'rejected' AND m.category=''
+              AND (m.movement_id=t.company_id OR (m.movement_id=t.personal_id AND m.direction='in'))""", (owner,))
+        return len(found)
+
+
+def _transfer_notes(cur, owner):
+    """row id → where the same money shows in the other book, and the chain around it."""
+    cur.execute("""SELECT t.company_id, t.personal_id, c.book AS cbook, c.account AS caccount, c.tx_date AS cdate,
+            p.account AS paccount, p.tx_date AS pdate,
+            (SELECT string_agg(DISTINCT i.party, ', ') FROM core.jarvis_money_link l
+               JOIN core.jarvis_money_movement i ON i.movement_id=l.in_id
+              WHERE l.owner=t.owner AND l.out_id=t.company_id AND l.status<>'rejected') AS origin,
+            (SELECT string_agg(DISTINCT o.party, ', ') FROM core.jarvis_money_link l
+               JOIN core.jarvis_money_movement o ON o.movement_id=l.out_id
+              WHERE l.owner=t.owner AND l.in_id=t.company_id AND l.status<>'rejected') AS onward
+        FROM core.jarvis_money_transfer t
+        JOIN core.jarvis_money_movement c ON c.owner=t.owner AND c.movement_id=t.company_id
+        JOIN core.jarvis_money_movement p ON p.owner=t.owner AND p.movement_id=t.personal_id
+        WHERE t.owner=%s AND t.status<>'rejected'""", (owner,))
+    notes = {}
+    for row in cur.fetchall():
+        company = BOOKS[row["cbook"]].replace(" şirket", "")
+        notes[row["personal_id"]] = {"other": f"{company} · {row['caccount'].split(' · ')[0]}", "date": row["cdate"].isoformat(),
+                                     "origin": row["origin"] or "", "onward": row["onward"] or "", "company": company}
+        notes[row["company_id"]] = {"other": f"Şahsi · {row['paccount']}", "date": row["pdate"].isoformat(),
+                                    "origin": "", "onward": "", "company": company}
+    return notes
 
 
 def _links(cur, owner):

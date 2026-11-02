@@ -87,10 +87,76 @@ class PaymentTest(unittest.TestCase):
         rejected = [{"document_id": "k", "movement_id": "x", "status": "rejected"}]
         self.assertEqual(money_invoices.find_payments(inv, [_mov("x", date(2026, 9, 2), "KEYUBU", 10000)], rejected), [])
 
-    def test_outgoing_invoices_are_not_paid_by_us(self):
-        found = money_invoices.find_payments([_inv("o", date(2026, 9, 1), "TEC DYNASTY", 5000, box="out")],
-                                             [_mov("m", date(2026, 9, 1), "TEC DYNASTY", 5000)])
-        self.assertEqual(found, [])
+    def test_sales_invoice_is_collected_by_money_coming_in(self):
+        inv = [_inv("o", date(2026, 9, 1), "AYSUN EVLİYAOĞLU", 200000, box="out")]
+        self.assertEqual(money_invoices.find_payments(inv, [_mov("m", date(2026, 9, 1), "AYSUN EVLİYAOĞLU", 200000)]), [])
+        self.assertEqual(money_invoices.find_payments(inv, [_mov("m", date(2026, 9, 1), "Aysun Evliyaoğlu", 200000, "in")]),
+                         [{"document_id": "o", "movement_id": "m"}])
+
+
+
+class PdfDirectionTest(unittest.TestCase):
+    """Owner, 02.11.2026: "gelen ve gidenleri karıştırma" — two witnesses must agree."""
+    LEMOS = "1234567890"
+    SELL = "\n".join(["SAYIN", "AYSUN EVLİYAOĞLU", "TCKN: 11111111111", "Fatura No:", "LEM2026000000123", "Fatura Tarihi:",
+                      "31-10-2026", "LEMOS MEDİKAL SAĞLIK", "VKN: 1234567890", "ETTN: 0f0e0d0c-0b0a-0908-0706-050403020100",
+                      "Ödenecek Tutar", "2.000,00 TL"])
+    BUY = "\n".join(["TT MOBİL İletişim Hizmetleri A.Ş.", "Vergi No: 9999999999", "Sayın,", "LEMOS MEDİKAL SAĞLIK İŞ GÜVENLİĞİ",
+                     "Vergi No: 1234567890", "Fatura No: GB32026000000001", "Fatura Tarihi:", "31 - 10 - 2026",
+                     "ETTN: 1f0e0d0c-0b0a-0908-0706-050403020100", "Ödenecek Tutar", ": 1936.25 TL"])
+
+    def test_own_series_is_a_sale(self):
+        import invoice_pdf
+        row = invoice_pdf.read({"ettn": "x", "text": self.SELL}, self.LEMOS)
+        self.assertEqual((row["box"], row["party"], row["payable_cents"], row["date"]),
+                         ("out", "AYSUN EVLİYAOĞLU", 200000, date(2026, 10, 31)))
+
+    def test_lemos_as_buyer_is_a_purchase(self):
+        import invoice_pdf
+        row = invoice_pdf.read({"ettn": "y", "text": self.BUY}, self.LEMOS)
+        self.assertEqual((row["box"], row["party"], row["payable_cents"], row["date"]),
+                         ("in", "TT MOBİL İletişim Hizmetleri A.Ş.", 193625, date(2026, 10, 31)))
+
+    def test_disagreeing_witnesses_are_never_filed(self):
+        import invoice_pdf
+        text = self.SELL.replace("AYSUN EVLİYAOĞLU", "LEMOS MEDİKAL SAĞLIK")  # own series but Lemos is the buyer
+        self.assertIsNone(invoice_pdf.read({"ettn": "z", "text": text}, self.LEMOS)["box"])
+
+
+
+class TopicTest(unittest.TestCase):
+    """Owner, 02.11.2026: Lemos and L'CARLIÉ are two businesses — split by what the line says."""
+
+    def test_products_by_name_barcode_or_brand(self):
+        import invoice_topics as t
+        self.assertEqual(t.classify("out", "L'Carlié Hydravie Herbal Moisturizing Cream", ""), ("lcarlie_urun", "lcarlie", "Hydravie"))
+        self.assertEqual(t.classify("out", "VİREAN", ""), ("lcarlie_urun", "lcarlie", "Vireon"))
+        self.assertEqual(t.classify("out", "8684869609271 dermavasc", ""), ("lcarlie_urun", "lcarlie", "Dermavasc"))
+        self.assertEqual(t.classify("out", "L'Carlié Babysol SPF50+ Natural Sunscreen", "")[2], "Babysol")
+
+    def test_printing_for_lcarlie_is_not_a_product(self):
+        import invoice_topics as t
+        self.assertEqual(t.classify("in", "DTF BASKI DTF L CARLIE (15METRE 15CM)", "PRO BASKI"), ("promosyon_matbaa", "lcarlie", ""))
+
+    def test_costs_go_to_the_right_business(self):
+        import invoice_topics as t
+        self.assertEqual(t.classify("in", "Platform Hizmet Bedeli", "DSM Grup Danışmanlık")[:2], ("pazaryeri", "lcarlie"))
+        self.assertEqual(t.classify("in", "GIDA TAKVİYESİ", "ECZANE")[:2], ("takviye_ilac", "lemos"))
+        self.assertEqual(t.classify("in", "Mobil hat faturası", "TT MOBİL")[:2], ("iletisim", "ortak"))
+        self.assertEqual(t.classify("in", "Mehmet Akif Ersoy Mah. 325 Sok", "MOY DANIŞMANLIK")[:2], ("grup_ici", "grup"))
+
+    def test_bare_supplement_sale_is_the_clinics(self):
+        import invoice_topics as t  # owner: L'CARLIÉ products are always named on the invoice
+        self.assertEqual(t.classify("out", "GIDA TAKVİYESİ", "AYSUN EVLİYAOĞLU")[:2], ("takviye_ilac", "lemos"))
+
+
+class LinesAddUpTest(unittest.TestCase):
+    def test_vat_rate_or_vat_amount(self):
+        import invoice_lines as l
+        self.assertTrue(l.adds_up([{"net_cents": 400000}], 440000, 0))     # %10, VAT not printed
+        self.assertTrue(l.adds_up([{"net_cents": 1099}], 1319, 220))
+        self.assertFalse(l.adds_up([{"net_cents": 80000}], 480000, 0))     # half the invoice is missing
+        self.assertFalse(l.adds_up([], 1000, 0))
 
 
 if __name__ == "__main__":
