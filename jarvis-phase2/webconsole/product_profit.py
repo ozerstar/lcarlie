@@ -24,6 +24,15 @@ import invoice_topics
 from expense_vault import ZONE, ExpenseError, _connect, _money, _text
 
 ALLOCATIONS = {"esit": "Ürünlere eşit", "adet": "Üretim adedine göre", "ciro": "Satışa (ciroya) göre"}
+# genel maliyetin türü — sahip 02.11.2026: "ÜGR 108 bin görünüyor, testlerin maliyeti yok": testler ile ÜGR ayrı satır
+GENERAL_KINDS = {"test": "Laboratuvar testleri (TTS)", "ugr": "ÜGR raporları (Regnovis)", "diger": "Diğer genel"}
+_UGR = re.compile(r"regnovis|\bugr\b|guvenlik|guvenlilik")
+_TEST = re.compile(r"\btts\b|laborat|analiz|stabilite|challenge|mikrobiyo|test")
+
+
+def general_kind(text):
+    t = invoice_topics.plain(text or "")
+    return "ugr" if _UGR.search(t) else "test" if _TEST.search(t) else "diger"
 
 
 def _spread(amount, weights):
@@ -63,7 +72,8 @@ def build(rows, extras, allocation="esit"):
             else:
                 tester_unassigned += r["v"]
         elif r["b"] == "in" and r["t"] == "urun_test":
-            general_items.append({"source": "fatura", "month": r["m"], "description": r["n"] or r["f"], "party": r["f"], "net": r["v"]})
+            general_items.append({"source": "fatura", "month": r["m"], "description": r["n"] or r["f"], "party": r["f"], "net": r["v"],
+                                  "gross": r["g"], "kind": general_kind(f"{r['n']} {r['f']}")})
         elif r["b"] == "out" and r["p"] and r["z"] == "lcarlie":
             x = item(r["p"])
             x["sold"] += r["q"]
@@ -71,13 +81,14 @@ def build(rows, extras, allocation="esit"):
             x["sales_gross"] += r["g"]
             x["first_sold"] = min(filter(None, (x["first_sold"], r["m"])))
     if tester_unassigned:
-        general_items.append({"source": "tester", "month": "", "description": "Ürünü belli olmayan tester", "party": "", "net": tester_unassigned})
+        general_items.append({"source": "tester", "month": "", "description": "Ürünü belli olmayan tester", "party": "", "net": tester_unassigned,
+                              "gross": tester_unassigned, "kind": "diger"})
     for e in extras:
         if e["target"] == "urun":
             item(e["product"])["special"] += e["net_cents"]
         else:
             general_items.append({"source": "elle", "month": e["spent_on"][:7], "description": e["description"], "party": "", "net": e["net_cents"],
-                                  "id": e["cost_id"]})
+                                  "gross": e["net_cents"] + e.get("vat_cents", 0), "kind": general_kind(e["description"]), "id": e["cost_id"]})
     general = sum(g["net"] for g in general_items)
     made = {k: v for k, v in p.items() if v["produced"] > 0}
     weights = {"esit": {k: 1 for k in made}, "adet": {k: v["produced"] for k, v in made.items()},
@@ -99,10 +110,14 @@ def build(rows, extras, allocation="esit"):
     out.sort(key=lambda x: -x["sales_net"])
     keys = ("production", "tester", "general", "special", "total_cost", "sales_net", "sales_gross", "profit", "remaining")
     totals = {k: sum(x[k] for x in out) for k in keys}
+    for kind in GENERAL_KINDS:
+        totals[f"general_{kind}"] = sum(g["net"] for g in general_items if g["kind"] == kind)
+        totals[f"general_{kind}_gross"] = sum(g["gross"] for g in general_items if g["kind"] == kind)
     totals.update({"produced": sum(x["produced"] for x in out), "sold": sum(x["sold"] for x in out), "tester_qty": sum(x["tester_qty"] for x in out),
                    "coverage": round(totals["sales_net"] / totals["total_cost"] * 100, 1) if totals["total_cost"] else None,
                    "products": len(out), "products_with_cost": len(made), "in_profit": sum(1 for x in out if x["profit"] >= 0 and x["total_cost"])})
-    return {"products": out, "totals": totals, "general_items": general_items, "allocation": allocation, "allocations": ALLOCATIONS}
+    return {"products": out, "totals": totals, "general_items": general_items, "allocation": allocation, "allocations": ALLOCATIONS,
+            "general_kinds": GENERAL_KINDS}
 
 
 def _extras(owner):
