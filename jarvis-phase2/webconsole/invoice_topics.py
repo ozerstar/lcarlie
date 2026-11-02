@@ -24,6 +24,7 @@ THEMES = {
     "reklam": "Reklam", "etkinlik_ikram": "Etkinlik / organizasyon / ikram", "saglik_hizmeti": "Sağlık / muayene hizmeti",
     "grup_ici": "Grup içi (MOY ↔ Lemos)", "iletisim": "Telefon / internet", "arac": "Araç / bakım", "ofis_demirbas": "Ofis / demirbaş / kırtasiye",
     "yazilim": "Yazılım / barkod / sistem", "danismanlik": "Danışmanlık / hizmet", "giyim": "Giyim",
+    "numune_tester": "Tester / numune (ücretsiz dağıtım)",
     "diger": "Diğer",
 }
 _RULES = (  # order matters: the first match wins
@@ -72,6 +73,10 @@ def product_of(name):
 def classify(box, name, party=""):
     """(theme, business, product) for one line; the supplier helps when the line says little."""
     product = product_of(name)
+    # owner, 02.11.2026: "testerlar dağıtılıyor, onlar ürün olarak sayılmaz" — a tester of a
+    # L'CARLIÉ product is the brand's give-away cost, never stock or product cost
+    if product and re.search(r"(^|[^a-z])(tester|numune|deneme boy)([^a-z]|$)", plain(name)):
+        return "numune_tester", "lcarlie", ""
     if product:
         return "lcarlie_urun", "lcarlie", product
     text = plain(f"{name} {party}")

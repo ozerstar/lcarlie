@@ -4,6 +4,7 @@ from __future__ import annotations
 import sys
 import unittest
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -75,6 +76,25 @@ class TaxOfTest(unittest.TestCase):
         text = ("KDV (20%) (Matrah 1385.79 TL )\n277.16\nÖzel İletişim Vergisi (10%) (Matrah 1385.79 TL )\n138.58\n"
                 "ÖDENECEK TOPLAM TUTAR\n1936.25 TL")
         self.assertEqual(invoice_pdf.tax_of(text, 193625), (27716, "kdv"))
+
+
+class QuantityAndTesterTest(unittest.TestCase):
+    def test_thousands_in_piece_counts(self):
+        import invoice_lines
+        # NEVA 26.06.2026: "4.900 Adet" tester, 4,20 TL — dört bin dokuz yüz, 4,9 değil
+        self.assertEqual(invoice_lines._quantity("4.900 Adet")[0], 4900)
+        self.assertEqual(invoice_lines._quantity("0.152 KGM")[0], Decimal("0.152"))
+        self.assertEqual(invoice_lines._quantity("12,5 Adet")[0], Decimal("12.5"))
+
+    def test_tester_is_not_a_product(self):
+        import invoice_topics
+        # sahip: "testerlar dağıtılıyor, onlar ürün olarak sayılmaz"
+        self.assertEqual(invoice_topics.classify("in", "L'Carlié Vireon Tester", "NEVA"), ("numune_tester", "lcarlie", ""))
+        self.assertEqual(invoice_topics.classify("in", "L'Carlié Vireon", "NEVA")[2], "Vireon")
+
+    def test_bank_line_is_not_the_seller(self):
+        lines = ["SAYIN", "LEMOS MEDİKAL A.Ş.", "T.C. Ziraat Bankası AŞ", "NEVA INOVASYON VE KIMYA ANONIM SIRKETI", "ÇANKAYA/ ANKARA"]
+        self.assertEqual(invoice_pdf._seller(lines, lines[:2]), "NEVA INOVASYON VE KIMYA ANONIM SIRKETI")
 
 
 class SellerTest(unittest.TestCase):

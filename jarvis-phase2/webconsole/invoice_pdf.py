@@ -162,6 +162,9 @@ def _seller(lines, buyer_area):
         # invoice notes: "e-Arşiv izni kapsamında elektronik ortamda iletilmiştir" ("iletilmiştir" holds "ŞTİ")
         if re.search(r"e-?ar[şs]iv\s*izni|elektronik\s*ortamda|irsaliye\s*yerine|yaz[ıi]\s*ile", line, re.I):
             continue
+        # payment notes name the bank ("T.C. Ziraat Bankası AŞ" was read as NEVA's name, 26.06.2026)
+        if re.search(r"banka(s[ıi])?\b|\biban\b|katılım\s*bank", line, re.I):
+            continue
         prev = lines[i - 1] if i else ""
         head = prev if prev.isupper() and not _FORM.search(prev) and "LEMOS" not in prev.upper() and not re.search(r"[:\d]", prev) else ""
         return f"{head} {line}".strip()

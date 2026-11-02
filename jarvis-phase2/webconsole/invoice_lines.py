@@ -32,6 +32,11 @@ def _quantity(text):
     if not found:
         return Decimal(0), ""
     raw = found.group(1)
+    unit = found.group(2).strip()
+    # GİB layout writes thousands with a dot: "4.900 Adet" is four thousand nine hundred testers
+    # (NEVA, 26.06.2026), not 4,9. A piece count never has a fraction; kg/m keep "0.152", "2.08".
+    if "," not in raw and re.fullmatch(r"[1-9]\d{0,2}(\.\d{3})+", raw) and re.match(r"(adet|ad\b|c62|niu|paket|kutu|$)", unit, re.I):
+        raw = raw.replace(".", "")
     try:
         value = Decimal(raw.replace(".", "").replace(",", ".") if "," in raw else raw)
     except InvalidOperation:

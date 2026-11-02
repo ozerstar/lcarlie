@@ -133,6 +133,23 @@ def explore_rows(owner, start, end):
     return rows
 
 
+def product_costs(owner):
+    """Real unit cost of each L'CARLIÉ product: its latest production invoice line (owner, 02.11.2026:
+    "gerçek alış faturamız olması lazım"). Testers are not products ("testerlar dağıtılıyor") — they
+    carry the numune_tester theme and never reach here. A product with no invoice has no cost: no guess."""
+    with _connect() as conn, conn.cursor() as cur:
+        cur.execute("""SELECT l.product, i.issue_date, i.party, l.quantity::float AS quantity, l.net_cents
+            FROM core.jarvis_invoice_line l JOIN core.jarvis_invoice i USING (owner, document_id)
+            WHERE l.owner=%s AND i.box='in' AND l.theme='lcarlie_urun' AND l.product<>'' AND l.quantity > 0
+              AND i.status <> ALL(%s) ORDER BY i.issue_date""", (owner, list(DEAD)))
+        rows = cur.fetchall()
+    costs = {}
+    for row in rows:  # later invoices overwrite earlier ones: the latest price is the cost
+        costs[row["product"]] = {"unit": round(row["net_cents"] / row["quantity"]), "date": row["issue_date"].isoformat(),
+                                 "supplier": row["party"], "qty": row["quantity"]}
+    return costs
+
+
 def analysis(owner, book="lemos", year=None, month=""):
     year = int(year or date.today().year)
     if month:
@@ -218,6 +235,7 @@ def analysis(owner, book="lemos", year=None, month=""):
         "total_sales": sum(v["net"] for v in channels.values()),
         "total_sales_gross": sum(v["gross"] for v in channels.values()),
         "parts": len(parts), "unread": unread, "rows": explore_rows(owner, start, end),
+        "product_costs": product_costs(owner),
         "themes_all": invoice_topics.THEMES, "channel_labels": CHANNELS,
         "business_labels": invoice_topics.BUSINESSES, "method": (
             "KDV hariç tutarlar. Kalemler içeriğine göre ayrıldı; ortak giderler (telefon, araç, ofis, etkinlik, genel "
