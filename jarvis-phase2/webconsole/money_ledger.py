@@ -34,6 +34,28 @@ IN_CATEGORIES = {
     "gelir": "Maaş / ücret geliri", "aile_gelen": "Aileden gelen", "tahsilat": "Tahsilat / satış",
     "iade": "İade / kampanya", "borc_donus": "Borç geri ödemesi", "diger_gelen": "Diğer gelen",
 }
+# alt kalem: owner, 02.11.2026 — "ofisin içinde kira, muhasebe ödemesi gibi ödemeler var"
+SUBCATEGORIES = {
+    "ofis": ["Kira", "Muhasebe", "Aidat", "Kırtasiye", "Temizlik", "Teknik servis", "Mobilya / ekipman"],
+    "yemek": ["Restoran", "Paket servis", "Kafe", "İkram / misafir"],
+    "market": ["Gıda", "Temizlik", "Ev"],
+    "yazilim": ["Sunucu", "Yapay zekâ", "Web sitesi", "Abonelik", "Telefon uygulaması"],
+    "reklam": ["Meta", "Google", "Influencer", "Basılı"],
+    "sosyal_medya": ["Yönetim", "İçerik üretimi", "Çekim"],
+    "personel": ["Maaş", "Günlük çalışan", "Prim", "SGK"],
+    "hizmet": ["Muhasebe", "Hukuk", "Tasarım", "Danışmanlık", "Kurye"],
+    "faturalar": ["Elektrik", "İnternet", "Telefon", "Su", "Doğalgaz"],
+    "ulasim": ["Taksi", "Otopark", "Toplu taşıma", "Uçak", "Araç bakım"],
+    "akaryakit": ["Benzin", "Motorin", "LPG"],
+    "kargo": ["Kargo", "Kurye", "Nakliye"],
+    "aile": ["Hediye", "Ev", "Çocuk"],
+    "borc": ["Arkadaş", "Aile", "İş"],
+    "saglik": ["Doktor", "İlaç", "Bakım"],
+    "eglence": ["Yemek / gece", "Etkinlik", "Tatil"],
+    "kira": ["Ev", "İş yeri"],
+    "gelir": ["Maaş", "Ücret", "Prim"],
+    "tahsilat": ["Satış", "Müşteri", "Pazaryeri"],
+}
 INTERNAL = "ic_transfer"
 CATEGORIES = {**OUT_CATEGORIES, **IN_CATEGORIES, INTERNAL: "Kendi hesapların arası"}
 SCOPES = {"lemos": "Lemos", "moy": "MOY", "lcarlie": "L'CARLIÉ", "kisisel": "Kişisel / aile"}
@@ -329,6 +351,7 @@ def apply_rules(owner):
         cur.execute("""UPDATE core.jarvis_money_movement m SET
             category=CASE WHEN r.category<>'' THEN r.category ELSE m.category END,
             scope=CASE WHEN r.scope<>'' THEN r.scope ELSE m.scope END,
+            subcategory=CASE WHEN r.subcategory<>'' THEN r.subcategory ELSE m.subcategory END,
             receipt=CASE WHEN r.category='ic_transfer' OR r.scope='kisisel'
                               OR r.receipt_policy='not_needed' THEN 'not_needed'
                          WHEN m.receipt='not_needed' AND m.kind IN ('kart','fatura') THEN 'needed'
@@ -339,6 +362,7 @@ def apply_rules(owner):
             AND m.receipt<>'matched'
             AND (m.category IS DISTINCT FROM CASE WHEN r.category<>'' THEN r.category ELSE m.category END
                  OR m.scope IS DISTINCT FROM CASE WHEN r.scope<>'' THEN r.scope ELSE m.scope END
+                 OR (r.subcategory<>'' AND m.subcategory IS DISTINCT FROM r.subcategory)
                  OR (r.receipt_policy='not_needed' AND m.receipt='needed'))""", (owner,))
         return cur.rowcount
 
@@ -383,6 +407,8 @@ def classify(owner, movement_id, body):
     if scope and scope not in SCOPES:
         raise ExpenseError("Hesap başlığı geçersiz.")
     note = _text(body.get("note"), "Not", 300)
+    sub_given = "subcategory" in body
+    subcategory = _text(body.get("subcategory"), "Alt kalem", 40) if sub_given else ""
     with _connect() as conn, conn.cursor() as cur:
         cur.execute("""SELECT party,party_key,kind FROM core.jarvis_money_movement
             WHERE owner=%s AND movement_id=%s""", (owner, movement_id))
@@ -392,14 +418,18 @@ def classify(owner, movement_id, body):
         receipt_sql = ("CASE WHEN %(category)s='ic_transfer' OR %(scope)s='kisisel' THEN "
                        "CASE WHEN receipt='matched' THEN receipt ELSE 'not_needed' END ELSE receipt END")
         cur.execute(f"""UPDATE core.jarvis_money_movement SET category=%(category)s,scope=%(scope)s,
+            subcategory=CASE WHEN %(sub_given)s THEN %(sub)s ELSE subcategory END,
             note=CASE WHEN %(note)s<>'' THEN %(note)s ELSE note END,receipt={receipt_sql},
             manual=true,updated_at=clock_timestamp() WHERE owner=%(owner)s AND movement_id=%(id)s""",
-            {"category": category, "scope": scope, "note": note, "owner": owner, "id": movement_id})
+            {"category": category, "scope": scope, "note": note, "owner": owner, "id": movement_id,
+             "sub": subcategory, "sub_given": sub_given})
         if body.get("remember"):
-            cur.execute("""INSERT INTO core.jarvis_money_rule (owner,party_key,label,category,scope)
-                VALUES (%s,%s,%s,%s,%s) ON CONFLICT (owner,party_key) DO UPDATE SET
-                category=EXCLUDED.category,scope=EXCLUDED.scope,updated_at=clock_timestamp()""",
-                (owner, row["party_key"], row["party"][:80], category, scope))
+            cur.execute("""INSERT INTO core.jarvis_money_rule (owner,party_key,label,category,scope,subcategory)
+                VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT (owner,party_key) DO UPDATE SET
+                category=EXCLUDED.category,scope=EXCLUDED.scope,
+                subcategory=CASE WHEN %s THEN EXCLUDED.subcategory ELSE core.jarvis_money_rule.subcategory END,
+                updated_at=clock_timestamp()""",
+                (owner, row["party_key"], row["party"][:80], category, scope, subcategory, sub_given))
     changed = apply_rules(owner) if body.get("remember") else 0
     return {"id": movement_id, "applied_to": changed}
 
@@ -548,7 +578,7 @@ def _party(row):
     return row.get("party_key") or key_of(row["party"])
 
 
-def build_report(rows, view, day, scope="", today=None):
+def build_report(rows, view, day, scope="", today=None, account=""):
     """Pure report over movement dicts (tx_date: date); report() feeds it from the DB.
 
     Beyond the period's totals it answers what finance apps answer first (Monarch,
@@ -558,6 +588,14 @@ def build_report(rows, view, day, scope="", today=None):
     today = today or datetime.now(ZONE).date()
     start, end = period_range(view, day)
     prev_start, prev_end = _previous_range(view, start)
+    accounts = {}
+    for row in rows:
+        if start <= row["tx_date"] < end and row["category"] != INTERNAL and row["direction"] == "out":
+            accounts[row["account"]] = accounts.get(row["account"], 0) + row["amount_cents"]
+        else:
+            accounts.setdefault(row["account"], 0)
+    if account:
+        rows = [row for row in rows if row["account"] == account]
     if scope:
         rows = [row for row in rows if (row["scope"] or "none") == scope]
     counted = [row for row in rows if row["category"] != INTERNAL]
@@ -618,9 +656,11 @@ def build_report(rows, view, day, scope="", today=None):
         in_month = [row for row in trend_rows if month <= row["tx_date"] < nxt]
         mix = dict.fromkeys(top_categories, 0)
         other = 0
+        every = {}
         for row in in_month:
             if row["direction"] != "out":
                 continue
+            every[row["category"]] = every.get(row["category"], 0) + row["amount_cents"]
             if row["category"] in mix:
                 mix[row["category"]] += row["amount_cents"]
             else:
@@ -629,7 +669,7 @@ def build_report(rows, view, day, scope="", today=None):
         for row in in_month:
             if row["direction"] == "out":
                 scopes[row["scope"] or "none"] += row["amount_cents"]
-        trend.append({"month": month.strftime("%Y-%m"), "scopes": scopes,
+        trend.append({"month": month.strftime("%Y-%m"), "scopes": scopes, "all": every,
                       "out": sum(r["amount_cents"] for r in in_month if r["direction"] == "out"),
                       "in": sum(r["amount_cents"] for r in in_month if r["direction"] == "in"),
                       "mix": [{"key": key, "total": mix[key]} for key in top_categories] + [{"key": "__other", "total": other}]})
@@ -716,7 +756,8 @@ def build_report(rows, view, day, scope="", today=None):
     review = _review(view, start, out, incoming, out_total, in_total, prev_out_total, by_category, recurring,
                      unusual, forecast, elapsed, length)
     return {
-        "review": review,
+        "review": review, "account": account,
+        "accounts": [{"name": name, "out": total} for name, total in sorted(accounts.items(), key=lambda kv: -kv[1])],
         "view": view, "start": start.isoformat(), "end": (end - timedelta(days=1)).isoformat(),
         "prev_start": prev_start.isoformat(), "prev_end": (prev_end - timedelta(days=1)).isoformat(),
         "out_total": out_total, "in_total": in_total, "prev_out_total": prev_out_total, "prev_in_total": prev_in_total,
@@ -852,67 +893,88 @@ def budget_alerts(owner, today=None):
 
 
 # ----------------------------------------------------------- kategori detayı
-def category_detail_from(rows, key, day, scope="", today=None):
+def category_detail_from(rows, key, day, scope="", today=None, account="", month=None):
+    """Everything behind one slice: 6-month trend, sub-items, payees, editable movements.
+
+    Works for spending and income categories (owner: "borç verme kısmına tıkladığımda
+    neler olduğunu görebilmek istiyorum"); `month` opens a past bar of the 6-month chart.
+    """
     today = today or datetime.now(ZONE).date()
-    start, end = period_range("month", day)
+    anchor = date(int(month[:4]), int(month[5:7]), 1) if month else day
+    start, end = period_range("month", anchor)
+    if account:
+        rows = [row for row in rows if row["account"] == account]
     if scope:
         rows = [row for row in rows if (row["scope"] or "none") == scope]
     wanted = "" if key == "__none" else key
-    picked = [row for row in rows if row["direction"] == "out" and (row["category"] or "") == wanted]
+    direction = "in" if wanted in IN_CATEGORIES else "out"
+    picked = [row for row in rows if (row["category"] or "") == wanted and
+              (row["direction"] == direction or wanted == INTERNAL)]
     months, cursor = [], _months_back(start, 5)
     while cursor <= start:
         months.append(cursor)
         cursor = (cursor + timedelta(days=32)).replace(day=1)
     trend = []
-    for month in months:
-        nxt = (month + timedelta(days=32)).replace(day=1)
-        inside = [row for row in picked if month <= row["tx_date"] < nxt]
-        trend.append({"month": month.strftime("%Y-%m"), "total": sum(r["amount_cents"] for r in inside), "count": len(inside)})
+    for item in months:
+        nxt = (item + timedelta(days=32)).replace(day=1)
+        inside = [row for row in picked if item <= row["tx_date"] < nxt]
+        trend.append({"month": item.strftime("%Y-%m"), "total": sum(r["amount_cents"] for r in inside), "count": len(inside)})
     current = [row for row in picked if start <= row["tx_date"] < end]
     window = [row for row in picked if months[0] <= row["tx_date"] < end]
     totals = [item["total"] for item in trend[:-1] if item["total"]]
+    subs = {}
+    for row in current:
+        name = row.get("subcategory") or ""
+        entry = subs.setdefault(name, {"key": name, "label": name or "Alt kalem seçilmedi", "total": 0, "count": 0})
+        entry["total"] += row["amount_cents"]
+        entry["count"] += 1
     return {
         "key": key, "label": CATEGORIES.get(wanted, "Belirlenmedi"), "month": start.strftime("%Y-%m"),
-        "total": sum(r["amount_cents"] for r in current), "count": len(current),
+        "direction": direction, "total": sum(r["amount_cents"] for r in current), "count": len(current),
         "average_ticket": round(sum(r["amount_cents"] for r in window) / len(window)) if window else 0,
         "monthly_average": round(sum(totals) / len(totals)) if totals else 0,
-        "trend": trend,
-        "parties": _bucket(window, "party", {})[:8],
+        "trend": trend, "suggestions": SUBCATEGORIES.get(wanted, []),
+        "subcategories": sorted(subs.values(), key=lambda item: -item["total"]),
+        "parties": _bucket(current or window, "party", {})[:8],
         "movements": [dict(r, tx_date=r["tx_date"].isoformat()) for r in
-                      sorted(current, key=lambda r: (r["tx_date"], r["amount_cents"]), reverse=True)[:100]],
+                      sorted(current, key=lambda r: (r["tx_date"], r["amount_cents"]), reverse=True)[:200]],
     }
 
 
-def category_detail(owner, key, day=None, scope=""):
+_MOVEMENT_COLUMNS = """movement_id AS id,account,tx_date,direction,kind,party,party_key,amount_cents,
+            foreign_currency,foreign_cents,category,subcategory,scope,receipt,document_id,note"""
+
+
+def category_detail(owner, key, day=None, scope="", account="", month=""):
     if key != "__none" and key not in CATEGORIES:
         raise ExpenseError("Kategori geçersiz.")
+    if month and not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", month):
+        raise ExpenseError("Ay geçersiz.")
     day = _parse_day(day)
-    start, end = period_range("month", day)
+    anchor = date(int(month[:4]), int(month[5:7]), 1) if month else day
+    start, end = period_range("month", anchor)
     with _connect() as conn, conn.cursor() as cur:
-        cur.execute("""SELECT movement_id AS id,account,tx_date,direction,kind,party,party_key,amount_cents,
-            foreign_currency,foreign_cents,category,scope,receipt,document_id,note
-            FROM core.jarvis_money_movement WHERE owner=%s AND tx_date >= %s AND tx_date < %s""",
-            (owner, _months_back(start, 5), end))
+        cur.execute(f"""SELECT {_MOVEMENT_COLUMNS} FROM core.jarvis_money_movement
+            WHERE owner=%s AND tx_date >= %s AND tx_date < %s""", (owner, _months_back(start, 5), end))
         rows = [dict(row) for row in cur.fetchall()]
-    return category_detail_from(rows, key, day, scope)
+    return category_detail_from(rows, key, day, scope, account=account, month=month or None)
 
 
-def report(owner, view="month", day=None, scope=""):
+def report(owner, view="month", day=None, scope="", account=""):
     day = _parse_day(day)
     start, end = period_range(view, day)
     if scope and scope not in SCOPES and scope != "none":
         raise ExpenseError("Hesap başlığı geçersiz.")
     since = min(_months_back(start, 5), _previous_range(view, start)[0], end - timedelta(days=120))
     with _connect() as conn, conn.cursor() as cur:
-        cur.execute("""SELECT movement_id AS id,account,tx_date,direction,kind,party,party_key,amount_cents,
-            foreign_currency,foreign_cents,category,scope,receipt,document_id,note
+        cur.execute(f"""SELECT {_MOVEMENT_COLUMNS}
             FROM core.jarvis_money_movement WHERE owner=%s AND tx_date >= %s AND tx_date < %s
             ORDER BY tx_date DESC, amount_cents DESC""", (owner, since, end))
         rows = [dict(row) for row in cur.fetchall()]
         cur.execute("""SELECT count(*) AS n, coalesce(sum(amount_cents),0) AS total
             FROM core.jarvis_money_movement WHERE owner=%s AND category='' AND direction='out'""", (owner,))
         unknown = cur.fetchone()
-    result = build_report(rows, view, day, scope)
+    result = build_report(rows, view, day, scope, account=account)
     result["unknown_all"] = {"count": unknown["n"], "total": unknown["total"]}
     result["budgets"] = budget_status(rows, budgets(owner), day)
     return result

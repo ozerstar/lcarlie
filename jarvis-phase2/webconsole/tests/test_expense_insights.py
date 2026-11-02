@@ -284,6 +284,37 @@ class DeeperAnalysisTest(unittest.TestCase):
         self.assertEqual(got["parties"][0]["label"], "Sinem Ağca")
 
 
+class DrillDownTest(unittest.TestCase):
+    """Owner: "her yer tıklanabilir… ofisin içinde kira, muhasebe ödemesi gibi ödemeler var"."""
+
+    def rows(self):
+        office_rent = dict(movement("2026-10-02", 2500000, "Ev Sahibi", "ofis"), subcategory="Kira", account="Enpara hesap")
+        office_acc = dict(movement("2026-10-05", 400000, "Muhasebeci", "ofis"), subcategory="Muhasebe", account="Enpara hesap")
+        card = dict(movement("2026-10-06", 50000, "Kırtasiye", "ofis"), subcategory="", account="Yapı Kredi kredi kartı ****8111")
+        salary = dict(movement("2026-10-31", 2807550, "Muharrem", "gelir", direction="in"), subcategory="", account="Enpara hesap")
+        return [office_rent, office_acc, card, salary]
+
+    def test_subcategory_breakdown_inside_a_category(self):
+        got = money_ledger.category_detail_from(self.rows(), "ofis", date(2026, 10, 1), today=date(2026, 11, 2))
+        self.assertEqual([(s["label"], s["total"]) for s in got["subcategories"]],
+                         [("Kira", 2500000), ("Muhasebe", 400000), ("Alt kalem seçilmedi", 50000)])
+        self.assertIn("Muhasebe", got["suggestions"])
+
+    def test_income_category_opens_money_in(self):
+        got = money_ledger.category_detail_from(self.rows(), "gelir", date(2026, 10, 1), today=date(2026, 11, 2))
+        self.assertEqual((got["direction"], got["total"]), ("in", 2807550))
+
+    def test_bank_filter_and_account_list(self):
+        got = money_ledger.build_report(self.rows(), "month", date(2026, 10, 1), today=date(2026, 11, 2),
+                                        account="Yapı Kredi kredi kartı ****8111")
+        self.assertEqual(got["out_total"], 50000)
+        self.assertEqual({a["name"] for a in got["accounts"]}, {"Enpara hesap", "Yapı Kredi kredi kartı ****8111"})
+
+    def test_other_slice_has_every_category(self):
+        got = money_ledger.build_report(self.rows(), "month", date(2026, 10, 1), today=date(2026, 11, 2))
+        self.assertEqual(got["trend"][-1]["all"], {"ofis": 2950000})
+
+
 class RuleFormTest(unittest.TestCase):
     def test_turkish_thousands_in_monthly_amount(self):
         cursor = mock.MagicMock()
