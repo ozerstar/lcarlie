@@ -103,7 +103,8 @@ def tax_of(text, payable):
 def read(invoice, lemos):
     text = invoice["text"]
     lines = [l.strip() for l in text.splitlines() if l.strip()]
-    number = (re.search(r"Fatura\s*(?:No|Numaras[ıi])\s*:?\s*\n?\s*:?\s*([A-Z]{2,3}[0-9]{6,16})", text, re.I) or [None, ""])[1]
+    # GİB number: 3-character series + 13 digits; NEVA's series "M01" starts with one letter (M012025000000230)
+    number = (re.search(r"Fatura\s*(?:No|Numaras[ıi])\s*:?\s*\n?\s*:?\s*([A-Z]{2,3}[0-9]{6,16}|[A-Z][A-Z0-9]{2}20\d{11})", text, re.I) or [None, ""])[1]
     own_series = number.upper().startswith(OWN_SERIES)
     sayin = next((i for i, l in enumerate(lines) if _SAYIN.search(l)), None)
     buyer_area = lines[sayin:sayin + 6] if sayin is not None else []

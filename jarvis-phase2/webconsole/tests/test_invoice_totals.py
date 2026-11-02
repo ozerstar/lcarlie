@@ -97,6 +97,13 @@ class QuantityAndTesterTest(unittest.TestCase):
         self.assertEqual(invoice_pdf._seller(lines, lines[:2]), "NEVA INOVASYON VE KIMYA ANONIM SIRKETI")
 
 
+class NumberTest(unittest.TestCase):
+    def test_one_letter_series(self):
+        # NEVA 31.12.2025: "Fatura No: M012025000000230" boş okunuyordu
+        inv = {"ettn": "x", "text": "SAYIN\nLEMOS MEDİKAL A.Ş.\nFatura No:\nM012025000000230\nFatura Tarihi:\n31-12-2025\nÖdenecek Tutar\n100,00 TL"}
+        self.assertEqual(invoice_pdf.read(inv, "6080585024")["number"], "M012025000000230")
+
+
 class SellerTest(unittest.TestCase):
     def test_invoice_note_is_not_the_seller(self):
         # GLY2026000000006: not satırı satıcı sanılmıştı ("iletilmiştir" içinde "ŞTİ" var)
