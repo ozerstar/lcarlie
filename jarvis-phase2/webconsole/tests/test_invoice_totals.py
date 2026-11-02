@@ -92,6 +92,17 @@ class QuantityAndTesterTest(unittest.TestCase):
         self.assertEqual(invoice_topics.classify("in", "L'Carlié Vireon Tester", "NEVA"), ("numune_tester", "lcarlie", ""))
         self.assertEqual(invoice_topics.classify("in", "L'Carlié Vireon", "NEVA")[2], "Vireon")
 
+    def test_lab_and_safety_report_are_product_cost(self):
+        import invoice_topics
+        # sahip: NEVA fiyatına kutu/etiket dahil; TTS laboratuvarı ve ÜGR (Aycan) dahil değil
+        self.assertEqual(invoice_topics.classify("in", "Stabilite testi", "TTS LABORATUVAR")[:2], ("urun_test", "lcarlie"))
+        self.assertEqual(invoice_topics.classify("in", "Ürün güvenlik değerlendirme raporu", "AYCAN")[:2], ("urun_test", "lcarlie"))
+
+    def test_word_inside_word_is_not_a_topic(self):
+        import invoice_topics
+        self.assertNotEqual(invoice_topics.classify("in", "METAL TESTERE-300MM", "Bauhaus")[0], "reklam")   # "meta"
+        self.assertNotEqual(invoice_topics.classify("in", "KOLİ BANDI", "AMBALAJ GROSS PLASTİK")[0], "arac")  # "lastik"
+
     def test_bank_line_is_not_the_seller(self):
         lines = ["SAYIN", "LEMOS MEDİKAL A.Ş.", "T.C. Ziraat Bankası AŞ", "NEVA INOVASYON VE KIMYA ANONIM SIRKETI", "ÇANKAYA/ ANKARA"]
         self.assertEqual(invoice_pdf._seller(lines, lines[:2]), "NEVA INOVASYON VE KIMYA ANONIM SIRKETI")
@@ -102,6 +113,27 @@ class NumberTest(unittest.TestCase):
         # NEVA 31.12.2025: "Fatura No: M012025000000230" boş okunuyordu
         inv = {"ettn": "x", "text": "SAYIN\nLEMOS MEDİKAL A.Ş.\nFatura No:\nM012025000000230\nFatura Tarihi:\n31-12-2025\nÖdenecek Tutar\n100,00 TL"}
         self.assertEqual(invoice_pdf.read(inv, "6080585024")["number"], "M012025000000230")
+
+
+class DateTest(unittest.TestCase):
+    def read(self, body):
+        return invoice_pdf.read({"ettn": "x", "text": "SAYIN\nLEMOS MEDİKAL A.Ş.\n" + body + "\nÖdenecek Tutar\n100,00 TL"}, "6080585024")
+
+    def test_bare_label_with_spaces(self):
+        # Regnovis: "Tarih:" / "22-07- 2026" — tarihsiz kaldığı için hiç içe aktarılmamıştı
+        self.assertEqual(self.read("Tarih:\n22-07- 2026\nFatura No:\nAAA2026000000018")["date"], date(2026, 7, 22))
+
+    def test_abbreviated_label_year_on_next_line(self):
+        # ATA Otomotiv: "Fat. No:" / "Fat. Tar.:" / "18-07-" ⏎ "2026 15:28"
+        got = self.read("Fat. No:\nATS2026000003405\nFat. Tar.:\n18-07-\n2026 15:28")
+        self.assertEqual((got["date"], got["number"]), (date(2026, 7, 18), "ATS2026000003405"))
+
+    def test_total_before_rate_layout(self):
+        import invoice_lines
+        # Regnovis: miktar / birim / TUTAR / %KDV / KDV tutarı
+        text = "Mal Hizmet Tutarı\n1\nDanışmanlık Hizmetleri\n37 Adet\n1.500 TL\n55.500,00 TL\n%20,00\n11.100,00 TL\nMal Hizmet Toplam Tutarı: 55.500,00TL"
+        got = invoice_lines.read_lines([], text, 6660000, 1110000)
+        self.assertEqual([(line["quantity"], line["net_cents"]) for line in got], [(37, 5550000)])
 
 
 class SellerTest(unittest.TestCase):

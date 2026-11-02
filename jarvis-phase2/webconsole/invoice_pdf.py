@@ -104,7 +104,7 @@ def read(invoice, lemos):
     text = invoice["text"]
     lines = [l.strip() for l in text.splitlines() if l.strip()]
     # GİB number: 3-character series + 13 digits; NEVA's series "M01" starts with one letter (M012025000000230)
-    number = (re.search(r"Fatura\s*(?:No|Numaras[ıi])\s*:?\s*\n?\s*:?\s*([A-Z]{2,3}[0-9]{6,16}|[A-Z][A-Z0-9]{2}20\d{11})", text, re.I) or [None, ""])[1]
+    number = (re.search(r"(?:Fatura|Fat\.)\s*(?:No|Numaras[ıi])\s*:?\s*\n?\s*:?\s*([A-Z]{2,3}[0-9]{6,16}|[A-Z][A-Z0-9]{2}20\d{11})", text, re.I) or [None, ""])[1]
     own_series = number.upper().startswith(OWN_SERIES)
     sayin = next((i for i, l in enumerate(lines) if _SAYIN.search(l)), None)
     buyer_area = lines[sayin:sayin + 6] if sayin is not None else []
@@ -126,6 +126,9 @@ def read(invoice, lemos):
     # "31 - 10 - 2026" (BST) and "10- 09- 202600:00:00" (GSF) are written with spaces
     day = (re.search(r"(?:Fatura|Düzenle(?:me|nme))\s*Tarihi\s*:?\s*\n?\s*:?\s*(\d{2})\s*[-./]\s*(\d{2})\s*[-./]\s*(20\d{2})", text, re.I)
            or re.search(r"(?:Fatura|Düzenle(?:me|nme))\s*Tarihi\s*:?\s*\n?\s*:?\s*(20\d{2})-(\d{2})-(\d{2})", text, re.I)
+           # Regnovis / Bioremedy print a bare "Tarih:" and "22-07- 2026", ATA "Fat. Tar.: 18-07-⏎2026":
+           # five 2026 invoices were skipped for want of a date
+           or re.search(r"(?:(?:^|\n)\s*Tarih|Fat\.?\s*Tar\.?)\s*:?\s*\n?\s*(\d{2})\s*[-./]\s*(\d{2})\s*[-./]\s*(20\d{2})(?!\d)", text)
            or re.search(r"(?<!\d)(\d{2})[./-](\d{2})[./-](20\d{2})(?!\d)", text))
     if day and len(day[1]) == 4:  # ISO 2026-10-12
         day = [None, day[3], day[2], day[1]]

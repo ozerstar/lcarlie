@@ -25,14 +25,17 @@ THEMES = {
     "grup_ici": "Grup içi (MOY ↔ Lemos)", "iletisim": "Telefon / internet", "arac": "Araç / bakım", "ofis_demirbas": "Ofis / demirbaş / kırtasiye",
     "yazilim": "Yazılım / barkod / sistem", "danismanlik": "Danışmanlık / hizmet", "giyim": "Giyim",
     "numune_tester": "Tester / numune (ücretsiz dağıtım)",
+    "urun_test": "Ürün testi / ÜGR (laboratuvar, güvenlik raporu)",
     "diger": "Diğer",
 }
 _RULES = (  # order matters: the first match wins
     ("grup_ici", r"moy dan|moy danisman"),
+    # owner, 02.11.2026: NEVA fiyatına kutu/etiket dahil; dahil olmayan TTS laboratuvarı ve ÜGR (Aycan)
+    ("urun_test", r"\btts\b|aycan|regnovis|laboratuv|laboratuar|stabilite|challenge|mikrobiyo|guvenlilik|urun guvenlik|\bugr\b|dermatolojik test"),
     ("pazaryeri", r"platform hizmet|komisyon|termin gecikme|tazmin|trendyol|hepsiburada|dsm grup"),
     ("kargo", r"kargo|desi|kurye|nakliye|gonderi"),
-    ("reklam", r"reklam bedeli|reklam hizmet|meta|google ads"),
-    ("arac", r"otomobil|arac muayene|muayene istasyon|balata|egzoz|lastik|rot balans|motorlu arac|yag degisim|falken|michelin|\d{3}/\d{2}r\d{2}|kare yama"),
+    ("reklam", r"reklam bedeli|reklam hizmet|\bmeta\b|facebk|facebook|google ads"),  # "METAL TESTERE" reklam değil
+    ("arac", r"otomobil|arac muayene|muayene istasyon|balata|egzoz|\blastik|rot balans|motorlu arac|yag degisim|falken|michelin|\d{3}/\d{2}r\d{2}|kare yama"),
     ("takviye_ilac", r"gida takviye|takviye|ilac|eczane|schussler|zerre|nattopro|diamix|vitamin|kapsul|tablet|sase|surup|hidrosol|bioremedy|pharma|altin-|gumus|kolloid"),
     ("promosyon_matbaa", r"baski|matbaa|promosyon|dtf|brosur|katalog|kartvizit|afis|etiket|kutu harf|isikli|canta|kalem|ajans|tabela|roll ?up|banner|kitap|bayrak"),
     ("ambalaj", r"ambalaj|koli|mukavva|sunger|kagitcilik|poset|kutu|sise|kavanoz|plastik"),
@@ -48,7 +51,7 @@ BUSINESSES = {"lcarlie": "L'CARLIÉ", "lemos": "Lemos (muayenehane)", "ortak": "
               "belirsiz": "Belirsiz (sahibe sorulacak)", "grup": "Grup içi (MOY)"}
 # whose cost/sale is it; "ortak" is split by the period's sales share
 _OUT_BUSINESS = {"lcarlie_urun": "lcarlie"}  # every other sale is the clinic's
-_IN_BUSINESS = {"lcarlie_urun": "lcarlie", "ambalaj": "lcarlie", "pazaryeri": "lcarlie", "kargo": "lcarlie",
+_IN_BUSINESS = {"lcarlie_urun": "lcarlie", "urun_test": "lcarlie", "ambalaj": "lcarlie", "pazaryeri": "lcarlie", "kargo": "lcarlie",
                 "takviye_ilac": "lemos", "saglik_hizmeti": "lemos"}
 
 

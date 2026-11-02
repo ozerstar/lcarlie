@@ -82,8 +82,10 @@ def from_tables(pages):
     return lines
 
 
-def from_text(text):
-    """GİB-like layout as plain text: sıra / ad (one or more lines) / '1 Adet' / birim fiyat / %KDV / KDV / tutar."""
+def from_text(text, total_before_rate=False):
+    """GİB-like layout as plain text: sıra / ad (one or more lines) / '1 Adet' / birim fiyat / %KDV / KDV / tutar.
+    total_before_rate: Regnovis prints miktar / birim / TUTAR / %KDV / KDV — the line total is the last
+    amount before the rate (read_lines tries it only when the usual order does not add up)."""
     tokens = [t.strip() for t in text.splitlines() if t.strip()]
     starts = [i for i, t in enumerate(tokens)
               if re.search(r"(mal|malzeme)\s*/?\s*hizmet\s*tutar[ıi]|^tutar[ıi]$|^TUTARI?$", t, re.I)]
@@ -95,20 +97,23 @@ def from_text(text):
         at = next((k for k in range(i + 2, min(i + 6, len(tokens))) if qty_line.match(tokens[k])), None)
         if re.fullmatch(r"\d{1,3}", tokens[i]) and at is not None:
             name, quantity = " ".join(tokens[i + 1:at]), qty_line.match(tokens[at])
-            j, money_tokens, pct = at + 1, [], None
+            j, money_tokens, pct, before_rate = at + 1, [], None, []
             while j < len(tokens) and len(money_tokens) < 5:
                 tok = tokens[j]
                 if re.match(r"^%\s*[\d,]+$", tok):
                     pct = _pct(tok)
                 elif re.fullmatch(r"\d[\d.]*,\d{2}\s*(TL)?", tok):
                     money_tokens.append(tok)
+                    if pct is None:
+                        before_rate.append(tok)
                 elif re.fullmatch(r"\d{1,3}", tok) or re.search(r"genel açıklama|toplam|yalnız|hesaplanan|ARA TUTAR", tok, re.I):
                     break
                 j += 1
             if money_tokens:
                 quantity_value, unit = _quantity(f"{quantity.group(1)} {quantity.group(2)}")
                 lines.append({"name": name[:200], "quantity": quantity_value, "unit": unit,
-                              "net_cents": money(money_tokens[-1]), "vat_percent": pct})
+                              "net_cents": money(before_rate[-1] if total_before_rate and pct is not None and before_rate
+                                                 else money_tokens[-1]), "vat_percent": pct})
             i = j
         else:
             i += 1
@@ -128,7 +133,7 @@ def adds_up(lines, payable, tax):
 
 def read_lines(pages, text, payable, tax, party=""):
     """The first reader whose lines add up wins; numbered from 1, VAT amount filled from the rate."""
-    candidates = [from_tables(pages), from_text(text)]
+    candidates = [from_tables(pages), from_text(text), from_text(text, total_before_rate=True)]
     if re.search(r"tt mob[İi]l", party, re.I) and payable:
         candidates.append([{"name": "Mobil hat faturası", "quantity": Decimal(1), "unit": "ay",
                             "net_cents": payable - tax, "vat_percent": None}])

@@ -7,6 +7,9 @@ import re
 import sys
 
 sys.path.insert(0, "/opt/lcarlie/jarvis-phase2/webconsole")
+# --kod DIR: okuyucunun canlıya alınmamış sürümü önce yüklenir (yayından önce içe aktarma)
+if "--kod" in sys.argv:
+    sys.path.insert(0, sys.argv[sys.argv.index("--kod") + 1])
 import pymupdf  # noqa: E402
 
 import invoice_analysis  # noqa: E402
@@ -16,7 +19,8 @@ import money_invoices  # noqa: E402
 
 write = "--yaz" in sys.argv
 rows = []
-for path in [a for a in sys.argv[1:] if a != "--yaz"]:
+skip = {"--yaz", "--kod", sys.argv[sys.argv.index("--kod") + 1] if "--kod" in sys.argv else "--kod"}
+for path in [a for a in sys.argv[1:] if a not in skip]:
     doc = pymupdf.open(path)
     pages = [p.get_text() for p in doc]
     lemos = invoice_pdf.lemos_vkn(pages)
@@ -43,6 +47,8 @@ if write:
                 if cur.rowcount:
                     print("   numara eklendi:", row["number"])
     print("yeniden sınıflandırılan:", invoice_analysis.classify_all("operator"))
+    import channel_sales
+    print("sipariş ↔ fatura eşleşmesi:", channel_sales.match_invoices("operator"))
     costs = invoice_analysis.product_costs("operator")
     print(len(costs), "ürünün gerçek maliyeti:")
     for name, c in sorted(costs.items()):
