@@ -82,6 +82,23 @@ def _channel_parts(owner, start, end):
     return invoiced, parts
 
 
+def explore_rows(owner, start, end):
+    """Every sale/purchase part of both company books, small enough for the page to filter itself
+    (owner, 02.11.2026: "L'CARLIÉ toplam satışını göreyim ama VIREON hariç de görebileyim; promosyon matbaada
+    toplamı göreyim ama yalnız Yeni Nesil ya da Mim olanı da görebileyim")."""
+    rows = []
+    for book in ("lemos", "moy"):
+        parts = list(_parts(owner, book, start, end))
+        invoiced, extra = _channel_parts(owner, start, end) if book == "lemos" else ({}, [])
+        for part in parts:
+            part["channel"] = invoiced.get(part["doc"], "dogrudan") if part["box"] == "out" else ""
+        for p in parts + extra:
+            rows.append({"k": book, "b": p["box"], "t": p["theme"], "z": p["business"], "c": p["channel"],
+                         "p": p["product"] or "", "n": (p["name"] or "")[:90], "f": (p["party"] or "")[:60],
+                         "v": p["net"], "q": round(p["qty"] or 0, 2), "m": p["day"].strftime("%Y-%m")})
+    return rows
+
+
 def analysis(owner, book="lemos", year=None, month=""):
     year = int(year or date.today().year)
     if month:
@@ -158,7 +175,9 @@ def analysis(owner, book="lemos", year=None, month=""):
         "channels": [{"key": k, "label": CHANNELS[k], **v} for k, v in sorted(channels.items(), key=lambda kv: -kv[1]["net"])],
         "channel_monthly": [{"month": k, **v} for k, v in sorted(channel_months.items())],
         "total_sales": sum(v["net"] for v in channels.values()),
-        "parts": len(parts), "unread": unread, "method": (
+        "parts": len(parts), "unread": unread, "rows": explore_rows(owner, start, end),
+        "themes_all": invoice_topics.THEMES, "channel_labels": CHANNELS,
+        "business_labels": invoice_topics.BUSINESSES, "method": (
             "KDV hariç tutarlar. Kalemler içeriğine göre ayrıldı; ortak giderler (telefon, araç, ofis, etkinlik, genel "
             "promosyon) iki işe dönemin net satış payına göre bölüştürüldü. Ürünü yazmayan 'gıda takviyesi' satışları "
             "Lemos'un satışı sayıldı; MOY ile grup içi faturalar ayrı tutuldu. Wix ve Trendyol siparişlerinin faturası "
