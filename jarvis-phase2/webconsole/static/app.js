@@ -4553,9 +4553,9 @@ async function tasarimYukle() {
         : '';
       const oran = d2.oran_uyarisi
         ? '<div class="fm-sub">⚠ ' + escapeHtml(d2.oran_uyarisi) + '</div>' : '';
-      const bag = i.disa_aktarim
-        ? '<div class="fm-sub"><a href="' + escapeHtml(i.disa_aktarim)
-          + '" target="_blank" rel="noopener">çıktıyı indir</a></div>' : '';
+      const bag = i.canva_tasarim
+        ? '<div class="fm-sub"><a href="/api/tasarim/' + encodeURIComponent(i.is_id)
+          + '/onizleme" target="_blank" rel="noopener">çıktıyı aç</a></div>' : '';
       return '<details class="detail-block"><summary><strong>'
         + escapeHtml(i.istek || '(istek yok)') + '</strong>' + rozet
         + '</summary><div class="fm-sub oo-govde">' + escapeHtml(i.is_turu) + ' · '
@@ -4796,12 +4796,7 @@ async function asistanYukle() {
   if (tk2) {
     var ts = d.tasarim_onay || [];
     tk2.innerHTML = ts.length ? ts.map(function (t) {
-      var bag = t.disa_aktarim
-        ? '<div class="fm-sub"><a href="' + escapeHtml(t.disa_aktarim)
-          + '" target="_blank" rel="noopener">çıktıyı gör</a></div>' : '';
-      return onaySatiri(t.istek || ('Tasarım #' + t.is_id),
-                        (t.is_turu || '') + ' · ' + (t.sablon_adi || ''),
-                        'TASARIM', bag);
+      return tasarimOnayKarti(t);
     }).join('') : '<p class="fm-sub">Onay bekleyen tasarım yok.</p>';
   }
 
@@ -8246,4 +8241,56 @@ async function gkTaslak(kid) {
 document.addEventListener('click', function (ev) {
   var b = ev.target.closest ? ev.target.closest('[data-taslak]') : null;
   if (b) gkTaslak(Number(b.dataset.kid));
+});
+
+/* Tasarım onayı (sahip 04.11): görsel kartın İÇİNDE, ne onaylandığı düz Türkçe,
+   karar düğmeleri yanında. Onay yalnız kayda geçer; hiçbir şey kendiliğinden yayınlanmaz. */
+var TASARIM_TUR = { eticaret_ana: 'E-ticaret ürün ana görseli (pazaryeri/site kapak fotoğrafı)',
+  instagram_post: 'Instagram gönderisi' };
+function tasarimOnayKarti(t) {
+  var id = encodeURIComponent(t.is_id);
+  var tur = TASARIM_TUR[t.is_turu] || 'Tasarım';
+  var tarih = t.uretildi ? fmtDateTime(t.uretildi) : '';
+  var gorsel = t.canva_tasarim
+    ? '<a href="/api/tasarim/' + id + '/onizleme" target="_blank" rel="noopener">'
+      + '<img class="to-gorsel" loading="lazy" alt="Tasarım önizlemesi" src="/api/tasarim/' + id + '/onizleme"></a>'
+    : '<p class="fm-sub">Bu iş Canva\'da üretilemedi; görseli yok. Reddedip yeniden istemek gerekir.</p>';
+  return '<details class="detail-block" data-tasarim="' + escapeHtml(String(t.is_id)) + '">'
+    + '<summary><strong>' + escapeHtml(t.istek || ('Tasarım #' + t.is_id)) + '</strong>'
+    + '<span class="pill pill-amber">KARARINIZI BEKLİYOR</span></summary>'
+    + '<div class="oo-govde">'
+    + '<p><strong>Ne:</strong> ' + escapeHtml(tur) + (t.sablon_adi ? ' · şablon: ' + escapeHtml(t.sablon_adi) : '')
+    + (tarih ? ' · üretildi ' + escapeHtml(tarih) : '') + '</p>'
+    + gorsel
+    + '<p class="fm-sub"><strong>Onaylarsanız:</strong> bu görsel “kullanılabilir” diye kayda geçer. Kendiliğinden hiçbir yerde yayınlanmaz.<br>'
+    + '<strong>Reddederseniz:</strong> yazdığınız sebep bir sonraki tasarımın girdisi olur.</p>'
+    + '<input type="text" class="to-sebep" maxlength="300" placeholder="Reddetme sebebi (ör. ürün kutusu yanlış, yazı okunmuyor)">'
+    + '<div class="to-dugmeler"><button type="button" class="to-onayla" data-tasarim-karar="ONAYLANDI">Onayla</button>'
+    + '<button type="button" class="to-reddet" data-tasarim-karar="REDDEDILDI">Reddet</button></div>'
+    + '<p class="fm-sub to-durum" role="status"></p>'
+    + '</div></details>';
+}
+/* Önizleme alınamazsa kırık resim yerine sebebi yaz (CSP: satır içi onerror yok). */
+document.addEventListener('error', function (e) {
+  var img = e.target;
+  if (!img || !img.classList || !img.classList.contains('to-gorsel')) return;
+  var p = document.createElement('p');
+  p.className = 'fm-sub';
+  p.textContent = 'Görsel şu an alınamıyor: Canva bağlantısının yenilenmesi gerekiyor. Görmeden onaylamayın; isterseniz reddedip yeniden üretilmesini isteyin.';
+  (img.closest('a') || img).replaceWith(p);
+}, true);
+document.addEventListener('click', async function (e) {
+  var b = e.target.closest && e.target.closest('[data-tasarim-karar]');
+  if (!b) return;
+  var kart = b.closest('[data-tasarim]');
+  var durum = kart.querySelector('.to-durum');
+  var sebep = (kart.querySelector('.to-sebep') || {}).value || '';
+  b.disabled = true;
+  durum.textContent = 'Kaydediliyor…';
+  var r = await api('/api/tasarim/' + encodeURIComponent(kart.dataset.tasarim) + '/karar',
+    { method: 'POST', body: JSON.stringify({ karar: b.dataset.tasarimKarar, sebep: sebep }) });
+  b.disabled = false;
+  if (!r.ok) { durum.textContent = (r.body && r.body.error) || 'Kaydedilemedi.'; return; }
+  durum.textContent = b.dataset.tasarimKarar === 'ONAYLANDI' ? 'Onaylandı ✓' : 'Reddedildi; sebep kaydedildi.';
+  kart.querySelectorAll('button').forEach(function (x) { x.disabled = true; });
 });

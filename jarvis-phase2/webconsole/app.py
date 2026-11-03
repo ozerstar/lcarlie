@@ -1977,6 +1977,24 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(200, cevap)
             return
 
+        _tm = re.fullmatch(r"/api/tasarim/(\d+)/onizleme", path)
+        if _tm:
+            # Tasarımın görseli panelin kendi adresinden (Canva adresi 1 günde ölür).
+            from jarvis import tasarim
+            try:
+                yol = tasarim.onizleme(int(_tm.group(1)))
+            except Exception as exc:  # noqa: BLE001
+                self._send_json(503, {"error": f"önizleme alınamadı: {str(exc)[:200]}"})
+                return
+            veri = yol.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "image/png")
+            self.send_header("Content-Length", str(len(veri)))
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Cache-Control", "private, max-age=86400")
+            self.end_headers()
+            self.wfile.write(veri)
+            return
         if path == "/api/tasarim":
             from jarvis import tasarim
             try:
@@ -2874,6 +2892,17 @@ class Handler(BaseHTTPRequestHandler):
                 giren=session.username))
             return
 
+        _tk = re.fullmatch(r"/api/tasarim/(\d+)/karar", path)
+        if _tk:
+            from jarvis import tasarim
+            body = _read_json_body(self)
+            try:
+                self._send_json(200, tasarim.karar(
+                    int(_tk.group(1)), str(body.get("karar", "")),
+                    session.username, str(body.get("sebep", ""))))
+            except tasarim.TasarimHatasi as hata:
+                self._send_json(400, {"error": str(hata)})
+            return
         if path in ("/api/kreatif-itiraz", "/api/kreatif-itiraz/muhatap"):
             from jarvis import kreatif_itiraz as kit
             body = _read_json_body(self)

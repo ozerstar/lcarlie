@@ -346,6 +346,11 @@ def uret(*, is_turu: str, veri: dict, isteyen: str, istek: str,
 
     is_id = _defterle(is_turu, sablon, isteyen, istek, veri, tasarim_id,
                       cikti, "URETILDI", denetim, 0)
+    if cikti and is_id:
+        try:
+            _onizleme_kaydet(int(is_id), cikti)
+        except Exception as h:  # noqa: BLE001 - önizleme yoksa panel sebebini yazar
+            denetim["onizleme_hatasi"] = str(h)[:200]
     return {"is_id": is_id, "tasarim": tasarim_id, "cikti": cikti,
             "sablon": sablon["ad"], "denetim": denetim,
             "onay": "bekliyor — yalnız sahip onaylayabilir"}
@@ -376,3 +381,61 @@ def isler(yalniz_onaysiz: bool = False, adet: int = 30) -> list[dict]:
     kosul = "WHERE onay_bekliyor" if yalniz_onaysiz else ""
     return _oku("SELECT row_to_json(t) FROM (SELECT * FROM "
                 f"mart.tasarim_guncel {kosul} LIMIT {int(adet)}) t;")
+
+
+# ═══════════════════════════════════════════ sahip kararı + önizleme
+# Canva dışa aktarım adresi imzalıdır ve ~1 günde ölür (kış bakımı 21.09'da
+# öldü, panelde boş sayfa açılıyordu). Kalıcı olan tasarım kimliğidir: ilk
+# istekte taze aktarılır, PNG diske yazılır, panel kendi adresinden gösterir
+# (CSP img-src 'self').
+def _onizleme_dizini():
+    import os
+    from pathlib import Path
+    return Path(os.environ.get("JARVIS_STATE_DIR", "/opt/lcarlie/jarvis-phase2/state")) / "tasarim" / "onizleme"
+
+
+def onizleme(is_id: int):
+    d = _onizleme_dizini()
+    yol = d / f"{int(is_id)}.png"
+    if yol.exists() and yol.stat().st_size > 0:
+        return yol
+    satir = _oku("SELECT row_to_json(t) FROM (SELECT canva_tasarim FROM core.tasarim_isi "
+                 f"WHERE is_id = {int(is_id)}) t")
+    tid = (satir[0] if satir else {}).get("canva_tasarim")
+    if not tid:
+        raise TasarimHatasi("bu işin Canva tasarımı yok (üretim tamamlanmamış)")
+    baglar = canva.disa_aktar(tid, "png")
+    if not baglar:
+        raise TasarimHatasi("Canva çıktı vermedi")
+    return _onizleme_kaydet(is_id, baglar[0])
+
+
+def _onizleme_kaydet(is_id: int, adres: str):
+    """Dışa aktarım adresi ölmeden PNG'yi diske al (üretim anında çağrılır)."""
+    import urllib.request
+    d = _onizleme_dizini()
+    yol = d / f"{int(is_id)}.png"
+    with urllib.request.urlopen(adres, timeout=40) as r:  # noqa: S310 - Canva imzalı adresi
+        veri = r.read(20_000_000)
+    d.mkdir(parents=True, exist_ok=True)
+    gecici = yol.with_suffix(".tmp")
+    gecici.write_bytes(veri)
+    gecici.replace(yol)
+    return yol
+
+
+def karar(is_id: int, onay: str, onaylayan: str, sebep: str = "") -> dict:
+    """Sahibin kararı. Yalnız human_approver yazabilir (030 tetikleyicisi)."""
+    if onay not in ("ONAYLANDI", "REDDEDILDI"):
+        raise TasarimHatasi("karar ONAYLANDI ya da REDDEDILDI olmalı")
+    sebep = (sebep or "").strip()
+    if onay == "REDDEDILDI" and len(sebep) < 8:
+        raise TasarimHatasi("neden beğenmediğinizi birkaç kelimeyle yazın — bir sonraki tasarım bunu okur")
+    sql = ("\\set ON_ERROR_STOP on\nBEGIN;\nSET SESSION AUTHORIZATION human_approver;\n"
+           f"UPDATE core.tasarim_isi SET onay = {_tirnak(onay)}, onaylayan = {_tirnak((onaylayan or 'sahip')[:80])}, "
+           f"onaylandi = now(), red_sebebi = {_tirnak(sebep[:1000]) if sebep else 'NULL'} "
+           f"WHERE is_id = {int(is_id)} AND onay IS NULL;\nCOMMIT;\n")
+    h = _yaz(sql)
+    if h:
+        raise TasarimHatasi(f"karar kaydedilemedi: {h[:200]}")
+    return {"ok": True, "is_id": int(is_id), "onay": onay}
