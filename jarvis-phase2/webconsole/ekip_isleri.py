@@ -44,6 +44,42 @@ def _tr(iso: str) -> str:
         return str(iso or "")[:16]
 
 
+
+def ozet() -> dict:
+    """Ana sayfa sayaçları: bugünkü ekip teslimleri, açık işler, tasarım onayları.
+
+    Sahip 04.11: ana sayfadaki "Tamamlanan 18" görsel kuyruğunu sayıyordu, ekip işini değil.
+    "Bugün" İstanbul saatiyle; teslim.tarih UTC yazılır.
+    """
+    tr = datetime.timezone(datetime.timedelta(hours=3))
+    bugun = datetime.datetime.now(tr).date()
+    teslim = kismi = acik = 0
+    deps: set[str] = set()
+    for kod, d in ((_agac().get("departmanlar") or {}).items()):
+        for g in d.get("gorevler", []):
+            if g.get("durum") == "ACIK":
+                acik += 1
+            t = g.get("teslim") or {}
+            if t.get("kalite") not in ("GECTI", "KISMI"):
+                continue
+            try:
+                gun = datetime.datetime.fromisoformat(str(t.get("tarih"))).astimezone(tr).date()
+            except ValueError:
+                continue
+            if gun == bugun:
+                teslim += 1
+                kismi += t.get("kalite") == "KISMI"
+                deps.add(kod)
+    tasarim = None
+    try:
+        from jarvis import asistan
+        tasarim = len(asistan.tasarim_onay_bekleyen())
+    except Exception:  # noqa: BLE001 - okunamazsa null; panel "0" diye yalan söylemez
+        tasarim = None
+    return {"tarih": bugun.isoformat(), "teslim_bugun": teslim, "kismi_bugun": kismi,
+            "departman_bugun": len(deps), "acik": acik, "tasarim_onay": tasarim}
+
+
 def teslimler() -> dict:
     a = _agac()
     kay = []

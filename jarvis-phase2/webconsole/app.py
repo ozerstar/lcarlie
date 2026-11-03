@@ -1935,6 +1935,14 @@ class Handler(BaseHTTPRequestHandler):
             except saha.SahaHatasi as hata:
                 self._send_json(400, {"error": str(hata)})
             return
+        if path == "/api/ekip-ozet":
+            # Ana sayfa sayaçları (yalnız okur): ekip teslimleri, açık işler, tasarım onayları.
+            try:
+                from webconsole import ekip_isleri
+            except ImportError:  # pragma: no cover - doğrudan çalıştırma
+                import ekip_isleri  # type: ignore
+            self._send_json(200, ekip_isleri.ozet())
+            return
         if path == "/api/isler":
             # Hatirlatma icin PC-2'nin rapor TAZELIGI gerekiyor. Burada
             # yeniden hesaplanmaz -- iki yerde iki farkli tanim olmasi bu

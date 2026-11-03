@@ -85,22 +85,29 @@
   async function refresh() {
     if(app.hidden) return;
     const results=await Promise.allSettled([
-      get('/api/isler'),get('/api/actions'),get('/api/mobile/reminders'),get('/api/satislar'),get('/api/status')
+      get('/api/isler'),get('/api/actions'),get('/api/mobile/reminders'),get('/api/satislar'),get('/api/status'),get('/api/ekip-ozet')
     ]);
     if(app.hidden) return;
     const data=results.map((r)=>r.status==='fulfilled'?r.value:null);
-    const [jobs,proposals,reminders,sales,status]=data;
+    const [jobs,proposals,reminders,sales,status,ekip]=data;
     const counts=jobs?.sayilar || {};
     const pending=Array.isArray(proposals?.pending)?proposals.pending:null;
     const reminderList=Array.isArray(reminders?.reminders)?reminders.reminders:null;
     const waiting=['bekleyen','calisan','hata'].every((key)=>Number.isFinite(Number(counts[key])))
       ? Number(counts.bekleyen)+Number(counts.calisan)+Number(counts.hata):null;
     count(waiting,'edWaiting'); count(jobs?Number(counts.biten):null,'edDone');
-    count(pending?.length,'edApprovals'); count(pending?.length,'edDecisionCount');
+    // Karar sayısı iki kaynaktan: öneri kuyruğu + tasarım onayları (asistan sayfasında ikisi birlikte görünür).
+    const tasarimOnay=Number.isFinite(Number(ekip?.tasarim_onay))?Number(ekip.tasarim_onay):0;
+    const kararToplam=pending?pending.length+tasarimOnay:null;
+    count(kararToplam,'edApprovals'); count(kararToplam,'edDecisionCount');
+    $('edApprovalsSub').textContent=pending?`${pending.length} öneri · ${tasarimOnay} tasarım`:'Öneri ve tasarım onayları';
+    count(ekip?Number(ekip.teslim_bugun):null,'edTeamDone'); count(ekip?Number(ekip.acik):null,'edTeamOpen');
+    $('edTeamDoneSub').textContent=!ekip?'Ekip verisi okunamadı'
+      : ekip.teslim_bugun?`${ekip.departman_bugun} departman · ${ekip.kismi_bugun} kısmi`:'Bugün henüz teslim yok';
     const today=new Date().toLocaleDateString('sv-SE');
     const orders=Array.isArray(sales?.siparisler)?sales.siparisler.filter((o)=>String(o.gun||'').slice(0,10)===today).length:null;
     count(orders,'edOrders');
-    const focus=pending?.length ? [`${pending.length} karar seni bekliyor`,'Önerileri inceleyip uygun olanlara karar ver.','Onayları incele','gorevler']
+    const focus=kararToplam ? [`${kararToplam} karar seni bekliyor`,'Öneri ve tasarım onaylarını inceleyip karar ver.','Onayları incele','asistan']
       : waiting>0 ? [`${waiting} iş takip ediliyor`,'Sıradaki ve hazırlanan işlerin durumuna göz at.','İşleri aç','isler']
       : reminderList?.length ? [`${reminderList.length} hatırlatıcı kayıtlı`,'Yaklaşan planını sağdaki listeden görebilirsin.','Asistana sor','asistan']
       : ['Bugün için bekleyen karar görünmüyor','Yeni bir konu varsa Jarvis ile başlayabilirsin.','Asistanı aç','asistan'];
@@ -126,8 +133,11 @@
     });
     const decisions=$('edDecisions');decisions.replaceChildren();
     if(!pending) decisions.innerHTML='<p>Onaylar okunamadı.</p>';
-    else if(!pending.length) decisions.innerHTML='<p>Bekleyen karar yok.</p>';
-    else pending.slice(0,3).forEach((p)=>row(decisions,JarvisMetin.safeTitle(p?.payload?.reason||p?.title,'İncelenecek yeni karar'),'İncelemek için onaylara git'));
+    else if(!pending.length&&!tasarimOnay) decisions.innerHTML='<p>Bekleyen karar yok.</p>';
+    else {
+      pending.slice(0,3).forEach((p)=>row(decisions,JarvisMetin.safeTitle(p?.payload?.reason||p?.title,'İncelenecek yeni karar'),'İncelemek için onaylara git'));
+      if(tasarimOnay) row(decisions,`${tasarimOnay} tasarım onayınızı bekliyor`,'Asistan › Onaylar ve imzalar');
+    }
     $('edSystemState').textContent=status?'Sistem verileri alındı':'Sistem durumu okunamadı';
     document.querySelector('.ed-system-light')?.classList.toggle('is-warn',!status);
   }
