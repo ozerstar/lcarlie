@@ -865,6 +865,7 @@ class IsUretici:
         deps = {d.kod: d for d in self.o.departmanlar()}
         adaylar = []
         simdi_ = self.o.saat()
+        tum = {x.get("id"): x for d in agac["departmanlar"].values() for x in d.get("gorevler", [])}
         suresi_doldu = 0
         for kod, d in agac["departmanlar"].items():
             for g in d.get("gorevler", []):
@@ -882,10 +883,13 @@ class IsUretici:
                     g["durum"] = "SURESI_DOLDU"
                     suresi_doldu += 1
                     continue
+                if any((tum.get(b) or {}).get("durum") == "ACIK" for b in g.get("bagimli") or []):
+                    continue   # önce bağlı olduğu ekip işleri bitsin (ör. ekip yorumları -> karar notu)
                 if g.get("tip") in YURUTULEBILIR and kod in deps:
                     adaylar.append((g.get("son_tarih", ""), kod, g))
         # Önce rutin, sonra yeni tarihli; aynı işte daha az denenen önce.
-        adaylar.sort(key=lambda x: (0 if x[2].get("rutin_id") else 1, x[2].get("deneme", 0), x[0]))
+        adaylar.sort(key=lambda x: (0 if x[2].get("oncelik") == "ACIL" else 1 if x[2].get("rutin_id") else 2,
+                                    x[2].get("deneme", 0), x[0]))
         teslim = basarisiz = 0
         for _, kod, g in adaylar[:sinir]:
             if bitis is not None and time.monotonic() >= bitis:
@@ -922,14 +926,24 @@ class IsUretici:
                     except Exception as e:  # noqa: BLE001
                         self.kayit.append({"gorev": g["id"], "uyari": f"kaynaklı arama yapılamadı: {e}"[:200]})
                 kanitlar += [Kanit(f"K{len(kanitlar)+i+1}", k.kaynak, k.metin) for i, k in enumerate(canli)]
+            on: list[Kanit] = []
+            for b in g.get("bagimli") or []:
+                yb = ((tum.get(b) or {}).get("teslim") or {}).get("yol")
+                if yb:
+                    try:
+                        on.append(Kanit("", f"ekip teslimi: {b}", Path(yb).read_text(encoding="utf-8")[:1500]))
+                    except OSError:
+                        continue
             if g.get("bilgi"):
                 # Görevin eğitim dosyası (hook kuralları, ihracat rehberi...) kanıtın başına.
-                kanitlar = [Kanit(f"K{i+1}", x.kaynak, x.metin)
-                            for i, x in enumerate(self._bilgi(g["bilgi"], 2500) + kanitlar)]
+                on = self._bilgi(g["bilgi"], min(6000, int(g.get("bilgi_sinir") or 2500))) + on
+            if on:
+                kanitlar = [Kanit(f"K{i+1}", x.kaynak, x.metin) for i, x in enumerate(on + kanitlar)]
             g["deneme"] = int(g.get("deneme", 0)) + 1
             self._ofis(uye.key, "WORKING", g["baslik"])
             try:
-                v = self._model("yurut", istem_yurut(dep, g, uye, kanitlar), "is-uretici-yurut")
+                v = self._model("yurut", istem_yurut(dep, g, uye, kanitlar),
+                                "is-uretici-yurut-guclu" if g.get("guclu") else "is-uretici-yurut")
             except Exception as e:  # noqa: BLE001
                 self._ofis(uye.key, "FAILED", g["baslik"])
                 self.kayit.append({"gorev": g["id"], "hata": str(e)[:300]})
@@ -960,6 +974,15 @@ class IsUretici:
                        ("Teslim etti: " if gecti else "Kısmi teslim: " if kismi else "Kalite kapısından döndü: ") + g["baslik"])
             if gecti or kismi:
                 g["durum"] = "TESLIM_EDILDI"
+                if g.get("sahibe_gonder") and not self.kuru and self.o.oneri_ac and not g.get("sahibe_gonderildi"):
+                    metin = (f"JARVIS · {dep.ad}\n{g['baslik']}\n\n{t['teslim_ozeti']}\n\n{t['icerik']}"
+                             + (f"\n\nEksik: {t['eksik']}" if t.get("eksik") else ""))[:3500]
+                    try:
+                        g["sahibe_gonderildi"] = self.o.oneri_ac(
+                            f"teslim.{g['id']}"[:120], metin,
+                            f"Ekip teslimi sahibin okuması ve kararı için gönderildi: {g['baslik']}"[:400])
+                    except Exception as e:  # noqa: BLE001
+                        self.kayit.append({"gorev": g["id"], "uyari": f"sahibe gönderilemedi: {e}"[:200]})
                 teslim += 1
                 if not self.kuru and g.get("work_id"):
                     try:

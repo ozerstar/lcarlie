@@ -175,6 +175,39 @@ class TestRutin(unittest.TestCase):
         IsUretici(o, gunluk_tavan=50).yurut(sinir=1)
         self.assertIn("[K1] (şirket bilgisi: hook-ve-ugc) Hook kuralı", istemler[-1])
 
+    def test_bagimli_karar_notu_sahibe_gider(self):
+        iu = IsUretici(self.o, gunluk_tavan=50)
+        a = iu.agac_deposu.oku()
+        dep = deps()[0]
+        ortak = {"tip": "ANALIZ", "sorumlu": "seo_teknik", "cikti": "x", "kabul_olcutu": "x", "sure_gun": 1,
+                 "hedef_id": "", "neden": "x"}
+        iu._gorev_ekle(a, dep, dict(ortak, baslik="Rapor bölümü bir yorumla", oncelik="ACIL"), "rapor", "2026-10-26", 1, gid="r1")
+        iu._gorev_ekle(a, dep, dict(ortak, baslik="Karar notu yaz sahibe", tip="TASLAK", oncelik="ACIL",
+                                    bagimli=["r1"], sahibe_gonder=True, guclu=True), "rapor", "2026-10-26", 2, gid="r9")
+        iu._gorev_ekle(a, dep, dict(ortak, baslik="Sıradan icat edilmiş iş"), "gunluk", "2026-10-26", 3, gid="s1")
+        iu.agac_deposu.yaz(a, SAAT)
+        gonderilen = []
+        anahtarlar = []
+        def model(m, kw):
+            return cevap(m, kw)
+        def uret(m, **kw):
+            anahtarlar.append(kw.get("is_anahtari"))
+            return SahteModel(model)(m, **kw)
+        o = replace(self.o, rutin=list, uret=uret, oneri_ac=lambda k, m, s: gonderilen.append((k, m)) or 77)
+        s1 = IsUretici(o, gunluk_tavan=50).yurut(sinir=1)
+        g = {x["id"]: x for x in self.gorevler()}
+        self.assertEqual(g["r1"]["durum"], "TESLIM_EDILDI")   # ACIL önce, bağımlı not beklemede
+        self.assertEqual(g["r9"]["durum"], "ACIK")
+        self.assertEqual(s1["teslim"], 1)
+        IsUretici(o, gunluk_tavan=50).yurut(sinir=1)
+        g = {x["id"]: x for x in self.gorevler()}
+        self.assertEqual(g["r9"]["durum"], "TESLIM_EDILDI")
+        self.assertEqual(g["r9"]["sahibe_gonderildi"], 77)
+        self.assertEqual(gonderilen[0][0], "teslim.r9")
+        self.assertIn("JARVIS · ", gonderilen[0][1])
+        self.assertEqual(g["s1"]["durum"], "ACIK")
+        self.assertEqual(anahtarlar, ["is-uretici-yurut", "is-uretici-yurut-guclu"])
+
     def test_gercek_katalog_gecerli(self):
         yol = Path(__file__).resolve().parent.parent / "config" / "rutin-isler.json"
         isler = json.loads(yol.read_text(encoding="utf-8"))["isler"]
