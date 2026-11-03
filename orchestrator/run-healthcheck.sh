@@ -1,5 +1,9 @@
 #!/bin/sh
 set -eu
+# 03.11.2026: a run killed between create and start left the container in
+# "Created" state; --rm never fired and every later run hit a name conflict
+# (240 failures in 48h). Clear any leftover before starting.
+docker rm -f lcarlie-ai-health-once >/dev/null 2>&1 || true
 exec docker run --rm \
   --name lcarlie-ai-health-once \
   --network lcarlie_dahili \

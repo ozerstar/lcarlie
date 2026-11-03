@@ -26,6 +26,7 @@ import email
 import imaplib
 import re
 import sys
+import time
 from email.header import decode_header
 from pathlib import Path
 
@@ -174,5 +175,37 @@ def main() -> int:
     return 0
 
 
+# 🔴 GEÇİCİ AĞ KOPMASI BİRİMİ DÜŞÜRMEZ (03.11.2026).
+# IMAP sunucusu FETCH sırasında bağlantıyı kesiyordu (socket error: EOF) ve
+# 24 saatte 705 çalışmanın 118'i exit 1 ile bitiyordu. Kayıp yoktu -- SON_UID
+# yalnız başarılı turda ilerler, sonraki tur kaldığı yerden devam eder --
+# ama birim sürekli "failed" görünüyor ve gerçek arızayı gürültüye gömüyordu.
+# Şimdi: bir kez yeniden dene; yine düşerse ardışık hata sayılır ve birim
+# ancak ARDISIK_TAVAN (~20 dk) aşılınca düşer, yani kalıcı kopuş görünür kalır.
+ARDISIK = SON_UID.parent / "eposta-nobet.ardisik-hata"
+ARDISIK_TAVAN = 10
+
+
+def calistir() -> int:
+    son_hata = None
+    for deneme in (1, 2):
+        try:
+            sonuc = main()
+            ARDISIK.unlink(missing_ok=True)
+            return sonuc
+        except (imaplib.IMAP4.abort, OSError) as hata:
+            son_hata = hata
+            if deneme == 1:
+                time.sleep(5)
+    try:
+        sayi = int(ARDISIK.read_text().strip()) + 1
+    except (OSError, ValueError):
+        sayi = 1
+    ARDISIK.parent.mkdir(parents=True, exist_ok=True)
+    ARDISIK.write_text(str(sayi))
+    print("IMAP geçici hata (%d. ardışık): %s" % (sayi, son_hata), file=sys.stderr)
+    return 1 if sayi >= ARDISIK_TAVAN else 0
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(calistir())
