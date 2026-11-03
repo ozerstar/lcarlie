@@ -1,0 +1,11 @@
+[Unit]
+Description=LCARLIE is uretici: acik ic gorevleri ekip uyelerine yaptir (08-23 arasi saatte bir)
+
+[Timer]
+OnCalendar=*-*-* 08..23:10:00
+Persistent=true
+RandomizedDelaySec=120
+Unit=lcarlie-is-uretici@yurut.service
+
+[Install]
+WantedBy=timers.target

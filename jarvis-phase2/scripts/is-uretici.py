@@ -45,6 +45,21 @@ def _kilit():
     return f
 
 
+def _oneri_ac(anahtar: str, metin: str, sebep: str) -> int | None:
+    """Kurulun YAP dediği onay işini ana sayfadaki onay kuyruğuna koyar (REQUEST_HUMAN_REVIEW).
+    Değerler psql değişkeni olarak geçer (:'x' tırnaklar); SQL'e metin eklenmez."""
+    import subprocess
+    sql = ("SELECT core.ai_sistem_onerisi('kurul', 'REQUEST_HUMAN_REVIEW', :'a', "
+           "jsonb_build_object('reason', :'m'), :'s');")
+    r = subprocess.run(["docker", "exec", "-i", "lcarlie-postgres", "psql", "-U", "n8n", "-d", "n8n",
+                        "-v", "ON_ERROR_STOP=1", "-tA", "-v", f"a={anahtar}", "-v", f"m={metin}", "-v", f"s={sebep}"],
+                       input=sql, capture_output=True, text=True, timeout=60, check=False)
+    if r.returncode != 0:
+        raise RuntimeError(f"onay önerisi yazılamadı: {r.stderr.strip()[:200]}")
+    deger = r.stdout.strip()
+    return int(deger) if deger.isdigit() else None
+
+
 def _rutin_katalog() -> list:
     """config/rutin-isler.json: departmanların sabit tekrarlayan işleri."""
     yol = Path(os.environ.get("IS_URETICI_RUTIN", str(KOK / "config" / "rutin-isler.json")))
@@ -162,13 +177,15 @@ def _ortam(canli_arastirma: bool):
                  grounded=pb.grounded_arama(providers), adlib=pb.adlib_kancalari,
                  urunler=pb.urun_listesi(memory), bilgi_dosyasi=pb.bilgi_dosyasi(KOK),
                  pubmed=pb.pubmed_ara(Kanit), b2b_ozet=pb.b2b_ozet(DURUM), b2b_liste=pb.b2b_liste(DURUM),
-                 plan_ekle=pb.plan_ekle, ofis=_ofis_yazici(), rutin=_rutin_katalog)
+                 plan_ekle=pb.plan_ekle, ofis=_ofis_yazici(), rutin=_rutin_katalog,
+                 oneri_ac=_oneri_ac, gunluk_arastirma=True,
+                 odak_bilgi=tuple(x for x in os.environ.get("IS_URETICI_ODAK", "kasim-2026-plani").split(",") if x))
 
 
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--mod", required=True,
-                   choices=("gunluk", "haftalik", "aylik", "yurut", "rakip", "kreatif", "b2b", "retro"))
+                   choices=("gunluk", "haftalik", "aylik", "yurut", "rakip", "kreatif", "b2b", "retro", "kurul"))
     p.add_argument("--sinir", type=int, default=None)
     p.add_argument("--kuru", action="store_true", help="deftere/ağaca yazmadan dene")
     p.add_argument("--sure", type=int, default=None, help="yurut: bu kadar saniye sonra yeni işe başlama")
@@ -186,6 +203,9 @@ def main() -> int:
             sonuc = iu.haftalik(a.sinir or 50)
         elif a.mod == "aylik":
             sonuc = iu.aylik()
+        elif a.mod == "kurul":
+            from jarvis.kurul import Kurul
+            sonuc = Kurul(iu, radar_panel=Path(os.environ.get("RADAR_PANEL", "/opt/lcarlie/radar/data/panel.json"))).calistir()
         elif a.mod in ("rakip", "kreatif", "b2b", "retro"):
             from jarvis.programlar import Programlar
             pr = Programlar(iu)

@@ -16,6 +16,7 @@ from jarvis.is_uretici import (
     IsUretici,
     Kanit,
     Ortam,
+    rutin_ac,
     rutin_donem,
     rutin_vadeli,
 )
@@ -60,22 +61,23 @@ class TestRutin(unittest.TestCase):
         ids = [e["id"] for e in rutin_vadeli(KATALOG, SAAT.date())]
         self.assertEqual(ids, ["seo-g", "seo-h", "seo-a", "yok"])
 
-    def test_gunluk_rutinleri_ekler_icat_etmez(self):
+    def test_gunluk_rutin_ve_icat_birlikte(self):
         s = IsUretici(self.o, gunluk_tavan=50).gunluk()
         self.assertEqual(s["rutin"], 3)
-        self.assertEqual(s["gorev"], 0)   # rutini olan birime icat görev yok
+        self.assertEqual(s["gorev"], 2)   # sahip 03.11: rutin + icat birlikte (günde 4-5 iş)
+        self.assertEqual(s["arastirma"], 0)   # bayrak kapalı
         g = self.gorevler()
-        self.assertEqual([x["id"] for x in g],
+        self.assertEqual([x["id"] for x in g][:3],
                          ["rutin-seo-g-2026-10-26", "rutin-seo-h-2026-W44", "rutin-seo-a-2026-10"])
         self.assertEqual(g[2]["tip"], "ANALIZ")          # katalog dış eylem/onay işi üretemez
         self.assertEqual(g[0]["sorumlu"], "seo_icerik")   # sorumlu yoksa departman lideri
-        self.assertEqual(len(self.defter.works), 3)
+        self.assertEqual(len(self.defter.works), 5)
 
     def test_ikinci_kosu_cift_eklemez(self):
         IsUretici(self.o, gunluk_tavan=50).gunluk()
         s = IsUretici(self.o, gunluk_tavan=50).gunluk()
         self.assertEqual(s["rutin"], 0)
-        self.assertEqual(len(self.gorevler()), 3)
+        self.assertEqual(len(self.gorevler()), 5)
 
     def test_acik_rutin_varken_yenisi_eklenmez(self):
         IsUretici(self.o, gunluk_tavan=50).gunluk()
@@ -109,6 +111,70 @@ class TestRutin(unittest.TestCase):
         self.assertEqual(s["rutin"], 0)
         self.assertEqual(s["gorev"], 2)
 
+    def test_dongu_urun_ve_liste(self):
+        kat = [{"id": "ugc", "departman": "SEO", "siklik": "gunluk", "dongu": "urun", "adet": 2,
+                "baslik": "{x} için UGC senaryosu", "cikti": "senaryo", "kabul_olcutu": "x"},
+               {"id": "ulke", "departman": "SEO", "siklik": "gunluk", "dongu": ["Irak", "BAE", "Azerbaycan"],
+                "baslik": "{x} distribütörleri", "cikti": "liste", "kabul_olcutu": "x"}]
+        acik = rutin_ac(kat, SAAT.date(), ["BABYSOFT", "LIPVORA", "VIREON", "HYDRAVIE"])
+        self.assertEqual(len(acik), 3)
+        u = [e for e in acik if e["rutin_kok"] == "ugc"]
+        self.assertTrue(all(e["urun"] in e["baslik"] for e in u))
+        self.assertNotEqual(u[0]["id"], u[1]["id"])
+        ertesi = rutin_ac(kat, SAAT.date() + timedelta(days=1), ["BABYSOFT", "LIPVORA", "VIREON", "HYDRAVIE"])
+        self.assertNotEqual({e["urun"] for e in u}, {e["urun"] for e in ertesi if e.get("urun")})
+
+    def test_urun_bilgisi_ve_kismi_teslim(self):
+        kat = [{"id": "ugc", "departman": "SEO", "siklik": "gunluk", "dongu": "urun", "adet": 1, "tip": "TASLAK",
+                "baslik": "{x} için UGC senaryosu", "cikti": "senaryo", "kabul_olcutu": "x"}]
+        def model(m, kw):
+            u = m[-1]["content"]
+            if "Görevi şimdi yap" in u:
+                self.assertIn("ürün bilgisi: LIPVORA", u)
+                self.assertIn("Shea yağı", u)
+                return {"teslim_ozeti": "Senaryo yazıldı.", "icerik": "## Senaryo\n- a\n- b\n- c\n" + " ".join(["k"] * 130),
+                        "kullanilan_kanit": ["K1"], "kabul_karsilandi_mi": False, "eksik": "fiyat verisi yok"}
+            return cevap(m, kw)
+        o = replace(self.o, rutin=lambda: kat, urunler=lambda: [("LIPVORA", "Shea yağı içerir")],
+                    uret=SahteModel(model))
+        IsUretici(o, gunluk_tavan=50).gunluk()
+        s = IsUretici(o, gunluk_tavan=50).yurut(sinir=1)
+        self.assertEqual(s["teslim"], 1)
+        g = next(x for x in self.gorevler() if x.get("urun"))
+        self.assertEqual(g["durum"], "TESLIM_EDILDI")
+        self.assertEqual(g["teslim"]["kalite"], "KISMI")
+        self.assertIn("fiyat verisi yok", Path(g["teslim"]["yol"]).read_text(encoding="utf-8"))
+
+    def test_gunluk_arastirma_ve_kaynakli_arama(self):
+        o = replace(self.o, rutin=list, gunluk_arastirma=True,
+                    grounded=lambda soru: ("Bulgu: GSC rehberi yapılandırılmış veri önerir.", ["https://developers.google.com/x"]))
+        s = IsUretici(o, gunluk_tavan=50).gunluk()
+        self.assertEqual(s["arastirma"], 1)
+        a = next(x for x in self.gorevler() if x["id"].endswith("-a1"))
+        self.assertEqual(a["tip"], "ARASTIRMA")
+        istemler = []
+        def model(m, kw):
+            istemler.append(m[-1]["content"])
+            return cevap(m, kw)
+        o2 = replace(o, uret=SahteModel(model))
+        IsUretici(o2, gunluk_tavan=50).yurut(sinir=5)
+        self.assertTrue(any("kaynaklı arama: https://developers.google.com/x" in i for i in istemler))
+
+    def test_bilgi_dosyasi_kanita_girer(self):
+        kat = [{"id": "hook", "departman": "SEO", "siklik": "gunluk", "tip": "TASLAK", "bilgi": ["hook-ve-ugc"],
+                "baslik": "Hook bankası", "cikti": "10 hook", "kabul_olcutu": "x"}]
+        istemler = []
+        def model(m, kw):
+            istemler.append(m[-1]["content"])
+            return cevap(m, kw)
+        dosyalar = {"hook-ve-ugc": "Hook kuralı: ilk 2 saniyede dert söylenir.", "kasim-2026-plani": "11.11 Çarşamba."}
+        o = replace(self.o, rutin=lambda: kat, uret=SahteModel(model), odak_bilgi=("kasim-2026-plani",),
+                    bilgi_dosyasi=lambda ad: dosyalar.get(ad, ""))
+        IsUretici(o, gunluk_tavan=50).gunluk()
+        self.assertIn("şirket bilgisi: kasim-2026-plani", istemler[0])   # odak her birimin günlük planında
+        IsUretici(o, gunluk_tavan=50).yurut(sinir=1)
+        self.assertIn("[K1] (şirket bilgisi: hook-ve-ugc) Hook kuralı", istemler[-1])
+
     def test_gercek_katalog_gecerli(self):
         yol = Path(__file__).resolve().parent.parent / "config" / "rutin-isler.json"
         isler = json.loads(yol.read_text(encoding="utf-8"))["isler"]
@@ -121,6 +187,10 @@ class TestRutin(unittest.TestCase):
                 self.assertTrue(e.get(alan), (e["id"], alan))
             if e["siklik"] == "haftalik":
                 self.assertIn(e["gun"], range(7))
+            for ad in e.get("bilgi", []):
+                self.assertTrue((yol.parent.parent / "knowledge" / f"{ad}.md").exists(), (e["id"], ad))
+            if e.get("dongu"):
+                self.assertIn("{x}", e["baslik"], e["id"])
             if e["siklik"] == "aylik":
                 self.assertIn(e["ay_gunu"], range(1, 29))
 

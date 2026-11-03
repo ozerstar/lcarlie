@@ -229,6 +229,9 @@ class Ortam:
     plan_ekle: Callable[[str, str, str], bool] | None = None   # core.arastirma_plani'ye konu
     ofis: Callable[..., None] | None = None                # office_events.emit (3D ofiste canlı durum)
     rutin: Callable[[], list[dict]] | None = None          # config/rutin-isler.json -> sabit tekrarlayan işler
+    oneri_ac: Callable[[str, str, str], int | None] | None = None  # kurul -> core.ai_sistem_onerisi (ana sayfa onayı)
+    gunluk_arastirma: bool = False   # günlük araştırma sorusunu ARASTIRMA görevine çevir (sahip 03.11)
+    odak_bilgi: tuple = ()           # her birimin kanıtına eklenen şirket bilgi dosyaları (knowledge/<ad>.md)
     saat: Callable[[], datetime] = simdi
 
 
@@ -444,6 +447,31 @@ def rutin_vadeli(katalog: Iterable[dict], gun: date) -> list[dict]:
     return out
 
 
+def rutin_ac(katalog: list[dict], gun: date, urunler: list[str]) -> list[dict]:
+    """`dongu` alanlı işleri açar: "urun" -> ürün adları, liste -> o liste. Her gün `adet`
+    kadar sıradaki öğe; liste bitince başa döner (39 ürün / 4 = ~10 günde bir tur)."""
+    out = []
+    for e in katalog:
+        d = e.get("dongu")
+        if not d:
+            out.append(e)
+            continue
+        havuz = sorted(urunler) if d == "urun" else [str(x) for x in d] if isinstance(d, list) else []
+        if not havuz:
+            continue
+        n = max(1, int(e.get("adet", 1)))
+        bas = (gun.toordinal() * n) % len(havuz)
+        for x in [havuz[(bas + i) % len(havuz)] for i in range(min(n, len(havuz)))]:
+            kisa = re.sub(r"[^a-z0-9]+", "-", x.casefold())[:30].strip("-") or "x"
+            yeni = {k: (v.replace("{x}", x) if isinstance(v, str) else v) for k, v in e.items()}
+            yeni["id"] = f"{e['id']}-{kisa}"
+            yeni["rutin_kok"] = e["id"]
+            if d == "urun":
+                yeni["urun"] = x
+            out.append(yeni)
+    return out
+
+
 def rutin_gorev(e: dict, dep: Departman) -> dict:
     sorumlu = str(e.get("sorumlu") or "")
     if sorumlu not in {u.key for u in dep.uyeler}:
@@ -459,6 +487,8 @@ def rutin_gorev(e: dict, dep: Departman) -> dict:
         "hedef_id": "",
         "neden": f"rutin katalog · {e['siklik']} · kaynak: {temizle(e.get('kaynak'), 120)}",
         "rutin_id": str(e["id"]),
+        **({"urun": str(e["urun"])} if e.get("urun") else {}),
+        **({"bilgi": [str(x) for x in e["bilgi"]][:2]} if isinstance(e.get("bilgi"), list) else {}),
     }
 
 
@@ -587,7 +617,24 @@ class IsUretici:
         except Exception as e:  # noqa: BLE001
             self.kayit.append({"departman": dep.kod, "uyari": f"araştırma notları okunamadı: {e}"[:200]})
         # Kimlikleri tek tip yeniden numarala.
+        # Şirketin dönem odağı (03.11: Kasım planı) her birimin kanıtının BAŞINA girer; 8K bağlamlı
+        # yerel modelde <veri> sondan kısaltılır, odak kaybolmasın.
+        kanit = self._bilgi(self.o.odak_bilgi, 2000) + kanit
         return [Kanit(f"K{i+1}", k.kaynak, k.metin) for i, k in enumerate(kanit)]
+
+    def _bilgi(self, adlar, sinir: int) -> list[Kanit]:
+        if not self.o.bilgi_dosyasi:
+            return []
+        out = []
+        for ad in list(adlar)[:2]:
+            try:
+                metin = self.o.bilgi_dosyasi(str(ad))
+            except Exception as e:  # noqa: BLE001
+                self.kayit.append({"bilgi": str(ad), "uyari": f"bilgi dosyası okunamadı: {e}"[:200]})
+                continue
+            if metin:
+                out.append(Kanit("", f"şirket bilgisi: {ad}", metin[:sinir]))
+        return out
 
     @staticmethod
     def _benzer(a: str, b: str) -> bool:
@@ -643,10 +690,13 @@ class IsUretici:
         agac = self.agac_deposu.oku()
         hedef_ids = {str(h.get("id")) for h in agac["hedefler"]}
         deps = [d for d in self.o.departmanlar() if d.uyeler][:sinir]
-        uretilen = rutin_sayi = 0
+        uretilen = rutin_sayi = arastirma_sayi = 0
         bugun_rutin: dict[str, int] = {}
         try:
             katalog = rutin_vadeli(self.o.rutin() if self.o.rutin else [], date.fromisoformat(tarih))
+            if any(e.get("dongu") for e in katalog):
+                adlar = [a for a, _ in (self.o.urunler() if self.o.urunler else [])]
+                katalog = rutin_ac(katalog, date.fromisoformat(tarih), adlar)
         except Exception as e:  # noqa: BLE001
             katalog = []
             self.kayit.append({"uyari": f"rutin katalog okunamadı: {e}"[:200]})
@@ -682,9 +732,8 @@ class IsUretici:
             gecerli = {k.kimlik for k in kanitlar}
             bulgu_kanit = _kanit_listesi(v.get("bulgu_kanit"), gecerli)
             kanit_haritasi = {k.kimlik: k.kaynak for k in kanitlar}
-            # Bugün rutini olan birime icat görev eklenmez (kuyruk rutinle dolu).
-            gorevler = [gorev_dogrula(g, dep, hedef_ids)
-                        for g in (v.get("gorevler") or [])[:0 if bugun_rutin.get(dep.kod) else 2]]
+            # Sahip 03.11: "herkes günde 4-5 farklı iş" -> rutin + 2 icat + 1 araştırma + kurul işi.
+            gorevler = [gorev_dogrula(g, dep, hedef_ids) for g in (v.get("gorevler") or [])[:2]]
             gorevler = [g for g in gorevler if g]
             eklenen = [x for x in (self._gorev_ekle(agac, dep, g, "gunluk", tarih, i + 1) for i, g in enumerate(gorevler)) if x]
             soru = temizle(v.get("arastirma_sorusu"), 200)
@@ -706,9 +755,18 @@ class IsUretici:
             if soru:
                 dep_agac["arastirma_sorulari"] = (dep_agac.get("arastirma_sorulari", []) + [{"tarih": tarih, "soru": soru}])[-10:]
             uretilen += len(eklenen)
+            if soru and self.o.gunluk_arastirma:
+                arastirmaci = dep.uyeler[0]
+                x = self._gorev_ekle(agac, dep, {
+                    "baslik": soru[:160], "tip": "ARASTIRMA", "sorumlu": arastirmaci.key,
+                    "cikti": "kaynaklı araştırma notu: en az 5 bulgu + her birinin bizim için anlamı",
+                    "kabul_olcutu": "en az 3 bulgu kaynağıyla; kaynaksız bulgu yok", "sure_gun": 2,
+                    "hedef_id": "", "neden": "birimin günlük araştırma sorusu"}, "arastirma", tarih, 1,
+                    gid=f"{tarih}-{dep.kod}-a1")
+                arastirma_sayi += 1 if x else 0
         self.agac_deposu.yaz(agac, self.o.saat()) if not self.kuru else None
         return {"mod": "gunluk", "tarih": tarih, "departman": len(deps), "gorev": uretilen,
-                "rutin": rutin_sayi, "kayit": self.kayit}
+                "rutin": rutin_sayi, "arastirma": arastirma_sayi, "kayit": self.kayit}
 
     def haftalik(self, sinir: int = 50) -> dict:
         tarih = self._gun()
@@ -843,12 +901,31 @@ class IsUretici:
                     kanitlar += [Kanit(f"K{len(kanitlar)+i+1}", k.kaynak, k.metin) for i, k in enumerate(ham)]
                 except Exception as e:  # noqa: BLE001
                     self.kayit.append({"gorev": g["id"], "uyari": f"ham veri okunamadı: {e}"[:200]})
-            if g["tip"] == "ARASTIRMA" and self.o.arastir:
-                try:
-                    canli = self.o.arastir(g["baslik"])
-                    kanitlar += [Kanit(f"K{len(kanitlar)+i+1}", k.kaynak, k.metin) for i, k in enumerate(canli)]
-                except Exception as e:  # noqa: BLE001
-                    self.kayit.append({"gorev": g["id"], "uyari": f"canlı araştırma yapılamadı: {e}"[:200]})
+            if g.get("urun") and self.o.urunler:
+                # Ürün senaryosu/brief'i ürünün KENDİ bilgisinden yazılır; yoksa içerik uydurulur.
+                bilgi = next((m for a, m in self.o.urunler() if a == g["urun"]), "")
+                if bilgi:
+                    kanitlar.append(Kanit(f"K{len(kanitlar)+1}", f"ürün bilgisi: {g['urun']}", bilgi[:5000]))
+            if g["tip"] == "ARASTIRMA" and (self.o.arastir or self.o.grounded):
+                canli = []
+                if self.o.arastir:
+                    try:
+                        canli = list(self.o.arastir(g["baslik"]))
+                    except Exception as e:  # noqa: BLE001
+                        self.kayit.append({"gorev": g["id"], "uyari": f"canlı araştırma yapılamadı: {e}"[:200]})
+                if not canli and self.o.grounded:
+                    # SearXNG motorları CAPTCHA'ya düşüyor; kaynaklı (Google destekli) arama yedektir.
+                    try:
+                        metin, kaynaklar = self.o.grounded(g["baslik"])
+                        if metin:
+                            canli = [Kanit("", "kaynaklı arama: " + " ".join(list(kaynaklar)[:5]), metin[:4000])]
+                    except Exception as e:  # noqa: BLE001
+                        self.kayit.append({"gorev": g["id"], "uyari": f"kaynaklı arama yapılamadı: {e}"[:200]})
+                kanitlar += [Kanit(f"K{len(kanitlar)+i+1}", k.kaynak, k.metin) for i, k in enumerate(canli)]
+            if g.get("bilgi"):
+                # Görevin eğitim dosyası (hook kuralları, ihracat rehberi...) kanıtın başına.
+                kanitlar = [Kanit(f"K{i+1}", x.kaynak, x.metin)
+                            for i, x in enumerate(self._bilgi(g["bilgi"], 2500) + kanitlar)]
             g["deneme"] = int(g.get("deneme", 0)) + 1
             self._ofis(uye.key, "WORKING", g["baslik"])
             try:
@@ -860,12 +937,16 @@ class IsUretici:
                     break
                 continue
             gecti, sebepler, t = teslim_dogrula(v, {k.kimlik for k in kanitlar})
+            # Ekip içeriği yazmış ama veri eksik diye kabulü tam saymamışsa bu bir iş ÇIKTISIDIR:
+            # dürüst eksik beyanı reddetmek ekibi susturuyordu (03.11 deneme: 3/3 bu sebeple döndü).
+            kismi = bool(sebepler) and all(x.startswith("ekip kabul ölçütünü") for x in sebepler)
             kanit_haritasi = {k.kimlik: k.kaynak for k in kanitlar}
             md = [f"# Teslim: {g['baslik']}", "",
                   f"- Görev: `{g['id']}` · {dep.ad} ({dep.kod}) · {g['tip']}",
                   f"- Hazırlayan: {uye.ad} (`{uye.key}`)",
                   f"- Kabul ölçütü: {g['kabul_olcutu']}",
-                  f"- Kalite kapısı: {'GEÇTİ' if gecti else 'GEÇEMEDİ — ' + '; '.join(sebepler)}", "",
+                  f"- Kalite kapısı: {'GEÇTİ' if gecti else ('KISMİ — ' if kismi else 'GEÇEMEDİ — ') + '; '.join(sebepler)}",
+                  f"- Eksik: {t['eksik']}" if t.get("eksik") else "", "",
                   "## Özet", t["teslim_ozeti"], "", "## İçerik", t["icerik"], "",
                   "## Kullanılan kanıt"] + [f"- {k}: {kanit_haritasi.get(k, '')}" for k in t["kullanilan_kanit"]] + [
                   "", f"**Sonraki adım:** {t['sonraki_adim']}"]
@@ -873,11 +954,11 @@ class IsUretici:
             if not self.kuru:
                 yol.parent.mkdir(parents=True, exist_ok=True)
                 yol.write_text("\n".join(md), encoding="utf-8")
-            g["teslim"] = {"yol": str(yol), "tarih": self.o.saat().isoformat(), "kalite": "GECTI" if gecti else "GECEMEDI",
+            g["teslim"] = {"yol": str(yol), "tarih": self.o.saat().isoformat(), "kalite": "GECTI" if gecti else "KISMI" if kismi else "GECEMEDI",
                            "sebepler": sebepler, "ozet": t["teslim_ozeti"]}
-            self._ofis(uye.key, "COMPLETED" if gecti else "FAILED",
-                       ("Teslim etti: " if gecti else "Kalite kapısından döndü: ") + g["baslik"])
-            if gecti:
+            self._ofis(uye.key, "COMPLETED" if gecti or kismi else "FAILED",
+                       ("Teslim etti: " if gecti else "Kısmi teslim: " if kismi else "Kalite kapısından döndü: ") + g["baslik"])
+            if gecti or kismi:
                 g["durum"] = "TESLIM_EDILDI"
                 teslim += 1
                 if not self.kuru and g.get("work_id"):
@@ -905,10 +986,16 @@ class IsUretici:
             for g in d.get("gorevler", []):
                 toplam[g.get("durum", "ACIK")] = toplam.get(g.get("durum", "ACIK"), 0) + 1
                 t = g.get("teslim") or {}
-                if t.get("kalite") == "GECTI" and str(t.get("tarih", "")).startswith(tarih):
+                if t.get("kalite") in ("GECTI", "KISMI") and str(t.get("tarih", "")).startswith(tarih):
                     bugun_teslim.append(f"- **{d.get('ad', kod)}** · {g['baslik']} → {t.get('ozet', '')}")
         satir += ["Durum: " + ", ".join(f"{k} {v}" for k, v in toplam.items()), "",
                   "## Bugün tebrik edilecek teslimler"] + (bugun_teslim or ["- (henüz yok)"])
+        satir += ["", "## Departmanlar bugün", "| Birim | Teslim | Kısmi | Açık | Dönen |", "|---|---|---|---|---|"]
+        for kod, d in sorted(agac["departmanlar"].items()):
+            bugun = [g for g in d.get("gorevler", []) if str((g.get("teslim") or {}).get("tarih", "")).startswith(tarih)]
+            acik = sum(g.get("durum") == "ACIK" for g in d.get("gorevler", []))
+            ks = [str((g.get("teslim") or {}).get("kalite")) for g in bugun]
+            satir.append(f"| {d.get('ad', kod)} | {ks.count('GECTI')} | {ks.count('KISMI')} | {acik} | {ks.count('GECEMEDI')} |")
         onay = [f"- {d.get('ad', k)}: {g['baslik']}" for k, d in agac["departmanlar"].items()
                 for g in d.get("gorevler", []) if g.get("durum") == "ONAY_BEKLIYOR"][-15:]
         satir += ["", "## Senin onayını bekleyen işler"] + (onay or ["- (yok)"])

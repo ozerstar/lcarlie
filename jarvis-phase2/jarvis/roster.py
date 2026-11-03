@@ -513,6 +513,17 @@ ROSTER: tuple[Member, ...] = (
     Member("yeni_urun_on_arastirma", "Yeni Ürün Ön Araştırmacısı",
            "Müşteri konuları, mevcut ürün ve pazar bulgularından ön fikir üretir.",
            ("customer_voice", "urun_karti", "market_research")),
+    # --- 03.11.2026: sahip "yurtdışına bir ekip bul, firmalar araştırılsın, mailler
+    #     hazırlansın, benim onayım beklensin". Gönderim YOK: taslak + onay kuyruğu.
+    Member("ihracat_pazar", "Yurtdışı Pazar Araştırmacısı",
+           "Hedef ülkeleri kayıt şartı, talep ve rekabete göre sıralar; kaynaksız ülke önermez.",
+           ("market_research", "urun_karti"), mode="research"),
+    Member("ihracat_partner", "Distribütör ve İthalatçı Avcısı",
+           "Yurtdışında ürünümüzü alıp satabilecek ŞİRKETLERİ (kişi değil) kaynaklı listeler.",
+           ("market_research", "platform_fiyat_matrisi"), mode="research"),
+    Member("ihracat_yazisma", "İhracat Yazışma Uzmanı",
+           "Partner adaylarına İngilizce ilk temas e-postası TASLAĞI yazar; gönderim sahibin onayıyla.",
+           ("urun_karti", "urun_bilgi"), mode="synthesis"),
 )
 
 BY_KEY = {m.key: m for m in ROSTER}
@@ -524,6 +535,7 @@ BY_KEY = {m.key: m for m in ROSTER}
 #    gorunur kilar (bkz. eslenmeyen_uyeler). Kodlar core.departman.kod ile
 #    ayni olmak zorunda -- panoda departman basligi oradan geliyor.
 UYE_DEPARTMAN: dict[str, str] = {
+    'ihracat_pazar': 'EXPORT', 'ihracat_partner': 'EXPORT', 'ihracat_yazisma': 'EXPORT',
     "web_gelistirici": "WEB",
     "sayfa_donusum": "WEB",
     "site_izleme": "WEB",
@@ -677,6 +689,7 @@ def eslenmeyen_uyeler() -> tuple[str, ...]:
 # o cevabin KIMIN agzindan verildigini soyler. Sorumlusu tanimlanmamis
 # departman, muhatabi olmayan departmandir.
 DEPARTMAN_SORUMLUSU: dict[str, str] = {
+    'EXPORT': 'ihracat_pazar',
     # --- 22.09.2026: sahip onayiyla atandi ------------------------------
     "WEB": "web_gelistirici",
     "SEO": "seo_icerik",
