@@ -1,0 +1,14 @@
+[Unit]
+Description=LCARLIE aksiyon uygulayici - ONAYLANMIS isi dis dunyaya yazar ve geri okuyarak dogrular
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+Environment=JARVIS_KOK=/opt/lcarlie/jarvis-phase2
+ExecStart=/usr/bin/flock -n /run/lcarlie-aksiyon-uygulayici.lock /opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/aksiyon-uygulayici.py
+TimeoutStartSec=600
+Nice=10
+UMask=0077
+NoNewPrivileges=true
