@@ -377,9 +377,10 @@ def taslak(konusma_id: int) -> dict:
                                 "Konuyu yetkili kişiye iletiyorum.",
             "SIKAYET": "Yaşadığınız olumsuz deneyim için üzgünüz, özür dileriz. "
                        "Konuyu bizzat incelemesi için yetkili kişiye iletiyorum.",
-            "ANLASILMADI": "Mesajınızı aldım. Doğru yanıt verebilmem için sorunuzu veya "
-                           "ilgili ürünü biraz açabilir misiniz? Konuyu ayrıca "
-                           "yetkili kişiye iletiyorum.",
+            # Sahip kuralı (12.09.2026): soru sorulmaz, siteye yönlendirilir.
+            "ANLASILMADI": "Mesajınızı aldık, yetkili arkadaşımız en kısa sürede size "
+                           "dönecek. Ürünlerimizi incelemek ve sipariş vermek için: "
+                           "https://www.lcarlie.shop",
         }
         metin = yonlendirme.get(sinif, "") if son.get("mevzuat") not in {"BLOCKED", "BLOKE", "RED"} else ""
         return {"uretildi": bool(metin), "devredilmeli": True, "sinif": sinif,
@@ -406,7 +407,7 @@ def taslak(konusma_id: int) -> dict:
                        if kayit.get("wix_yayinda") and kayit.get("gorunur")
                        and str(kayit.get("urun_adi") or "").strip()})
         metin = ("Ürünlerimizden bazıları: " + ", ".join(adlar[:5]) +
-                 ". Hangi ürünle ilgilendiğinizi söylerseniz ilgili ürün sayfasını paylaşabilirim.") if adlar else ""
+                 ". Tümünü incelemek ve hemen sipariş vermek için: https://www.lcarlie.shop") if adlar else ""
         return {"uretildi": bool(metin), "devredilmeli": not bool(metin),
                 "sinif": sinif, "sebep": devir.URUN_BELIRSIZ if not metin else None,
                 "metin": metin, "bulgular": [], "gonderilebilir": bool(metin),
@@ -414,7 +415,8 @@ def taslak(konusma_id: int) -> dict:
 
     if sinif == mesaj_sinifi.SELAMLAMA:
         return {"uretildi": True, "devredilmeli": False, "sinif": sinif,
-                "metin": "Merhaba! L’CARLIÉ ürünleriyle ilgili nasıl yardımcı olabilirim?",
+                "metin": "Merhaba, L’CARLIÉ’ye hoş geldiniz! Tüm ürünlerimizi incelemek ve "
+                         "hemen sipariş vermek için: https://www.lcarlie.shop",
                 "bulgular": [], "gonderilebilir": True, "urun_soruluyor": False}
 
     if urun_adi and kart is None:

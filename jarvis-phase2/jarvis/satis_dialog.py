@@ -352,22 +352,29 @@ def uydurma_sayi(metin: str, olgular: list[str]) -> list[str]:
     return kacak
 
 
-def _urun_sor(tip: str) -> str:
-    """Ürün bilinmiyorken kurulacak doğal soru.
+SITE = "https://www.lcarlie.shop"
 
-    Şablon gibi durmasın diye soru tipine göre değişir, ama UYDURMA bilgi
-    içermez: hangi ürün olduğunu bilmeden fiyat ya da içerik söylenemez.
+
+def _urun_sor(tip: str) -> str:
+    """Ürün bilinmiyorken kurulacak cevap: SORU SORMAZ, siteye yönlendirir.
+
+    🔴 SAHİP KURALI (12.09.2026): müşteriye soru sorulmaz; cevap her zaman
+    siteye / satın almaya yönlendiren somut bir bağlantıyla biter. Önceki
+    hâli "hangi ürünü soruyorsunuz?" diye soruyordu (03.11'de kuru
+    çalıştırmayla yakalandı). Hâlâ UYDURMA bilgi içermez: ürünü bilmeden
+    fiyat ya da içerik söylenmez, bilgi ürün sayfasına bırakılır.
     """
     if tip == FIYAT:
-        return ("Tabii, hemen söyleyeyim — hangi ürünümüz için soruyorsunuz? "
-                "Adını yazarsanız güncel fiyatını ileteyim.")
+        return ("Tüm ürünlerimizin güncel fiyatları sitemizde yer alıyor; "
+                f"hemen sipariş vermek için: {SITE}")
     if tip == ICERIK:
-        return ("Elbette, içeriğini paylaşayım. Hangi ürünümüzü "
-                "soruyorsunuz acaba?")
+        return ("Her ürünümüzün içerik listesi kendi ürün sayfasında yer alıyor; "
+                f"incelemek ve sipariş vermek için: {SITE}")
     if tip == KULLANIM:
-        return ("Memnuniyetle anlatayım. Hangi ürün için sormuştunuz?")
-    return ("Merhaba, size yardımcı olayım. Hangi ürünümüzle ilgili "
-            "bilgi istiyorsunuz?")
+        return ("Kullanım bilgileri her ürünün kendi sayfasında yer alıyor; "
+                f"incelemek ve sipariş vermek için: {SITE}")
+    return ("Merhaba, L'CARLIÉ'ye hoş geldiniz! Tüm ürünlerimizi incelemek ve "
+            f"hemen sipariş vermek için: {SITE}")
 
 
 def cevap_uret(mesaj: str, urun: UrunKarti | None, layer: Any,
@@ -382,7 +389,7 @@ def cevap_uret(mesaj: str, urun: UrunKarti | None, layer: Any,
     tip = soru_tipi(mesaj)
 
     if urun is None:
-        # Ürün bilinmiyor: fiyat/içerik söylenemez. Doğal biçimde sorulur.
+        # Ürün bilinmiyor: fiyat/içerik söylenemez. Siteye yönlendirilir.
         metin = _urun_sor(tip)
         inceleme = compliance.review(metin)
         return Cevap(metin=_ifsala(metin, ilk_cevap), soru_tipi=tip, urun=None,
@@ -390,7 +397,7 @@ def cevap_uret(mesaj: str, urun: UrunKarti | None, layer: Any,
                      mevzuat="TEMIZ" if inceleme.clean else "INCELE",
                      bulgular=_bulgulari_cikar(inceleme),
                      gonderilebilir=inceleme.clean,
-                     gerekce="urun bilinmiyor -> dogal soru")
+                     gerekce="urun bilinmiyor -> siteye yonlendirme")
 
     # Cevap için gereken olgu kartta yoksa model HİÇ çağrılmaz: modele
     # sorulan her boşluk uydurma riskidir ve bir kez gerçekten uyduruldu.

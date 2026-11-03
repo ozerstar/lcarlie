@@ -217,13 +217,15 @@ class UrunTahminEdilmez(unittest.TestCase):
         self.assertIsNone(sd.urun_bul(self.KAYITLAR, "DERMAVASC"))
         self.assertIsNone(sd.urun_bul(self.KAYITLAR, ""))
 
-    def test_urun_bilinmiyorsa_fiyat_soylenmez_dogal_sorulur(self):
+    def test_urun_bilinmiyorsa_fiyat_soylenmez_siteye_yonlendirilir(self):
         class PatlayanModel:
             def generate(self, *a, **k):
                 raise AssertionError("urun yokken model cagrilmamali")
         cevap = sd.cevap_uret("fiyatı nedir", None, PatlayanModel())
         self.assertIsNone(cevap.urun)
-        self.assertIn("hangi", cevap.metin.casefold())
+        # Sahip kurali (12.09.2026): musteriye soru sorulmaz, siteye yonlendirilir.
+        self.assertNotIn("?", cevap.metin)
+        self.assertIn(sd.SITE, cevap.metin)
         # Uydurulmus bir rakam gecmemeli.
         self.assertEqual(sd.uydurma_sayi(cevap.metin, []), [])
 
