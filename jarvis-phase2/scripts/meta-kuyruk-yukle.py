@@ -116,7 +116,7 @@ def _zaman(olay: dict) -> str:
 
 def yukle(olaylar: list[dict], kuru: bool) -> dict[str, int]:
     sayac = {"konusma": 0, "mesaj": 0, "urunlu": 0, "yanki": 0, "atlanan": 0,
-             "zaten_vardi": 0, "karantina": 0}
+             "zaten_vardi": 0, "karantina": 0, "hata": 0}
     for olay in olaylar:
         kanal = olay.get("kanal") or "messenger"
         if kanal not in {"messenger", "whatsapp"}:
@@ -131,7 +131,12 @@ def yukle(olaylar: list[dict], kuru: bool) -> dict[str, int]:
             continue
         psid = (olay.get("gonderen_id") or "").strip()
         mesaj_id = (olay.get("mesaj_id") or "").strip()
-        metin = olay.get("metin") or ""
+        # 🔴 METİNSİZ OLAY KUYRUĞU KİLİTLEMEZ (03.11.2026).
+        # `mesaj.metin` NOT NULL; `_tirnak("")` ise NULL basar. WhatsApp'ın
+        # metinsiz bir "system" bildirimi 26.10'dan 03.11'e kadar kuyruğun
+        # başında takıldı ve arkasındaki 20 müşteri mesajını 8 gün bekletti.
+        # Metin yoksa olay türü etiketi yazılır: "[system]", "[image]" ...
+        metin = (olay.get("metin") or "").strip() or             f"[{(olay.get('ek') or {}).get('type') or 'metinsiz'}]"
         yanki = bool(olay.get("yanki"))
         if not psid or not mesaj_id:
             # harici_id NOT NULL: kimliksiz olay yazılamaz, sessizce de
@@ -195,7 +200,17 @@ def yukle(olaylar: list[dict], kuru: bool) -> dict[str, int]:
         ON CONFLICT (konusma_id, harici_id) DO NOTHING
         RETURNING 'yazildi';
         """
-        cikti = _psql(sql)
+        # 🔴 TEK ZEHİRLİ OLAY BÜTÜN KUYRUĞU DURDURMAZ.
+        # Yazılamayan olay karantinaya kopyalanır, sıradakiler yüklenir.
+        # Dosyadaki HİÇBİR olay yazılamadıysa (veritabanı kapalı gibi)
+        # hata yukarı çıkar ve dosya .pending olarak bir sonraki tura kalır.
+        try:
+            cikti = _psql(sql)
+        except SystemExit as hata:
+            sayac["hata"] += 1
+            karantinaya_yaz(olay, f"yukleme_hatasi: {str(hata)[:200]}")
+            sys.stderr.write(f"olay karantinaya alındı: {str(hata)[:200]}\n")
+            continue
         # 🔴 "ÇIKTI VAR" = "YAZILDI" DEĞİL.
         # psql `-tA` ile bile komut etiketini basıyor: çakışan bir INSERT
         # `INSERT 0 0` döndürüyor ve bu BOŞ OLMAYAN bir satır. İlk hâli
@@ -234,10 +249,12 @@ def main() -> None:
             continue
         print(f"kuyrukta {len(olaylar)} olay")
         sayac = yukle(olaylar, kuru)
+        if sayac["hata"] and sayac["hata"] == len(olaylar):
+            raise SystemExit(f"{dosya.name}: {sayac['hata']} olayın hiçbiri yazılamadı; dosya bekletiliyor")
         print(f"yazılan mesaj: {sayac['mesaj']} · zaten vardı: {sayac['zaten_vardi']} "
               f"· reklam referanslı: {sayac['urunlu']} · kendi yankımız: {sayac['yanki']} "
               f"· kimliksiz atlanan: {sayac['atlanan']} "
-              f"· KARANTINA: {sayac['karantina']}")
+              f"· KARANTINA: {sayac['karantina']} · yazılamayan: {sayac['hata']}")
         if not kuru:
             hedef = dosya.with_suffix(".jsonl")
             dosya.replace(hedef)
