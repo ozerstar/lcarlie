@@ -53,6 +53,17 @@ IDENTITY_NAME = "00-kimlik"
 #: Files that describe the collection rather than the company.
 EXCLUDED = {"INDEX"}
 
+#: Sohbete hiç yüklenmeyen dosyalar. kasim-2026-plani rapor-* bölümlerinin
+#: birleşik hâlidir (iş üretici odak bilgisi); bütçeye sığmaz, aynı içerik
+#: bölüm dosyalarından gelir.
+_SOHBET_DISI = frozenset({"kasim-2026-plani"})
+
+#: Başlıktan türetilen anahtarlarda konu taşımayan genel kelimeler.
+_GENEL = frozenset({"nasil", "neden", "nedir", "hangi", "olarak", "sonra", "once",
+                    "kadar", "gibi", "daha", "yeni", "genel", "notlar", "bolum",
+                    "kaynak", "yargi", "ozet", "tablo", "liste", "icin", "veya",
+                    "kurallari", "plani", "rapor", "raporu"})
+
 #: Heading that opens an internal-only section. Everything from this line to
 #: the end of the file is dropped when ``internal_ok`` is False. A file marked
 #: ``gizlilik: ic-bilgi`` that has no such heading is internal in its entirety
@@ -86,8 +97,18 @@ _WORD_RE = re.compile(r"[0-9a-zçğöşü]+")
 # smallest budget that still buys ONE document -- the product's own file --
 # which is the entire point of having split them. A hardware-imposed number:
 # a GPU moves it by an order of magnitude.
-_MAX_CHARS = int(os.environ.get("JARVIS_KNOWLEDGE_MAX_CHARS", "4200"))
-_MAX_DOCS = 2
+_MAX_CHARS = int(os.environ.get("JARVIS_KNOWLEDGE_MAX_CHARS", "12000"))
+_MAX_DOCS = 3
+# 04.11.2026: sohbet artık dış modelde (ilk kelime ~1 sn); yukarıdaki CPU
+# ölçümü yerel model içindi. Bütçe 4200/2 -> 12000/3.
+
+#: Saatlik bilgi haritası (scripts/bilgi-haritasi.py): ekipler, programlar,
+#: kod haritası, ekip durumu. Aynı aramadan geçer; yalnız ilgili belge girer.
+EK_DIZINLER = tuple(Path(x) for x in os.environ.get(
+    "JARVIS_KNOWLEDGE_EXTRA",
+    "/opt/lcarlie/jarvis-phase2/state/bilgi-haritasi").split(":") if x)
+#: Belgeler bu aralıkla yeniden taranır (dosya değiştiyse yeniden okunur).
+_YENILEME_S = float(os.environ.get("JARVIS_KNOWLEDGE_RELOAD_S", "120"))
 
 #: Words that appear in a ``konu`` without identifying it.
 _KONU_STOP = frozenset(
@@ -122,10 +143,28 @@ class Document:
         return "" if self.internal else self.body
 
 
+def _basliksiz(path: Path, raw: str) -> Document | None:
+    """Ön başlığı olmayan eğitim/araştırma dosyası (ör. kasim-2026-plani).
+
+    Konu ilk '# ' başlığından, anahtarlar dosya adı ve '##' başlıklarından
+    türetilir. İç bilgi sayılır: müşteri yüzüne hiç çıkmaz.
+    """
+    satirlar = raw.splitlines()
+    konu = next((x[2:].strip() for x in satirlar if x.startswith("# ")), path.stem)
+    kelimeler = {w for w in _WORD_RE.findall(fold(path.stem.replace("-", " ")))
+                 if len(w) >= 3 and not w.isdigit()}
+    for x in satirlar:
+        if x.startswith(("# ", "## ")):
+            kelimeler |= {w for w in _WORD_RE.findall(fold(x.lstrip("# "))) if len(w) >= 5}
+    kelimeler -= {fold(w) for w in _KONU_STOP} | _GENEL
+    return Document(name=path.stem, konu=konu, keywords=tuple(sorted(kelimeler)),
+                    internal=True, body=raw.rstrip())
+
+
 def _parse(path: Path) -> Document | None:
     raw = path.read_text(encoding="utf-8")
     if not raw.startswith("---"):
-        return None
+        return _basliksiz(path, raw) if re.search(r"^#{1,3} ", raw, re.M) else None
     end = raw.find("\n---", 3)
     if end == -1:
         return None
@@ -170,18 +209,48 @@ class CompanyKnowledge:
     def __init__(self, directory: Path | str | None = None) -> None:
         self.directory = Path(directory) if directory else KNOWLEDGE_DIR
         self._docs: dict[str, Document] | None = None
+        # Ek dizinler yalnız varsayılan (üretim) örneğinde; testler kendi dizinini verir.
+        self._ekler = () if directory else EK_DIZINLER
+        self._imza: tuple = ()
+        self._bakildi = 0.0
+
+    def _dizin_imzasi(self) -> tuple:
+        imza = []
+        for d in (self.directory, *self._ekler):
+            if d.is_dir():
+                imza += [(str(p), p.stat().st_mtime) for p in sorted(d.glob("*.md"))]
+        return tuple(imza)
 
     # -- loading ---------------------------------------------------------
     @property
     def documents(self) -> dict[str, Document]:
+        import time
+        if self._docs is not None and time.monotonic() - self._bakildi > _YENILEME_S:
+            self._bakildi = time.monotonic()
+            try:
+                if self._dizin_imzasi() != self._imza:
+                    self._docs = None
+            except OSError:
+                pass
         if self._docs is None:
             docs: dict[str, Document] = {}
-            if self.directory.is_dir():
-                for path in sorted(self.directory.glob("*.md")):
-                    doc = _parse(path)
-                    if doc is not None:
-                        docs[doc.name] = doc
+            for dizin in (self.directory, *self._ekler):
+                if dizin.is_dir():
+                    for path in sorted(dizin.glob("*.md")):
+                        if path.stem in _SOHBET_DISI:
+                            continue
+                        try:
+                            doc = _parse(path)
+                        except (OSError, UnicodeDecodeError):
+                            continue
+                        if doc is not None and doc.name not in docs:
+                            docs[doc.name] = doc
             self._docs = docs
+            try:
+                self._imza = self._dizin_imzasi()
+            except OSError:
+                self._imza = ()
+            self._bakildi = time.monotonic()
         return self._docs
 
     @property
@@ -209,15 +278,22 @@ class CompanyKnowledge:
         for doc in self.documents.values():
             if doc.name == IDENTITY_NAME or doc.name in EXCLUDED:
                 continue
+            # 04.11.2026: Türkçe ek toleransı. "ekibinde", "takviminde" gibi
+            # çekimli kelimeler tam eşleşmiyordu. Tam eşleşme 2, kök (önek, en
+            # az 4 harf) eşleşmesi 1 puan; eski ağırlık oranları korunur.
             hits = 0
             for keyword in doc.keywords:
                 if " " in keyword:
                     if keyword in folded:
-                        hits += 2
+                        hits += 4
                 elif keyword in tokens:
+                    hits += 2
+                elif len(keyword) >= 5 and any(t.startswith(keyword) for t in tokens):
                     hits += 1
             subject = set(_WORD_RE.findall(fold(doc.konu))) - _KONU_STOP
             if subject & tokens:
+                hits += 4
+            elif any(len(w) >= 5 and t.startswith(w[:-2]) for w in subject for t in tokens):
                 hits += 2
             if hits:
                 scored.append((hits, doc))
