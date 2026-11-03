@@ -55,6 +55,14 @@ KARANTINA = STATE_DIR / "meta_webhook" / "karantina.jsonl"
 # hesaplanir.
 TEST_ONEKI = "test-"
 
+# 🔴 WHATSAPP PİLOTU (03.11.2026, sahip kararı "önerdiklerini uygula").
+# Açıksa YENİ WhatsApp konuşması 'JARVIS' devir durumuyla açılır ve
+# lcarlie-whatsapp-oto-yanit ona cevap verir. Yalnız İLK INSERT'te geçerli:
+# var olan konuşmanın devir durumu (sahibin elle verdiği karar) ezilmez.
+# Kapatmak: /etc/systemd/system/lcarlie-meta-kuyruk-yukle.service.d/wa-pilot.conf
+# dosyasını silip daemon-reload -- ya da tümden JARVIS_WHATSAPP_AUTO_REPLY=0.
+WA_PILOT = os.environ.get("LCARLIE_WA_YENI_KONUSMA_JARVIS") == "1"
+
 
 def trafik_sinifi(olay: dict) -> str:
     """production | test — yalniz KIMLIK onekine bakar, govdeye DEGIL."""
@@ -157,6 +165,8 @@ def yukle(olaylar: list[dict], kuru: bool) -> dict[str, int]:
         # gorunmuyordu. 15.10.2026'da ilk gercek WhatsApp mesaji geldiginde
         # uctan uca testle yakalandi.
         yon = "giden" if yanki else "gelen"
+        # Kendi yankımız konuşmayı Jarvis'e açmaz: ilk temas müşteriden gelmeli.
+        ilk_devir = "JARVIS" if (WA_PILOT and kanal == "whatsapp" and not yanki) else "INSANDA"
         if yanki:
             sayac["yanki"] += 1
 
@@ -182,9 +192,10 @@ def yukle(olaylar: list[dict], kuru: bool) -> dict[str, int]:
         )
         sql = f"""
         WITH k AS (
-          INSERT INTO lcarlie.konusma (kanal, harici_id, musteri_ref, notlar)
+          INSERT INTO lcarlie.konusma (kanal, harici_id, musteri_ref, notlar, devir_durumu)
           VALUES ({_tirnak(kanal)}, {_tirnak(konusma_ref)}, {_tirnak(konusma_ref)},
-                  jsonb_build_object('kaynak','webhook') || {ad_json})
+                  jsonb_build_object('kaynak','webhook') || {ad_json},
+                  {_tirnak(ilk_devir)})
           ON CONFLICT (kanal, harici_id) DO UPDATE
             SET notlar = CASE WHEN lcarlie.konusma.notlar ? 'ad_id'
                               THEN lcarlie.konusma.notlar
