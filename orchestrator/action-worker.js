@@ -13,7 +13,9 @@ async function run() {
   try {
     await client.query('BEGIN');
     await client.query('SET LOCAL ROLE action_executor');
-    const action=(await client.query('SELECT * FROM core.ai_claim_approved_action($1,$2)',[process.env.ACTION_WORKER_ID||'f5-action-worker',180])).rows[0];
+    // 070: typed claim. This worker only knows REQUEST_HUMAN_REVIEW; the untyped claim
+    // would have grabbed (and failed) any newly enabled action type.
+    const action=(await client.query('SELECT * FROM core.ai_claim_approved_action_tipli($1,$2,$3)',[process.env.ACTION_WORKER_ID||'f5-action-worker',180,['REQUEST_HUMAN_REVIEW']])).rows[0];
     if(!action){await client.query('COMMIT');return {status:'IDLE'};}
     let resultClass='EXECUTED',summary='internal human review request recorded by FakeExecutor';
     try {
