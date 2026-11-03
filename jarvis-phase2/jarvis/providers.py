@@ -80,7 +80,12 @@ def mask(text: str) -> str:
 
 
 def load_env(path: str = ENV_PATH) -> dict[str, str]:
-    out: dict[str, str] = {}
+    # 🔴 04.11.2026: ortam taban, dosya üstüne yazar. Dosya root-0600; panel
+    # (jarvis-web) onu okuyamıyor ve {} alıyordu -> sohbet hiçbir dış
+    # sağlayıcı görmeden yerel 4B modele düşüyordu (31-131 sn). Panelin
+    # anahtarları kendi ortamında (/etc/lcarlie/jarvis-web.env) zaten var.
+    out: dict[str, str] = {k: v for k, v in os.environ.items()
+                           if k.endswith(("_API_KEY", "_MODEL")) and v}
     try:
         with open(path, encoding="utf-8") as handle:
             for line in handle:
@@ -90,7 +95,7 @@ def load_env(path: str = ENV_PATH) -> dict[str, str]:
                 key, _, value = line.partition("=")
                 out[key.strip()] = value.strip().strip('"').strip("'")
     except OSError:
-        return {}
+        return out
     return out
 
 

@@ -2085,6 +2085,24 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(200, _kreatif_partiler())
             return
 
+        if path == "/api/chat/aktif":
+            # Etkin sohbetin kimliği ve turları: panel açılınca konuşma geri gelir.
+            mode = (query.get("mode") or ["work"])[0]
+            istenen = (query.get("chat_id") or [""])[0] or None
+            if mode not in ("work", "personal"):
+                self._send_json(400, {"error": "Geçersiz sohbet alanı."})
+                return
+            try:
+                adaylar = [x for x in (istenen, _cmem.aktif_oku(session.username, mode)) if x]
+                for cid in adaylar:
+                    turlar = _cmem.turlar(_chat_thread(session, mode, cid))
+                    if turlar or cid == adaylar[-1]:
+                        self._send_json(200, {"chat_id": cid, "turlar": turlar})
+                        return
+            except (ValueError, TypeError):
+                pass
+            self._send_json(200, {"chat_id": None, "turlar": []})
+            return
         if path == "/api/panel":
             # Bolum listesi: uc nokta kesfedilebilir olsun, arayuz sabit
             # isim listesi tasimak zorunda kalmasin.
@@ -3101,6 +3119,9 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError, TypeError) as exc:
             self._send_json(400, {"error": str(exc)})
             return
+        if body.get("chat_id") and mode in ("work", "personal"):
+            # Kullanıcının etkin sohbeti: başka sekme/cihaz açılınca buradan devam eder.
+            _cmem.aktif_yaz(session.username, mode, str(body.get("chat_id")))
         if turn_id is not None:
             attachment_id = body.get("attachment_id")
             try:

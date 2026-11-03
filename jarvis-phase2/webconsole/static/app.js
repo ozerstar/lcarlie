@@ -36,19 +36,44 @@ const state = {
 
 function qs(id) { return document.getElementById(id); }
 
+/* Sohbet kimliği localStorage'da (04.11): sessionStorage her yeni sekmede
+   boş bir konu açıyordu. Sunucu kullanıcının etkin sohbetini de tutar. */
+const SOHBET_ANAHTARI = 'jarvis-work-chat-id';
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+function depoOku(k) { try { return localStorage.getItem(k); } catch (_) { return null; } }
+function depoYaz(k, v) { try { localStorage.setItem(k, v); } catch (_) { /* özel pencere */ } }
+let bellekSohbetId = null;
 function chatId() {
-  const key = 'jarvis-work-chat-id';
-  let id = sessionStorage.getItem(key);
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(id || '')) {
+  let id = depoOku(SOHBET_ANAHTARI) || bellekSohbetId;
+  if (!UUID_RE.test(id || '')) {
     id = crypto.randomUUID();
-    sessionStorage.setItem(key, id);
+    depoYaz(SOHBET_ANAHTARI, id);
   }
+  bellekSohbetId = id;
   return id;
+}
+/* Panel açılınca etkin sohbetin turlarını yeniden çizer. */
+async function sohbetiGeriYukle() {
+  const log = qs('chatLog');
+  if (!log || log.childElementCount) return;
+  const yerel = depoOku(SOHBET_ANAHTARI);
+  const r = await api('/api/chat/aktif?mode=work' + (UUID_RE.test(yerel || '') ? '&chat_id=' + yerel : ''));
+  if (!r.ok || !r.body) return;
+  if (r.body.chat_id && UUID_RE.test(r.body.chat_id)) {
+    depoYaz(SOHBET_ANAHTARI, r.body.chat_id);
+    bellekSohbetId = r.body.chat_id;
+  }
+  if (log.childElementCount) return;
+  (r.body.turlar || []).forEach((t) => {
+    if (t.user) addChatMessage('user', escapeHtml(t.user));
+    if (t.jarvis) addChatMessage('jarvis', renderMarkdownLite(t.jarvis));
+  });
 }
 
 qs('newChatBtn').addEventListener('click', () => {
   if (activeStreamController) return;
-  sessionStorage.setItem('jarvis-work-chat-id', crypto.randomUUID());
+  bellekSohbetId = crypto.randomUUID();
+  depoYaz(SOHBET_ANAHTARI, bellekSohbetId);
   qs('chatLog').replaceChildren();
   qs('chatLog').hidden = true;
   qs('chatInput').value = '';
@@ -128,6 +153,7 @@ function showApp() {
   qs('opAvatar').textContent = name.slice(0, 2).toLocaleUpperCase('tr-TR');
   startPolling();
   refreshAll();
+  sohbetiGeriYukle().catch(() => {});
   const requestedView = new URLSearchParams(window.location.search).get('view');
   if (requestedView && Object.hasOwn(VIEWS, requestedView)) {
     const navButton = document.querySelector(`.nav-item[data-view="${requestedView}"]`);

@@ -102,9 +102,9 @@ def _yazma_izni() -> None:
 # How much of the past a turn is allowed to carry. Six turns is enough for
 # "onu değil, diğerini" to resolve; more than that and the model starts
 # answering the old question instead of the new one.
-DEFAULT_TURNS = 6
-MAX_HISTORY_CHARS = 1800
-MAX_TURN_CHARS = 600
+DEFAULT_TURNS = 8
+MAX_HISTORY_CHARS = 6000
+MAX_TURN_CHARS = 4000
 # The transcript is trimmed rather than rotated: this is a working memory, not
 # an archive, and the audit trail already lives in audit.jsonl.
 MAX_STORED_TURNS = 400
@@ -314,3 +314,33 @@ def notes_block(thread: str = "operator", limit: int = 12,
 def status(thread: str = "operator") -> dict[str, int]:
     return {"turns": len(_read(_path(thread, "turns"))),
             "notes": len(_read(_path(thread, "notes")))}
+
+
+# --- etkin sohbet (04.11.2026) -----------------------------------------
+# Sohbet kimliği tarayıcıda tutulunca her yeni sekme boş bir konu açıyordu.
+# Kullanıcının en son konuştuğu sohbet sunucuda tutulur; panel açılınca o
+# sohbetin turlarını çizer, model de aynı konunun geçmişini okur.
+def _aktif_yolu(user: str, mode: str) -> Path:
+    import hashlib
+    h = hashlib.sha256(f"{user}:{mode}".encode()).hexdigest()[:24]
+    return MEMORY_DIR / f"aktif_{h}.jsonl"
+
+
+def aktif_yaz(user: str, mode: str, chat_id: str) -> None:
+    try:
+        _write(_aktif_yolu(user, mode), [{"chat_id": chat_id, "at": _now()}])
+    except UretimDokumuneTestYazamaz:
+        raise
+    except Exception:  # noqa: BLE001 - kayit yardimci, bagimlilik degil
+        pass
+
+
+def aktif_oku(user: str, mode: str) -> str | None:
+    rows = _read(_aktif_yolu(user, mode))
+    return str(rows[-1].get("chat_id") or "") or None if rows else None
+
+
+def turlar(thread: str, limit: int = 40) -> list[dict[str, str]]:
+    """Panelin yeniden çizmesi için son turlar (eskiden yeniye)."""
+    return [{"user": str(r.get("user") or ""), "jarvis": str(r.get("jarvis") or ""),
+             "at": str(r.get("at") or "")} for r in _read(_path(thread, "turns"))[-limit:]]

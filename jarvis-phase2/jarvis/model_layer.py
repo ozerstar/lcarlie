@@ -25,6 +25,7 @@ one.
 """
 from __future__ import annotations
 
+import inspect
 import json
 import os
 import re
@@ -66,6 +67,9 @@ MIN_USEFUL_ANSWER_CHARS = 24
 # worst outcome available: slow is recoverable, discarded is not.
 LOCAL_TIMEOUT_S = float(os.environ.get("JARVIS_LOCAL_MODEL_TIMEOUT_S", "240"))
 EXTERNAL_TIMEOUT_S = 90.0
+# Sohbet canlı bir insanı bekletir: yerel akışta okuma zaman aşımı kısa
+# (04.11.2026). Arka plan işleri LOCAL_TIMEOUT_S ile devam eder.
+CHAT_LOCAL_TIMEOUT_S = float(os.environ.get("JARVIS_CHAT_LOCAL_TIMEOUT_S", "30"))
 
 TIER_DETERMINISTIC = "DETERMINISTIC"
 TIER_GPU = "LOCAL_GPU"
@@ -266,7 +270,8 @@ class LocalProvider:
                 "completion_tokens": usage.get("completion_tokens")}
 
 
-    def stream(self, messages: list[dict[str, str]], max_tokens: int):
+    def stream(self, messages: list[dict[str, str]], max_tokens: int,
+               timeout: float | None = None):
         """Yield text deltas as they are produced.
 
         Generation speed is unchanged -- about 7 tokens a second on this host.
@@ -279,7 +284,7 @@ class LocalProvider:
         request = urllib.request.Request(
             f"{self.url}/chat/completions", data=body,
             headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(request, timeout=LOCAL_TIMEOUT_S) as response:
+        with urllib.request.urlopen(request, timeout=timeout or LOCAL_TIMEOUT_S) as response:
             for raw in response:
                 line = raw.decode("utf-8").strip()
                 if not line.startswith("data: "):
@@ -837,7 +842,9 @@ class ModelRouter:
         if streamer.state() == AdapterState.AVAILABLE:
             produced = False
             try:
-                for delta in streamer.stream(messages, max_tokens):
+                for delta in streamer.stream(messages, max_tokens, **(
+                        {"timeout": CHAT_LOCAL_TIMEOUT_S}
+                        if "timeout" in inspect.signature(streamer.stream).parameters else {})):
                     if not produced:
                         self.son_akis_modeli = getattr(streamer, "model", None)
                     produced = True
