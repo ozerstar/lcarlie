@@ -68,6 +68,44 @@ class InternalTest(unittest.TestCase):
         self.assertEqual((got["in_total"], got["out_total"]), (0, 0))
 
 
+
+class EntityTest(unittest.TestCase):
+    """Sahip, 03.11.2026: dört kurum (Şahsım, MOY, Lemos, L'CARLIÉ) ayrı şirketler gibi; birbirine girmesin."""
+
+    def rows(self):
+        rows = [dict(r) for r in ROWS]
+        wix = mv("p6", "kisisel", "2026-10-12", "out", "Wix.com", 77700, "yazilim")
+        wix["scope"] = "lcarlie"
+        tax = mv("p7", "kisisel", "2026-10-13", "out", "Vergi dairesi", 40000, "vergi")
+        tax["scope"] = "moy"
+        return rows + [wix, tax]
+
+    def view(self, entity):
+        return fo.summarize(fo.entity_view(self.rows(), entity), (fo.ENTITIES[entity],), *OCT, labels=fo.ENTITY_LABELS)
+
+    def test_personal_counts_only_personal_money(self):
+        got = self.view("sahsi")
+        self.assertEqual((got["in_total"], got["out_total"]), (0, 150000))  # yalnız market
+        reasons = {m["id"]: m["internal"] for m in got["movements"]}
+        self.assertEqual(reasons["p1"], "Kurumlar arası · MOY")
+        self.assertEqual(reasons["p6"], "Kurumlar arası · L'CARLIÉ adına ödeme")
+        self.assertEqual({g["label"] for g in got["between"]}, {"MOY", "L'CARLIÉ adına ödeme", "MOY adına ödeme"})
+
+    def test_company_carries_what_the_owner_paid_for_it(self):
+        got = self.view("moy")
+        self.assertEqual(got["out_total"], 4998000 + 40000)  # muhasebeci + şahsi karttan ödenen vergi
+        self.assertEqual(got["in_total"], 0)                 # sahibinden ve Lemos'tan gelen para gelir değil
+        self.assertEqual({m["id"]: m["paid_from"] for m in got["movements"]}["p7"], "kisisel")
+
+    def test_lcarlie_has_no_account_but_its_own_spending(self):
+        got = self.view("lcarlie")
+        self.assertEqual((got["in_total"], got["out_total"]), (0, 77700))
+        self.assertEqual([a["book_label"] for a in got["accounts"]], ["Şahsım"])
+
+    def test_lemos_keeps_customers_and_drops_group_money(self):
+        got = self.view("lemos")
+        self.assertEqual((got["in_total"], got["out_total"]), (3000000, 0))
+
 class OwnerGapTest(unittest.TestCase):
     """02.11.2026 ölçüldü: MOY → sahip transferleri Enpara'ya gidiyor, Enpara dökümü 19.06'da başlıyor."""
 

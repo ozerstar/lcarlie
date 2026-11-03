@@ -73,6 +73,62 @@ def internal_reason(row, books, pair_ids):
     return None
 
 
+
+# owner, 03.11.2026: "şahsımı, MOY'u, Lemos'u ve L'CARLIÉ'yi 4 farklı kurum gibi yap; şu anki hâlde her şey
+# birbirine giriyor". Each kurum is a company of its own: what one kurum's account paid for another kurum
+# (the row's scope says whose) is that other kurum's income or spending, and money between kurums is
+# shown apart, never as anyone's income or spending.
+ENTITIES = {"sahsi": "kisisel", "moy": "moy", "lemos": "lemos", "lcarlie": "lcarlie"}
+ENTITY_LABELS = {"kisisel": "Şahsım", "moy": "MOY", "lemos": "Lemos", "lcarlie": "L'CARLIÉ"}
+BETWEEN = "Kurumlar arası"
+
+
+def entity_of(row):
+    """Whose money a row is, as a kurum key (pure). L'CARLIÉ has no account: its scope decides."""
+    book, scope = row.get("book", "kisisel"), row.get("scope") or ""
+    if scope == "lcarlie":
+        return "lcarlie"
+    if book == "kisisel" and scope in ("lemos", "moy"):
+        return scope
+    return book
+
+
+def between_of(row, pair_ids):
+    """The other kurum when a row is money between kurums ("" when the company is not named), else None."""
+    book, key, category = row.get("book", "kisisel"), row.get("party_key") or "", row.get("category") or ""
+    if book == "kisisel":
+        named = next((c for c in ("lemos", "moy") if _COMPANY[c].match(key)), None)
+        if named or category in TO_OWNER or row["id"] in pair_ids:
+            return named or ""
+        return None
+    other = "moy" if book == "lemos" else "lemos"
+    if _COMPANY[other].match(key):
+        return other
+    if category in FROM_OWNER + TO_OWNER_OUT or key in OWNER_KEYS or row["id"] in pair_ids:
+        return "kisisel"
+    return None
+
+
+def entity_view(rows, entity, pair_ids=frozenset()):
+    """The rows of one kurum (pure): its own money counted, money between kurums set aside with its reason."""
+    target = ENTITIES[entity]
+    out = []
+    for row in rows:
+        owner, bank = entity_of(row), row.get("book", "kisisel")
+        if target not in (owner, bank):
+            continue
+        r = dict(row, book=target, paid_from=bank if bank != target else "")
+        if row.get("category") not in NOT_COUNTED:
+            other = between_of(row, pair_ids)
+            if other is not None:  # seen from this kurum the other side is the paying account, if not its own
+                other = bank if bank != target else other
+                r["internal"] = f"{BETWEEN} · {ENTITY_LABELS.get(other, 'şirket')}"
+            elif owner != target:
+                word = "ödeme" if row["direction"] == "out" else "tahsilat"
+                r["internal"] = f"{BETWEEN} · {ENTITY_LABELS[owner]} adına {word}"
+        out.append(r)
+    return out
+
 def _month_keys(end, count=12):
     last = (end - timedelta(days=1)).replace(day=1)
     keys = []
@@ -155,11 +211,11 @@ def owner_gaps(in_period, pair_ids, statement_starts):
             "no_company_side": sorted(no_company_side.values(), key=lambda g: -g["total"])}
 
 
-def summarize(rows, books, start, end, prev_start, prev_end, pair_ids=frozenset(), statement_starts=None):
+def summarize(rows, books, start, end, prev_start, prev_end, pair_ids=frozenset(), statement_starts=None, labels=BOOKS):
     """Pure: everything the overview pages show, from movement dicts (tx_date: date)."""
     marked = []
     for row in (r for r in rows if r.get("book", "kisisel") in books):
-        reason = None if row["category"] in NOT_COUNTED else internal_reason(row, books, pair_ids)
+        reason = None if row["category"] in NOT_COUNTED else (row.get("internal") or internal_reason(row, books, pair_ids))
         marked.append(dict(row, internal=reason))
     counted = [r for r in marked if r["category"] not in NOT_COUNTED and not r["internal"]]
     current = [r for r in counted if start <= r["tx_date"] < end]
@@ -173,13 +229,14 @@ def summarize(rows, books, start, end, prev_start, prev_end, pair_ids=frozenset(
         m = r["tx_date"].strftime("%Y-%m")
         if m in monthly:
             monthly[m][r["direction"]] += r["amount_cents"]
-    per_book = {b: {"key": b, "label": BOOKS[b], "in": 0, "out": 0} for b in books}
+    per_book = {b: {"key": b, "label": labels[b], "in": 0, "out": 0} for b in books}
     for r in current:
         per_book[r.get("book", "kisisel")][r["direction"]] += r["amount_cents"]
     accounts = {}
     for r in marked:
-        a = accounts.setdefault((r.get("book", "kisisel"), r["account"]), {
-            "book": r.get("book", "kisisel"), "book_label": BOOKS[r.get("book", "kisisel")], "name": r["account"],
+        bank = r.get("paid_from") or r.get("book", "kisisel")
+        a = accounts.setdefault((bank, r["account"]), {
+            "book": bank, "book_label": labels[bank], "name": r["account"],
             "count": 0, "last": None, "in": 0, "out": 0})
         a["count"] += 1
         a["last"] = max(a["last"] or r["tx_date"], r["tx_date"])
@@ -189,8 +246,15 @@ def summarize(rows, books, start, end, prev_start, prev_end, pair_ids=frozenset(
     internal = [r for r in in_period if r["internal"] or r["category"] in NOT_COUNTED]
     in_total, out_total = total(current, "in"), total(current, "out")
     owner_flow = owner_gaps(in_period, pair_ids, statement_starts or {})
+    between = {}
+    for r in in_period:
+        if (r["internal"] or "").startswith(BETWEEN):
+            g = between.setdefault(r["internal"], {"label": r["internal"][len(BETWEEN) + 3:], "in": 0, "out": 0, "count": 0})
+            g[r["direction"]] += r["amount_cents"]
+            g["count"] += 1
     return {
         "owner_flow": owner_flow,
+        "between": sorted(between.values(), key=lambda g: -(g["in"] + g["out"])),
         "start": start.isoformat(), "end": (end - timedelta(days=1)).isoformat(),
         "prev_start": prev_start.isoformat(), "prev_end": (prev_end - timedelta(days=1)).isoformat(),
         "books": list(books), "in_total": in_total, "out_total": out_total, "net": in_total - out_total,
@@ -202,18 +266,19 @@ def summarize(rows, books, start, end, prev_start, prev_end, pair_ids=frozenset(
         "top_parties": _group(out_rows, "party")[:15],
         "monthly": [monthly[m] for m in months],
         "accounts": sorted(({**a, "last": a["last"].isoformat() if a["last"] else None} for a in accounts.values()),
-                           key=lambda a: (list(BOOKS).index(a["book"]), -(a["in"] + a["out"]))),
+                           key=lambda a: (list(labels).index(a["book"]), -(a["in"] + a["out"]))),
         "movements": [dict(r, tx_date=r["tx_date"].isoformat()) for r in
                       sorted(in_period, key=lambda r: (r["tx_date"], r["amount_cents"]), reverse=True)],
     }
 
 
 def overview(owner, workspace="tumu", view="month", day=None, start=None, end=None):
-    if workspace not in WORKSPACES:
+    entity = workspace in ENTITIES
+    if workspace not in WORKSPACES and not entity:
         raise ExpenseError("Çalışma alanı geçersiz.")
     if view not in VIEWS:
         raise ExpenseError("Dönem geçersiz.")
-    books = WORKSPACES[workspace]
+    books = tuple(BOOKS) if entity else WORKSPACES[workspace]
     try:
         day = date.fromisoformat(day) if day else datetime.now(ZONE).date()
         start = date.fromisoformat(start) if start else None
@@ -234,8 +299,11 @@ def overview(owner, workspace="tumu", view="month", day=None, start=None, end=No
         cur.execute("""SELECT account, min(tx_date) AS first FROM core.jarvis_money_movement
             WHERE owner=%s AND book='kisisel' GROUP BY account""", (owner,))
         starts = {row["account"]: row["first"] for row in cur.fetchall()}
-    result = summarize(net_links(rows, links), books, s, e, ps, pe, pairs, starts)
+    rows, labels = net_links(rows, links), BOOKS
+    if entity:
+        rows, books, labels = entity_view(rows, workspace, pairs), (ENTITIES[workspace],), ENTITY_LABELS
+    result = summarize(rows, books, s, e, ps, pe, pairs, starts, labels)
     result.update({"workspace": workspace, "view": view, "categories": CATEGORIES, "out_categories": OUT_CATEGORIES,
-                   "in_categories": IN_CATEGORIES, "scopes": SCOPES, "book_labels": BOOKS,
+                   "in_categories": IN_CATEGORIES, "scopes": SCOPES, "book_labels": labels,
                    "not_counted": list(NOT_COUNTED)})
     return result
