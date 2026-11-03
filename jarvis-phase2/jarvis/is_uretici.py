@@ -150,6 +150,32 @@ def _kesik_json_onar(t: str) -> dict | None:
     kalıyordu (ölçüldü 26.10.2026, b2b planı). Kesik son öğe atılır, açık
     kalan parantezler kapatılır; tam öğeler korunur.
     """
+    # Önce kesik DİZGİYİ kapatıp tüm metni korumayı dene: en uzun alan (icerik)
+    # genelde sondadır; onu atmak teslimi boşaltıyordu (ölçüldü 04.11).
+    yigin, icerde, kacis = [], False, False
+    for c in t:
+        if icerde:
+            if kacis:
+                kacis = False
+            elif c == "\\":
+                kacis = True
+            elif c == '"':
+                icerde = False
+        elif c == '"':
+            icerde = True
+        elif c in "{[":
+            yigin.append("}" if c == "{" else "]")
+        elif c in "}]" and yigin:
+            yigin.pop()
+    if icerde:
+        govde = t.removesuffix("\\")
+        try:
+            v = json.loads(govde + '"' + "".join(reversed(yigin)), strict=False)
+            if isinstance(v, dict) and v:
+                v["_kesik_onarildi"] = True
+                return v
+        except json.JSONDecodeError:
+            pass
     kesimler = [i for i, c in enumerate(t) if c in ",}]"][::-1][:400]
     for kes in kesimler:
         parca = t[:kes] if t[kes] == "," else t[:kes + 1]
@@ -581,12 +607,13 @@ class IsUretici:
     def _gun(self) -> str:
         return self.o.saat().astimezone(timezone(timedelta(hours=3))).date().isoformat()
 
-    def _model(self, mod: str, mesajlar: list[dict], is_anahtari: str) -> dict:
+    def _model(self, mod: str, mesajlar: list[dict], is_anahtari: str, max_tokens: int | None = None) -> dict:
         gun = self._gun()
         if self.butce.kalan(gun) <= 0:
             raise RuntimeError("günlük model çağrı tavanı doldu")
         self.butce.harca(gun)
-        cevap = self.o.uret(mesajlar, max_tokens=MAX_TOKENS[mod], kademe=KADEME[mod],
+        mt = int(max_tokens or MAX_TOKENS[mod])
+        cevap = self.o.uret(mesajlar, max_tokens=mt, kademe=KADEME[mod],
                             is_anahtari=is_anahtari)
         try:
             veri = json_ayikla(cevap.get("text", ""))
@@ -596,7 +623,7 @@ class IsUretici:
             self.butce.harca(gun)
             duzelt = mesajlar + [{"role": "assistant", "content": str(cevap.get("text", ""))[:6000]},
                                  {"role": "user", "content": "Bu geçerli JSON değil. Aynı içeriği yalnız geçerli JSON olarak tekrar ver."}]
-            cevap = self.o.uret(duzelt, max_tokens=MAX_TOKENS[mod], kademe=KADEME[mod], is_anahtari=is_anahtari)
+            cevap = self.o.uret(duzelt, max_tokens=mt, kademe=KADEME[mod], is_anahtari=is_anahtari)
             veri = json_ayikla(cevap.get("text", ""))
         veri["_model"] = {k: cevap.get(k) for k in ("provider", "model", "kademe", "prompt_tokens", "completion_tokens", "elapsed_s")}
         return veri
@@ -943,7 +970,8 @@ class IsUretici:
             self._ofis(uye.key, "WORKING", g["baslik"])
             try:
                 v = self._model("yurut", istem_yurut(dep, g, uye, kanitlar),
-                                "is-uretici-yurut-guclu" if g.get("guclu") else "is-uretici-yurut")
+                                "is-uretici-yurut-guclu" if g.get("guclu") else "is-uretici-yurut",
+                                max_tokens=5000 if (g.get("guclu") or g.get("bilgi_sinir") or g.get("bagimli")) else None)
             except Exception as e:  # noqa: BLE001
                 self._ofis(uye.key, "FAILED", g["baslik"])
                 self.kayit.append({"gorev": g["id"], "hata": str(e)[:300]})
