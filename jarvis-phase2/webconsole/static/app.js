@@ -4579,17 +4579,21 @@ function haberSatiri(h) {
     ? '<a href="' + escapeHtml(h.kaynak_url) + '" target="_blank" rel="noopener">'
       + escapeHtml(h.kaynak_adi || 'kaynak') + '</a>'
     : escapeHtml(h.kaynak_adi || '');
-  return '<details class="detail-block"><summary><strong>'
-    + escapeHtml(h.baslik || '') + '</strong><span class="pill">'
-    + escapeHtml(h.aci || '') + '</span></summary>'
-    + '<div class="oo-govde">'
-    + '<div class="fm-sub">' + escapeHtml(h.ozet || '') + '</div>'
+  // Sahip 04.11: kart KAPALIYKEN de ana olay ve L'CARLIÉ bağlantısı okunur.
+  return '<article class="haber-kart haber-' + escapeHtml(String(h.onem || 'BILGI').toLowerCase()) + '">'
+    + '<header><strong>' + escapeHtml(h.baslik || '') + '</strong>'
+    + '<span class="pill">' + escapeHtml(HABER_ACI[h.aci] || 'Gündem') + '</span>'
+    + '<span class="pill">' + escapeHtml(HABER_ONEM[h.onem] || 'Bilgi') + '</span></header>'
+    + '<p class="haber-olay"><b>Ne oldu:</b> ' + escapeHtml(h.ozet || '') + '</p>'
     + (h.neden_onemli
-        ? '<div class="fm-sub">Neden önemli: ' + escapeHtml(h.neden_onemli) + '</div>'
+        ? '<p class="haber-bag"><b>L’CARLIÉ için:</b> ' + escapeHtml(h.neden_onemli) + '</p>'
         : '')
-    + '<div class="fm-sub">' + kaynak + ' · ' + escapeHtml(h.gun || '') + '</div>'
-    + '</div></details>';
+    + '<p class="fm-sub">' + kaynak + ' · ' + escapeHtml(h.gun || '') + '</p>'
+    + '</article>';
 }
+var HABER_ACI = { ekonomi: 'Ekonomi', sektor: 'Sektör', sektor_ticaret: 'Sektör ve ihracat',
+  duzenleme: 'Mevzuat', gundem: 'Gündem' };
+var HABER_ONEM = { KRITIK: 'Kritik', DIKKAT: 'Dikkat', BILGI: 'Bilgi' };
 
 async function anaHaberYukle() {
   var kutu = qs('anaHaber');

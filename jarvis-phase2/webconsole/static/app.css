@@ -4490,3 +4490,11 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .to-dugmeler button{min-height:44px;padding:0 18px;font:inherit;font-weight:600;border-radius:6px;cursor:pointer}
 .to-onayla{background:#2f4a3a;color:#fff;border:0}
 .to-reddet{background:transparent;color:#8a2c2c;border:1px solid #8a2c2c}
+/* Haber kartı (04.11): önizlemede ana olay + L'CARLIÉ için anlamı */
+.haber-kart{padding:12px 14px;margin:0 0 10px;border:1px solid rgba(0,0,0,.12);border-radius:8px}
+.haber-kart header{display:flex;flex-wrap:wrap;gap:6px;align-items:baseline;margin-bottom:6px}
+.haber-kart header strong{flex:1 1 100%;line-height:1.35}
+.haber-kart p{margin:4px 0;line-height:1.45}
+.haber-kritik{border-left:4px solid #8a2c2c}
+.haber-dikkat{border-left:4px solid #9a6a14}
+.haber-bilgi{border-left:4px solid #2f4a3a}

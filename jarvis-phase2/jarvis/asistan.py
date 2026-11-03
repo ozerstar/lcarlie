@@ -23,8 +23,9 @@ kaynak_url'si var; panelde bağlantısıyla birlikte veriliyor ki sahip
 from __future__ import annotations
 
 import json
-from jarvis.db_transport import run as db_run
 from typing import Any
+
+from jarvis.db_transport import run as db_run
 
 
 class AsistanHatasi(Exception):
@@ -113,7 +114,7 @@ def haberler(gun_sayisi: int = 3, adet: int = 12) -> list[dict]:
         "SELECT row_to_json(t) FROM (SELECT id, gun, aci, baslik, ozet, "
         "neden_onemli, kaynak_url, kaynak_adi, onem "
         "FROM core.guncel_olay "
-        f"WHERE gun >= current_date - {int(gun_sayisi)} "
+        f"WHERE gun = (SELECT max(gun) FROM core.guncel_olay WHERE gun >= current_date - {int(gun_sayisi)}) "
         f"ORDER BY gun DESC, onem, id DESC LIMIT {int(adet)}) t;")
 
 
