@@ -1,0 +1,11 @@
+[Unit]
+Description=LCARLIE Radar zamanlayıcı: OpenStreetMap eczane adayları (mesaj taslakları onaya düşer)
+
+[Timer]
+OnCalendar=*-*-* 06:35
+RandomizedDelaySec=120
+Persistent=true
+Unit=lcarlie-radar@musteri-bul.service
+
+[Install]
+WantedBy=timers.target

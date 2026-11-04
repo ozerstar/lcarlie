@@ -1,0 +1,11 @@
+[Unit]
+Description=LCARLIE is uretici: pazartesi departman raporu + 3 fikir
+
+[Timer]
+OnCalendar=Mon *-*-* 10:40:00
+Persistent=true
+RandomizedDelaySec=120
+Unit=lcarlie-is-uretici@haftalik.service
+
+[Install]
+WantedBy=timers.target

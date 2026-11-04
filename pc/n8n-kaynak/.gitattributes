@@ -1,0 +1,32 @@
+# 🔴 SATIR SONLARI HER ZAMAN LF.
+#
+# Bu agactaki dosyalarin cogu Linux sunucusunda calisan kabuk betikleri,
+# SQL ve Python. Git'in Windows'taki varsayilani (core.autocrlf=true)
+# checkout sirasinda hepsini CRLF'e cevirir. Bunun iki sonucu olurdu:
+#
+#   1) Bir geri donus (git checkout / git restore) sunucuya gidecek her
+#      betigi sessizce CRLF yapar. yayinla.ps1 gonderimde `sed 's/\r$//'`
+#      uyguladigi icin kurulum calisir gorunur ama kaynak ile kurulan
+#      arasindaki MD5 dogrulamasi tutmaz ve yayin durur.
+#   2) Daha kotusu: CRLF'li bir betik dogrudan sunucuya kopyalanirsa
+#      shebang satiri `#!/usr/bin/env bash\r` olur ve kabuk
+#      "bad interpreter" der - hata mesaji gorunmez bir karakteri isaret
+#      eder, bulmasi zordur.
+#
+# `text=auto eol=lf`: Git depoda LF tutar VE calisma kopyasina LF yazar.
+* text=auto eol=lf
+
+# Ikili dosyalar hicbir donusume ugramasin.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.pdf binary
+*.xlsx binary
+*.docx binary
+*.zip binary
+*.enc binary
+
+# PowerShell betikleri Windows'ta calisir; CRLF onlar icin dogal ve
+# sunucuya hic gitmezler.
+*.ps1 text eol=crlf

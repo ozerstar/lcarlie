@@ -1,0 +1,11 @@
+[Unit]
+Description=LCARLIE Radar zamanlayıcı: eczane + Gratis: yeni marka ve JSON-LD fiyatları (modelsiz)
+
+[Timer]
+OnCalendar=*-*-* 05:30
+RandomizedDelaySec=120
+Persistent=true
+Unit=lcarlie-radar@kaynak-tara.service
+
+[Install]
+WantedBy=timers.target

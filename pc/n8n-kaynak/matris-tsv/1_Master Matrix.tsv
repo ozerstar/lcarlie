@@ -1,0 +1,200 @@
+Product	Domain	Subdomain / Zone	Product Type	Ritual Role	Audience	Exact Intent Required	Primary Need	Secondary Need	Formula Intelligence Summary	Key Formula Components	Contra-Fit / Caution	Hard Gate	Evidence Status	Recommendation Mode	Initial Confidence	Source	Engine Class	Recommendation Enabled	Auto Recommendation	Route / Gate	Special Rule / Synergy	Data Readiness	Formula Evidence Level	Engine Domain	Engine Subdomain	Engine Role	Body Zone IDs	Need IDs	Approval Status	Formula Version	Claim Version	Matrix Version
+HYDRAVIE	Face	Face / hands	Leave-on moisturizer	Moisturize / core	Adult	No	Dryness / hydration	Barrier-supportive daily care	Humectant-heavy leave-on with emollient support; not a ceramide product in the parsed current MoCRA formula.	Aloe 10%; Panthenol 5%; Glycerin 5%; Sodium Hyaluronate 5%; Niacinamide 5%; Squalane 3%; Shea 3%; Coconut 3%; Bakuchiol 1%; Tocopherol 1%	Very reactive / very lightweight-texture preference may reduce fit; formula includes botanical oils and salicylic acid 0.5%.	Adult skin; intact skin	Formula parsed	Broad within face-care	High	https://docs.google.com/spreadsheets/d/1gvwRZFXuRYNhtcZJmxOsLOa9r5Dl-oyn/edit	ACTIVE	YES	YES	Domain + intent gate		SOURCE AVAILABLE	QUANTIFIED	FACE	FACE_HYDRATION	MOISTURIZE	FACE|NECK	HYDRATION|BARRIER_COMFORT	ACTIVE	2026-08-26	2026-08-26	12.1.1
+LUCIDERM	Face	Face	Rinse-off cleansing foam	Cleanse	Adult	No	Cleansing	Hydration-supportive cleansing / balance	Multi-surfactant rinse-off cleanser with soothing/humectant support and Ceramide NP; acids and essential oils make reactivity relevant.	Lavender water 10%; Melissa water 10%; Aloe 10%; Decyl Glucoside 5%; CAPB 5%; Sodium Cocoyl Glutamate 5%; Ceramide NP 0.5%; Betaine 0.5%; Sodium Hyaluronate 0.5%; Salicylic Acid 0.5%; Lactic Acid 0.5%	High reactivity / fragrance-essential-oil aversion lowers fit; rinse-off context reduces exposure.	Adult face cleansing	Formula parsed	Broad within face-care	High	https://docs.google.com/spreadsheets/d/1MQYS-k5u5DLcTKJrhna6ZWVVlot1PSv7/edit	ACTIVE	YES	YES	Domain + intent gate		SOURCE AVAILABLE	QUANTIFIED	FACE	FACE_CLEANSE	CLEANSE	FACE|NECK	CLEANSING|BALANCE	ACTIVE	2026-08-26	2026-08-26	12.1.1
+CALMAROS	Face	Face	Leave-on botanical mist	Prepare / soothe / complement	Adult	No	Sensitive-feeling / redness-prone appearance	Refresh / humectant botanical care	Hydrosol-dominant mist with aloe/calendula, but also cinnamon and clove oils plus low salicylic acid; not an automatic 'ultra-sensitive' default.	Rose water 36.5%; Chamomile water 15%; Calendula 15%; Aloe 15%; Lavender water 15%; Clove oil 0.5%; Cinnamon bark oil 0.5%; Green tea 0.5%; Glycerin 0.5%; Salicylic Acid 0.1%	Very reactive skin, fragrance/EO sensitivity and patch-test concern should reduce or block recommendation.	Adults only; not <3 yrs due salicylic acid note	Formula parsed	Conditional	Medium-High	https://docs.google.com/spreadsheets/d/1v0_k5YnvLj-Zidx8SCBpuuzLqC2plQxN/edit	ACTIVE	YES	YES	Domain + intent gate		SOURCE AVAILABLE	QUANTIFIED	FACE	FACE_PREP	PREP	FACE|NECK	PREP|SOOTHING|COMFORT	ACTIVE	2026-08-26	2026-08-26	12.1.1
+SUNACNEA SPF30	Sun / Face & Body	Face / body	Leave-on sunscreen	Protect	Adult	No	UV exposure	Daily protection with emollient base	Mineral UV-filter formula with a rich oil/butter phase. Protection relevance is high under UV, but texture preference matters.	Zinc Oxide non-nano 5%; Shea 8%; Coconut 8%; Tamanu 5%; Myrrh 5%; Sandalwood extract 5%; Aloe 2%; Pomegranate 1%; Grape seed 1%; Tocopherol 0.5%	Very oily / ultra-light texture preference may reduce fit. Product file states not water-resistant.	Adult; sunscreen route	Formula parsed	Broad under UV intent	High	https://docs.google.com/spreadsheets/d/1c1bLzLZEPMvshiKlpGk5HL4bPEEFyhm6/edit	ACTIVE	YES	YES	Domain + intent gate		SOURCE AVAILABLE	QUANTIFIED	FACE	FACE_SUN	PROTECT	FACE|NECK	UV_PROTECTION	ACTIVE	2026-08-26	2026-08-26	12.1.1
+DERMANOVA	Face / Body	Localized skin	Leave-on skin care cream	Targeted care / complement	Adult	Yes	Localized cosmetic skin-conditioning need	Rich oil-based care	Very oil-rich leave-on formula; Tamanu 65% + Hypericum 20%. Strongly targeted, not a general face default.	Tamanu 65%; Hypericum Oil 20%; Glycerin 3%; Calendula 1.5%; multiple botanical oils; Salicylic Acid 0.5%	Essential oils / fragrance allergens; photosensitivity context should be considered because Hypericum is prominent; avoid casual broad matching.	Adult; exact localized intent; intact skin	Formula parsed	Exact-intent / gated	Medium	https://docs.google.com/spreadsheets/d/1hwbbH_ta_TqAQDYqyl1L3U5zs7tQYdg2/edit	ACTIVE	YES	YES	Domain + intent gate		SOURCE AVAILABLE	QUANTIFIED	FACE	BODY_LOCALIZED	TARGET	BODY_LOCALIZED	LOCALIZED_SKIN_APPEARANCE|BARRIER_COMFORT	ACTIVE	2026-08-26	2026-08-26	12.1.1
+KINESIS+	Body / Active	Body / massage	Leave-on body cream	Active-care core	Adult	Yes	Active lifestyle / post-activity body care	Massage / conditioning / sensory freshness	Oil-rich massage cream with aloe, botanical oils, peppermint and mineral-related ingredients. Source file contains Boron vs Boron Nitride discrepancy.	Sesame unsaponifiables 5%; Coconut 5%; Borage 5%; Tamanu 5%; Aloe 5%; Calendula 2%; Peppermint 0.2%; Zinc PCA 0.5%; Copper PCA 0.5%; MAP 0.5%	Essential oils; Hypericum photosensitivity consideration; formula discrepancy must be resolved before professional-detail claims.	Adult body / active intent only	Formula parsed; discrepancy flagged	Exact-intent / gated	Medium	https://docs.google.com/spreadsheets/d/1DAy_13kXeZlxstAbDDI-9jU_AEW-nDYJ/edit	ACTIVE	YES	YES	Domain + intent gate		SOURCE AVAILABLE	QUANTIFIED	BODY	BODY_ACTIVE_MASSAGE	REGIONAL	MUSCLE_JOINT_AREA|BODY_ACTIVE	POST_ACTIVITY_BODY_CARE|ACTIVE_LIFESTYLE|MASSAGE_COMFORT	ACTIVE	2026-08-26	2026-08-26	12.1.1
+LIFTELLE	Face / Body / Special	Face / jawline / neck / bust & décolleté	Leave-on targeted care	Targeted appearance care	Adult	Yes	Fine-line / wrinkle appearance; firmness-looking care; bust-décolleté care	Hydration / smooth-looking skin	Highly oil-rich localized formula with borage, coconut, tamanu, jojoba plus centella and caffeine.	Borage 58%; Coconut 15%; Tamanu 10%; Jojoba 7%; Centella 0.5%; Caffeine 0.5%; Tocopherol 0.5%; Salicylic Acid 0.5%; Lactic Acid 0.5%	Fragrance/EO allergens; localized adult use only; salicylic acid age restriction note in source.	Adult; intact skin; face/jawline/neck or bust-décolleté route	Formula parsed + brand-use rule	Domain-gated / targeted	High	https://docs.google.com/spreadsheets/d/1nyTqUWh21NXQxDjhc7XmA4lwSK4OhKx_/edit	ACTIVE	YES	YES	Face/neck/jawline or bust-décolleté intent	Pair with HYDRAVIE when fine-line/wrinkle appearance is a priority.	FORMULA + BRAND RULE READY	QUANTIFIED	FACE	FACE_FIRMNESS	TARGET	FACE|JAWLINE|NECK|DECOLLETE|BUST	FINE_LINES_WRINKLE_APPEARANCE|FIRMNESS_APPEARANCE	ACTIVE	2026-08-26	2026-08-26	12.1.1
+VIREON FOR MEN	Men / Intimate	External male intimate area	Leave-on intimate care cream	Targeted intimate care	Adult men	Yes	Explicit male intimate-care intent	Localized emollient botanical care	Oil/emollient-rich formula with a very high cinnamon bark oil level in the parsed file; should never be a generic male-face recommendation.	Poppy seed oil 10%; Borage 5%; Jojoba 5%; Grape seed 5%; Cinnamon bark oil 5%; Ginger 0.5%; Black pepper 0.5%; Ylang-ylang 0.5%; Salicylic Acid 0.5%	High fragrance/EO load; cinnamon bark oil 5% is a major professional-review flag; avoid face/shaving-positioning without separate substantiation.	Adult men; explicit-intent only	Formula parsed	Explicit-intent only	Medium-Low pending review	https://docs.google.com/spreadsheets/d/1Pa9BPx0aS-2OFCOCV8ZC2yFoWg2noWr3/edit	ACTIVE-GATED	YES	NO	Only after explicit male intimate-care selection	Never auto-suggest from general face/body image analysis.	FORMULA READY	QUANTIFIED	INTIMATE	INTIMATE_MALE	TARGET	EXTERNAL_MALE_INTIMATE	MALE_INTIMATE_CARE	ACTIVE	2026-08-26	2026-08-26	12.1.1
+FEMISIA FOR WOMEN	Women / Intimate	External female intimate area	Leave-on intimate care cream	Targeted intimate care	Adult women	Yes	Explicit female intimate-care intent	Localized emollient botanical care	Rich coconut/aloe/shea/borage base with arginine and botanical extracts; substantial EO/fragrance system.	Coconut 10%; Aloe 10%; Shea 5%; Borage 5%; Arginine 0.5%; Epimedium 0.5%; Maca 0.5%; Lactobacillus Ferment 0.5%; multiple essential oils	Fragrance/EO sensitivity; exact use-area/classification must be aligned before automated promotion.	Adult women; explicit-intent only	Formula parsed	Explicit-intent only	Medium-Low pending classification	https://docs.google.com/spreadsheets/d/1d-HEf4xSwNGb0utianH6bfYaK2D2m2hP/edit	ACTIVE-GATED	YES	NO	Only after explicit female intimate-care selection	Never auto-suggest from general face/body image analysis.	FORMULA READY	QUANTIFIED	INTIMATE	INTIMATE_FEMALE	TARGET	EXTERNAL_FEMALE_INTIMATE	FEMALE_INTIMATE_CARE	ACTIVE	2026-08-26	2026-08-26	12.1.1
+MENTHALIS	Aromatic / Sensory	Pulse points / localized aromatic use	Aromatic oil blend / roll-on	Aromatic scent / sensory complement	Adult	Yes	Aromatic scent intent	Fragrance / sensory experience	Essential-oil-heavy blend; ingredient file contains no percentages, so strength cannot be inferred reliably.	Peppermint; Palmarosa; Cypress; Niaouli; Bergamot; Sweet Almond; Ylang-Ylang; Tocopherol	EO/fragrance sensitivity; bergamot phototoxicity depends on material/specification; no percentage data in parsed formula file.	Adult; aromatic/scent route	Ingredient list parsed; % missing	Domain-gated	Low-Medium	https://docs.google.com/spreadsheets/d/1URElidUkn4U5bzOz3OSA3BLvzeXpDEoT/edit	ACTIVE	YES	YES	Aromatic / scent route only	Do not score as treatment or skin-problem product.	INGREDIENT LIST READY; % MAY BE LIMITED	INCI_ONLY	AROMATIC	AROMATIC_SCENT	AROMATIC	PULSE_POINTS	AROMATIC_SCENT	ACTIVE	2026-08-26	2026-08-26	12.1.1
+CALMORIS	Aromatic / Sensory	Pulse points / localized aromatic use	Aromatic oil blend	Aromatic scent / sensory complement	Adult	Yes	Aromatic scent / evening-sensory intent	Fragrance / sensory experience	Essential-oil blend with no concentration data in parsed formula file.	Lavender; Elemi; Sweet Almond; Tocopherol; Frankincense; Patchouli; Ylang-Ylang; Bergamot; Vetiver	EO/fragrance sensitivity; bergamot material specification matters; no % data.	Adult; aromatic/scent route	Ingredient list parsed; % missing	Domain-gated	Low-Medium	https://docs.google.com/spreadsheets/d/1hygDuaGUq3xxO505WjMKQlY5jMNtENM3/edit	ACTIVE	YES	YES	Aromatic / scent route only	Do not score as treatment or skin-problem product.	INGREDIENT LIST READY; % MAY BE LIMITED	INCI_ONLY	AROMATIC	AROMATIC_SCENT	AROMATIC	PULSE_POINTS	AROMATIC_SCENT	ACTIVE	2026-08-26	2026-08-26	12.1.1
+DERMASTRA	Body	White stretch-mark appearance areas	Leave-on body care	Targeted appearance care	Adult	Yes	White stretch-mark appearance	Elasticity / smooth-looking body skin	MoCRA file found; formula parsing required before weighting.	Pending parse	Do not auto-rank by marketing copy until formula is parsed.	Adult; intact body skin; stretch-mark appearance route	Source package received	Exact-intent / body-gated	Medium pending formula parse	https://docs.google.com/spreadsheets/d/1fvjgoLHs2ZfWnR1g7yA3Id9v4Dx6dE13/edit	ACTIVE	YES	YES	Body only; unlock on stretch-mark appearance / explicit intent	Use dedicated stretchMarkAppearance signal; do not confuse with scars/marks.	MOCRA SOURCE RECEIVED	PARTIAL	BODY	BODY_STRETCH_MARK	TARGET	BODY_STRETCH_MARK_AREA	WHITE_STRETCH_MARK_APPEARANCE	ACTIVE	2026-08-26	2026-08-26	12.1.1
+DERMAMOVERA	Body / Active / Joint	Joint / movement areas	Topical body care / massage	Active-care / joint-area comfort	Adult / older adult	Yes	Joint-area comfort; post-activity body care; active lifestyle	Massage / movement-area comfort	MoCRA file found; formula parsing required.	Pending parse	Professional claims blocked until source parse and claim review.	Adult intact skin; joint-area / sport route	Source package received	Domain-gated / targeted	Medium pending formula parse	https://docs.google.com/spreadsheets/d/1LNigXHqHqqO37BCkE9mPWo4wQekzk8cg/edit	ACTIVE	YES	YES	Joint/body route; suitable for sport/active and older-adult body-care intent	Customer language: supports massage, comfort and body-care routine; avoid 'treats joint pain'.	MOCRA SOURCE RECEIVED	PARTIAL	BODY	BODY_JOINT_ACTIVE	REGIONAL	JOINT_AREA|BODY_ACTIVE	JOINT_AREA_COMFORT|POST_ACTIVITY_BODY_CARE|ACTIVE_LIFESTYLE	ACTIVE	2026-08-26	2026-08-26	12.1.1
+DERMACORN	Foot / Body	Foot / callus-prone area	Topical oil/care	Targeted care	Adult	Yes	Rough / callus-prone foot care	To be determined from source	MoCRA file found; formula parsing required.	Pending parse	Only exact foot/callus intent should unlock.	Adult foot / exact intent	Source found; not yet parsed	Exact-intent / gated	Pending	https://docs.google.com/spreadsheets/d/1SUotYSox-uMZlUY5QUnZuBRnmqwnJF2B/edit	ACTIVE	YES	YES	Domain + intent gate		MOCRA / SOURCE PACKAGE RECEIVED	PARTIAL	BODY	FOOT_ROUGHNESS	REGIONAL	FOOT|HEEL	FOOT_ROUGHNESS|CALLUS_PRONE_APPEARANCE	ACTIVE	2026-08-26	2026-08-26	12.1.1
+DERMARNICA	Body	Localized body care	Topical care	Targeted care	Adult	Yes	Localized body-care intent	To be determined from source	MoCRA file found; formula parsing required.	Pending parse	Avoid medical/bruise-treatment language until reviewed.	Adult / exact localized intent	Source found; not yet parsed	Gated pending formula	Pending	https://docs.google.com/spreadsheets/d/10rHQcLQYbwFEYAgZbxWQm0cRJE8nD6mK/edit	ACTIVE	YES	YES	Domain + intent gate		MOCRA / SOURCE PACKAGE RECEIVED	PARTIAL	BODY	BODY_LOCALIZED	REGIONAL	BODY_LOCALIZED	LOCALIZED_BODY_CARE	ACTIVE	2026-08-26	2026-08-26	12.1.1
+DERMAVASC	Body	Leg / body	Topical body care	Targeted care	Adult	Yes	Leg / localized body-care intent	To be determined from source	MoCRA file found; formula parsing required.	Pending parse	Avoid vascular/medical inference from name; exact cosmetic use only.	Adult / exact localized intent	Source found; not yet parsed	Gated pending formula	Pending	https://docs.google.com/spreadsheets/d/15itWx1xgHcq2dY3y7WYi91XNuGNSOc8b/edit	ACTIVE	YES	YES	Domain + intent gate		MOCRA / SOURCE PACKAGE RECEIVED	PARTIAL	BODY	BODY_LEG	REGIONAL	LEG|BODY	LEG_CARE|LOCALIZED_BODY_CARE	ACTIVE	2026-08-26	2026-08-26	12.1.1
+DERMAGUARD	Body	Body / barrier	Topical care	Protect / support	Adult	Yes	Protective body-care intent	To be determined from source	MoCRA file found; formula parsing required.	Pending parse	Do not infer antiseptic/medical protection claims.	Adult / exact body-care intent	Source found; not yet parsed	Gated pending formula	Pending	https://docs.google.com/spreadsheets/d/1IQWT2PWQ5RMxmz7jBaLnT_ggHflbfv9i/edit	ACTIVE	YES	YES	Domain + intent gate		MOCRA / SOURCE PACKAGE RECEIVED	PARTIAL	BODY	BODY_BARRIER	TARGET	BODY|FOOT	BODY_BARRIER_CARE	ACTIVE	2026-08-26	2026-08-26	12.1.1
+DERMABED	Body / Special	Pressure / friction-prone body areas	Leave-on body barrier care	Protect / comfort	Adult	Yes	Daily care for pressure/friction-prone intact skin	Moisture / barrier comfort	MoCRA file found; formula parsing required.	Pending parse	Risk-quarantined for promotion until formula/use-language audit.	Intact skin only; STOP if open/acute skin	Source package received	Domain-gated / targeted	Medium pending formula parse	https://docs.google.com/spreadsheets/d/1mL3XsRX9BbKm9sBF-7dpdi1g8FNRHz-e/edit	ACTIVE	YES	YES	Body only; pressure/friction-prone intact skin	Cosmetic wording only: helps maintain moisturized, cared-for, comfortable-feeling skin. Never wound-treatment language.	MOCRA SOURCE RECEIVED	PARTIAL	BODY	BODY_PRESSURE_FRICTION	REGIONAL	PRESSURE_FRICTION_AREA	PRESSURE_FRICTION_CARE|BARRIER_COMFORT	ACTIVE	2026-08-26	2026-08-26	12.1.1
+DORSIVIA	Body	Back / body	Topical body care	Targeted body care	Adult	Yes	Localized body-care intent	To be determined from source	MoCRA listing file found.	Pending parse	Name must not drive medical inference.	Adult body; intact skin	Source package received	Body-domain gated	Medium pending formula parse	https://docs.google.com/spreadsheets/d/1eU6gSDjrjjn2gE5b-_OftX7YpT7kTP0y/edit	ACTIVE	YES	YES	Body route only	Do not route to face.	MOCRA SOURCE RECEIVED	PARTIAL	BODY	BODY_BACK	REGIONAL	BACK|BODY	BACK_BODY_CARE|LOCALIZED_BODY_CARE	ACTIVE	2026-08-26	2026-08-26	12.1.1
+SERALIMBO	Body	Legs	Leg care	Targeted / complement	Adult	Yes	Leg comfort / care intent	To be determined from source	MoCRA file found.	Pending parse	Avoid circulation/vascular treatment claims until reviewed.	Adult legs / exact intent	Source found; not yet parsed	Gated pending formula	Pending	https://docs.google.com/spreadsheets/d/1Tmur7ecj097-J4e8VdFCFE5gOG4-WJJT/edit	ACTIVE	YES	YES	Domain + intent gate		MOCRA / SOURCE PACKAGE RECEIVED	PARTIAL	BODY	BODY_LEG	REGIONAL	LEG	LEG_CARE|BODY_COMFORT	ACTIVE	2026-08-26	2026-08-26	12.1.1
+EASYCOMB	Hair	Hair lengths	Leave-in detangling / conditioning spray	Detangle / condition / nourish	Adult / child	Yes	Detangling; easier combing; hair nourishment/care	Manageability / conditioning	MoCRA file found; formula parsing required.	Pending parse	Age/audience to be confirmed from source before routing.	Hair route; adult + child	Source package received	Domain-gated	Medium pending formula parse	https://docs.google.com/spreadsheets/d/1QJSI5AMO2pkGL0TytQqDGOGIkBm2VMRO/edit	ACTIVE	YES	YES	Hair route only; adult and child	Hair-detangling spray that supports easier combing and nourished/cared-for hair.	MOCRA SOURCE RECEIVED	PARTIAL	HAIR	HAIR_DETANGLING	TARGET	HAIR_LENGTH	DETANGLING|HAIR_CARE|HAIR_NOURISHMENT	ACTIVE	2026-08-26	2026-08-26	12.1.1
+HAIR NOURISHER	Hair	Scalp / hair	Hair care	Targeted / complement	Adult	Yes	Hair/scalp cosmetic care	To be determined from source	MoCRA file found; formula parsing required.	Pending parse	Existing product-document mismatch noted; no paid-funnel priority until aligned.	Hair route only	Source found; not yet parsed	Quarantined pending alignment	Pending	https://docs.google.com/spreadsheets/d/1WQov0iyOMXTkxZ0Qx5vQHZrd_qKkXbXz/edit	ACTIVE	YES	YES	Domain + intent gate		MOCRA / SOURCE PACKAGE RECEIVED	PARTIAL	HAIR	HAIR_SCALP	TARGET	HAIR|SCALP	HAIR_CARE|SCALP_CARE	ACTIVE	2026-08-26	2026-08-26	12.1.1
+ORAGARDE	Oral	Oral care	Oral cosmetic care	Core oral care	Adult	Yes	Oral-care intent	To be determined from source	MoCRA file found; formula parsing required.	Pending parse	Oral route only; do not cross-match to skin.	Oral route only	Source found; not yet parsed	Domain-gated	Pending	https://docs.google.com/spreadsheets/d/1OOXj7C74KDSTYke4l6OH0uI74aENlXVE/edit	ACTIVE	YES	YES	Domain + intent gate		MOCRA / SOURCE PACKAGE RECEIVED	PARTIAL	ORAL	ORAL_DAILY	TARGET	ORAL	ORAL_CARE	ACTIVE	2026-08-26	2026-08-26	12.1.1
+BRIGHT SMILE	Oral	Teeth / oral	Oral cosmetic care	Targeted oral care	Adult	Yes	Smile / cosmetic oral-care intent	To be determined from source	MoCRA file found; formula parsing required.	Pending parse	Oral route only; whitening claims require substantiation.	Oral route only	Source found; not yet parsed	Domain-gated	Pending	https://docs.google.com/spreadsheets/d/11SiNmbNRviHf9XOZkpwyZaDt9GxwmLyh/edit	ACTIVE	YES	YES	Domain + intent gate		MOCRA / SOURCE PACKAGE RECEIVED	PARTIAL	ORAL	ORAL_APPEARANCE	TARGET	TEETH|ORAL	ORAL_APPEARANCE|SMILE_CARE	ACTIVE	2026-08-26	2026-08-26	12.1.1
+LIPVORA	Lip	Lips	Lip care	Targeted lip care	Adult	Yes	Lip-care intent	To be determined from source	MoCRA file found; formula parsing required.	Pending parse	Lip-only; avoid disease/lesion treatment language.	Lip route only	Source found; not yet parsed	Domain-gated	Pending	https://docs.google.com/spreadsheets/d/1BSgNQIc4B7srLvyNMnIzK0RVnFq7HQqt/edit	ACTIVE	YES	YES	Domain + intent gate		MOCRA / SOURCE PACKAGE RECEIVED	PARTIAL	LIP	LIP_CARE	TARGET	LIPS	LIP_CARE	ACTIVE	2026-08-26	2026-08-26	12.1.1
+OPTYWAVE	Eye / Regional	Eye contour	Roll-on / localized care	Targeted eye care	Adult	Yes	Eye-contour cosmetic care	To be determined from source	FDA listing file found; formula parsing required.	Pending parse	Eye-area tolerance and exact label directions required before automated use.	Adult eye area / exact intent	Source found; not yet parsed	Gated pending formula	Pending	https://docs.google.com/spreadsheets/d/1gj18J7Kocpq7CwHW1MFsIyBX6o1a6WzE/edit	ACTIVE	YES	YES	Domain + intent gate		MOCRA / SOURCE PACKAGE RECEIVED	PARTIAL	FACE	EYE_CONTOUR	TARGET	EYE_CONTOUR	EYE_CONTOUR_APPEARANCE	ACTIVE	2026-08-26	2026-08-26	12.1.1
+CALM JAW	Regional / Men	Jaw area	Localized care	Targeted regional care	Adult	Yes	Jaw-area cosmetic/sensory intent	To be determined from source	MoCRA file found; formula parsing required.	Pending parse	Avoid pain/TMJ/therapeutic language.	Adult / exact jaw-area intent	Source found; not yet parsed	Exact-intent / gated	Pending	https://docs.google.com/spreadsheets/d/1YEnnznMX_VRgvI06KAUQlwyw2DGVtpvi/edit	ACTIVE	YES	YES	Domain + intent gate		MOCRA / SOURCE PACKAGE RECEIVED	PARTIAL	BODY	JAW_REGIONAL	TARGET	JAW_AREA	JAW_AREA_COSMETIC_SENSORY	ACTIVE	2026-08-26	2026-08-26	12.1.1
+EARCLIA	Regional	Ear-area product	Localized care	Targeted care	Adult	Yes	Exact ear-area cosmetic-care intent	To be determined from source	FDA listing file found.	Pending parse	Risk-quarantined: ear claims and route need precise review.	Approval required	Source received; approval pending	Disabled pending approval	Pending approval	https://docs.google.com/spreadsheets/d/1uufwG2AkXBgZdSix0Q-S2h2UcbGPRhMb/edit	PENDING APPROVAL	NO	NO	Disabled until approval	Keep source data only; do not recommend or display in engine.	SOURCE RECEIVED / APPROVAL PENDING	PARTIAL	BODY	EAR_REGIONAL	TARGET	EAR_AREA	EAR_AREA_CARE	PENDING_APPROVAL	2026-08-26	2026-08-26	12.1.1
+AUROLIS	Regional / Special	Specialized area	Localized care	Targeted care	Adult	Yes	Exact specialized-care intent	To be determined from source	FDA listing file found.	Pending parse	Risk-quarantined until exact intended use and formula are audited.	Exact intent only	Source found; not yet parsed	Quarantined pending review	Pending	https://docs.google.com/spreadsheets/d/1Ij8PRW871l9Z8bQfiIpqgkTl3q8zeRBT/edit	ACTIVE	YES	YES	Domain + intent gate		MOCRA / SOURCE PACKAGE RECEIVED	PARTIAL	BODY	SPECIAL_REGIONAL	TARGET	SPECIALIZED_AREA	SPECIALIZED_CARE	ACTIVE	2026-08-26	2026-08-26	12.1.1
+NOMORE	Regional / Special	Specialized area	Localized care	Targeted care	Adult	Yes	Exact specialized-care intent	To be determined from source	FDA listing file found.	Pending parse	Risk-quarantined; name must not imply therapeutic effect.	Approval required	Source received; approval pending	Disabled pending approval	Pending approval	https://docs.google.com/spreadsheets/d/11q6Rtbo3H64KoyUdZi7PA_Ihs0Gv4HLF/edit	PENDING APPROVAL	NO	NO	Disabled until approval	Keep source data only; do not recommend or display in engine.	SOURCE RECEIVED / APPROVAL PENDING	PARTIAL	BODY	SPECIAL_REGIONAL	TARGET	SPECIALIZED_AREA	SPECIALIZED_CARE	PENDING_APPROVAL	2026-08-26	2026-08-26	12.1.1
+INTIMBLANC	Body / Personal Care	External intimate area + localized body tone areas	Localized leave-on care	Targeted tone-appearance care	Adult	Yes	Localized tone / color-evenness appearance; external intimate-care intent	More even-looking body tone	MoCRA file found; classification/use-area still requires alignment.	Pending parse	Do not infer treatment; classification unresolved.	Adult; external use; intact skin	Source package received	Body-domain / explicit-intent gated	Medium pending formula parse	https://docs.google.com/spreadsheets/d/1WlHqF9tMiXG4wcRXxpURTiiN4qdW0e2s/edit	ACTIVE-GATED	YES	YES	Body-tone route or explicit external intimate-care route	Can be considered for body color/tone-evenness appearance, not only intimate care. Avoid treatment/depigmentation claims.	MOCRA SOURCE RECEIVED	PARTIAL	BODY	BODY_TONE	TARGET	BODY_LOCALIZED_TONE|EXTERNAL_INTIMATE	BODY_TONE_EVENNESS|EXTERNAL_INTIMATE_TONE_CARE	ACTIVE	2026-08-26	2026-08-26	12.1.1
+BUGGUARD	Outdoor / Body	Exposed body areas	Outdoor topical product	Protect / outdoor	Adult / family per label	Yes	Outdoor / insect-exposure context	To be determined	MoCRA file found, but biocidal/regulatory status must be handled separately from normal cosmetic scoring.	Pending parse	Separate regulatory pathway; should not be mixed into ordinary cosmetic quiz until classification is confirmed.	Excluded by brand decision	Excluded	Excluded	N/A	https://docs.google.com/spreadsheets/d/1Lej1aW-hzRUTOhCmGXq2YWXIY3qs1VM2/edit	EXCLUDED	NO	NO	Excluded from ritual engine	BUGGUARD removed by brand decision.	EXCLUDED	UNKNOWN	EXCLUDED	EXCLUDED	TARGET	EXPOSED BODY AREAS		EXCLUDED	2026-08-26	2026-08-26	12.1.1
+BABYSOL SPF50+	Baby	Baby / child sun care	Leave-on sunscreen	Protect	Baby / child	Yes	UV protection	Family sun-care / daily protection	MoCRA file found; formula not parsed in this pass.	Pending parse	Baby route only; age and SPF substantiation must be source-driven.	Baby/child + sun intent; label directions	MoCRA + SPF/stability/challenge/microbiology test package received	Domain-gated / UV route	High	https://docs.google.com/spreadsheets/d/167kSc0oKCMZn5aMJnFEhgVyLlyZmZIGh/edit	ACTIVE	YES	YES	Baby/child sun-care route	Product remains BABYSOL SPF50+; laboratory package includes SPF, stability, challenge and microbiological testing.	TEST PACKAGE + MOCRA READY	PARTIAL	BABY	BABY_SUN	PROTECT	BABY_CHILD_EXPOSED_SKIN	UV_PROTECTION|BABY_SUN_CARE	ACTIVE	2026-08-26	2026-08-26	12.1.1
+BABYDENT	Baby / Oral	Baby oral care	Oral gel	Targeted baby oral care	Baby / child	Yes	Baby oral-care intent	Daily oral-care support	MoCRA file found; formula not parsed in this pass.	Pending parse	Baby oral route only; teething-treatment claims must not be inferred.	Baby oral exact intent	Source found; not yet parsed	Domain-gated	Pending	https://docs.google.com/spreadsheets/d/1tyTxjrGxB4gEaylxC13B9l4sAEJ_7UVo/edit	ACTIVE	YES	YES	Domain + intent gate		MOCRA / SOURCE PACKAGE RECEIVED	PARTIAL	BABY	BABY_ORAL	TARGET	BABY_ORAL	BABY_ORAL_CARE	ACTIVE	2026-08-26	2026-08-26	12.1.1
+BABY RESCUE	Baby	Baby localized skin	Stick / localized care	Targeted baby care	Baby / child	Yes	Localized baby skin-care need	Portable protective care	MoCRA file found; formula not parsed in this pass.	Pending parse	Baby route only; exact label use required.	Baby/child + exact localized intent	Source found; not yet parsed	Domain-gated	Pending	https://docs.google.com/spreadsheets/d/1tY3imPL7jg3NrUbs-_taFDXG81xztwev/edit	ACTIVE	YES	YES	Domain + intent gate		MOCRA / SOURCE PACKAGE RECEIVED	PARTIAL	BABY	BABY_LOCALIZED	TARGET	BABY_LOCALIZED_SKIN	BABY_LOCALIZED_CARE	ACTIVE	2026-08-26	2026-08-26	12.1.1
+BABYSHOWER	Baby	Baby body / bath	Baby care	Cleanse / care	Baby / child	Yes	Bath / cleansing intent	Gentle daily care	MoCRA file found; formula not parsed in this pass.	Pending parse	Baby route only.	Baby/child + cleansing intent	Source found; not yet parsed	Domain-gated	Pending	https://docs.google.com/spreadsheets/d/1KcUU0T0_po3vosYW_ZUu6hOQ74Kyn1tx/edit	ACTIVE	YES	YES	Domain + intent gate		MOCRA / SOURCE PACKAGE RECEIVED	PARTIAL	BABY	BABY_CLEANSE	CLEANSE	BABY_BODY|BABY_HAIR	BABY_CLEANSING	ACTIVE	2026-08-26	2026-08-26	12.1.1
+MINISOOTH	Baby	Diaper area	Barrier cream	Protect / targeted	Baby / child	Yes	Diaper-area skin care	Barrier-supportive care	MoCRA file found; formula not parsed in this pass.	Pending parse	Diaper-area exact intent only; treatment language excluded.	Baby/child + diaper-area intent	Source found; not yet parsed	Domain-gated	Pending	https://docs.google.com/spreadsheets/d/1FpU3jm4JRrzNlb_mhlkewNak9VBhR3MV/edit	ACTIVE	YES	YES	Domain + intent gate		MOCRA / SOURCE PACKAGE RECEIVED	PARTIAL	BABY	BABY_DIAPER	TARGET	DIAPER_AREA	DIAPER_AREA_CARE|BARRIER_COMFORT	ACTIVE	2026-08-26	2026-08-26	12.1.1
+BABYSOFT	Baby	Body	Baby lotion	Moisturize	Baby / child	Yes	Daily baby moisturization	Gentle body care	Packaging/safety files found; formula source still to be parsed.	Pending parse	Baby route only; fragrance/sensitizer profile pending source review.	Baby/child body route	Formula received; % concentrations unavailable	Domain-gated	Medium	https://drive.google.com/file/d/1tjOAOx5aVxrF9npatji3luEr8nAWPYED/view	ACTIVE	YES	YES	Baby body / daily moisture route	Use as daily baby/child moisturization; concentration weighting limited where % unavailable.	FORMULA RECEIVED; % CONCENTRATIONS NOT PROVIDED	PARTIAL	BABY	BABY_MOISTURE	MOISTURIZE	BABY_BODY	BABY_MOISTURIZATION	ACTIVE	2026-08-26	2026-08-26	12.1.1
+SOFTGUARD	Body / Special	Body	Topical care	Protect / complement	Adult	Yes	Exact product-use intent	To be determined	Supporting product documents found; formula source not yet parsed.	Pending parse	Taxonomy and barcode anomaly require review before auto-add.	Textile product; outside cosmetic engine	Excluded	Excluded	N/A	https://drive.google.com/file/d/1QGv10KNuR1ZoDjmGZoozPAYA3xOx7Kiy/view	EXCLUDED	NO	NO	Excluded from cosmetic ritual engine	Textile product; not part of cosmetic recommendation engine.	EXCLUDED	UNKNOWN	EXCLUDED	EXCLUDED	TARGET	BODY		EXCLUDED	2026-08-26	2026-08-26	12.1.1
+BEBEPUR	Baby	Baby	Baby care	Core / complement	Baby / child	Yes	Exact baby-care intent	To be determined	No authoritative formula file parsed in this pass.	Pending	Do not auto-recommend until source is located and parsed.	Cancelled product	Excluded	Excluded	N/A		EXCLUDED	NO	NO	Excluded from ritual engine	Product cancelled by brand decision.	EXCLUDED	UNKNOWN	EXCLUDED	EXCLUDED	TARGET	BABY		EXCLUDED	2026-08-26	2026-08-26	12.1.1
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																
+																

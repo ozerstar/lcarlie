@@ -1,0 +1,16 @@
+[Unit]
+Description=L'CARLIE Jarvis authenticated MCP HTTP and WebSocket gateway
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+ExecStart=/opt/lcarlie/jarvis-phase2/venv-mcp/bin/python /opt/lcarlie/jarvis-phase2/mcp_network.py
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=true
+Environment=PYTHONDONTWRITEBYTECODE=1
+
+[Install]
+WantedBy=multi-user.target

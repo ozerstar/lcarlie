@@ -1,0 +1,9 @@
+[Unit]
+Description=LCARLIE karar sure dolumu - 14 gunden eski PROPOSED kararlari gerekceyle kapatir (silmez)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/docker exec lcarlie-postgres psql -U n8n -d n8n -v ON_ERROR_STOP=1 -tAc "SELECT 'kapatilan karar: ' || core.karar_suresi_doldu(14);"
+Nice=15

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:;">
+<title>Ajan Komuta Konsolu</title>
+<link rel="stylesheet" href="stil.css">
+</head>
+<body>
+
+<header class="ust">
+  <div class="marka">AJAN KOMUTA KONSOLU</div>
+
+  <button id="dizinDugme" class="yol" title="Ajanların çalışacağı dizin">
+    <span class="etiket">dizin</span><span id="dizinMetin">…</span>
+  </button>
+
+  <div class="bosluk"></div>
+
+  <div id="cliDurum" class="rozetler"></div>
+</header>
+
+<section class="masaustu-serit">
+  <span class="serit-baslik">MASAÜSTÜ UYGULAMALARI</span>
+  <div id="masaustuKartlar" class="kartlar"></div>
+  <button id="yenileDurum" class="ince">yenile</button>
+</section>
+
+<section class="komuta">
+  <textarea id="istem" rows="3" spellcheck="false"
+    placeholder="İki ajana birden gönderilecek istemi yaz…  (Ctrl+Enter: ikisine birden)"></textarea>
+  <div class="dugmeler">
+    <button id="ikisine" class="birincil">İKİSİNE BİRDEN GÖNDER</button>
+    <button id="yalnizClaude" class="ikincil">yalnız Claude</button>
+    <button id="yalnizCodex" class="ikincil">yalnız Codex</button>
+    <div class="bosluk"></div>
+    <button id="kaydet" class="ince" disabled>koşuyu kaydet</button>
+    <button id="kayitlar" class="ince">kayıtlar</button>
+    <button id="temizle" class="ince">temizle</button>
+  </div>
+</section>
+
+<main class="panolar">
+  <article class="pano" data-ajan="claude">
+    <div class="pano-ust">
+      <span class="nokta" style="background:#C96442"></span>
+      <h2>Claude Code</h2>
+      <span class="durum" data-durum>hazır</span>
+      <button class="ince dur" data-dur hidden>durdur</button>
+    </div>
+    <pre class="cikti" data-cikti></pre>
+  </article>
+
+  <article class="pano" data-ajan="codex">
+    <div class="pano-ust">
+      <span class="nokta" style="background:#10A37F"></span>
+      <h2>Codex</h2>
+      <span class="durum" data-durum>hazır</span>
+      <button class="ince dur" data-dur hidden>durdur</button>
+    </div>
+    <pre class="cikti" data-cikti></pre>
+  </article>
+</main>
+
+<footer class="alt">
+  <span id="not">Terminal kipi için <code>node-pty</code> kurulum betiği onayı gerekiyor — komuta kipi onsuz çalışır.</span>
+</footer>
+
+<script src="uygulama.js"></script>
+</body>
+</html>

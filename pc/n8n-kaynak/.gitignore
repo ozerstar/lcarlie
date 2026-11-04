@@ -1,0 +1,16 @@
+# Yedek kopyalar - git zaten geçmişi tutuyor, bunlar gürültü
+*.yedek-*
+*.oncesi-*
+*.bak
+
+# Sırlar - bu ağaçta olmamalı, ama kazara düşerse git'e girmesin
+.env
+*.env
+*secret*
+*credential*
+*.pem
+*.key
+
+# İşletim sistemi
+Thumbs.db
+desktop.ini

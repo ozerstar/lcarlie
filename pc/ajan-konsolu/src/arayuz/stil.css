@@ -1,0 +1,106 @@
+/* Palet L'CARLIE sitesinden OLCULDU 20.10.2026:
+   zemin #FFFFFF / #F8FAFB, koyu #172629, metin #263B40, ara ton #718388.
+   Konsol koyu kip oldugu icin ayni ailenin koyu ucu kullanildi. */
+:root{
+  --zemin:#0f1416; --yuzey:#172629; --yuzey2:#1d2f33;
+  --cizgi:#2a3f44; --metin:#e8eef0; --sonuk:#8fa3a8; --ara:#718388;
+  --claude:#C96442; --codex:#10A37F; --uyari:#d9a441;
+  --font:"Segoe UI",system-ui,sans-serif;
+  --mono:"Cascadia Mono",Consolas,"Courier New",monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--zemin); color:var(--metin);
+  font:14px/1.5 var(--font);
+  display:flex; flex-direction:column; overflow:hidden;
+}
+.bosluk{flex:1}
+
+/* ---------- ust serit ---------- */
+.ust{
+  display:flex; align-items:center; gap:14px;
+  padding:10px 16px; background:var(--yuzey); border-bottom:1px solid var(--cizgi);
+}
+.marka{font-weight:700; letter-spacing:.14em; font-size:12px; color:var(--sonuk)}
+.yol{
+  display:flex; align-items:center; gap:8px; max-width:460px;
+  background:var(--yuzey2); border:1px solid var(--cizgi); color:var(--metin);
+  padding:6px 11px; border-radius:7px; cursor:pointer; font-size:12px;
+  font-family:var(--mono);
+}
+.yol:hover{border-color:var(--ara)}
+.yol .etiket{color:var(--ara); font-family:var(--font); letter-spacing:.08em; font-size:10px}
+.yol span:last-child{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+
+.rozetler{display:flex; gap:8px}
+.rozet{
+  font-size:11px; font-family:var(--mono); padding:4px 9px; border-radius:20px;
+  border:1px solid var(--cizgi); color:var(--sonuk); white-space:nowrap;
+}
+.rozet.var{color:var(--metin)}
+.rozet.yok{border-color:#5a3030; color:#d08b8b}
+
+/* ---------- masaustu serit ---------- */
+.masaustu-serit{
+  display:flex; align-items:center; gap:14px;
+  padding:9px 16px; border-bottom:1px solid var(--cizgi); background:#121a1c;
+}
+.serit-baslik{font-size:10px; letter-spacing:.14em; color:var(--ara)}
+.kartlar{display:flex; gap:10px; flex:1}
+.kart{
+  display:flex; align-items:center; gap:9px;
+  background:var(--yuzey2); border:1px solid var(--cizgi);
+  padding:6px 12px; border-radius:7px; cursor:pointer; font-size:12px;
+}
+.kart:hover{border-color:var(--ara)}
+.kart .nokta{width:8px;height:8px;border-radius:50%; flex:none}
+.kart .bilgi{color:var(--ara); font-family:var(--mono); font-size:11px}
+
+/* ---------- komuta ---------- */
+.komuta{padding:14px 16px; border-bottom:1px solid var(--cizgi)}
+textarea{
+  width:100%; background:var(--yuzey2); color:var(--metin);
+  border:1px solid var(--cizgi); border-radius:8px; padding:11px 13px;
+  font:13px/1.6 var(--mono); resize:vertical;
+}
+textarea:focus{outline:none; border-color:var(--ara)}
+.dugmeler{display:flex; gap:9px; margin-top:10px; align-items:center}
+button{
+  font:12px/1 var(--font); padding:9px 15px; border-radius:7px; cursor:pointer;
+  border:1px solid var(--cizgi); background:var(--yuzey2); color:var(--metin);
+  letter-spacing:.04em;
+}
+button:hover:not(:disabled){border-color:var(--ara)}
+button:disabled{opacity:.4; cursor:default}
+.birincil{background:var(--metin); color:#0f1416; border-color:var(--metin); font-weight:700}
+.birincil:hover:not(:disabled){background:#fff}
+.ince{padding:7px 11px; font-size:11px; color:var(--sonuk)}
+
+/* ---------- panolar ---------- */
+.panolar{flex:1; display:grid; grid-template-columns:1fr 1fr; gap:1px;
+  background:var(--cizgi); overflow:hidden}
+.pano{display:flex; flex-direction:column; background:var(--zemin); overflow:hidden}
+.pano-ust{
+  display:flex; align-items:center; gap:10px;
+  padding:9px 14px; border-bottom:1px solid var(--cizgi); background:#121a1c;
+}
+.pano-ust h2{font-size:12px; letter-spacing:.1em; margin:0; font-weight:600}
+.nokta{width:9px;height:9px;border-radius:50%}
+.durum{margin-left:auto; font-size:11px; font-family:var(--mono); color:var(--ara)}
+.durum.kosuyor{color:var(--uyari)}
+.durum.bitti{color:var(--codex)}
+.durum.hata{color:#d08b8b}
+.cikti{
+  flex:1; margin:0; padding:14px; overflow:auto; white-space:pre-wrap;
+  word-break:break-word; font:12.5px/1.65 var(--mono); color:#d7e2e4;
+}
+.cikti:empty::before{content:"— çıktı yok —"; color:#3f5257}
+.cikti .stderr{color:#d9a441}
+
+/* ---------- alt ---------- */
+.alt{padding:7px 16px; border-top:1px solid var(--cizgi); background:var(--yuzey);
+  font-size:11px; color:var(--ara)}
+code{font-family:var(--mono); color:var(--sonuk)}
+
+@media (max-width:1040px){ .panolar{grid-template-columns:1fr; grid-template-rows:1fr 1fr} }

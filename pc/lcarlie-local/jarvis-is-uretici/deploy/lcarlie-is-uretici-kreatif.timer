@@ -1,0 +1,11 @@
+[Unit]
+Description=LCARLIE is uretici programi: kreatif bilgi hatti (kaynakli kart + hakem + gorsel brif)
+
+[Timer]
+OnCalendar=*-*-* 10,17:30:00
+Persistent=true
+RandomizedDelaySec=180
+Unit=lcarlie-is-uretici@kreatif.service
+
+[Install]
+WantedBy=timers.target
