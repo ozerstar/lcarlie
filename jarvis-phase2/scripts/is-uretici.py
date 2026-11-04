@@ -68,7 +68,7 @@ def _oneri_ac(anahtar: str, metin: str, sebep: str) -> int | None:
 
 
 def _suresi_dolanlari_kapat() -> None:
-    """Süresi dolan öneri kutuda "bekliyor" kalıyordu ama onaylanamıyordu (071). Hata koşuyu durdurmaz."""
+    """Süresi dolan öneri kutuda "bekliyor" kalıyordu ama onaylanamıyordu (072). Hata koşuyu durdurmaz."""
     import subprocess
     r = subprocess.run(["docker", "exec", "-i", "lcarlie-postgres", "psql", "-U", "n8n", "-d", "n8n", "-tA",
                         "-c", "SELECT core.ai_suresi_dolan_onerileri_kapat()"],

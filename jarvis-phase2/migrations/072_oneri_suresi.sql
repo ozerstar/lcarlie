@@ -1,4 +1,4 @@
--- 071_oneri_suresi.sql  (04.11.2026)
+-- 072_oneri_suresi.sql  (04.11.2026)
 -- Ölçüldü: ai_propose_action her öneriye 24 saat veriyor; süresi dolan öneri PROPOSED kalıyor,
 -- ana sayfa kutusunda "bekliyor" görünüyor ama onaylanamıyor/reddedilemiyor ("action proposal expired").
 -- 105 (25.09) ve 112 (16.10) böyle takılı kalmıştı. Sahip notu (REQUEST_HUMAN_REVIEW) ise ertesi gün ölüyordu.
