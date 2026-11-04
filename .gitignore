@@ -66,3 +66,19 @@ desktop.ini
 !*.env.example
 !.env.example
 *.backup-*
+
+# --- 04.11.2026 canli esitleme: server/ ve pc/ aynalari icin ek sir kurallari
+id_rsa*
+id_ed25519*
+id_ecdsa*
+*token*
+!*token*.example
+*.dump
+*vapid*
+# Caddyfile'lar basic-auth ozeti ve gizli yol belirteci tasir; depoya
+# yalniz karartilmis *.example girer.
+Caddyfile
+Caddyfile.*
+!Caddyfile*.example
+server/radar/config.json
+pc/**/config.json
