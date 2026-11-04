@@ -1240,6 +1240,39 @@ def _detail_rows(name: str, records: list[dict[str, Any]]) -> list[str]:
     return [r for r in rows if r]
 
 
+_MALIYET_TERIMLERI = ("maliyet", "cogs", "kar ", "kâr", "karli", "kârlı", "zarar", "marj", "uretim maliyet")
+
+
+def _finans_maliyet_kaniti() -> dict[str, Any] | None:
+    """Finans > Ürün maliyet/kâr tablosu: üretim faturalarından ürün başına maliyet (KDV hariç).
+
+    Tek doğru kaynak finans sayfasının kendisi (product_profit.report); ayrı bir kopya tutulmaz.
+    """
+    try:
+        import product_profit  # webconsole modülü; panel süreci bu dizini sys.path'e koyar
+        rapor = product_profit.report(os.environ.get("JARVIS_FINANS_SAHIBI", "operator"))
+    except Exception as exc:  # noqa: BLE001 - finans okunamazsa cevap yine döner, eksik yazılır
+        gunluk.yut("conversation", "_finans_maliyet_kaniti", exc,
+                   neden="finans tablosu okunamazsa cevap eksik kanıtla döner",
+                   agirlik=gunluk.AGIRLIK_ARIZA)
+        return None
+    urunler = rapor.get("products") or []
+    if not urunler:
+        return None
+
+    def tl(kurus: Any) -> str:
+        return "?" if kurus is None else f"{kurus / 100:.2f} TL"
+
+    satirlar = [{"ürün": u.get("product"), "üretim_maliyeti_adet": tl(u.get("unit_production")),
+                 "tam_maliyet_adet": tl(u.get("unit_cost")), "üretilen": u.get("produced"),
+                 "satılan": u.get("sold"), "net_satış": tl(u.get("sales_net"))} for u in urunler]
+    ozet = ("Finans · Ürün maliyet/kâr tablosu (KDV hariç). Üretim maliyeti = üretim faturası / üretilen adet "
+            "(kutu, etiket, ambalaj dahil); tam maliyet = üretim + tester, test, ÜGR ve eklenen genel giderlerin "
+            "payı. " + "; ".join(f"{r['ürün']}: üretim {r['üretim_maliyeti_adet']}, tam {r['tam_maliyet_adet']}"
+                                for r in satirlar))
+    return {"ref": "finans:urun_maliyet_kar", "summary": ozet, "rows": satirlar, "total": len(satirlar)}
+
+
 def _gather(message: str, memory: Any) -> tuple[list[dict[str, Any]], list[str]]:
     text = _normalize(message)
     domains = [d for d, terms in _DOMAIN_TERMS.items() if _has(text, terms)]
@@ -1263,6 +1296,13 @@ def _gather(message: str, memory: Any) -> tuple[list[dict[str, Any]], list[str]]
                        neden="bir alanin okunamamasi cevabi durduramaz",
                        agirlik=gunluk.AGIRLIK_ARIZA, alan=name)
             missing.append(name)
+
+    if _has(text, _MALIYET_TERIMLERI):
+        finans = _finans_maliyet_kaniti()
+        if finans:
+            evidence.append(finans)
+        else:
+            missing.append("finans_urun_maliyet")
 
     # No domain named, or none readable: fall back to the company-wide
     # deterministic signals rather than to nothing.
@@ -1340,14 +1380,16 @@ ESCALATE_REASONING = os.environ.get("JARVIS_ESCALATE_REASONING", "1") != "0"
 
 
 def _synthesize(message: str, intent: str, memory: Any, started: float,
-                escalate: bool | None = None) -> dict[str, Any]:
+                escalate: bool | None = None, arama: str | None = None) -> dict[str, Any]:
     if escalate is None:
         escalate = ESCALATE_REASONING or needs_escalation(message)
-    evidence, missing = _gather(message, memory)
+    # `arama`: devam mesajında kanıt önceki sorunun konusuyla da aranır;
+    # "onları kullan" tek başına hiçbir kanıta değmez.
+    evidence, missing = _gather(arama or message, memory)
     try:
         result = _router().synthesize(message, evidence, missing_data=missing,
                                       escalate=escalate,
-                                      history=conversation_memory.history(turns=3))
+                                      history=conversation_memory.history(turns=4))
     except ModelUnavailable as exc:
         # Never speechless: the deterministic surface still answers.
         return _response(message, intent, "AI_PROVIDER_UNAVAILABLE",
@@ -2027,9 +2069,49 @@ def _urun_adi_gecen(message: str, runtime: Any) -> bool:
     return False
 
 
+# Önceki konuşmaya dayanan mesajın izleri: gönderme sözcükleri ve kısa itiraz/onay.
+_DEVAM_IZLERI = ("onlari", "onlar ", "onlarla", "onlardan", "bunlari", "bunlar ", "bunlarla",
+                 "bunlardan", "sunlari", "onu ", "bunu ", "sunu ", "ordan", "oradan", "buradan",
+                 "ayni ", "devam", "peki", "o zaman", "yani", "hayir", "evet", "tamam",
+                 "dedigin", "soyledigin", "yazdigin", "az once", "yukaridaki", "bu konu",
+                 "o konu", "neden oyle", "niye", "yanlis", "dogru degil", "eksik")
+DEVAM_PENCERESI_SN = 45 * 60
+
+
+def devam_mesaji(message: str, simdi: datetime | None = None) -> str | None:
+    """Mesaj son 45 dk'daki bir konuşmanın devamıysa önceki kullanıcı sorusunu döner.
+
+    Anahtar kelime sınıflayıcısı her mesajı tek başına okur; "finanstaki maliyetleri
+    kullan" ajans isteği sanılıp konudan kopuk rapor dönüyordu (ölçüldü 04.11).
+    """
+    tur = conversation_memory.son_tur()
+    if not tur or not tur.get("user"):
+        return None
+    try:
+        zaman = datetime.fromisoformat(str(tur.get("at")))
+    except ValueError:
+        return None
+    simdi = simdi or datetime.now(timezone.utc)
+    if (simdi - zaman).total_seconds() > DEVAM_PENCERESI_SN:
+        return None
+    katli = " " + _ascii_fold(turkish.deasciify(message)) + " "
+    kisa = len(message.split()) <= 6
+    if kisa or any(iz in katli for iz in _DEVAM_IZLERI):
+        return str(tur["user"])
+    return None
+
+
 def route(message: str, runtime: Any) -> dict[str, Any]:
     started = perf_counter()
     decision = classify(message)
+    # 🔴 DEVAM MESAJI: eylem sınırı ve selamlaşma dışında, önceki konuşmaya bağlı
+    #    mesaj anahtar kelime dalına (ajans/analiz/şirket) GİTMEZ; geçmişi gören
+    #    model yoluna, önceki sorunun konusuyla aranan kanıtla gider.
+    if decision.intent not in (ACTION_REQUEST, SIMPLE_CONVERSATION, RESEARCH_SUBJECT_MISSING):
+        onceki = devam_mesaji(message)
+        if onceki:
+            return _synthesize(message, COMPANY_QUERY, _memory(runtime), started,
+                               arama=f"{onceki}\n{message}")
     # Ciplak bir urun adi ("Hydravie") sirket sorusudur, muhakeme sorusu
     # degil. Bu kontrol olmadan soru yerel modele dusuyor ve model
     # katalogda olan bir urun icin "katalogda yok" diyebiliyordu.

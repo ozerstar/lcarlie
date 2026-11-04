@@ -67,6 +67,16 @@ def _oneri_ac(anahtar: str, metin: str, sebep: str) -> int | None:
     return int(deger) if deger.isdigit() else None
 
 
+def _suresi_dolanlari_kapat() -> None:
+    """Süresi dolan öneri kutuda "bekliyor" kalıyordu ama onaylanamıyordu (071). Hata koşuyu durdurmaz."""
+    import subprocess
+    r = subprocess.run(["docker", "exec", "-i", "lcarlie-postgres", "psql", "-U", "n8n", "-d", "n8n", "-tA",
+                        "-c", "SELECT core.ai_suresi_dolan_onerileri_kapat()"],
+                       capture_output=True, text=True, timeout=60, check=False)
+    if r.returncode != 0:
+        print(f"süresi dolan öneriler kapatılamadı: {r.stderr.strip()[:200]}", file=sys.stderr)
+
+
 def _rutin_katalog() -> list:
     """config/rutin-isler.json: departmanların sabit tekrarlayan işleri."""
     yol = Path(os.environ.get("IS_URETICI_RUTIN", str(KOK / "config" / "rutin-isler.json")))
@@ -202,6 +212,8 @@ def main() -> int:
         return 78
     from jarvis.is_uretici import IsUretici
     kilit = _kilit() if not a.kuru else None  # noqa: F841 - süreç boyunca tutulur
+    if not a.kuru:
+        _suresi_dolanlari_kapat()
     try:
         iu = IsUretici(_ortam(canli_arastirma=(a.mod == "yurut")), kuru=a.kuru)
         if a.mod == "gunluk":

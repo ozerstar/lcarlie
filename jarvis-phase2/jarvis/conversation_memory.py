@@ -192,6 +192,12 @@ def history(turns: int = DEFAULT_TURNS, thread: str = "operator") -> list[dict[s
     return [m for m in messages if m["content"]]
 
 
+def son_tur(thread: str = "operator") -> dict[str, Any] | None:
+    """Bu sohbetteki en son tur (at, user, jarvis, intent) ya da None."""
+    rows = _read(_path(thread, "turns"))
+    return rows[-1] if rows else None
+
+
 # --- durable notes ------------------------------------------------------
 def remember(note: str, source: str = "operator", thread: str = "operator") -> bool:
     """Keep one fact beyond the transcript window.
