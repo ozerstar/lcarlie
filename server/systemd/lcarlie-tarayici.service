@@ -1,0 +1,19 @@
+[Unit]
+# Tarayici worker'in urettigi sonucu sahibin onay kuyruguna tasir.
+# Uretim BU SERVISTE YAPILMAZ: is PC-1'deki Chrome'da yapilir, burada
+# yalniz sonuc okunur ve oneri yazilir (KREATIF_INCELEME ile ayni desen).
+Description=LCARLIE tarayici sonuclarini onay kuyruguna tasir
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+Environment=JARVIS_MEMORY_TRANSPORT=local-docker
+Environment=JARVIS_STATE_DIR=/opt/lcarlie/jarvis-phase2/state
+Environment=TARAYICI_CIKTI_DIR=/opt/lcarlie/tarayici-cikti
+EnvironmentFile=-/etc/lcarlie/jarvis-phase2.env
+ExecStart=/opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/tarayici-dongu.py
+# Bir kosu 10 dakikadan uzun surmez; yedek yol model cagrisi yapabilir.
+TimeoutStartSec=600
+NoNewPrivileges=true

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Finans Merkezi</title>
+  <link rel="preload" href="/finans/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/finans/finans.css?v=13">
+  <script type="module" src="/finans/app.js?v=13"></script>
+</head>
+<body>
+<div class="app">
+  <aside class="side" id="side" aria-label="Ana menü">
+    <a class="home-link" href="/"><svg class="ic sm" aria-hidden="true"><use href="/finans/icons.svg#i-chevron-left"></use></svg>Jarvis ana sayfa</a>
+    <div class="brand"><span class="logo"><svg class="ic lg" aria-hidden="true"><use href="/finans/icons.svg#i-landmark"></use></svg></span>
+      <div><b>FINANCE</b><small>MANAGEMENT PRO</small></div></div>
+    <h6>Kurum</h6>
+    <div class="kurum" role="group" aria-label="Kurum">
+      <button type="button" data-kurum="sahsi"><svg class="ic sm" aria-hidden="true"><use href="/finans/icons.svg#i-user"></use></svg>Şahsım</button>
+      <button type="button" data-kurum="moy"><svg class="ic sm" aria-hidden="true"><use href="/finans/icons.svg#i-building-2"></use></svg>MOY</button>
+      <button type="button" data-kurum="lemos"><svg class="ic sm" aria-hidden="true"><use href="/finans/icons.svg#i-briefcase"></use></svg>Lemos</button>
+      <button type="button" data-kurum="lcarlie"><svg class="ic sm" aria-hidden="true"><use href="/finans/icons.svg#i-store"></use></svg>L’CARLIÉ</button>
+    </div>
+    <nav aria-label="Sayfalar">
+      <h6><span id="kurumName">Şahsım</span></h6>
+      <ul class="nav">
+        <li><a href="#/genel" data-page="genel"><svg class="ic" aria-hidden="true"><use href="/finans/icons.svg#i-layout-dashboard"></use></svg>Genel Bakış</a></li>
+        <li><a href="#/hesaplar" data-page="hesaplar"><svg class="ic" aria-hidden="true"><use href="/finans/icons.svg#i-wallet"></use></svg>Hesaplarım</a></li>
+        <li><a href="#/gelirler" data-page="gelirler"><svg class="ic" aria-hidden="true"><use href="/finans/icons.svg#i-trending-up"></use></svg>Gelirler</a></li>
+        <li><a href="#/giderler" data-page="giderler"><svg class="ic" aria-hidden="true"><use href="/finans/icons.svg#i-trending-down"></use></svg>Giderler</a></li>
+        <li><a href="#/odemeler" data-page="odemeler"><svg class="ic" aria-hidden="true"><use href="/finans/icons.svg#i-credit-card"></use></svg>Ödemeler</a></li>
+        <li><a href="#/faturalar" data-page="faturalar"><svg class="ic" aria-hidden="true"><use href="/finans/icons.svg#i-file-text"></use></svg>Faturalar</a></li>
+        <li><a href="#/islemler" data-page="islemler"><svg class="ic" aria-hidden="true"><use href="/finans/icons.svg#i-arrow-left-right"></use></svg>İşlemler</a></li>
+      </ul>
+      <h6>Analizler</h6>
+      <ul class="nav">
+        <li><a href="#/satis" data-page="satis"><svg class="ic" aria-hidden="true"><use href="/finans/icons.svg#i-shopping-cart"></use></svg>Satış Analizi</a></li>
+        <li><a href="#/urunkar" data-page="urunkar"><svg class="ic" aria-hidden="true"><use href="/finans/icons.svg#i-piggy-bank"></use></svg>Ürün Kârlılığı</a></li>
+        <li><a href="#/urun" data-page="urun"><svg class="ic" aria-hidden="true"><use href="/finans/icons.svg#i-package"></use></svg>Ürün Analizi</a></li>
+        <li><a href="#/harcama" data-page="harcama"><svg class="ic" aria-hidden="true"><use href="/finans/icons.svg#i-chart-pie"></use></svg>Gider Analizi</a></li>
+        <li><a href="#/raporlar" data-page="raporlar"><svg class="ic" aria-hidden="true"><use href="/finans/icons.svg#i-file-chart-column"></use></svg>Raporlar</a></li>
+      </ul>
+      <h6>Kurumlar arası</h6>
+      <ul class="nav">
+        <li><a href="#/ozet" data-page="ozet"><svg class="ic" aria-hidden="true"><use href="/finans/icons.svg#i-list-checks"></use></svg>Özet (dördü yan yana)</a></li>
+        <li><a href="#/sirket" data-page="sirket"><svg class="ic" aria-hidden="true"><use href="/finans/icons.svg#i-building-2"></use></svg>Şirket Karşılaştırması</a></li>
+        <li><a href="#/ayarlar" data-page="ayarlar"><svg class="ic" aria-hidden="true"><use href="/finans/icons.svg#i-settings"></use></svg>Ayarlar</a></li>
+      </ul>
+    </nav>
+    <div class="side-foot">
+      <div class="safe"><svg class="ic" aria-hidden="true"><use href="/finans/icons.svg#i-shield-check"></use></svg><div><b>Güvenli finans alanı</b>Veriler yalnız kendi sunucunuzda; bu sayfa yalnız okur.</div></div>
+      <div class="me"><span class="av"><svg class="ic" aria-hidden="true"><use href="/finans/icons.svg#i-user"></use></svg></span><div><b id="meName">Yönetici</b><small>Finans hesabı</small></div></div>
+    </div>
+  </aside>
+  <div class="overlay" id="overlay"></div>
+  <main class="main" id="main">
+    <header class="top">
+      <div class="anchor"><button type="button" class="icon-btn menu-btn" id="menuBtn" aria-label="Menüyü aç"><svg class="ic" aria-hidden="true"><use href="/finans/icons.svg#i-menu"></use></svg></button></div>
+      <button type="button" class="icon-btn back-btn" id="backBtn" aria-label="Geri" title="Geri"><svg class="ic" aria-hidden="true"><use href="/finans/icons.svg#i-chevron-left"></use></svg></button>
+      <div class="title"><div class="date" id="dateLine"></div><span class="kurum-tag" id="pageKurum"></span><h1 id="pageTitle">Genel Bakış</h1><p id="pageSub"></p></div>
+      <div class="top-act">
+        <label class="search"><svg class="ic sm" aria-hidden="true"><use href="/finans/icons.svg#i-search"></use></svg><span class="sr">İşlem ara</span><input id="globalSearch" type="search" placeholder="İşlem, firma, kategori ara"></label>
+        <div class="anchor"><button type="button" class="icon-btn" id="bellBtn" aria-label="Bildirimler" aria-expanded="false"><svg class="ic" aria-hidden="true"><use href="/finans/icons.svg#i-bell"></use></svg></button><div class="pop" id="bellPop" hidden></div></div>
+        <div class="anchor"><button type="button" class="icon-btn" id="meBtn" aria-label="Profil" aria-expanded="false"><svg class="ic" aria-hidden="true"><use href="/finans/icons.svg#i-user"></use></svg></button><div class="pop" id="mePop" hidden></div></div>
+      </div>
+    </header>
+    <div class="bar" id="periodBar">
+      <div class="seg" role="group" aria-label="Rapor dönemi">
+        <button type="button" data-view="day">Günlük</button><button type="button" data-view="week">Haftalık</button><button type="button" data-view="month">Aylık</button><button type="button" data-view="year">Yıllık</button><button type="button" data-view="range">Tarih aralığı</button>
+      </div>
+      <div class="period">
+        <button type="button" class="icon-btn" id="prevP" aria-label="Önceki dönem"><svg class="ic" aria-hidden="true"><use href="/finans/icons.svg#i-chevron-left"></use></svg></button>
+        <input class="ctl" type="date" id="dayIn" aria-label="Tarih">
+        <input class="ctl" type="date" id="startIn" aria-label="Başlangıç tarihi" hidden>
+        <input class="ctl" type="date" id="endIn" aria-label="Bitiş tarihi" hidden>
+        <button type="button" class="icon-btn" id="nextP" aria-label="Sonraki dönem"><svg class="ic" aria-hidden="true"><use href="/finans/icons.svg#i-chevron-right"></use></svg></button>
+      </div>
+    </div>
+    <div id="view" aria-live="polite"></div>
+  </main>
+</div>
+</body>
+</html>

@@ -1,0 +1,11 @@
+[Unit]
+Description=LCARLIE Radar zamanlayıcı: Wix + Trendyol sipariş toplamları -> sabah özeti
+
+[Timer]
+OnCalendar=*-*-* 06:50
+RandomizedDelaySec=120
+Persistent=true
+Unit=lcarlie-radar@satis.service
+
+[Install]
+WantedBy=timers.target

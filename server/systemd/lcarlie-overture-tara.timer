@@ -1,0 +1,11 @@
+[Unit]
+Description=Schedule L'CARLIE Overture Places taramasi (aylik)
+
+[Timer]
+OnCalendar=*-*-02 05:15:00
+RandomizedDelaySec=30min
+Persistent=true
+Unit=lcarlie-overture-tara.service
+
+[Install]
+WantedBy=timers.target

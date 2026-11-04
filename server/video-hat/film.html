@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="tr">
+<meta charset="utf-8">
+<title>KINESIS+ film 15sn</title>
+<!-- lang="tr" ZORUNLU: yoksa uppercase "i" -> "I" olur (PEKI/PEKİ tuzagi).
+     1080x1920 · 15 sn · ?t=<saniye> deterministik kare.
+     Urun katmani = gercek cekim fotografinin pikselleri. AI cizim YOK.
+     Yapı (GPT onerisi, 13.10):
+       0.0-0.6  etiket yakin plandan genis kadraja kontrollu uzaklasma
+       0.7-3.0  15'ten fazla bitkisel yag
+       3.2-5.6  5 mineral + adlari
+       5.8-7.4  E vitamini / zeytin turevi tasiyici
+       7.6-11.0 makro + onayli duyusal cumle
+       11.2-15  kapanis: ad, 150 ml, 1.950 TL, urun sayfasi
+     7.6-11.0 araligi, gercek telefon cekimi gelince onunla degisecek SLOT. -->
+<style>
+  @font-face{font-family:Monument;src:url('https://static.wixstatic.com/ufonts/118f01_8a9435f80a7c4aa9bab563f89bea2fef/woff2/file.woff2') format('woff2');font-weight:400;font-display:block}
+  @font-face{font-family:Metropolis;src:url('https://static.wixstatic.com/ufonts/027da2_9364e745b205450096a4bef333505abf/woff2/file.woff2') format('woff2');font-weight:400;font-display:block}
+
+  :root{ --ink:#132F36; --aqua:#1E7F96; --lime:#6E8216; --soguk:#3E555C; }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1080px;height:1920px;overflow:hidden}
+  body{background:#C3CBD1;font-family:Metropolis,Arial,sans-serif;color:var(--ink);
+       -webkit-font-smoothing:antialiased}
+  .sahne{position:relative;width:1080px;height:1920px;overflow:hidden}
+
+  /* zemin: fotografin OLCULEN kenar renkleri (#B6CBD9 -> #C9CFD2) */
+  .zemin{position:absolute;inset:0;z-index:0;
+    background:linear-gradient(180deg,#B6CBD9 0%,#BCCAD4 40%,#C6CCD0 72%,#C9CFD2 100%)}
+  /* capraz isik seridi - arka planda yavas ilerler (ilk 3 sn hareket) */
+  .isik{position:absolute;inset:-40% -60%;z-index:1;pointer-events:none;
+    background:linear-gradient(104deg,rgba(255,255,255,0) 42%,rgba(255,255,255,.42) 50%,rgba(255,255,255,0) 58%);
+    transform:translateX(var(--ix,-60%))}
+
+  .urun{position:absolute;left:50%;top:0;width:1080px;z-index:2;
+    transform:translateX(-50%) scale(var(--us,1)) translateY(var(--uy,0px));
+    transform-origin:var(--uox,50%) var(--uoy,100%)}
+  .urun img{display:block;width:100%;height:auto}
+  .erit{position:absolute;inset:auto 0 0 0;height:660px;z-index:3;
+    background:linear-gradient(0deg,#C7CDD1 0%,#C7CDD1 36%,rgba(199,205,209,0) 100%)}
+
+  .marka{position:absolute;top:92px;left:0;right:0;text-align:center;z-index:6;
+    font-family:Monument,Metropolis,sans-serif;font-size:28px;letter-spacing:.42em;
+    text-indent:.42em;opacity:var(--om,0)}
+
+  .bant{position:absolute;left:66px;right:66px;top:1520px;height:340px;z-index:5}
+  /* her vurus yatay maske ile acilir */
+  .v{position:absolute;left:0;right:0;top:0;text-align:center;opacity:0}
+  .ust{font-size:26px;letter-spacing:.22em;text-transform:uppercase;color:var(--soguk);
+       margin-bottom:22px}
+  .buyuk{font-family:Monument,Metropolis,sans-serif;font-size:66px;line-height:1.14}
+  .orta{font-family:Monument,Metropolis,sans-serif;font-size:46px;line-height:1.46}
+  .duz{font-size:38px;line-height:1.42}
+  .kapanis .ad{font-family:Monument,Metropolis,sans-serif;font-size:80px;line-height:1}
+  .kapanis .ad b{color:var(--lime);font-weight:400}
+  .kapanis .cizgi{width:150px;height:2px;background:var(--aqua);margin:30px auto}
+  .kapanis .fiyat{font-family:Monument,Metropolis,sans-serif;font-size:50px}
+  .kapanis .son{margin-top:16px;font-size:24px;letter-spacing:.14em;
+       text-transform:uppercase;color:var(--soguk)}
+</style>
+
+<div class="sahne">
+  <div class="zemin"></div>
+  <div class="isik" id="isik"></div>
+  <div class="urun" id="urun"><img id="foto" src="kinesis.jpg" alt=""></div>
+  <div class="erit"></div>
+  <div class="marka" id="marka">L'CARLIÉ</div>
+
+  <div class="bant">
+    <div class="v" id="v1"><div class="ust">KINESIS+ formülünde</div>
+      <div class="buyuk">15'ten fazla<br>bitkisel yağ</div></div>
+
+    <div class="v" id="v2"><div class="ust">Ve beş mineral</div>
+      <div class="orta">kalsiyum · magnezyum<br>çinko · bakır · bor</div></div>
+
+    <div class="v" id="v3"><div class="ust">Ayrıca</div>
+      <div class="orta">E vitamini<br><span class="duz">zeytin türevi taşıyıcı</span></div></div>
+
+    <div class="v" id="v4"><div class="ust">Dokusu</div>
+      <div class="duz">Kolay emilen yapısı ciltte<br>yağlı bir tabaka bırakmaz.</div></div>
+
+    <div class="v kapanis" id="v5">
+      <div class="ad">KINESIS<b>+</b></div>
+      <div class="cizgi"></div>
+      <div class="fiyat">150 ml · 1.950 TL</div>
+      <div class="son">Tam içerik listesi ürün sayfasında</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const q=new URLSearchParams(location.search), t=parseFloat(q.get('t')||'0');
+const cl=(x,a,b)=>Math.min(b,Math.max(a,x));
+const easeOut = x => x<=0?0 : x>=1?1 : 1-Math.pow(1-x,3);
+const S=document.documentElement.style;
+
+/* --- 0.0-0.6 sn: etiket yakin planindan genis kadraja kontrollu uzaklasma --- */
+const a0 = easeOut(cl(t/0.6,0,1));
+// odak noktasi sisenin KINESIS+ etiketi (fotografin ~%60 x, ~%60 y'si)
+S.setProperty('--uox','60%');
+S.setProperty('--uoy', (60 + 40*a0).toFixed(2)+'%');   // odak yavasca alt kenara kayar
+const yakin = 3.1, uzak = 1.0;
+const sKonum = yakin + (uzak-yakin)*a0;
+// 0.6 sn sonra cok yavas ken burns (alt kenar sabit, metne girmez)
+const p = cl((t-0.6)/14.4,0,1);
+S.setProperty('--us', (sKonum + 0.045*p).toFixed(4));
+S.setProperty('--uy', (-14*p).toFixed(2)+'px');
+
+/* arka plandaki isik seridi: ilk 3 sn belirgin, sonra yavas */
+S.setProperty('--ix', (-60 + 150*cl(t/9,0,1)).toFixed(2)+'%');
+
+/* marka yazisi 0.8 sn */
+S.setProperty('--om', easeOut(cl((t-0.8)/0.8,0,1)).toFixed(3));
+
+/* --- vuruslar: yatay maske ile acilir, dikey kaymaz --- */
+function vurus(el, gir, cik){
+  const a = easeOut(cl((t-gir)/0.55,0,1));
+  const b = 1 - easeOut(cl((t-cik)/0.45,0,1));
+  const o = Math.min(a,b);
+  el.style.opacity = o.toFixed(3);
+  // yatay maske: soldan saga acilir, cikarken sagdan kapanir
+  const sag = (100 - 100*a).toFixed(2);
+  const sol = (100 - 100*b).toFixed(2);
+  el.style.clipPath = `inset(0 ${sag}% 0 ${sol}%)`;
+}
+vurus(document.getElementById('v1'), 0.7, 3.0);
+vurus(document.getElementById('v2'), 3.2, 5.6);
+vurus(document.getElementById('v3'), 5.8, 7.4);
+vurus(document.getElementById('v4'), 7.6, 11.0);
+vurus(document.getElementById('v5'), 11.2, 99);
+
+window.__hazir=false;
+Promise.all([document.fonts.ready,
+  new Promise(r=>{const i=document.getElementById('foto'); i.complete?r():i.onload=r;})
+]).then(()=>{window.__hazir=true});
+</script>

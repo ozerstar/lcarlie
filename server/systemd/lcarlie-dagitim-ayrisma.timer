@@ -1,0 +1,13 @@
+[Unit]
+Description=Schedule LCARLIE canli/kaynak ayrisma denetimi (gunluk)
+
+[Timer]
+# Yonetici brifinginden (08:17) ONCE kossun ki ayrisma varsa sahip o gun
+# ilk baktigi yerde gorsun.
+OnCalendar=*-*-* 07:55:00
+RandomizedDelaySec=5min
+Persistent=true
+Unit=lcarlie-dagitim-ayrisma.service
+
+[Install]
+WantedBy=timers.target

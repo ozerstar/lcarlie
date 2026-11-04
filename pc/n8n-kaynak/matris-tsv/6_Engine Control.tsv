@@ -1,0 +1,41 @@
+Product	Engine Class	Enabled	Auto Recommend	Route / Gate	Special Rule
+HYDRAVIE	ACTIVE	YES	YES	Domain + intent gate	
+LUCIDERM	ACTIVE	YES	YES	Domain + intent gate	
+CALMAROS	ACTIVE	YES	YES	Domain + intent gate	
+SUNACNEA SPF30	ACTIVE	YES	YES	Domain + intent gate	
+DERMANOVA	ACTIVE	YES	YES	Domain + intent gate	
+KINESIS+	ACTIVE	YES	YES	Domain + intent gate	
+LIFTELLE	ACTIVE	YES	YES	Face/neck/jawline or bust-décolleté intent	Pair with HYDRAVIE when fine-line/wrinkle appearance is a priority.
+VIREON FOR MEN	ACTIVE-GATED	YES	NO	Only after explicit male intimate-care selection	Never auto-suggest from general face/body image analysis.
+FEMISIA FOR WOMEN	ACTIVE-GATED	YES	NO	Only after explicit female intimate-care selection	Never auto-suggest from general face/body image analysis.
+MENTHALIS	ACTIVE	YES	YES	Aromatic / scent route only	Do not score as treatment or skin-problem product.
+CALMORIS	ACTIVE	YES	YES	Aromatic / scent route only	Do not score as treatment or skin-problem product.
+DERMASTRA	ACTIVE	YES	YES	Body only; unlock on stretch-mark appearance / explicit intent	Use dedicated stretchMarkAppearance signal; do not confuse with scars/marks.
+DERMAMOVERA	ACTIVE	YES	YES	Joint/body route; suitable for sport/active and older-adult body-care intent	Customer language: supports massage, comfort and body-care routine; avoid 'treats joint pain'.
+DERMACORN	ACTIVE	YES	YES	Domain + intent gate	
+DERMARNICA	ACTIVE	YES	YES	Domain + intent gate	
+DERMAVASC	ACTIVE	YES	YES	Domain + intent gate	
+DERMAGUARD	ACTIVE	YES	YES	Domain + intent gate	
+DERMABED	ACTIVE	YES	YES	Body only; pressure/friction-prone intact skin	Cosmetic wording only: helps maintain moisturized, cared-for, comfortable-feeling skin. Never wound-treatment language.
+DORSIVIA	ACTIVE	YES	YES	Body route only	Do not route to face.
+SERALIMBO	ACTIVE	YES	YES	Domain + intent gate	
+EASYCOMB	ACTIVE	YES	YES	Hair route only; adult and child	Hair-detangling spray that supports easier combing and nourished/cared-for hair.
+HAIR NOURISHER	ACTIVE	YES	YES	Domain + intent gate	
+ORAGARDE	ACTIVE	YES	YES	Domain + intent gate	
+BRIGHT SMILE	ACTIVE	YES	YES	Domain + intent gate	
+LIPVORA	ACTIVE	YES	YES	Domain + intent gate	
+OPTYWAVE	ACTIVE	YES	YES	Domain + intent gate	
+CALM JAW	ACTIVE	YES	YES	Domain + intent gate	
+EARCLIA	PENDING APPROVAL	NO	NO	Disabled until approval	Keep source data only; do not recommend or display in engine.
+AUROLIS	ACTIVE	YES	YES	Domain + intent gate	
+NOMORE	PENDING APPROVAL	NO	NO	Disabled until approval	Keep source data only; do not recommend or display in engine.
+INTIMBLANC	ACTIVE-GATED	YES	YES	Body-tone route or explicit external intimate-care route	Can be considered for body color/tone-evenness appearance, not only intimate care. Avoid treatment/depigmentation claims.
+BUGGUARD	EXCLUDED	NO	NO	Excluded from ritual engine	BUGGUARD removed by brand decision.
+BABYSOL SPF50+	ACTIVE	YES	YES	Baby/child sun-care route	Product remains BABYSOL SPF50+; laboratory package includes SPF, stability, challenge and microbiological testing.
+BABYDENT	ACTIVE	YES	YES	Domain + intent gate	
+BABY RESCUE	ACTIVE	YES	YES	Domain + intent gate	
+BABYSHOWER	ACTIVE	YES	YES	Domain + intent gate	
+MINISOOTH	ACTIVE	YES	YES	Domain + intent gate	
+BABYSOFT	ACTIVE	YES	YES	Baby body / daily moisture route	Use as daily baby/child moisturization; concentration weighting limited where % unavailable.
+SOFTGUARD	EXCLUDED	NO	NO	Excluded from cosmetic ritual engine	Textile product; not part of cosmetic recommendation engine.
+BEBEPUR	EXCLUDED	NO	NO	Excluded from ritual engine	Product cancelled by brand decision.

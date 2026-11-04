@@ -1,10 +1,10 @@
 {
-  "name": "L'CARLIÉ OS",
-  "short_name": "L'CARLIÉ",
-  "description": "L'CARLIÉ Autonomous Company Intelligence OS -- operator console",
+  "name": "L’carlie",
+  "short_name": "L’carlie",
+  "description": "L’carlie kurumsal yönetim ve çalışma alanı.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#08080a",
-  "theme_color": "#08080a",
+  "background_color": "#f7f5ef",
+  "theme_color": "#f7f5ef",
   "icons": []
 }

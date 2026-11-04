@@ -1,0 +1,11 @@
+[Unit]
+Description=LCARLIE is uretici: ay basi holding hedef agaci
+
+[Timer]
+OnCalendar=*-*-01 11:20:00
+Persistent=true
+RandomizedDelaySec=120
+Unit=lcarlie-is-uretici@aylik.service
+
+[Install]
+WantedBy=timers.target

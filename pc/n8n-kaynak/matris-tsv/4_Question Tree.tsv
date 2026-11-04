@@ -1,0 +1,200 @@
+Route	Step	Question	Answer Options	Decision Effect
+ROOT	01	Kimin için bakım arıyorsunuz?	Kendim için | Bebek/çocuk için	Sets adult vs pediatric hard gate.
+ADULT	02	Bakım odağınız neresi?	Yüz & cilt | Vücut & aktif yaşam | Saç | Ağız & dudak | Göz/bölgesel | Kişisel bakım | Güneş/dış ortam	Sets domain gate.
+FACE	03	Cildiniz temizleme sonrasında en çok nasıl hissediyor?	Rahat | Gergin/kuru | Hassas/kolay reaksiyon veren | Hızlı yağlanan/parlayan	Primary face-state signal.
+FACE	04	Gün içinde en çok hangi görünüm/his sizi rahatsız ediyor?	Nem kaybı | Hassas görünüm | Parlama/dengesizlik | Mat/yorgun görünüm | Sıkılık kaybı görünümü	Primary need refinement.
+FACE	05	Günlük yaşamınız hangisine daha yakın?	Yoğun dış ortam/UV | Şehir/ofis | Aktif yaşam | Daha çok kapalı ortam	Context score.
+FACE	06	Nasıl bir rutin tercih edersiniz?	2 adım sade | 3 adım dengeli | 4+ adım kapsamlı	Controls ritual length, not product suitability.
+FACE	07	Koku/uçucu yağ içeren ürünlere karşı bilinen hassasiyetiniz var mı?	Evet | Hayır | Emin değilim	Contra-fit signal for EO-heavy formulas.
+BODY_ACTIVE	03	Bakım ihtiyacınız en çok hangi durumda ortaya çıkıyor?	Egzersiz sonrası | Gün sonunda | Uzun süre ayakta kalınca | Bölgesel kuruluk/gerginlik | Diğer	Routes active vs localized body products.
+BODY_ACTIVE	04	Hangi bölge öncelikli?	Omuz/sırt | Bacak | Ayak | Genel vücut | Belirli küçük bölge	Body-zone gate.
+BODY_ACTIVE	05	Nasıl bir his tercih edersiniz?	Ferahlatıcı | Nötr | Zengin yağlı bakım	Texture/sensory preference.
+BODY_ACTIVE	06	Uçucu yağ/koku hassasiyetiniz var mı?	Evet | Hayır | Emin değilim	Contra-fit.
+HAIR	03	Asıl önceliğiniz nedir?	Kolay tarama | Saçın bakımlı görünümü | Saç derisi odaklı bakım | Kırılgan/kuru his	Routes EASYCOMB vs HAIR NOURISHER. EASYCOMB supports adult + child detangling, easier combing and hair-conditioning/nourish intent.
+HAIR	04	Ürün kim için?	Yetişkin | Çocuk	Audience gate once labels are confirmed.
+ORAL_LIP	03	Bakım alanınız hangisi?	Ağız/diş | Dudak	Domain split.
+ORAL_LIP	04	Önceliğiniz nedir?	Günlük bakım | Kozmetik görünüm | Bölgesel dudak bakımı	Routes ORAGARDE / BRIGHT SMILE / LIPVORA.
+REGIONAL	03	Bakım alanını seçin.	Göz çevresi | Çene hattı | Kulak çevresi | Ayak | Bacak | Diğer bölgesel bakım	Unlocks exact-intent catalog only.
+REGIONAL	04	Bu ürünü daha önce bir doktor/eczacı önerdi mi?	Evet | Hayır	Professional-context metadata only; must not create medical claims.
+REGIONAL	05	Hassasiyet/koku toleransı	Çok hassasım | Normal | Emin değilim	Contra-fit.
+PERSONAL	03	Bakım alanını seçin.	Kadın özel bakım | Erkek özel bakım | Dış genital bölge kozmetik bakımı | Diğer	FEMISIA / VIREON unlock only after explicit intimate-care selection. INTIMBLANC can also unlock via localized body tone-evenness intent.
+PERSONAL	04	Koku/uçucu yağ hassasiyetiniz var mı?	Evet | Hayır | Emin değilim	Important because several formulas are EO-heavy.
+SUN	03	Güneş koruması kim için?	Yetişkin | Bebek/çocuk	Routes SUNACNEA vs BABYSOL. BABYSOL test package (SPF/stability/challenge/microbiology) received.
+SUN	04	Kullanım alanı?	Yüz | Vücut | Yüz + vücut	Product/application fit.
+SUN	05	Doku tercihi?	Zengin krem olabilir | Daha hafif tercih ederim | Fark etmez	Texture fit, never overrides SPF intent.
+BABY	02	Bebek/çocuk bakımında hangi alan öncelikli?	Güneş | Ağız/diş | Banyo/temizleme | Günlük nem | Bez bölgesi | Lokal stick bakım | Saç/tarama	Pediatric domain gate.
+BABY_SUN	03	Güneş maruziyeti ne kadar?	Günlük kısa süre | Uzun dış ortam | Tatil/yoğun dış ortam	Context only; sunscreen label controls actual use.
+BABY_ORAL	03	Bakım amacı?	Günlük ağız bakımı | Diş çıkarma döneminde bakım	BABYDENT route; language remains cosmetic/supportive.
+BABY_SKIN	03	Öncelik?	Günlük nem | Bez bölgesi | Lokal hassas bölge | Banyo sonrası bakım	Routes BABYSOFT / MINISOOTH / BABY RESCUE after formula audit.
+BABY_HAIR	03	Öncelik?	Kolay tarama | Günlük saç bakımı	Routes EASYCOMB for child/adult hair detangling and manageability/conditioning intent.
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				

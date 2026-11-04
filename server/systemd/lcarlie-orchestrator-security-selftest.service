@@ -1,0 +1,10 @@
+[Unit]
+Description=LCARLIE Orchestrator Security Self-Test
+After=docker.service
+[Service]
+Type=oneshot
+ExecStart=/opt/lcarlie/orchestrator/security-selftest.sh
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true

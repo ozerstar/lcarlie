@@ -1,7 +1,7 @@
 self.addEventListener('push', (event) => {
   let payload = {};
   try { payload = event.data?.json() || {}; } catch (_) { payload = {}; }
-  event.waitUntil(self.registration.showNotification(payload.title || 'Jarvis bildirimi', {
+  event.waitUntil(self.registration.showNotification(payload.title || 'L’carlie bildirimi', {
     body: payload.body || 'Yeni bir bildirim var.',
     icon: '/iphone-icon.png',
     tag: payload.tag || 'jarvis',

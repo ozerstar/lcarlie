@@ -1,0 +1,11 @@
+[Unit]
+Description=LCARLIE is uretici: her sabah departman gorevleri (arastirma 09:35 sonrasi)
+
+[Timer]
+OnCalendar=*-*-* 10:05:00
+Persistent=true
+RandomizedDelaySec=120
+Unit=lcarlie-is-uretici@gunluk.service
+
+[Install]
+WantedBy=timers.target

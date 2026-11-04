@@ -1,0 +1,9 @@
+[Unit]
+Description=KINESIS + iki gunluk arastirma odagi (29.09-01.10.2026)
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+ExecStart=/opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/kinesis-odak.py
+TimeoutStartSec=1800

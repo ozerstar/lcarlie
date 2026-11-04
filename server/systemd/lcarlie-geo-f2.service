@@ -1,0 +1,18 @@
+[Unit]
+Description=L'CARLIE GEO search evidence capture
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+EnvironmentFile=/opt/lcarlie/jarvis-phase2/.geo-env
+Environment=PYTHONPATH=/opt/lcarlie/jarvis-phase2
+ExecStart=/opt/lcarlie/jarvis-phase2/venv/bin/python -m jarvis.geo_f2_batch --set-version sunacnea-tr-v1
+User=root
+Group=root
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+

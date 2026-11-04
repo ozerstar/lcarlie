@@ -1,0 +1,11 @@
+[Unit]
+Description=LCARLIE Radar zamanlayıcı: sabah özeti -> sahibe (outbox/panel)
+
+[Timer]
+OnCalendar=*-*-* 07:00
+RandomizedDelaySec=120
+Persistent=true
+Unit=lcarlie-radar@ozet.service
+
+[Install]
+WantedBy=timers.target

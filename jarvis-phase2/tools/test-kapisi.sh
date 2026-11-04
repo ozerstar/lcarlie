@@ -15,6 +15,12 @@
 # icindeki ruff girdisi de ayni sebeple mutlak yol kullaniyor.
 set -u
 KOK=$(git rev-parse --show-toplevel 2>/dev/null || echo .)
+# 04.11.2026: git kancasi GIT_DIR/GIT_INDEX_FILE'i ortama koyar. Bir
+# worktree'den push edilince (GIT_DIR=.git/worktrees/<ad>, mutlak yol) gecici
+# depolarda `git commit` calistiran testler (test_coding_executor 13 test,
+# test_completion_20261014) o degiskeni miras alip yanlis depoya bakiyor ve
+# dusuyordu; ayni testler kancasiz 0 kirmizi. Kok bulunduktan sonra temizlenir.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_PREFIX
 PY=/opt/lcarlie/jarvis-phase2/venv/bin/python
 [ -x "$PY" ] || { echo "TEST KAPISI: python bulunamadi: $PY"; exit 1; }
 

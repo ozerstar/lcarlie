@@ -1,0 +1,11 @@
+[Unit]
+Description=LCARLIE Radar zamanlayıcı: süresi dolan teyitleri kapat
+
+[Timer]
+OnCalendar=*-*-* 06:20
+RandomizedDelaySec=120
+Persistent=true
+Unit=lcarlie-radar@bekleyenleri-temizle.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,10 @@
+[Unit]
+Description=Month-end receipt reminder, last three days of the month at 10:00
+
+[Timer]
+OnCalendar=*-*-* 10:00:00
+Persistent=true
+Unit=lcarlie-expense-remind.service
+
+[Install]
+WantedBy=timers.target

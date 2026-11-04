@@ -1,0 +1,22 @@
+[Unit]
+Description=LCARLIE Autonomous Company Runtime (event -> bus -> red team -> MD -> brief)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/lcarlie/runtime/sirket-runtime.sh gun
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+# Runtime kendi logunu /opt/lcarlie/runtime/runtime.log dosyasina yazar.
+# ProtectSystem=strict altinda bu dizin salt okunur olur ve betik patlar.
+# (Ayni tuzak Jarvis aktivasyonunda yasandi: state/ dizinine yazilamiyordu.)
+ReadWritePaths=/opt/lcarlie/runtime
+# 🔴 DOCKER_API_VERSION SABITLENMEZ: daemon minimum API'yi yukseltince
+# sabitlenmis istemci sessizce patlar. 20.09.2026'da 1.43 sabiti n8n
+# yayinlama hattini, geri donus noktasini ve felaket kurtarmayi oldurdu.
+
+[Install]
+WantedBy=multi-user.target

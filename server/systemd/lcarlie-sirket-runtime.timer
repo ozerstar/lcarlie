@@ -1,0 +1,14 @@
+[Unit]
+Description=Daily LCARLIE Autonomous Company Runtime
+
+[Timer]
+# 🔴 SAAT SECIMI GEREKCELI: gunluk ticari ETL 08:30'da, hazirlik 08:45'te
+# kosuyor. Runtime sirket durumunu OKUDUGU icin onlardan SONRA calismali;
+# oncesinde calisirsa bir gun eski veriyle gundem uretir ve "DATA_STALE"
+# uyarisini kendi kendine tetikler.
+OnCalendar=*-*-* 09:15:00 Europe/Istanbul
+RandomizedDelaySec=5min
+Persistent=false
+
+[Install]
+WantedBy=timers.target

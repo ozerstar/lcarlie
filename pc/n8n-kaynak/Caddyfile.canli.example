@@ -1,0 +1,101 @@
+{
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+n8n.lcarlie.shop {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "geolocation=(), microphone=(), camera=()"
+		-Server
+	}
+
+	# 🔴 ISTEK GOVDESI SINIRI - sadece herkese acik webhook yolunda.
+	#
+	# /webhook/sohbet kimlik dogrulamasi istemiyor. Sinir olmazsa tek bir
+	# istekle yuzlerce MB gonderilip bellek ve disk tuketilebilir; hiz
+	# siniri sayiyi kisitliyor ama BOYUTU kisitlamiyordu.
+	# Mesaj zaten 1000 karakterle sinirli, 64KB fazlasiyla yeterli.
+	#
+	# ⚠️ Site geneline UYGULANMAZ: n8n arayuzunden workflow ice aktarmak
+	#    bundan cok daha buyuk govde gonderir, panel calismaz hale gelir.
+	@herkeseAcik path /webhook/*
+	request_body @herkeseAcik {
+		max_size 64KB
+	}
+
+	# Sunucu durum sayfasi - gizli yol
+	handle_path /durum-<DURUM_TOKEN>* {
+		root * /durum
+		file_server
+	}
+
+	# Site sohbet widget dosyasi.
+	# Wix Ozel Kod alaninin 15.000 karakter siniri var; widget kodu
+	# buradan servis edilir, Wix tarafinda tek satirlik script etiketi kalir.
+	# Guncelleme icin Wix'e dokunmak gerekmez.
+	handle /lc-sohbet.js {
+		header Content-Type "application/javascript; charset=utf-8"
+		header Cache-Control "public, max-age=300"
+		root * /widget
+		file_server
+	}
+
+	reverse_proxy n8n:5678 {
+		flush_interval -1
+
+		# 🔴 HIZ SINIRI ICIN GERCEK IP
+		#
+		# X-Forwarded-For KULLANILAMAZ: Caddy gelen bu basliga EKLEME yapar,
+		# yani musteri kendi istegine "X-Forwarded-For: 1.2.3.4" koyarsa
+		# listenin BASINDA o sahte deger durur. Her istekte farkli bir sahte
+		# deger yazarak IP sinirini sonsuza kadar asmak mumkun olurdu.
+		#
+		# header_up basligi SET eder (varsa uzerine yazar) ve {client_ip}
+		# yukaridaki 'trusted_proxies' ayarina gore Caddy'nin kendi gordugu
+		# baglanti adresidir. Musteri tarafindan degistirilemez.
+		header_up X-Gercek-IP {client_ip}
+	}
+
+	# 🔴 ERISIM KAYDINDA ANAHTAR GIZLENIR.
+	#
+	# Panel ve durum sayfasi anahtari adres satirinda gidiyor
+	# (?k=<PILOT_TOKEN>). Caddy varsayilan olarak tam adresi kaydediyordu,
+	# yani anahtarlar 50 MB'lik erisim kaydinda DUZ METIN duruyordu.
+	# Kayda erisen herkes panele de erisebilirdi; anahtar degistirmeden
+	# eski kayitlar da tehlike olmaya devam ederdi.
+	#
+	# 🔴 IKI AYRI YERDE ANAHTAR VAR - ikisi de maskelenmeli:
+	#   1) Pilot/sohbet paneli : ?k=<PILOT_TOKEN>   -> SORGU parametresi
+	#   2) Durum sayfasi       : /durum-<TOKEN>/    -> ADRES YOLUNUN KENDISI
+	#
+	# Once yalniz 'query' filtresi konuldu; canli testte durum sayfasinin
+	# anahtarinin kayda DUZ METIN dustugu gorulду - cunku o sorguda degil
+	# yolda gidiyor. Bu yuzden tek bir 'regexp' filtresi kullaniliyor:
+	# ayni alana iki filtre baglanamaz.
+	#
+	# Desen hem "k=..." hem "durum-..." yakalar, basligi korur, gerisini siler.
+	log {
+		output file /data/access.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+		format filter {
+			wrap json
+			fields {
+				request>uri regexp "(k=|durum-)[A-Za-z0-9_-]+" "${1}GIZLENDI"
+			}
+		}
+	}
+}
+
+# Alan adi disindaki tum istekleri (dogrudan IP dahil) reddet
+:80, :443 {
+	respond "Not found" 404
+}

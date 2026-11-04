@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily GEO search evidence capture
+
+[Timer]
+OnCalendar=*-*-* 04:15:00 Europe/Istanbul
+Persistent=true
+RandomizedDelaySec=10m
+Unit=lcarlie-geo-f2.service
+
+[Install]
+WantedBy=timers.target

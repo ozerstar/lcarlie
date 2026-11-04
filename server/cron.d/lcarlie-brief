@@ -1,0 +1,26 @@
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# DOCKER_API_VERSION KALDIRILDI 20.09.2026: docker 24->29 yukseltmesi minimum
+# API surumunu 1.44 yapti, buradaki 1.43 sabitlemesi her docker cagrisini
+# "client version 1.43 is too old" ile dusurdu. Sabitleme yok: istemci
+# surumu sunucuyla kendisi anlasir, bir sonraki yukseltmede tekrar kirilmaz.
+CRON_TZ=Europe/Istanbul
+
+# =============================================================================
+# L'CARLIE - BUYUME BRIEF ZAMANLAMASI  (CR-015)
+#
+# 🔴 GUNLUK DEGIL, HAFTALIK.  Gerekce olculdu: gunluk hacim 2 siparis/gun
+#    seviyesinde ve brief her kosumda AYNI 29 bulguyu uretiyor. Gunluk
+#    calistirmak ayni onerileri her gun karar adayi yapmaya calisir;
+#    idempotency_key duplicate'i engeller ama gurultu yaratir ve "yeni
+#    bulgu" ile "dunku bulgu" ayirt edilemez hale gelir.
+#
+# 🔴 GUNLUK ticari nabiz ZATEN var: ticari-kontrol.sh 08:30'da calisiyor
+#    ve CR-013 nakit korkulugunu panele yaziyor. Gunluk uyari orada.
+#
+# 🔴 concurrency=1 korunur: flock ile ayni anda iki kosum engellenir ve
+#    ticari-kontrol.sh'tan 15 dk SONRA baslar (08:30 -> 08:45) ki taze
+#    veriyle calissin, ayni anda DB'yi yormasin.
+#
+# Pazartesi 08:45 - haftalik tam Growth Brief + Red Team
+45 8 * * 1 root flock -n /var/lock/lcarlie-brief.lock /opt/lcarlie/buyume-brief.sh --sessiz >> /opt/lcarlie/buyume-brief.log 2>&1

@@ -1,0 +1,13 @@
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# DOCKER_API_VERSION KALDIRILDI 20.09.2026: docker 24->29 yukseltmesi minimum
+# API surumunu 1.44 yapti, buradaki 1.43 sabitlemesi her docker cagrisini
+# "client version 1.43 is too old" ile dusurdu. Sabitleme yok: istemci
+# surumu sunucuyla kendisi anlasir, bir sonraki yukseltmede tekrar kirilmaz.
+CRON_TZ=Europe/Istanbul
+
+# L-CARLIE - Meta gelen kutusu konusmalarini biriktir
+# 30.09.2026 KINESIS haftasi icin 4 saat -> 15 dakika. Hafta sonunda geri al:
+#   17 */4 * * * root flock -n /var/lock/lcarlie-meta.lock /opt/lcarlie/meta-aktar.sh 3 >/dev/null 2>&1
+# Tam gecmis icin elle: /opt/lcarlie/meta-aktar.sh tam
+*/15 * * * * root flock -n /var/lock/lcarlie-meta.lock /opt/lcarlie/meta-aktar.sh 3 >/dev/null 2>&1

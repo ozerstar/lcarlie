@@ -1,0 +1,10 @@
+[Unit]
+Description=LCARLIE Action Gateway Health
+After=docker.service
+[Service]
+Type=oneshot
+ExecStart=/opt/lcarlie/orchestrator/action-gateway-health.sh
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true

@@ -1,0 +1,11 @@
+[Unit]
+Description=LCARLIE Radar zamanlayıcı: kritik değişiklikleri ikinci taramayla teyit
+
+[Timer]
+OnCalendar=*-*-* 06:00
+RandomizedDelaySec=120
+Persistent=true
+Unit=lcarlie-radar@jarvis-teyit.service
+
+[Install]
+WantedBy=timers.target

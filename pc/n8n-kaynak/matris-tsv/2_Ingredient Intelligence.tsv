@@ -1,0 +1,200 @@
+Ingredient / INCI	Functional Cluster	Engine Direction	Suggested Weighting Logic	Professional Notes / Caution	Observed In Parsed L'CARLIÉ Formula	Evidence Basis
+Glycerin	Humectant	Boost hydration-fit	Positive when dryness/dehydration is selected; stronger in leave-on and at higher %	Generally a hydration-supportive humectant; contextualize by concentration and formula.	HYDRAVIE 5%; DERMANOVA 3%; others lower	Product files + standard cosmetic function
+Sodium Hyaluronate	Humectant	Boost hydration-fit	Strong positive at meaningful leave-on concentration; lower weight in rinse-off	Water-binding skin-conditioning ingredient; do not translate into disease claims.	HYDRAVIE 5%; LUCIDERM 0.5%	Product files + standard cosmetic function
+Niacinamide	Barrier / smoothing / multifunctional	Boost barrier + uneven-look / texture fit	Higher positive when leave-on and at meaningful %	Use cosmetic wording: supports smoother, more even-looking, well-conditioned skin; avoid overclaim.	HYDRAVIE 5%	Product file + standard cosmetic evidence
+Panthenol	Humectant / conditioning	Boost hydration / comfort fit	High positive in leave-on at meaningful %	Conditioning/hydration-supportive; suitable for professional rationale.	HYDRAVIE 5%	Product file + standard cosmetic evidence
+Squalane	Emollient	Boost dry / lipid-support fit	Positive for dry-feel and richer texture preference	May lower fit for users explicitly seeking ultralight/oil-free textures.	HYDRAVIE 3%	Product file + standard cosmetic function
+Shea Butter	Emollient / occlusive-support	Boost dry / rich-texture fit	Positive for dry skin; reduce for very oily / ultralight preference	Texture-driven, not 'comedogenic = bad' binary scoring.	HYDRAVIE 3%; SUNACNEA 8%; FEMISIA 5%	Product files + standard cosmetic function
+Coconut Oil	Emollient	Boost dry/rich fit; lower ultralight fit	Contextual; do not assign universal comedogenic penalty	Use as texture/emollience signal, not medical acne prediction.	HYDRAVIE 3%; SUNACNEA 8%; FEMISIA 10%; LIFTELLE 15%	Product files + formulation logic
+Bakuchiol	Antioxidant / appearance support	Boost mature/appearance-care fit	Positive in leave-on when present at meaningful %	Do not call it 'retinol replacement' or age reversal without substantiation.	HYDRAVIE 1%	Product file + cosmetic evidence
+Tocopherol	Antioxidant	Boost antioxidant / emollient formulas	Modest positive; supportive rather than dominant unless high %	Professional layer can show antioxidant function.	HYDRAVIE 1%; multiple products 0.5%	Product files + standard cosmetic function
+Ceramide NP	Barrier-related skin conditioning	Boost barrier-oriented cleansing/leave-on fit	Weight by exposure: much lower in rinse-off vs leave-on	LUCIDERM contains Ceramide NP; HYDRAVIE current parsed formula does not.	LUCIDERM 0.5%	Product file
+Betaine	Humectant / conditioning	Boost comfort/hydration fit	Moderate positive in cleanser, lower than leave-on humectants	Useful in cleansing-routine rationale.	LUCIDERM 0.5%	Product file
+Aloe Barbadensis Leaf Juice	Humectant / conditioning	Boost comfort/hydration fit	Positive; scale by concentration and leave-on/rinse-off	Do not equate with medical anti-inflammatory treatment.	HYDRAVIE 10%; LUCIDERM 10%; CALMAROS 15%; KINESIS 5%; FEMISIA 10%	Product files
+Salicylic Acid	Skin conditioning / keratolytic-associated ingredient	Boost oily/rough-texture intent cautiously	Require route + concentration + age context; stronger caution in leave-on / pediatric routes	Do not convert presence into acne-treatment claim. Age/restriction checks matter.	HYDRAVIE 0.5%; LUCIDERM 0.5%; CALMAROS 0.1%; VIREON 0.5%; FEMISIA 0.5%; LIFTELLE 0.5%	Product files + regulatory notes
+Lactic Acid	pH adjuster / skin conditioning	Small boost for texture/conditioning only when relevant	Low-medium; much lower in rinse-off	Do not assume exfoliation claim solely from presence without finished-product evidence.	LUCIDERM 0.5%; LIFTELLE 0.5%	Product files
+Zinc Oxide	UV filter	Strong boost for UV intent	Very high only when product is a verified sunscreen and finished-product SPF is substantiated	Never infer SPF solely from % zinc oxide; use tested/labeled SPF.	SUNACNEA 5% non-nano	Product file + sunscreen principle
+Calendula Officinalis Extract	Skin conditioning / emollient botanical	Boost comfort-oriented care modestly	Moderate positive; formulation context matters	Botanical does not automatically mean hypoallergenic.	CALMAROS 15%; DERMANOVA 1.5%; KINESIS 2%	Product files
+Chamomilla Recutita	Skin conditioning botanical	Boost comfort-oriented care modestly	Moderate positive; consider fragrance/sensitizer context of whole formula	Use cosmetic conditioning language.	CALMAROS water 15%; LUCIDERM extract 0.5%	Product files
+Camellia Sinensis Leaf Extract	Antioxidant / conditioning	Boost antioxidant / city-stress rationale modestly	Small-medium positive; avoid 'blue light protection' without finished-product evidence	Do not equate antioxidant ingredient with proven environmental-protection claim.	LUCIDERM 0.5%; CALMAROS 0.5%	Product files
+Caffeine	Skin conditioning / appearance-focused	Boost firmness/appearance intent in localized formulas	Moderate positive when exact intent matches	Do not convert to physiological drainage/circulation claims.	LIFTELLE 0.5%	Product file
+Centella Asiatica Extract	Skin conditioning	Boost appearance/conditioning intent	Moderate positive in localized leave-on	Avoid wound-healing/medical language.	LIFTELLE 0.5%	Product file
+Borage Seed Oil	Emollient / skin conditioning	Boost dry/rich lipid-care fit	Positive; strong texture signal at high %	High concentration can define product character.	LIFTELLE 58%; VIREON 5%; FEMISIA 5%; KINESIS 5%	Product files
+Tamanu / Calophyllum Inophyllum Seed Oil	Skin conditioning / emollient	Boost rich localized care	Strong texture/conditioning signal at high %; exact-intent recommended	Do not infer scar treatment or healing solely from ingredient.	DERMANOVA 65%; LIFTELLE 10%; SUNACNEA 5%; KINESIS 5%	Product files
+Hypericum Perforatum Oil	Skin conditioning botanical	Localized-care support with caution	Positive only within exact-intent body care; apply sun-exposure caution logic	Source itself flags photosensitivity consideration in KINESIS; avoid broad face default.	DERMANOVA 20%; KINESIS 0.5%	Product files
+Peppermint Oil	Fragrance / sensory cooling	Boost cooling/sensory intent	Positive for explicit cooling preference; negative for high reactivity/eye-area	Do not translate sensory cooling into muscle-pain treatment.	KINESIS 0.2%; MENTHALIS present	Product files
+Cinnamon Bark / Leaf Oil	Fragrance / sensitizer-relevant EO	Contra-fit for high reactivity	Strong negative under high reactivity; exact-intent only when prominent	Professional flag for allergen/irritation potential; concentration is critical.	CALMAROS 0.5%; DERMANOVA 0.5%; VIREON 5%; KINESIS 0.5% leaf	Product files
+Clove Oil	Fragrance / sensitizer-relevant EO	Contra-fit for high reactivity	Negative under reactive-skin profile; exact-intent contextual use	Eugenol-related allergen disclosure can matter.	CALMAROS 0.5%; DERMANOVA 0.5%; VIREON 0.5%; KINESIS 0.5%	Product files
+Lavender Oil / Water	Fragrance / conditioning botanical	Contextual	Hydrosol modest positive; essential oil adds sensitivity penalty in reactive profile	Differentiate flower water from essential oil in scoring.	LUCIDERM water 10% + oil 0.5%; CALMAROS water 15%; CALMORIS oil present	Product files
+Bergamot Oil	Fragrance EO	Contextual / caution	Negative in photosensitivity/EO-avoidance unless furocoumarin status is known	Material specification (expressed vs FCF) matters.	FEMISIA 0.5%; MENTHALIS present; CALMORIS present	Product files
+Ylang-Ylang Oil	Fragrance EO	Contextual / caution	Negative for high reactivity / fragrance avoidance	Exact-intent sensory use only.	VIREON 0.5%; FEMISIA 0.5%; MENTHALIS present; CALMORIS present	Product files
+Jojoba Oil	Emollient	Boost dry / conditioning fit	Positive in oil-rich localized formulas	Texture signal rather than disease indication.	VIREON 5%; LIFTELLE 7%; HYDRAVIE 1%	Product files
+Arginine	Skin conditioning	Modest targeted-care support	Small positive only; not a standalone efficacy driver	Do not infer sexual/vascular effects from cosmetic arginine presence.	FEMISIA 0.5%	Product file
+Lactobacillus Ferment	Skin conditioning	Modest microbiome-style support	Small positive; do not claim microbiome restoration without finished-product evidence	Use 'ferment-derived skin-conditioning component' language.	FEMISIA 0.5%	Product file
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						

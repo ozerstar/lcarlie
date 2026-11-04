@@ -1,0 +1,9 @@
+[Unit]
+Description=Daily LCARLIE Orchestrator Security Self-Test
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=1d
+RandomizedDelaySec=10min
+Persistent=false
+[Install]
+WantedBy=timers.target

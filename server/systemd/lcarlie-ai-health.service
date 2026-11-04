@@ -1,0 +1,22 @@
+[Unit]
+Description=L'CARLIE AI Orchestrator aggregate health check
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+Environment=DOCKER_CONFIG=/tmp
+ExecStart=/opt/lcarlie/orchestrator/run-healthcheck.sh
+TimeoutStartSec=60
+Nice=15
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+

@@ -1,0 +1,21 @@
+[Unit]
+# Kademe telemetrisini JSONL'den Postgres'e tasir.
+#
+# NEDEN TIMER: betik elle calistirilsaydi, kurulan seyin kendisi bu projede
+# tekrar eden "tanimli ama bagli degil" kalibina dusmus olurdu -- veri
+# birikir, kimse aktarmaz, sorulamaz.
+#
+# Tekrar calistirmak GUVENLI: her satirin icerik hash'i UNIQUE, ON CONFLICT
+# DO NOTHING. Bir tur kacsa ya da iki tur ust uste calissa fark etmez.
+Description=L'CARLIE kademe telemetrisi -> Postgres
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+ExecStart=/opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/kademe-aktar.py
+TimeoutStartSec=180
+Nice=15
+UMask=0077
+NoNewPrivileges=true

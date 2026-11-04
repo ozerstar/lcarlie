@@ -120,7 +120,16 @@ class YARIM_CEVAP_BIRLESTIRILMEZ(_Temel):
             raise RuntimeError("koptu")
 
         self.yama(yarim)
-        self.assertEqual("".join(self.r.stream_text("selam", "sistem")), "Mer")
+        # 04.11.2026 canli esitleme: canlidaki model_layer yarida kopan akisi
+        # artik sessizce "Mer" diye bitirmiyor, Turkce bir ModelUnavailable
+        # ile kullaniciya bildiriyor. Bu testin asil degismezi (baska modelle
+        # TAMAMLANMAZ) asagidaki gpu.cagrildi == 0 ile korunuyor.
+        from jarvis.model_layer import ModelUnavailable
+        parcalar = []
+        with self.assertRaises(ModelUnavailable):
+            for p in self.r.stream_text("selam", "sistem"):
+                parcalar.append(p)
+        self.assertEqual(parcalar, [], "yarim taslak kullaniciya sizdi")
         self.assertEqual(self.r.gpu.cagrildi, 0,
                          "yarim cevap yerelle tamamlanmis")
 

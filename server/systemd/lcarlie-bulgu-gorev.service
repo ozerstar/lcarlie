@@ -1,0 +1,13 @@
+[Unit]
+Description=LCARLIE bulgudan gorev (findings.jsonl -> onay kuyrugu)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+ExecStart=/opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/bulgu-gorev.py
+# Tavanlar core.ai_bulgu_gorev_ac() icinde zorlanir; burasi yalnizca tetikler.
+# Hicbir sey uygulanmaz, yalnizca "su bulguya bakilsin" isi acilir.
+TimeoutStartSec=600
+Nice=10

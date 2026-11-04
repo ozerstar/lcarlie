@@ -1,0 +1,11 @@
+[Unit]
+Description=LCARLIE is uretici programi: haftalik ekip retrosu ve yeni arastirma konulari
+
+[Timer]
+OnCalendar=Sun *-*-* 19:00:00
+Persistent=true
+RandomizedDelaySec=180
+Unit=lcarlie-is-uretici@retro.service
+
+[Install]
+WantedBy=timers.target

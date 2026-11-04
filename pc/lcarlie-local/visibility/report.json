@@ -1,0 +1,485 @@
+{
+  "checked_at_utc": "2026-10-28T13:54:08.766732+00:00",
+  "robots_status": 200,
+  "robots_allows_crawling": true,
+  "sitemap_status": 200,
+  "sitemap_product_count": 100,
+  "guide_url": "https://www.lcarlie.shop/post/l-carlié-ürün-rehberi-bakım-alanına-göre-ürünler",
+  "guide_status": 200,
+  "guide_title": "L’CARLIÉ ürün rehberi: bakım alanına göre ürünler | L’CARLIÉ",
+  "guide_canonical": "https://www.lcarlie.shop/post/l-carlié-ürün-rehberi-bakım-alanına-göre-ürünler",
+  "guide_product_link_count": 36,
+  "checked_product_count": 36,
+  "products_with_critical_issues": 0,
+  "products_with_unverified_gtin13_candidate": 36,
+  "products": [
+    {
+      "url": "https://www.lcarlie.shop/product-page/baby-rescue",
+      "http_status": 200,
+      "title": "BABY RESCUE Stick Balm Bakım Ürünü | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/baby-rescue",
+      "product_name": "BABY RESCUE (Anlık Yatıştırıcı)",
+      "sku": "8684869609363",
+      "price": "900",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/babydent",
+      "http_status": 200,
+      "title": "BABYDENT Bebek ve Çocuk Diş Bakım Jeli | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/babydent",
+      "product_name": "BABYDENT (Bebek ve Çocuklar İçin Diş Bakım Jeli)",
+      "sku": "8684869609387",
+      "price": "1100",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/babyshower",
+      "http_status": 200,
+      "title": "BABYSHOWER Bebek ve Çocuk Şampuanı | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/babyshower",
+      "product_name": "BABYSHOWER (Şampuan)",
+      "sku": "8684869609356",
+      "price": "1100",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/babysoft",
+      "http_status": 200,
+      "title": "BABYSOFT Bebek Vücut Losyonu | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/babysoft",
+      "product_name": "BABYSOFT (Bebek Vücut Losyonu)",
+      "sku": "8684869609523",
+      "price": "2100",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/babysol",
+      "http_status": 200,
+      "title": "BABYSOL Bebek Güneş Bakım Kremi | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/babysol",
+      "product_name": "BABYSOL (Güneş Kremi)",
+      "sku": "8684869609530",
+      "price": "1250",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/bright-smile",
+      "http_status": 200,
+      "title": "BRIGHT SMILE Doğal İçerikli Diş Macunu | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/bright-smile",
+      "product_name": "BRIGHT SMILE",
+      "sku": "8684869609394",
+      "price": "950",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/buguard",
+      "http_status": 200,
+      "title": "BUGUARD Bitkisel Savunma Spreyi | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/buguard",
+      "product_name": "BUGUARD (Bitkisel Savunma Spreyi)",
+      "sku": "8684869609301",
+      "price": "900",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/calmaros",
+      "http_status": 200,
+      "title": "CALMAROS Ferahlatıcı Tonik Sprey | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/calmaros",
+      "product_name": "CALMAROS (Ferahlatıcı Tonik Sprey)",
+      "sku": "8684869609080",
+      "price": "1850",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/calmjaw",
+      "http_status": 200,
+      "title": "CAL JAW Gece Çene Bakım Roll-Onu | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/calmjaw",
+      "product_name": "CALJAW (Gece Çene Bakım RollOnu)",
+      "sku": "8684869609196",
+      "price": "1100",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/calmoris",
+      "http_status": 200,
+      "title": "CALMORIS Rahatlatıcı Bakım Roll-Onu | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/calmoris",
+      "product_name": "CALMORIS (Rahatlatıcı Bakım Roll-On)",
+      "sku": "8684869609578",
+      "price": "1100",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/dermabed",
+      "http_status": 200,
+      "title": "DERMABED Bariyer ve Koruyucu Bakım Kremi | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/dermabed",
+      "product_name": "DERMABED (Bariyer ve Koruyucu Bakım Kremi)",
+      "sku": "8684869609066",
+      "price": "1950",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/dermacorn",
+      "http_status": 200,
+      "title": "DERMACORN Sertleşmiş Bölge Bakım Kremi | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/dermacorn",
+      "product_name": "DERMACORN (Sertleşmiş Bölge Bakımı)",
+      "sku": "8684869609288",
+      "price": "900",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/dermaguard",
+      "http_status": 200,
+      "title": "DERMAGUARD Ayak ve Tırnak Bakım Kremi | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/dermaguard",
+      "product_name": "DERMAGUARD (Ayak ve Tırnak Bakım Kremi)",
+      "sku": "8684869609103",
+      "price": "1200",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/dermamovera",
+      "http_status": 200,
+      "title": "DERMAMOVERA Masaj ve Bölgesel Bakım Kremi | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/dermamovera",
+      "product_name": "DERMAMOVERA (Bitkisel Masaj ve Bakım Kremi)",
+      "sku": "8684869609516",
+      "price": "1950",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/dermanova",
+      "http_status": 200,
+      "title": "DERMANOVA Yenileyici Görünüm Bakım Kremi | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/dermanova",
+      "product_name": "DERMANOVA (Yenileyici ve İz Görünümünü Azaltmaya Yardımcı Bitkisel Krem)",
+      "sku": "8684869609073",
+      "price": "2100",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/dermarnica",
+      "http_status": 200,
+      "title": "DERMARNICA Arnica Özlü Bakım Kremi | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/dermarnica",
+      "product_name": "DERMARNICA (Arnica Özlü Bitkisel Bakım Kremi )",
+      "sku": "8684869609554",
+      "price": "2100",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/dermastra",
+      "http_status": 200,
+      "title": "DERMASTRA Gerilme Bölgeleri Bakım Kremi | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/dermastra",
+      "product_name": "DERMASTRA (Gerilme Bölgeleri İçin Bakım Kremi)",
+      "sku": "8684869609561",
+      "price": "2100",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/dermavasc",
+      "http_status": 200,
+      "title": "DERMAVASC Günlük Bakım Kremi | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/dermavasc",
+      "product_name": "DERMAVASC (Bacak ve Vücut Bakım Kremi)",
+      "sku": "8684869609271",
+      "price": "2100",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/dorsivia",
+      "http_status": 200,
+      "title": "DORSIVIA Isınma Etkili Masaj Kremi | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/dorsivia",
+      "product_name": "DORSIVIA  (Isınma Etkili  Masaj Kremi)",
+      "sku": "8684869609400",
+      "price": "2100",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/easycomb",
+      "http_status": 200,
+      "title": "EASYCOMB Bebek ve Çocuk Saç Bakım Spreyi | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/easycomb",
+      "product_name": "EASYCOMB (Bebek ve Çocuklar İçin Saç Bakım Spreyi)",
+      "sku": "8684869609370",
+      "price": "1020",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/femisia-for-women",
+      "http_status": 200,
+      "title": "FEMISIA for WOMEN İntim Bakım Kremi | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/femisia-for-women",
+      "product_name": "FEMISIA for WOMEN (Kadınlara Özel Bitkisel İntim Bakım Kremi)",
+      "sku": "8684869609127",
+      "price": "2400",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/hair-nouriher",
+      "http_status": 200,
+      "title": "HAIR NOURISHER Saç Bakım Yağı | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/hair-nouriher",
+      "product_name": "HAIR NOURISHER (Saç Bakım Yağı)",
+      "sku": "8684869609158",
+      "price": "1200",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/hydravie",
+      "http_status": 200,
+      "title": "HYDRAVIE Yoğun Nemlendirici Yüz Kremi | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/hydravie",
+      "product_name": "HYDRAVIE | Yoğun Nemlendirici Yüz Kremi",
+      "sku": "8684869609233",
+      "price": "1200",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/intimblanc",
+      "http_status": 200,
+      "title": "INTIMBLANC Ton Görünümü Bakım Kremi | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/intimblanc",
+      "product_name": "INTIMBLANC (Hassas Bölge Ton Görünümü Bakım Kremi)",
+      "sku": "8684869609318",
+      "price": "2100",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/kinesis",
+      "http_status": 200,
+      "title": "KINESIS+ Spor Sonrası Masaj ve Bakım Kremi | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/kinesis",
+      "product_name": "KINESIS + (Sporcu Bakım Kremi)",
+      "sku": "8684869609547",
+      "price": "1950",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/liftelle",
+      "http_status": 200,
+      "title": "LIFTELLE Dekolte ve Gıdı Bakım Kremi | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/liftelle",
+      "product_name": "LIFTELLE (Göğüs ve Dekolte Bakım Kremi)",
+      "sku": "8684869609141",
+      "price": "2100",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/lipvora",
+      "http_status": 200,
+      "title": "LIPVORA Dudak Nemlendirici Balm | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/lipvora",
+      "product_name": "LIPVORA (Dudak Nemlendirici Balm)",
+      "sku": "8684869609134",
+      "price": "900",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/luciderm",
+      "http_status": 200,
+      "title": "LUCIDERM Yüz Temizleme Köpüğü | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/luciderm",
+      "product_name": "LUCIDERM (Yüz Temizleme Köpüğü)",
+      "sku": "8684869609295",
+      "price": "1200",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/menthalis",
+      "http_status": 200,
+      "title": "MENTHALIS Ferahlatıcı Bakım Roll-Onu | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/menthalis",
+      "product_name": "MENTHALIS (Canlandırıcı Bitki Yağları Roll-On)",
+      "sku": "8684869609585",
+      "price": "1100",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/minisooth-bebek-pi%C5%9Fik-kremi",
+      "http_status": 200,
+      "title": "MINISOOTH Bez Bölgesi Bakım Kremi | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/minisooth-bebek-pişik-kremi",
+      "product_name": "MINISOOTH (Bebek Bez Bölgesi Bakım Kremi)",
+      "sku": "8684869609325",
+      "price": "1200",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/optywave",
+      "http_status": 200,
+      "title": "OPTYWAVE Göz Çevresi Bakım Roll-Onu | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/optywave",
+      "product_name": "OPTYWAVE (Göz Çevresi Aydınlatıcı ve Koruyucu Roll-On)",
+      "sku": "8684869609172",
+      "price": "1100",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/oragarde",
+      "http_status": 200,
+      "title": "ORAGARDE Ağız Bakım Spreyi | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/oragarde",
+      "product_name": "ORAGARDE (Ağız Bakım Spreyi)",
+      "sku": "8684869609165",
+      "price": "900",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/seralimbo",
+      "http_status": 200,
+      "title": "SERALIMBO Gece Bacak Bakım Kremi | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/seralimbo",
+      "product_name": "SERALIMBO (Gece Bakım Kremi)",
+      "sku": "8684869609202",
+      "price": "2100",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/softguard",
+      "http_status": 200,
+      "title": "SOFTGUARD Tekstil Bakım Spreyi | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/softguard",
+      "product_name": "SOFTGUARD (Mite&Akar Sprey)",
+      "sku": "8684869609608",
+      "price": "950",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/sunacnea-30-spf",
+      "http_status": 200,
+      "title": "SUNACNEA SPF 30 Güneş Kremi | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/sunacnea-30-spf",
+      "product_name": "SUNACNEA SPF 30 (Güneş Kremi)",
+      "sku": "8684869609097",
+      "price": "1200",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    },
+    {
+      "url": "https://www.lcarlie.shop/product-page/vireon-for-men",
+      "http_status": 200,
+      "title": "VIREON FOR MEN Erkek Bakım Kremi | L’CARLIÉ",
+      "canonical": "https://www.lcarlie.shop/product-page/vireon-for-men",
+      "product_name": "VIREON FOR MEN · Erkek Bakım Kremi",
+      "sku": "8684869609110",
+      "price": "2400",
+      "availability": "https://schema.org/InStock",
+      "issues": [
+        "gtin13_candidate_unverified"
+      ]
+    }
+  ]
+}

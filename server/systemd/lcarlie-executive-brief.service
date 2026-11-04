@@ -1,0 +1,10 @@
+[Unit]
+Description=LCARLIE AI Executive Brief
+After=docker.service
+[Service]
+Type=oneshot
+ExecStart=/opt/lcarlie/orchestrator/run-executive-brief.sh
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true

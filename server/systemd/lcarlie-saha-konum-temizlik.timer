@@ -1,0 +1,11 @@
+[Unit]
+Description=Schedule L'CARLIE saha konum saklama temizligi (gunluk)
+
+[Timer]
+OnCalendar=*-*-* 03:45:00
+RandomizedDelaySec=15min
+Persistent=true
+Unit=lcarlie-saha-konum-temizlik.service
+
+[Install]
+WantedBy=timers.target

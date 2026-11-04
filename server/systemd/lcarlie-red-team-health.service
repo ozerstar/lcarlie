@@ -1,0 +1,10 @@
+[Unit]
+Description=LCARLIE AI Red Team Health
+After=docker.service
+[Service]
+Type=oneshot
+ExecStart=/opt/lcarlie/orchestrator/red-team-health.sh
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true

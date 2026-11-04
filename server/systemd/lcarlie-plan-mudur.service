@@ -1,0 +1,31 @@
+[Unit]
+# IS PLANLAMA MUDURU: kadroyu ve yayindaki urunleri sayar, arastirma
+# planini yazar. Sifir model cagrisi -- plan bir muhakeme degil dagitimdir.
+#
+# 🔴 NEDEN BU BIRIM VAR -- OLCULDU 16.10.2026.
+#    Betik 21.09.2026'da BIR KEZ elle kosmus ve 95 plan yazmis; ne timer'i
+#    ne cron'u vardi, bir daha hic kosmadi. SEO departmani roster'a
+#    22.09'da -- yani plan yazildiktan BIR GUN SONRA -- eklendi ve bu
+#    yuzden hicbir arastirma plani almadi. Sahip "SEO ekibi gorevlerini
+#    yapmiyor" dedi; dogruydu, ama sebep ekip degil PLANLAYICIYI
+#    ZAMANLAMAMAKTI. Ayni sebeple 17 departman daha plansizdi.
+#
+#    Hafizadaki ayni hastalik: "ekip var, zamanlayici yok".
+#
+# 🔴 IDEMPOTENT. ON CONFLICT (kapsam,hedef,konu) DO UPDATE ile calisir:
+#    her kosuda ayni planlari yeniden yazmaz, yalnizca eksigi ekler ve
+#    siklik/oncelik degistiyse guncellestirir. son_kosu'ya DOKUNMAZ, yani
+#    haftalik kosu arastirma takvimini sifirlamaz.
+Description=LCARLIE is planlama muduru - arastirma planini tazeler (sifir model cagrisi)
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+Environment=JARVIS_MEMORY_TRANSPORT=local-docker
+Environment=JARVIS_STATE_DIR=/opt/lcarlie/jarvis-phase2/state
+EnvironmentFile=-/etc/lcarlie/jarvis-phase2.env
+ExecStart=/opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/plan-mudur.py
+TimeoutStartSec=600
+NoNewPrivileges=true

@@ -1,0 +1,200 @@
+Product	Source Located	Formula Parsed This Pass	Professional Status	Next Action
+HYDRAVIE	Yes	Yes	Broad within face-care	Ready for scoring calibration
+LUCIDERM	Yes	Yes	Broad within face-care	Ready for scoring calibration
+CALMAROS	Yes	Yes	Conditional	Ready for scoring calibration
+SUNACNEA SPF30	Yes	Yes	Broad under UV intent	Ready for scoring calibration
+DERMANOVA	Yes	Yes	Exact-intent / gated	Ready for scoring calibration
+KINESIS+	Yes	Yes	Exact-intent / gated	Ready for scoring calibration
+LIFTELLE	Yes	Yes	Active targeted; face/body route	Calibrate HYDRAVIE synergy + face/jawline/neck gate
+VIREON FOR MEN	Yes	Yes	Explicit-intent only	Do not auto-recommend from general analysis
+FEMISIA FOR WOMEN	Yes	Yes	Explicit-intent only	Do not auto-recommend from general analysis
+MENTHALIS	Yes	Yes	Aromatic / sensory route	Use as scent/sensory product, not treatment
+CALMORIS	Yes	Yes	Aromatic / sensory route	Use as scent/sensory product, not treatment
+DERMASTRA	Yes	Source received	Active body / stretch-mark route	Parse received MoCRA into signal weights; add stretchMarkAppearance
+DERMAMOVERA	Yes	Source received	Active joint/body/sport route	Use cosmetic body-comfort wording; parse MoCRA
+DERMACORN	Yes	No	Exact-intent / gated	Parse/resolve source before production recommendation
+DERMARNICA	Yes	No	Gated pending formula	Parse/resolve source before production recommendation
+DERMAVASC	Yes	No	Gated pending formula	Parse/resolve source before production recommendation
+DERMAGUARD	Yes	No	Gated pending formula	Parse/resolve source before production recommendation
+DERMABED	Yes	Source received	Active body-care; intact skin only	Use cosmetic pressure/friction skin-care wording; STOP on open/acute skin
+DORSIVIA	Yes	Source received	Active body route	Body only; parse MoCRA into weights
+SERALIMBO	Yes	No	Gated pending formula	Parse/resolve source before production recommendation
+EASYCOMB	Yes	Source received	Active hair route; adult + child	Detangle + conditioning/nourish route
+HAIR NOURISHER	Yes	No	Quarantined pending alignment	Parse/resolve source before production recommendation
+ORAGARDE	Yes	No	Domain-gated	Parse/resolve source before production recommendation
+BRIGHT SMILE	Yes	No	Domain-gated	Parse/resolve source before production recommendation
+LIPVORA	Yes	No	Domain-gated	Parse/resolve source before production recommendation
+OPTYWAVE	Yes	No	Gated pending formula	Parse/resolve source before production recommendation
+CALM JAW	Yes	No	Exact-intent / gated	Parse/resolve source before production recommendation
+EARCLIA	Yes	Source received	Disabled – approval pending	Do not recommend or display until approval
+AUROLIS	Yes	No	Quarantined pending review	Parse/resolve source before production recommendation
+NOMORE	Yes	Source received	Disabled – approval pending	Do not recommend or display until approval
+INTIMBLANC	Yes	Source received	Active gated body-tone / intimate route	Allow localized body tone-evenness route + explicit intimate route
+BUGGUARD	Yes	Yes	Excluded by brand decision	Remove from recommendation engine
+BABYSOL SPF50+	Yes	Yes	Active baby/child UV route	MoCRA + SPF + stability + challenge + microbiology package received
+BABYDENT	Yes	No	Domain-gated	Parse/resolve source before production recommendation
+BABY RESCUE	Yes	No	Domain-gated	Parse/resolve source before production recommendation
+BABYSHOWER	Yes	No	Domain-gated	Parse/resolve source before production recommendation
+MINISOOTH	Yes	No	Domain-gated	Parse/resolve source before production recommendation
+BABYSOFT	Yes	Yes	Active baby body route	Formula received; % concentrations unavailable
+SOFTGUARD	Yes	N/A	Excluded – textile product	Remove from cosmetic recommendation engine
+BEBEPUR	No	N/A	Excluded – product cancelled	Remove from recommendation engine
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				

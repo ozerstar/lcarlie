@@ -1,0 +1,11 @@
+[Unit]
+Description=LCARLIE is uretici programi: rakip ve pazar istihbarati (bolge x tema doner)
+
+[Timer]
+OnCalendar=*-*-* 09,16:20:00
+Persistent=true
+RandomizedDelaySec=180
+Unit=lcarlie-is-uretici@rakip.service
+
+[Install]
+WantedBy=timers.target

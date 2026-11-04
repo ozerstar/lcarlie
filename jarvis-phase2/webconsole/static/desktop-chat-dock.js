@@ -23,7 +23,7 @@
     if (!document.getElementById('stopBtn').hidden)
       document.getElementById('stopBtn').click();
     dock.hidden = true;
-    launcher.hidden = true;
+    launcher.hidden = false;
     launcher.setAttribute('aria-expanded', 'false');
     document.getElementById('quickChat')?.focus({preventScroll: true});
   }
@@ -39,6 +39,10 @@
     if (event.target.closest('#quickChat, .iv-ask, [data-ed-ask], .qa-btn[data-ask], .quick-actions [data-ask]')) open(false);
     if (event.target.closest('#mainNav .nav-item')) minimize();
   }, true);
+  // Run after the shortcut's own nested navigation, which minimizes the dock.
+  document.addEventListener('click', (event) => {
+    if (event.target.closest('[data-ed-view="asistan"]')) open();
+  });
   new MutationObserver(() => { empty.hidden = log.childElementCount > 0; })
     .observe(log, {childList: true});
   empty.hidden = log.childElementCount > 0;

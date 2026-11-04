@@ -1,0 +1,9 @@
+[Unit]
+Description=LCARLIE Measurement Generator Timer
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=10min
+RandomizedDelaySec=30
+Persistent=false
+[Install]
+WantedBy=timers.target

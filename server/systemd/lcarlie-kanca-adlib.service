@@ -1,0 +1,28 @@
+[Unit]
+# Meta Ad Library kanca kaynagi (athm793/meta-ads-scraper, Apache-2.0).
+# Jarvis kanca havuzunu besler: /api/scrape ve /api/ads uclari.
+#
+# 🔴 YALNIZ LOCALHOST. -H 127.0.0.1 ile baglanir; disa acilmaz. Bu bir
+# arastirma araci, kamuya acik bir servis degil.
+Description=LCARLIE kanca kaynagi - Meta Ad Library
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/lcarlie/kanca-kaynaklari/meta-ads-scraper
+Environment=NODE_ENV=production
+Environment=PORT=3010
+Environment=HOSTNAME=127.0.0.1
+ExecStart=/usr/bin/npm run start -- -p 3010
+Restart=on-failure
+RestartSec=10
+# Kaynak tavani: bu kutu Jarvis'i de calistiriyor, tarayici surukleyen bir
+# surec sinirsiz birakilmaz.
+MemoryMax=2G
+CPUQuota=150%
+StandardOutput=append:/var/log/lcarlie-kanca-adlib.log
+StandardError=append:/var/log/lcarlie-kanca-adlib.log
+
+[Install]
+WantedBy=multi-user.target

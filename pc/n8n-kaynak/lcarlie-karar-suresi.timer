@@ -1,0 +1,10 @@
+[Unit]
+Description=LCARLIE karar sure dolumu (gunluk)
+
+[Timer]
+OnCalendar=*-*-* 06:20
+RandomizedDelaySec=600
+Persistent=true
+
+[Install]
+WantedBy=timers.target

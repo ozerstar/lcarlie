@@ -1,0 +1,11 @@
+[Unit]
+Description=LCARLIE karar kurulu: sonuclari denetle, red team sorgula, ana karar, dagit (gunde 3)
+
+[Timer]
+OnCalendar=*-*-* 12,16,21:40:00
+Persistent=true
+RandomizedDelaySec=120
+Unit=lcarlie-is-uretici@kurul.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,41 @@
+[Unit]
+# L'CARLIE - saglik toplayici
+#
+# NEDEN VAR. saglik.sh 15.09.2026'da CR-002 kapsaminda yazildi ve workflow
+# hatasi, sessizlik, eskalasyon, yedek yasi, disk, sertifika ve alarm
+# postasi dahil her seyi olcup alarm uretiyor. 25.09.2026'da olculdu:
+# HICBIR ZAMANLAYICIDA KAYITLI DEGILDI -- ne systemd'de ne cron'da.
+# Yani alarm mantigi yazilmis ama calistiran baglanmamisti; dedup durum
+# dosyalarinin en yenisi 21.09 tarihliydi.
+#
+# Ayni sinif hata bu projede daha once yasandi: sirket-runtime.sh de
+# yazilmis ama kurulmamisti (20.09.2026'da baglandi).
+Description=L'CARLIE saglik toplayici (workflow, yedek, disk, sertifika)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+Environment=DOCKER_CONFIG=/tmp
+ExecStart=/opt/lcarlie/saglik.sh
+
+# 🔴 ProtectSystem=strict tum dosya sistemini salt okunur yapar. saglik.sh
+# alarm.log ve alarm-durum/ altina YAZAR; ReadWritePaths olmadan her kosu
+# sessizce alarm uretemez hale gelirdi. Bu tuzak sirket-runtime kurulurken
+# de yasandi ve ayni cozumle asildi.
+ReadWritePaths=/opt/lcarlie
+
+# saglik.sh 540 calistirma kaydi tarayip 25'ten fazla olcum yapiyor;
+# olculen sure ~20 sn. 180 sn genis ama askida kalmayi da engeller.
+TimeoutStartSec=180
+Nice=15
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6

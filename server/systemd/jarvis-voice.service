@@ -1,0 +1,24 @@
+[Unit]
+Description=Jarvis Turkish speech (Piper)
+After=network.target
+
+[Service]
+Type=simple
+User=jarvis
+Group=jarvis
+WorkingDirectory=/opt/jarvis-voice
+Environment=OMP_NUM_THREADS=1
+Environment=ORT_NUM_THREADS=1
+ExecStart=/opt/jarvis-voice/.venv/bin/python -m piper.http_server -m /opt/jarvis-voice/models/tr_TR-dfki-medium.onnx --host 127.0.0.1 --port 5000
+Restart=on-failure
+RestartSec=3
+MemoryMax=512M
+CPUQuota=100%
+TasksMax=64
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

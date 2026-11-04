@@ -1,0 +1,20 @@
+[Unit]
+Description=LCARLIE evidence-linked improvement and evaluation cycle
+After=docker.service
+Requires=docker.service
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+Environment=JARVIS_MEMORY_TRANSPORT=local-docker
+Environment=JARVIS_STATE_DIR=/opt/lcarlie/jarvis-phase2/state
+Environment=EXTERNAL_ACTIONS=false
+ExecStart=/opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/improvement-cycle.py
+TimeoutStartSec=300
+MemoryMax=512M
+TasksMax=64
+NoNewPrivileges=true
+ProtectHome=true
+ProtectSystem=strict
+PrivateTmp=true
+UMask=0077
+ReadWritePaths=/opt/lcarlie/jarvis-phase2/state

@@ -1,0 +1,10 @@
+[Unit]
+Description=Deliver Lemos and MOY expense archive on month end
+
+[Timer]
+OnCalendar=*-*-* 23:55:00
+Persistent=true
+Unit=lcarlie-expense-monthly.service
+
+[Install]
+WantedBy=timers.target

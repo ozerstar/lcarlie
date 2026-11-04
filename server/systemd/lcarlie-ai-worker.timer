@@ -1,0 +1,13 @@
+[Unit]
+Description=Schedule L'CARLIE AI Orchestrator worker
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+RandomizedDelaySec=30s
+AccuracySec=15s
+Persistent=false
+Unit=lcarlie-ai-worker.service
+
+[Install]
+WantedBy=timers.target

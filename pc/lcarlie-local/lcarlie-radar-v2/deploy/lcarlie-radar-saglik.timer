@@ -1,0 +1,11 @@
+[Unit]
+Description=LCARLIE Radar zamanlayıcı: haftalık sağlık kontrolü
+
+[Timer]
+OnCalendar=Mon *-*-* 08:00
+RandomizedDelaySec=120
+Persistent=true
+Unit=lcarlie-radar@saglik.service
+
+[Install]
+WantedBy=timers.target

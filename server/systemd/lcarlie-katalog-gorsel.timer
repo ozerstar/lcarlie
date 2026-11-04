@@ -1,0 +1,11 @@
+[Unit]
+Description=Schedule LCARLIE katalog gorselleri (aylik)
+
+[Timer]
+OnCalendar=*-*-02 04:10:00
+RandomizedDelaySec=30min
+Persistent=true
+Unit=lcarlie-katalog-gorsel.service
+
+[Install]
+WantedBy=timers.target

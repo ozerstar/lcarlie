@@ -1,0 +1,8 @@
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# DOCKER_API_VERSION SABITLENMEZ - daemon min API 1.44 istiyor (20.09.2026)
+CRON_TZ=Europe/Istanbul
+
+# L'CARLIE - Meta gelen kutusu konusmalarini biriktir (4 saatte bir, son ~75 konusma)
+# Tam gecmis icin elle: /opt/lcarlie/meta-aktar.sh tam
+17 */4 * * * root flock -n /var/lock/lcarlie-meta.lock /opt/lcarlie/meta-aktar.sh 3 >/dev/null 2>&1

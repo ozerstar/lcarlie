@@ -1,0 +1,11 @@
+[Unit]
+Description=LCARLIE siparis nobetcisi - 2 dakikada bir
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=2min
+AccuracySec=15s
+Unit=lcarlie-siparis-nobetci.service
+
+[Install]
+WantedBy=timers.target

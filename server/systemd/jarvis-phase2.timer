@@ -1,0 +1,13 @@
+[Unit]
+Description=Schedule LCARLIE Jarvis Minimum Operational Loop
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+RandomizedDelaySec=15s
+AccuracySec=10s
+Persistent=false
+Unit=jarvis-phase2.service
+
+[Install]
+WantedBy=timers.target

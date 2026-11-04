@@ -1,0 +1,14 @@
+[Unit]
+Description=Jarvis new approval push notifications
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+ExecStart=/opt/lcarlie/jarvis-phase2/venv-push/bin/python /opt/lcarlie/jarvis-phase2/scripts/push-send.py
+TimeoutStartSec=60
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/lcarlie/jarvis-phase2/state
+UMask=0077

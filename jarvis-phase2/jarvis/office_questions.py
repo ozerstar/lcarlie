@@ -41,3 +41,34 @@ def activity_evidence(
         "ref": f"office:team-cycle:{department}:{cycle_at or 'live'}",
         "summary": "\n".join(parts)[:2500],
     }
+
+
+# Limit concurrent model work even when a provider stops responding.
+from concurrent.futures import ThreadPoolExecutor
+from threading import BoundedSemaphore
+_POOL = ThreadPoolExecutor(max_workers=2, thread_name_prefix='office-answer')
+_SLOTS = BoundedSemaphore(2)
+def synthesize_bounded(call, timeout=45):
+    if not _SLOTS.acquire(blocking=False):
+        raise TimeoutError('Yanıt hizmeti meşgul')
+    try:
+        future = _POOL.submit(call)
+    except Exception:
+        _SLOTS.release()
+        raise
+    future.add_done_callback(lambda _: _SLOTS.release())
+    return future.result(timeout=timeout)
+
+def fallback_answer(code, name, evidence, unread):
+    from .display_language import display
+    refs = sorted({str(item.get('ref') or '') for item in evidence if item.get('ref')})
+    answer = (f"{display(name)} için {len(evidence)} kanıt parçası okunabildi. "
+              "Ancak yanıt hizmeti sorunu nedeniyle sorunuza özel değerlendirme tamamlanamadı. "
+              "Bu bir yönetici değerlendirmesi değildir; yalnızca kaynak erişiminin durumudur. ")
+    answer += (f"Ayrıca {len(unread)} kaynak okunamadı. Kaynak bağlantılarını kontrol edin. " if unread else
+               "Bu denemede okunamayan kaynak kaydı oluşmadı. ")
+    answer += "Biraz sonra sorunuzu yeniden gönderebilirsiniz. Yapılmayan bir işlem tamamlanmış sayılmadı."
+    return {'kod':code,'departman':display(name),'cevap':answer,
+            'uyari':'Yönetici yanıtı üretilemedi; kaynak durumu gösteriliyor.',
+            'kanit_sayisi':len(evidence),'kanit_kaynaklari':refs,'okunamayan':unread,
+            'dogrulanmayan_sayilar':[],'model_kullanildi':False}

@@ -1,0 +1,11 @@
+[Unit]
+Description=Yeni siparisleri 15 dakikada bir kontrol et
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+AccuracySec=30s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

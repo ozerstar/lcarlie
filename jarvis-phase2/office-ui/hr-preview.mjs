@@ -1,0 +1,45 @@
+import assert from 'node:assert/strict';
+import {chromium} from 'playwright';
+import {createServer} from 'vite';
+const server=await createServer({configFile:'vite.config.js',server:{host:'127.0.0.1',port:5175,strictPort:true}});
+await server.listen();
+const browser=await chromium.launch({headless:true,executablePath:'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',args:['--use-gl=angle','--use-angle=swiftshader']});
+try {
+ const page=await browser.newPage({viewport:{width:1440,height:950}});const errors=[];
+ page.on('pageerror',e=>errors.push(e.message));
+ const deps=Array.from({length:50},(_,i)=>({kod:i===0?'HR':`D${i}`,ad:i===0?'İnsan Kaynakları':`Birim ${i}`,aile:'Holding',birim_durumu:i===1?'YOK':'KISMI',uyeler:Array.from({length:i===0?4:i===2?0:i===3?30:2},(_,j)=>({key:`m${i}_${j}`,ad:`Uzman ${i}.${j}`,gorev:'Kayıtları incele.',durum:'KONUŞTU',okur:['departments']}))}));
+ await page.route('**/api/**',async route=>{
+  const path=new URL(route.request().url()).pathname;
+  if(path==='/api/office/events')return route.fulfill({contentType:'text/event-stream',body:'event: snapshot\ndata: {"active":{}}\n\n'});
+  let data={};
+  if(path==='/api/panel/holding')data={generated_at:new Date().toISOString(),organisation:{note:'Yönetim görünümü',entities:[],groups:[{entity_id:null,family:'Ortak',departments:['D1']}]},agenda:[{soru_id:1,soru:'Stok kaynağını kontrol et',hedef:'D1',oncelik:'YÜKSEK'}],open_work:[{anahtar:'Eksik izin',yapilacak:'Kaynağı bağla'}],portfolio:[{name:'Test ürün',revenue:100,margin_recorded:40,coverage:100,reliability:'Tahmini maliyet',cost_source:'tahmin'}],sources:[{query:'agenda',status:'read',count:1}],note:'Ayrı kayıtlar',read_only:true};
+  if(path==='/api/session')data={authenticated:true};
+  if(path==='/api/panel/ajanlar')data={departmanlar:deps.map(d=>({kod:d.kod,kadro:[]}))};
+  if(path==='/api/panel/ekip')data={departmanlar:deps,ik:{generated_at:new Date().toISOString(),source_missing:1,source_partial:49,findings:[{department:'D1',title:'Kaynağı bağlamanız gerekiyor',detail:'Şirket içi veri okundu; dış kaynak bağlı değil.',action:'Kaynak hesabını bağla.'}]}};
+  await route.fulfill({contentType:'application/json',body:JSON.stringify(data)});
+ });
+ await page.goto('http://127.0.0.1:5175/office.html');
+ await page.locator('#departmentCount').filter({hasText:'50'}).waitFor();
+ assert.equal(await page.locator('#memberCount').textContent(),'128');
+ assert.equal(await page.locator('#staffedCount').textContent(),'49');
+ assert.equal(await page.locator('#readingCount').textContent(),'128/128');
+ await page.locator('.hr-panel').evaluate(n=>n.open=true);await page.locator('#hrFindings button').click();
+ assert.equal(await page.locator('#detailName').textContent(),'Birim 1');
+ assert.equal(await page.locator('.member-card').count(),2);
+ await page.locator('#closeDetail').click();
+ await page.locator('#officeLife').uncheck();await page.locator('#officeLife').check();
+ await page.locator('#showHolding').click();await page.getByRole('button',{name:'İş takibi',exact:true}).click();await page.getByText('Stok kaynağını kontrol et',{exact:true}).waitFor();await page.getByRole('button',{name:'Ürün portföyü',exact:true}).click();assert.match(await page.locator('#holdingBody').textContent(),/Tahmini maliyet/);await page.locator('#closeHolding').click();
+ await page.locator('#floorSelect').selectOption('all');assert.equal(await page.locator('#sceneOverlay .scene-label').count(),50);await page.locator('#floorSelect').selectOption('center');assert.ok(await page.locator('#sceneOverlay .scene-label').count()<=4);await page.locator('#resetCamera').click();await page.waitForTimeout(700);await page.screenshot({path:'../../../../work/06-ofis-genel-onizleme.png',fullPage:true});
+ await page.locator('#focusLounge').click();await page.waitForTimeout(700);await page.screenshot({path:'../../../../work/07-ortak-alan-onizleme.png',fullPage:true});
+ await page.locator('#loungeView').selectOption('1');await page.waitForTimeout(500);await page.screenshot({path:'../../../../work/09-kahve-yakin-onizleme.png',fullPage:true});
+ await page.locator('#loungeView').selectOption('2');await page.locator('#lightingMode').click();await page.waitForTimeout(400);await page.screenshot({path:'../../../../work/08-aksam-onizleme.png',fullPage:true});
+ await page.locator('#lightingMode').click();
+ await page.locator('#hrFindings button').click();await page.locator('#closeDetail').click();await page.waitForTimeout(500);
+ await page.screenshot({path:'hr-preview-desktop.png',fullPage:true});
+ await page.setViewportSize({width:390,height:844});await page.emulateMedia({reducedMotion:'reduce'});
+ await page.reload();await page.locator('#departmentCount').filter({hasText:'50'}).waitFor();
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+ await page.screenshot({path:'hr-preview-mobile.png',fullPage:true});
+ assert.deepEqual(errors,[]);
+ console.log(JSON.stringify({departments:50,members:128,staffed:49,sourceAlertNavigation:true,ambientToggle:true,mobileOverflow:false,errors}));
+} finally {await browser.close();await server.close();}

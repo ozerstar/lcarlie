@@ -1,0 +1,11 @@
+[Unit]
+Description=LCARLIE is uretici programi: haftalik B2B eczane plani
+
+[Timer]
+OnCalendar=Tue *-*-* 11:00:00
+Persistent=true
+RandomizedDelaySec=180
+Unit=lcarlie-is-uretici@b2b.service
+
+[Install]
+WantedBy=timers.target

@@ -20,7 +20,10 @@
 
 target-version = "py312"
 line-length = 100          # yalniz bicimlendirici icin; E501 secili DEGIL
-exclude = [".git", "venv", "venv-mcp", "__pycache__", "node_modules"]
+exclude = [".git", "venv", "venv-mcp", "__pycache__", "node_modules",
+           # server/ ve pc/ baska yerlerdeki kodun AYNASI (yedek); bayt bayt ayni
+           # kalsin diye lint disinda. Calisan kod jarvis-phase2/ altinda.
+           "server/**", "pc/**"]
 
 [lint]
 select = ["E9", "F", "B", "BLE", "W605", "SIM115"]

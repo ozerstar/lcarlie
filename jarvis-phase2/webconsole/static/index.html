@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="tr">
+<html data-lcarlie-theme="botanical" lang="tr">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>L’CARLIÉ · Kurumsal Yönetim Sistemi</title>
-<meta name="theme-color" content="#0a0a0b">
+<meta name="theme-color" content="#f7f5ef">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="/app.css?v=4">
@@ -14,7 +14,10 @@
   <link rel="stylesheet" href="/interior.css?v=2">
   <link rel="stylesheet" href="/workspace-refresh.css?v=2">
   <link rel="stylesheet" href="/desktop-chat-dock.css?v=1">
+<link rel="stylesheet" href="/lcarlie-theme.css?v=1">
+<link rel="stylesheet" href="/nav-pro.css?v=1">
 <link rel="stylesheet" href="/lcarlie-premium.css?v=2">
+<script defer src="/lcarlie-identity.js?v=1"></script>
 </head>
 <body>
 
@@ -23,7 +26,7 @@
   <div class="login-frame">
     <div class="login-card">
       <div class="brand-mark">
-        <img class="brand-logo" src="img/lcarlie-mark-light.png" alt="L’CARLIÉ" width="1400" height="194" decoding="async">
+        <img class="brand-logo" src="img/lcarlie-mark-dark.png" alt="L’CARLIÉ" width="1400" height="194" decoding="async">
         <span class="brand-rule"></span>
         <span class="brand-sub">KURUMSAL YÖNETİM SİSTEMİ</span>
       </div>
@@ -51,8 +54,8 @@
       <span></span><span></span><span></span>
     </button>
     <div class="tb-brand">
-      <strong class="ed-wordmark">JARVIS</strong>
-      <img class="brand-logo" src="img/lcarlie-mark-light.png" alt="L’CARLIÉ" width="1400" height="194" decoding="async">
+      <strong class="ed-wordmark">L’carlie</strong>
+      <img class="brand-logo" src="img/lcarlie-mark-dark.png" alt="L’CARLIÉ" width="1400" height="194" decoding="async">
       <span class="brand-sub">L’CARLIÉ · YÖNETİM ALANI</span>
     </div>
 
@@ -63,27 +66,38 @@
           <span>İZLEME</span><i class="nav-caret" aria-hidden="true"></i>
         </button>
         <div class="nav-body">
-          <button type="button" class="nav-item is-active" data-view="home">ANA SAYFA</button>
-          <button type="button" class="nav-item" data-view="analiz">ANALİZ</button>
-          <button type="button" class="nav-item" data-view="asistan">ASİSTAN</button>
-          <button type="button" class="nav-item" data-view="raporlar">RAPORLAR</button>
+          <button type="button" class="nav-item is-active" data-view="home"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-layout-dashboard"></use></svg><span class="nav-label">ANA SAYFA</span></button>
+          <button type="button" class="nav-item" data-view="analiz"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-chart-line"></use></svg><span class="nav-label">ANALİZ</span></button>
+          <button type="button" class="nav-item" data-view="asistan"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-message-square"></use></svg><span class="nav-label">ASİSTAN</span></button>
+          <button type="button" class="nav-item" data-view="raporlar"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-file-chart-column"></use></svg><span class="nav-label">RAPORLAR</span></button>
         </div>
       </div>
-      <a class="cari-nav-link" href="/cari.html">CARİ EKSTRELER</a>
-      <a class="cari-nav-link" href="/belgeler.html">FİŞ VE FATURALAR</a>
+      <!-- sahip, 02.11.2026: "muhasebe / finans merkezi başlığı altında toparla" -->
+      <div class="nav-group" data-group="finans">
+        <button type="button" class="nav-head" aria-expanded="true">
+          <span>MUHASEBE · FİNANS</span><i class="nav-caret" aria-hidden="true"></i>
+        </button>
+        <div class="nav-body">
+          <a class="nav-item" href="/finans.html"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-landmark"></use></svg><span class="nav-label">FİNANS MERKEZİ</span></a>
+          <a class="nav-item" href="/finans.html#/urunkar"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-piggy-bank"></use></svg><span class="nav-label">ÜRÜN KÂRLILIĞI</span></a>
+          <a class="nav-item" href="/harcamalar.html"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-wallet"></use></svg><span class="nav-label">HARCAMALARIM</span></a>
+          <a class="nav-item" href="/belgeler.html"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-receipt"></use></svg><span class="nav-label">FİŞ VE FATURALAR</span></a>
+          <a class="nav-item" href="/cari.html"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-book-open"></use></svg><span class="nav-label">CARİ EKSTRELER</span></a>
+        </div>
+      </div>
       <div class="nav-group" data-group="is">
         <button type="button" class="nav-head" aria-expanded="true">
           <span>İŞ</span><i class="nav-caret" aria-hidden="true"></i>
         </button>
         <div class="nav-body">
-          <button type="button" class="nav-item" data-view="gorevler">GÖREVLER</button>
-          <a class="nav-item" href="/image-jobs.html">GÖRSEL İŞLERİ</a>
-          <button type="button" class="nav-item" data-view="fiyat">FİYAT</button>
-          <button type="button" class="nav-item" data-view="eticaret">E-TİCARET</button>
-          <button type="button" class="nav-item" data-view="satislar">SATIŞLAR</button>
-          <button type="button" class="nav-item" data-view="kargo">KARGO</button>
-          <button type="button" class="nav-item" data-view="gelenkutusu">GELEN KUTUSU</button>
-          <button type="button" class="nav-item" data-view="musteri">MÜŞTERİLER</button>
+          <button type="button" class="nav-item" data-view="gorevler"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-list-checks"></use></svg><span class="nav-label">GÖREVLER</span></button>
+          <a class="nav-item" href="/image-jobs.html"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-image"></use></svg><span class="nav-label">GÖRSEL İŞLERİ</span></a>
+          <button type="button" class="nav-item" data-view="fiyat"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-tag"></use></svg><span class="nav-label">FİYAT</span></button>
+          <button type="button" class="nav-item" data-view="eticaret"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-store"></use></svg><span class="nav-label">E-TİCARET</span></button>
+          <button type="button" class="nav-item" data-view="satislar"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-shopping-cart"></use></svg><span class="nav-label">SATIŞLAR</span></button>
+          <button type="button" class="nav-item" data-view="kargo"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-truck"></use></svg><span class="nav-label">KARGO</span></button>
+          <button type="button" class="nav-item" data-view="gelenkutusu"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-inbox"></use></svg><span class="nav-label">GELEN KUTUSU</span></button>
+          <button type="button" class="nav-item" data-view="musteri"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-users"></use></svg><span class="nav-label">MÜŞTERİLER</span></button>
         </div>
       </div>
       <div class="nav-group" data-group="kreatif">
@@ -91,10 +105,10 @@
           <span>KREATİF</span><i class="nav-caret" aria-hidden="true"></i>
         </button>
         <div class="nav-body">
-          <button type="button" class="nav-item" data-view="uretilenler">ÜRETİLENLER</button>
-          <button type="button" class="nav-item" data-view="kreatifParti">KREATİF</button>
-          <button type="button" class="nav-item" data-view="reklam">REKLAM</button>
-          <button type="button" class="nav-item" data-view="tasarim">TASARIM</button>
+          <button type="button" class="nav-item" data-view="uretilenler"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-sparkles"></use></svg><span class="nav-label">ÜRETİLENLER</span></button>
+          <button type="button" class="nav-item" data-view="kreatifParti"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-palette"></use></svg><span class="nav-label">KREATİF</span></button>
+          <button type="button" class="nav-item" data-view="reklam"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-megaphone"></use></svg><span class="nav-label">REKLAM</span></button>
+          <button type="button" class="nav-item" data-view="tasarim"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-pen-tool"></use></svg><span class="nav-label">TASARIM</span></button>
         </div>
       </div>
       <div class="nav-group" data-group="org">
@@ -102,23 +116,23 @@
           <span>ORGANİZASYON</span><i class="nav-caret" aria-hidden="true"></i>
         </button>
         <div class="nav-body">
-          <a class="nav-item" href="/office.html">OFİS</a>
-          <button type="button" class="nav-item" data-view="ekip">EKİP</button>
-          <button type="button" class="nav-item" data-view="ajanlar">AJANLAR</button>
-          <button type="button" class="nav-item" data-view="hafiza">HAFIZA</button>
-          <button type="button" class="nav-item" data-view="veri">VERİ</button>
-          <button type="button" class="nav-item" data-view="katalog">KATALOG</button>
-          <button type="button" class="nav-item" data-view="saha">SAHA</button>
-          <button type="button" class="nav-item" data-view="isler">İŞLER</button>
-          <button type="button" class="nav-item" data-view="sistem">SİSTEM</button>
-          <button type="button" class="nav-item" data-view="ayarlar">AYARLAR</button>
+          <a class="nav-item" href="/office.html"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-building"></use></svg><span class="nav-label">OFİS</span></a>
+          <button type="button" class="nav-item" data-view="ekip"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-users-round"></use></svg><span class="nav-label">EKİP</span></button>
+          <button type="button" class="nav-item" data-view="ajanlar"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-bot"></use></svg><span class="nav-label">AJANLAR</span></button>
+          <button type="button" class="nav-item" data-view="hafiza"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-brain"></use></svg><span class="nav-label">HAFIZA</span></button>
+          <button type="button" class="nav-item" data-view="veri"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-database"></use></svg><span class="nav-label">VERİ</span></button>
+          <button type="button" class="nav-item" data-view="katalog"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-book-text"></use></svg><span class="nav-label">KATALOG</span></button>
+          <button type="button" class="nav-item" data-view="saha"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-map-pin"></use></svg><span class="nav-label">SAHA</span></button>
+          <button type="button" class="nav-item" data-view="isler"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-briefcase"></use></svg><span class="nav-label">İŞLER</span></button>
+          <button type="button" class="nav-item" data-view="sistem"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-activity"></use></svg><span class="nav-label">SİSTEM</span></button>
+          <button type="button" class="nav-item" data-view="ayarlar"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-settings"></use></svg><span class="nav-label">AYARLAR</span></button>
         </div>
       </div>
     </nav>
 
     <div class="tb-meta">
       <button id="quickSearch" class="quick-action" type="button" aria-label="Bölüm ara" title="Bölüm ara (Ctrl+K)">⌕ <span>Bölüm ara</span></button>
-      <button id="quickChat" class="quick-action" type="button" aria-label="Jarvis'e soru sor">✦ <span>Jarvis’e sor</span></button>
+      <button id="quickChat" class="quick-action" type="button" aria-label="L’carlie’ye soru sor">✦ <span>L’carlie’ye sor</span></button>
       <button id="quickApprovals" class="quick-action quick-approvals" type="button" aria-label="Bekleyen onayları aç">Onaylar <span id="quickApprovalCount" class="quick-count">—</span></button>
       <div class="tb-clock"><span id="tbDate" class="tb-date">—</span><span id="tbTime" class="tb-time">—</span></div>
       <div class="tb-live" id="tbLive"><span class="live-dot"></span><span id="tbLiveText" class="live-text">BAĞLANIYOR</span></div>
@@ -145,9 +159,9 @@
           <span class="ed-hero-rule" aria-hidden="true"></span>
           <p>Önceliklerin, kararların ve işlerin tek yerde.</p>
         </div>
-        <div class="ed-hero-assistant" aria-label="Jarvis sesli asistan">
-          <button type="button" class="ed-orb" id="edVoice" aria-label="Jarvis ile sesli konuşmayı başlat" aria-pressed="false"><span class="ed-orb-core" aria-hidden="true">✦</span></button>
-          <span class="ed-orb-label">JARVIS</span>
+        <div class="ed-hero-assistant" aria-label="L’carlie sesli asistan">
+          <button type="button" class="ed-orb" id="edVoice" aria-label="L’carlie ile sesli konuşmayı başlat" aria-pressed="false"><span class="ed-orb-core" aria-hidden="true">✦</span></button>
+          <span class="ed-orb-label">L’carlie</span>
           <span class="ed-orb-status" id="edVoiceStatus" aria-live="polite">Konuşmak için dokun</span>
           <button type="button" class="ed-hero-ask" data-ed-view="asistan">Yazarak sor <span aria-hidden="true">↗</span></button>
         </div>
@@ -169,13 +183,13 @@
           <button type="button" class="ed-queue-note" data-ed-view="isler"><span>Görsel kuyruğu</span><span><strong id="edWaiting">—</strong> sırada</span><span><strong id="edDone">—</strong> bitti</span></button>
           <div class="ed-lower-grid">
             <section class="ed-card"><div class="ed-section-title"><h2>İş akışı</h2><button type="button" data-ed-view="isler">Tüm işler <span aria-hidden="true">↗</span></button></div><div id="edJobs" class="ed-list"><p>İşler yükleniyor…</p></div></section>
-            <section class="ed-card"><div class="ed-section-title"><h2>Jarvis ile devam et</h2><button type="button" data-ed-view="asistan">Asistanı aç <span aria-hidden="true">↗</span></button></div><div class="ed-shortcuts"><button type="button" data-ed-ask="Bugün hangi işler öncelikli?">Bugünün öncelikleri</button><button type="button" data-ed-ask="Bekleyen önerileri sade bir dille özetle.">Kararları açıkla</button><button type="button" data-ed-view="uretilenler">Görselleri gör</button><button type="button" data-ed-view="raporlar">Raporlara bak</button></div></section>
+            <section class="ed-card"><div class="ed-section-title"><h2>L’carlie ile devam et</h2><button type="button" data-ed-view="asistan">Asistanı aç <span aria-hidden="true">↗</span></button></div><div class="ed-shortcuts"><button type="button" data-ed-ask="Bugün hangi işler öncelikli?">Bugünün öncelikleri</button><button type="button" data-ed-ask="Bekleyen önerileri sade bir dille özetle.">Kararları açıkla</button><button type="button" data-ed-view="uretilenler">Görselleri gör</button><button type="button" data-ed-view="raporlar">Raporlara bak</button></div></section>
           </div>
         </div>
         <aside class="ed-rail" aria-label="Plan ve kararlar">
           <section class="ed-card ed-decision"><div class="ed-section-title"><h2>Karar bekleyenler</h2><span id="edDecisionCount">—</span></div><div id="edDecisions" class="ed-rail-list"><p>Yükleniyor…</p></div><button type="button" data-ed-view="gorevler">Onayları incele <span aria-hidden="true">↗</span></button></section>
           <section class="ed-card ed-calendar"><div class="ed-section-title"><h2 id="edMonth">Takvim</h2><span id="edToday">Bugün</span></div><div class="ed-weekdays"><span>Pt</span><span>Sa</span><span>Ça</span><span>Pe</span><span>Cu</span><span>Ct</span><span>Pz</span></div><div id="edCalendar" class="ed-calendar-grid"></div><div class="ed-rail-divider"></div><div class="ed-section-title"><h2>Hatırlatıcılarım</h2><span id="edReminderCount">—</span></div><div id="edReminders" class="ed-rail-list"><p>Yükleniyor…</p></div></section>
-          <section class="ed-card ed-system"><span class="ed-system-light"></span><div><strong id="edSystemState">Bağlantı kontrol ediliyor</strong><small>Jarvis sistem durumu</small></div><button type="button" data-ed-view="sistem">Aç</button></section>
+          <section class="ed-card ed-system"><span class="ed-system-light"></span><div><strong id="edSystemState">Bağlantı kontrol ediliyor</strong><small>L’carlie sistem durumu</small></div><button type="button" data-ed-view="sistem">Aç</button></section>
         </aside>
       </div>
       <details class="ed-technical"><summary>Ayrıntılı sistem görünümü <span>Canlı akış, haberler ve kaynak bilgileri</span></summary>
@@ -334,7 +348,7 @@
         </svg>
 
         <div class="core-label" aria-live="polite">
-          <img class="core-brand-logo" src="img/lcarlie-mark-light.png" alt="L’CARLIÉ" width="1400" height="194" decoding="async">
+          <img class="core-brand-logo" src="img/lcarlie-mark-dark.png" alt="L’CARLIÉ" width="1400" height="194" decoding="async">
           <span class="core-state" id="coreStateLabel">HAZIR</span>
           <span class="core-hint" id="coreHint"></span>
         </div>
@@ -906,7 +920,7 @@
     <div class="panel-body sect-body" id="hafizaBody">
 
       <p class="hf-giris">
-        Jarvis’in kalıcı olarak aklında tuttuğu notlar. Yalnız buraya yazılan
+        L’carlie’in kalıcı olarak aklında tuttuğu notlar. Yalnız buraya yazılan
         ya da sohbette <strong>“bunu hatırla”</strong> denilen cümleler girer —
         hiçbir şey konuşmadan çıkarım yapılarak eklenmez.
       </p>
@@ -942,7 +956,7 @@
       </div>
       <div class="analiz-body">
         <p class="rp-note">
-          Bir talebi yaz; Jarvis onu denetlenmiş bir yürütme grafiğine çevirir.
+          Bir talebi yaz; L’carlie onu denetlenmiş bir yürütme grafiğine çevirir.
           <strong>PLAN ÜRET</strong> yalnızca grafiği gösterir, hiçbir şey çalışmaz.
           <strong>ÇALIŞTIR</strong> adımları yürütür ve kanıtları, bulguları,
           önerileri doldurur — ama yalnızca <em>okuma</em> analizi yapar:
@@ -1158,7 +1172,7 @@
           </div>
           <div class="panel-body sect-body">
             <p class="fm-sub">Şablon kütüğü ve üretilen tasarımların
-            defteri. Jarvis şablonu veriyle doldurur, metin önce mevzuat
+            defteri. L’carlie şablonu veriyle doldurur, metin önce mevzuat
             kapısından geçer; geçemezse tasarım hiç üretilmez. Onayı
             yalnız sahip verir — makine kendi çıktısını onaylayamaz.</p>
 
@@ -1214,14 +1228,14 @@
           </div>
           <div class="panel-body sect-body">
             <p class="fm-sub">Müşteri konuşmaları ve her birinin kimde olduğu.
-            <strong>Jarvis</strong> işaretli konuşmalara Jarvis cevap verebilir;
+            <strong>L’carlie</strong> işaretli konuşmalara L’carlie cevap verebilir;
             <strong>sende</strong> olanları yalnız sen cevaplarsın. Devir kuralı
             sağlık/şikâyet, sipariş/ödeme/iade, ürün belirsizliği ve mevzuat
             için konuşmayı sana getirir — tanımadığı bir durumu tahmin etmez.</p>
             <div class="gk-suzgec" id="gkSuzgec" role="group" aria-label="Süzgeç">
               <button type="button" class="gk-f is-active" data-durum="">HEPSİ</button>
               <button type="button" class="gk-f" data-durum="INSANDA">SENDE</button>
-              <button type="button" class="gk-f" data-durum="JARVIS">JARVIS'TE</button>
+              <button type="button" class="gk-f" data-durum="JARVIS">L’carlie'TE</button>
               <button type="button" class="gk-f" data-durum="KAPALI">KAPALI</button>
             </div>
             <div class="gk-duzen">
@@ -1234,14 +1248,14 @@
 
 
   <!-- ----------------------- COMMAND BAR ------------------------- -->
-  <button type="button" id="chatLauncher" class="chat-launcher" aria-controls="cmdBar" aria-expanded="false">✦ Jarvis’i aç</button>
-  <section class="cmdbar" id="cmdBar" aria-label="Jarvis ile yazışma" hidden>
-    <div class="chat-dock-head"><div><strong>Jarvis</strong><small id="chatDockStatus">Yazışmalar burada</small></div><div><button type="button" id="chatMinimize" aria-label="Yazışmayı küçült">Küçült</button><button type="button" id="chatClose" aria-label="Yazışmayı kapat">Kapat ✕</button></div></div>
-    <p id="chatEmpty" class="chat-dock-empty">Bir şey sorabilir veya sayfadaki “Jarvis’e sor” düğmelerini kullanabilirsin.</p>
+  <button type="button" id="chatLauncher" class="chat-launcher" aria-controls="cmdBar" aria-expanded="false">✦ L’carlie’yi aç</button>
+  <section class="cmdbar" id="cmdBar" aria-label="L’carlie ile yazışma" hidden>
+    <div class="chat-dock-head"><div><strong>L’carlie</strong><small id="chatDockStatus">Yazışmalar burada</small></div><div><button type="button" id="chatMinimize" aria-label="Yazışmayı küçült">Küçült</button><button type="button" id="chatClose" aria-label="Yazışmayı kapat">Kapat ✕</button></div></div>
+    <p id="chatEmpty" class="chat-dock-empty">Bir şey sorabilir veya sayfadaki “L’carlie’ye sor” düğmelerini kullanabilirsin.</p>
     <div id="chatLog" class="chat-log" hidden></div>
     <form id="chatForm" class="cmd-form">
       <span class="cmd-caret" aria-hidden="true"></span>
-      <textarea id="chatInput" rows="2" maxlength="4000" autocomplete="off" aria-label="Jarvis’e yaz"
+      <textarea id="chatInput" rows="2" maxlength="4000" autocomplete="off" aria-label="L’carlie’ye yaz"
              placeholder="L’CARLIÉ’ye sorun… örn. “Bugün şirkette durum ne?”"></textarea>
       <button type="button" id="newChatBtn" class="ghost-btn">YENİ SOHBET</button>
       <button type="button" id="retryBtn" class="ghost-btn" hidden>TEKRAR</button>
@@ -1257,9 +1271,9 @@
     <div class="finding-dialog-actions">
       <label for="findingInstruction">Yapılacak iş veya kendi notun</label>
       <textarea id="findingInstruction" maxlength="1000" rows="3" placeholder="Yapılacak işi burada düzenleyin."></textarea>
-      <div class="finding-action-row"><button id="findingRun" type="button">Jarvis ile incele</button><button id="findingTask" type="button">Takip işi oluştur</button><button id="findingView" type="button">İlgili bölümü aç</button></div>
-      <p class="finding-limitation">Jarvis incelemesi okuma ve plan üretir. Site, müşteri veya dış sistem değişiklikleri ayrıca yetki ve onay gerektirir.</p>
-      <label for="findingQuestion">Bu konu hakkında Jarvis'e soru sor</label>
+      <div class="finding-action-row"><button id="findingRun" type="button">L’carlie ile incele</button><button id="findingTask" type="button">Takip işi oluştur</button><button id="findingView" type="button">İlgili bölümü aç</button></div>
+      <p class="finding-limitation">L’carlie incelemesi okuma ve plan üretir. Site, müşteri veya dış sistem değişiklikleri ayrıca yetki ve onay gerektirir.</p>
+      <label for="findingQuestion">Bu konu hakkında L’carlie’ye soru sor</label>
       <div class="finding-question-row"><input id="findingQuestion" type="text" maxlength="500" placeholder="Örneğin: İlk adım ne olmalı?"><button id="findingAsk" type="button">Sor ↗</button></div>
       <p id="findingStatus" role="status" aria-live="polite"></p>
     </div>
@@ -1275,8 +1289,8 @@
 </div>
 
 <script src="/vendor/leaflet/leaflet.js"></script>
-  <script src="/display-text.js?v=4"></script>
-<script src="/app.js?v=26"></script>
+  <script src="/display-text.js?v=5"></script>
+<script src="/app.js?v=27"></script>
   <script src="/desktop-editorial.js?v=4"></script>
   <script src="/interior.js?v=2"></script>
   <script src="/workspace-refresh.js?v=1"></script>

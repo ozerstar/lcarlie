@@ -1,0 +1,26 @@
+[Unit]
+Description=LCARLIE is uretici (%i): departmanlara gorev/fikir/rapor urettirir (model destekli, dis eylem yok)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+Environment=JARVIS_MEMORY_TRANSPORT=local-docker
+Environment=JARVIS_STATE_DIR=/opt/lcarlie/jarvis-phase2/state
+Environment=EXTERNAL_ACTIONS=false
+Environment=RESEARCH_SEARXNG_URL=http://127.0.0.1:8888
+Environment=ARASTIRMA_BEKLEME=6
+# Kill-switch ve gunluk cagri tavani burada: IS_URETICI_ENABLED, IS_URETICI_GUNLUK_TAVAN
+EnvironmentFile=-/etc/lcarlie/is-uretici.env
+ExecStart=/opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/is-uretici.py --mod %i
+SuccessExitStatus=78
+TimeoutStartSec=2400
+MemoryMax=768M
+TasksMax=64
+NoNewPrivileges=true
+ProtectHome=true
+ProtectSystem=strict
+PrivateTmp=true
+UMask=0077
+ReadWritePaths=/opt/lcarlie/jarvis-phase2/state

@@ -1,0 +1,21 @@
+[Unit]
+Description=Jarvis expense invoice Gmail intake
+After=network-online.target lcarlie-postgres.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Environment=JARVIS_DB_HOST=127.0.0.1
+Environment=JARVIS_DB_PORT=5433
+Environment=JARVIS_DB_PASSWORD_FILE=/etc/lcarlie/jarvis-web-db.pass
+Environment=JARVIS_STATE_DIR=/opt/lcarlie/jarvis-phase2/state
+Environment=JARVIS_EXPENSE_OWNER=operator
+EnvironmentFile=-/etc/lcarlie/google-oauth.env
+ExecStart=/opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/tools/expense_jobs.py sync
+TimeoutStartSec=45min
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/lcarlie/jarvis-phase2/state
+

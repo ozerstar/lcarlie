@@ -1,0 +1,141 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>KINESIS+ sahne</title>
+<style>
+  /* L'CARLIE - KINESIS+ video sahnesi, 1080x1920 (9:16)
+     Urun katmani = gercek cekim fotografinin pikselleri (yeniden cizilmez).
+     Tipografi = marka fontlariyla dizgi katmani.
+     ?t=<saniye> ile o andaki kare cizilir. */
+  @font-face{font-family:Monument;src:url('https://static.wixstatic.com/ufonts/118f01_8a9435f80a7c4aa9bab563f89bea2fef/woff2/file.woff2') format('woff2');font-weight:400;font-display:block}
+  @font-face{font-family:Metropolis;src:url('https://static.wixstatic.com/ufonts/027da2_9364e745b205450096a4bef333505abf/woff2/file.woff2') format('woff2');font-weight:400;font-display:block}
+
+  /* zemin, urun fotografinin OLCULEN kenar renklerine esitlendi:
+     ust #B4CAD4..#B9CDD9, alt #C5CFCA..#C6CCD6. Boylece foto sayfaya
+     yapistirilmis dikdortgen gibi durmuyor, kenarda dikis kalmiyor. */
+  :root{ --ink:#132F36; --aqua:#1E7F96; --lime:#6E8216; --soguk:#3E555C; }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1080px;height:1920px;overflow:hidden}
+  body{
+    background:linear-gradient(180deg,#B6CBD9 0%,#BCCAD4 40%,#C6CCD0 72%,#C9CFD2 100%);
+    font-family:Metropolis,Arial,sans-serif;color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+  }
+  .sahne{position:relative;width:1080px;height:1920px;overflow:hidden}
+
+  /* --- urun fotografi: gercek pikseller, sadece kadraj ---
+     DOKUNULMAZ ALAN: urun y=0..1512 arasinda yasar. Hicbir yazi bu bandi kesmez. */
+  .urun{
+    position:absolute;left:50%;top:0;
+    width:1080px;   /* tam genislik: yan kenarda dikis kalmaz */
+    transform:translateX(-50%) translateY(var(--uy,0px)) scale(var(--us,1));
+    transform-origin:50% 100%;
+  }
+  .urun img{display:block;width:100%;height:auto}
+  /* fotografin alt kenarini duz zemine eritir, kesik gorunmesin */
+  .erit-alt{position:absolute;inset:auto 0 0 0;height:600px;
+    background:linear-gradient(0deg,#C7CDD1 0%,#C7CDD1 40%,rgba(199,205,209,0) 100%);z-index:2}
+
+  /* --- tipografi katmani --- */
+  .marka{
+    position:absolute;top:96px;left:0;right:0;text-align:center;z-index:3;
+    font-family:Monument,Metropolis,sans-serif;font-size:30px;letter-spacing:.42em;
+    text-indent:.42em;color:var(--ink);opacity:var(--o1,1);
+  }
+  /* metin bandi: y=1562 den asagisi, urunun dokunulmaz alaninin tamamen disinda */
+  .alt{position:absolute;left:0;right:0;top:1508px;text-align:center;z-index:3}
+  .ad{
+    font-family:Monument,Metropolis,sans-serif;font-size:78px;line-height:1;
+    letter-spacing:.01em;color:var(--ink);
+    opacity:var(--o2,1);transform:translateY(var(--y2,0px));
+  }
+  .ad b{color:var(--lime);font-weight:400}   /* lime koyulastirildi: beyaz zeminde okunur */
+  .tanim{
+    margin-top:18px;font-size:27px;letter-spacing:.20em;text-transform:uppercase;
+    color:var(--soguk);opacity:var(--o3,1);transform:translateY(var(--y3,0px));
+  }
+  .cizgi{
+    width:var(--w,0px);height:2px;background:var(--aqua);margin:28px auto 0;
+  }
+  .his{
+    margin-top:28px;font-size:34px;line-height:1.35;color:var(--ink);
+    opacity:var(--o4,1);transform:translateY(var(--y4,0px));
+  }
+  .fiyat{
+    margin-top:32px;font-family:Monument,Metropolis,sans-serif;font-size:54px;
+    color:var(--ink);opacity:var(--o5,1);transform:translateY(var(--y5,0px));
+  }
+  .kargo{
+    margin-top:12px;font-size:24px;letter-spacing:.16em;text-transform:uppercase;color:var(--soguk);
+    opacity:var(--o5,1);
+  }
+</style>
+
+<div class="sahne" id="sahne">
+  <div class="urun" id="urun"><img id="foto" src="kinesis.jpg" alt=""></div>
+  <div class="erit-alt"></div>
+
+  <div class="marka" id="marka">L'CARLIÉ</div>
+
+  <div class="alt">
+    <div class="ad" id="ad">KINESIS<b>+</b></div>
+    <div class="tanim" id="tanim">Sporcu Bakım Kremi · 150 ml</div>
+    <div class="cizgi" id="cizgi"></div>
+    <div class="his" id="his">Spor sonrası ferahlık hissi</div>
+    <div class="fiyat" id="fiyat">1.950 TL</div>
+    <div class="kargo" id="kargo">Ücretsiz kargo</div>
+  </div>
+</div>
+
+<script>
+// ---- zamana gore kare cizimi -------------------------------------------
+// t saniye cinsinden; her t ayni kareyi uretir (deterministik).
+const q = new URLSearchParams(location.search);
+const t = parseFloat(q.get('t') || '0');
+
+const clamp = (v,a,b)=>Math.min(b,Math.max(a,v));
+// yumusak giris-cikis
+const ease = x => x<=0?0 : x>=1?1 : 1-Math.pow(1-x,3);
+// [bas,bit] araliginda 0->1
+const ar = (bas,sure)=> ease(clamp((t-bas)/sure,0,1));
+
+const s = document.documentElement.style;
+
+// urun: cok yavas yaklasma (ken burns), 0 -> 10 sn.
+// transform-origin alt kenarda: buyurken ASAGI tasmaz, metin bandina girmez.
+const p = clamp(t/10,0,1);
+s.setProperty('--us', (1.00 + 0.040*p).toFixed(4));
+s.setProperty('--uy', (-14*p).toFixed(2) + 'px');
+
+// marka 0.2 sn
+s.setProperty('--o1', ar(0.2,0.9).toFixed(3));
+
+// urun adi 1.1 sn
+const a2 = ar(1.1,0.8);
+s.setProperty('--o2', a2.toFixed(3));
+s.setProperty('--y2', (26*(1-a2)).toFixed(2)+'px');
+
+// tanim 1.5 sn
+const a3 = ar(1.5,0.8);
+s.setProperty('--o3', a3.toFixed(3));
+s.setProperty('--y3', (20*(1-a3)).toFixed(2)+'px');
+
+// cizgi 2.0 sn -> 150px
+s.setProperty('--w', (150*ar(2.0,0.9)).toFixed(1)+'px');
+
+// his cumlesi 2.6 sn
+const a4 = ar(2.6,0.9);
+s.setProperty('--o4', a4.toFixed(3));
+s.setProperty('--y4', (20*(1-a4)).toFixed(2)+'px');
+
+// fiyat + kargo 4.2 sn
+const a5 = ar(4.2,0.9);
+s.setProperty('--o5', a5.toFixed(3));
+s.setProperty('--y5', (20*(1-a5)).toFixed(2)+'px');
+
+// render hazir sinyali: fontlar ve foto yuklendikten sonra
+window.__hazir = false;
+Promise.all([
+  document.fonts.ready,
+  new Promise(r=>{const i=document.getElementById('foto'); i.complete?r():i.onload=r;})
+]).then(()=>{ window.__hazir = true; });
+</script>

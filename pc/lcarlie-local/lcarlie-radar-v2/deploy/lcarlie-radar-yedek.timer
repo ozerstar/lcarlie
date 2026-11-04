@@ -1,0 +1,11 @@
+[Unit]
+Description=LCARLIE Radar zamanlayıcı: gece yedek (14 gün)
+
+[Timer]
+OnCalendar=*-*-* 03:00
+RandomizedDelaySec=120
+Persistent=true
+Unit=lcarlie-radar@yedek.service
+
+[Install]
+WantedBy=timers.target
