@@ -33,7 +33,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from .is_uretici import SISTEM, Departman, IsUretici, temizle
+from . import sinirlar
+from .is_uretici import SISTEM, Departman, IsUretici, teslim_onayli, temizle
 
 KADEME = {"kurul_denetim": "hizli", "kurul_redteam": "muhakeme", "kurul_karar": "muhakeme"}
 TOKEN = {"kurul_denetim": 2200, "kurul_redteam": 2400, "kurul_karar": 2600}
@@ -95,7 +96,8 @@ class Kurul:
         for kod, d in agac["departmanlar"].items():
             for g in d.get("gorevler", []):
                 t = g.get("teslim") or {}
-                if t.get("kalite") not in ("GECTI", "KISMI") or g.get("kurul"):
+                # Yalnız yöneticiden geçmiş teslim kurula gelir (04.11).
+                if not teslim_onayli(g) or g.get("kurul"):
                     continue
                 try:
                     if datetime.fromisoformat(str(t.get("tarih"))) < sinir:
@@ -104,7 +106,9 @@ class Kurul:
                     continue
                 metin = t.get("ozet") or ""
                 try:
-                    metin = Path(t["yol"]).read_text(encoding="utf-8")[:2500]
+                    # 391 teslimin 362'si 2500'den uzundu; baştan kesmek sonucu atıyordu (04.11).
+                    metin = sinirlar.teslim_ozu(Path(t["yol"]).read_text(encoding="utf-8"), 7000,
+                                                ne="kurul.teslim", isaret=t["yol"])
                 except Exception:  # noqa: BLE001, S110 - özet yeter
                     pass
                 out.append({"tur": "teslim", "ref": g["id"], "dep": kod, "baslik": g.get("baslik", ""),
@@ -115,7 +119,8 @@ class Kurul:
             if yol.name in islenen:
                 continue
             out.append({"tur": "rakip", "ref": yol.name, "dep": "_RAKIP", "baslik": f"Rakip istihbaratı {yol.stem}",
-                        "metin": yol.read_text(encoding="utf-8")[:3000]})
+                        "metin": sinirlar.teslim_ozu(yol.read_text(encoding="utf-8"), 6000,
+                                                     ne="kurul.rakip", isaret=str(yol))})
         if self.radar_panel and self.radar_panel.exists():
             try:
                 p = json.loads(self.radar_panel.read_text(encoding="utf-8"))
@@ -123,7 +128,8 @@ class Kurul:
                 ref = f"radar-{oz.get('tarih') or gun}"
                 if oz and ref not in islenen:
                     out.append({"tur": "radar", "ref": ref, "dep": "_RADAR", "baslik": "Radar sabah özeti",
-                                "metin": json.dumps(oz, ensure_ascii=False)[:3000]})
+                                "metin": sinirlar.kisalt(json.dumps(oz, ensure_ascii=False, indent=1), 6000,
+                                                         ne="kurul.radar")})
             except Exception as e:  # noqa: BLE001
                 self.iu.kayit.append({"kurul": "radar", "uyari": f"radar özeti okunamadı: {e}"[:200]})
         return out[:SONUC_TAVAN]

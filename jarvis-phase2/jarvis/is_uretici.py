@@ -47,7 +47,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from . import yonetici
+from . import sinirlar, yonetici
 
 MODLAR = ("gunluk", "haftalik", "aylik", "yurut", "rakip", "kreatif", "b2b", "retro")
 GOREV_TIPLERI = ("ARASTIRMA", "ANALIZ", "TASLAK", "VERI_BAGLANTISI", "ONAY_GEREKTIREN")
@@ -997,7 +997,9 @@ class IsUretici:
                 yb = ((tum.get(b) or {}).get("teslim") or {}).get("yol")
                 if yb:
                     try:
-                        on.append(Kanit("", f"ekip teslimi: {b}", Path(yb).read_text(encoding="utf-8")[:1500]))
+                        # Baştan 1500 karakter sonuç/öneriyi atıyordu (11 ekip teslimi, 04.11).
+                        on.append(Kanit("", f"ekip teslimi: {b}", sinirlar.teslim_ozu(
+                            Path(yb).read_text(encoding="utf-8"), 3500, ne="is-uretici.bagimli", isaret=yb)))
                     except OSError:
                         continue
             if g.get("bilgi"):

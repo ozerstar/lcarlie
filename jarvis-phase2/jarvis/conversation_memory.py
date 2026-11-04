@@ -28,6 +28,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+from jarvis import sinirlar
+
 STATE_DIR = Path(os.environ.get("JARVIS_STATE_DIR", "/opt/lcarlie/jarvis-phase2/state"))
 MEMORY_DIR = STATE_DIR / "conversation"
 _ACTIVE_THREAD: ContextVar[str | None] = ContextVar("jarvis_conversation_thread", default=None)
@@ -214,7 +216,7 @@ def remember(note: str, source: str = "operator", thread: str = "operator") -> b
     try:
         rows = [row for row in _read(_path(thread, "notes"))
                 if row.get("note") != note]
-        rows.append({"at": _now(), "note": note[:400], "source": source})
+        rows.append({"at": _now(), "note": sinirlar.kisalt(note, 2000, ne="hatirlat"), "source": source})
         _write(_path(thread, "notes"), rows[-MAX_NOTES:])
         # Dosya yazildi: not artik guvende. Dizin bunun USTUNDE bir arama
         # katmani, kayit kaynagi degil -- bu yuzden basarisizligi yutuluyor
