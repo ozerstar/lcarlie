@@ -1,0 +1,11 @@
+[Unit]
+Description=LCARLIE Evidence Follow-up Gate
+After=docker.service
+Requires=docker.service
+[Service]
+Type=oneshot
+ExecStart=/opt/lcarlie/orchestrator/run-evidence-followup.sh
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict

@@ -1,0 +1,11 @@
+[Unit]
+Description=LCARLIE sayfa olcumu (arama motoruna gorunen hal)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/seo-araclari
+ExecStart=/usr/bin/python3 /opt/lcarlie/seo-araclari/sayfa-olcum.py
+ExecStart=/usr/bin/python3 /opt/lcarlie/seo-araclari/sayfa-yukle.py
+TimeoutStartSec=900

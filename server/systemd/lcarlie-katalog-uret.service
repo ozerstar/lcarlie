@@ -1,0 +1,23 @@
+[Unit]
+# Eczane/profesyonel katalogunu yayindaki Wix metninden yeniden uretir.
+#
+# NEDEN GUNLUK: Wix metni elle duzeltilebiliyor -- gunes kremlerindeki
+# zorunlu ibare eksikligi gibi bulgular orada duzeltilecek. Katalog o
+# duzeltmeyi bir gun icinde almali; haftalik olsaydi eczaneye eski metin
+# goturulurdu.
+#
+# TEKRAR CALISTIRMAK GUVENLI: state/katalog.json atomik degistirilir,
+# hicbir veritabani satiri yazilmaz, hicbir insan beyani ezilmez.
+Description=LCARLIE katalog uretimi (gunluk)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+Environment=JARVIS_STATE_DIR=/opt/lcarlie/jarvis-phase2/state
+ExecStart=/opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/katalog-uret.py
+TimeoutStartSec=300
+Nice=15
+UMask=0077
+NoNewPrivileges=true

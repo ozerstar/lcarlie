@@ -1,0 +1,21 @@
+[Unit]
+# Ankara'daki ziyaret hedeflerini OpenStreetMap'ten tazeler.
+#
+# AYDA BIR yeter: eczane/klinik acilis-kapanis hizi bunu kaldirir ve
+# Overpass genel sunuculari paylasimli -- siklastirmak baskasinin
+# kaynagini yakmak olur.
+#
+# Tekrar calistirmak GUVENLI: OSM kimligine gore upsert, insan beyanina
+# (core.saha_bilgi) DOKUNMAZ, OSM'den kalkani silmez sadece isaretler.
+Description=L'CARLIE saha hedefleri OSM taramasi
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+ExecStart=/opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/saha-tara.py Ankara
+TimeoutStartSec=600
+Nice=15
+UMask=0077
+NoNewPrivileges=true

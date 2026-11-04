@@ -1,0 +1,34 @@
+[Unit]
+Description=LCARLIE Guncel Olaylar departmani (gunluk dis haber bulteni)
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+Environment=JARVIS_MEMORY_TRANSPORT=local-docker
+Environment=JARVIS_STATE_DIR=/opt/lcarlie/jarvis-phase2/state
+# Arama arka ucu: gemini grounding birinci, SearXNG yedek. Bos birakilirsa
+# DuckDuckGo'ya duser ve bu IP'den 0 sonuc doner (olculdu 20.09.2026).
+Environment=RESEARCH_SEARXNG_URL=http://127.0.0.1:8888
+Environment=DOCKER_CONFIG=/tmp
+ExecStart=/opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/guncel-olaylar.py
+
+# Arastirma agdan sayfa indiriyor; bes aci ~90 sn suruyor. Tavan bol
+# birakildi ama sinirsiz degil: takilan bir kosu her gun birikmemeli.
+TimeoutStartSec=600
+
+# jarvis-phase2.service ile ayni sertlestirme. Docker soketine erisim
+# gerektigi icin root; PrivateTmp ve ProtectSystem aynen korunuyor.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/opt/lcarlie/jarvis-phase2/state
+MemoryMax=512M
+CPUQuota=100%
+TasksMax=64
+Nice=10

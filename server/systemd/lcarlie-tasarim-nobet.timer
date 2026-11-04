@@ -1,0 +1,14 @@
+[Unit]
+# Departman kendiliginden bakar; uretim yapmaz, TIKANIKLIGI soyler.
+Description=Tasarim nobeti - gunde bir
+
+[Timer]
+OnCalendar=*-*-* 08:30:00
+# 🔴 OnBootSec YOK. Kreatif hattinda ogrenilen ders: sunucu gunlerdir
+# acikken timer yeniden baslatilinca OnBootSec aninda tetikliyor ve
+# istenmeyen tam kosu yapiyor. Zamanlayici kurmak bir kosu emri degildir.
+RandomizedDelaySec=600
+Persistent=true
+
+[Install]
+WantedBy=timers.target

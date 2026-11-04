@@ -1,0 +1,26 @@
+[Unit]
+Description=LCARLIE departman sorumlulari gunluk arastirmasi (sifir model cagrisi)
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+ExecStart=/opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/departman-arastirma.py
+# 12 konu x (~27 sn arama + 6 sn nefes) ~ 7 dk. Tavan bol birakildi ki
+# yavas bir gun kosuyu yarida kesip "yeni bilgi yok" gibi gostermesin.
+TimeoutStartSec=1800
+Environment=JARVIS_MEMORY_TRANSPORT=local-docker
+Environment=RESEARCH_SEARXNG_URL=http://127.0.0.1:8888
+# 🔴 ARASTIRMA_BEKLEME KALDIRILMAZ. 0 yapilirsa art arda sorgu arastirma
+# denetleyicisinin devre kesicisini aciyor ve kosu SESSIZCE bos donuyor:
+# olculdu -- beklemesiz 2 bulgu, 6 saniye beklemeyle 21 bulgu.
+Environment=ARASTIRMA_BEKLEME=6
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+# Bulgu indeksi ve ortak bilgi deposu state/ altina yazilir.
+ReadWritePaths=/opt/lcarlie/jarvis-phase2/state
+
+[Install]
+WantedBy=multi-user.target

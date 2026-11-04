@@ -1,0 +1,12 @@
+[Unit]
+Description=Sayfa olcumu her gun 06:20
+
+[Timer]
+# 🔴 OnBootSec YOK. Bir kez konuldu ve her yeniden baslatmada tam kosu
+# tetikledi; sunucu ve hedef site gereksiz yuklendi.
+OnCalendar=*-*-* 06:20:00
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

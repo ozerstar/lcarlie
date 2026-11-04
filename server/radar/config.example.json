@@ -1,0 +1,41 @@
+{
+  "owner": {
+    "name": "Özer",
+    "whatsapp": "",
+    "email": "",
+    "telegram_chat_id": ""
+  },
+  "price_band_min_ratio": 0.9,
+  "critical_price_change_pct": 10,
+  "instant_alert_price_drop_pct": 20,
+  "new_entrant_days": 365,
+  "daily_top_n": 5,
+  "candidate_reminder_days": 7,
+  "passive_after_quiet_months": 3,
+  "leads": {
+    "enabled": true,
+    "daily_limit": 10,
+    "queries": [
+      "eczane Çankaya Ankara",
+      "eczane Yenimahalle Ankara",
+      "dermatoloji kliniği Ankara",
+      "güzellik merkezi Çankaya Ankara",
+      "estetik kliniği Ankara",
+      "medikal estetik merkezi Ankara"
+    ],
+    "lead_tanitim": "",
+    "kaynak": "osm",
+    "osm_iller": [
+      "Ankara"
+    ],
+    "osm_turler": [
+      "eczane"
+    ]
+  },
+  "regulation": {
+    "urls": [
+      "https://www.titck.gov.tr/duyuru"
+    ]
+  },
+  "_not": "Gönderim: owner.telegram_chat_id (Telegram) veya owner.whatsapp (WAHA) doldurulursa sabah özeti oraya gider; ikisi de boşsa yalnız Jarvis panelinde görünür. leads: OpenStreetMap (ücretsiz); her ilk mesaj onaya düşer, onaysız hiçbir şey gönderilmez. lead_tanitim: eczanelere gidecek tanıtım cümlesi; üretim standardı gibi beyanlar yalnız belgesi varsa yazılır. owner.email yalnız SMTP girildiğinde doldurulmalı."
+}

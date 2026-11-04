@@ -1,0 +1,11 @@
+[Unit]
+Description=Scan Gmail invoice attachments twice daily
+
+[Timer]
+OnCalendar=*-*-* 08,16:15:00
+Persistent=true
+Unit=lcarlie-expense-sync.service
+
+[Install]
+WantedBy=timers.target
+

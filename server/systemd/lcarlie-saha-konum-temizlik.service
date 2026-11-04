@@ -1,0 +1,19 @@
+[Unit]
+# Saklama suresi dolmus konum kayitlarini siler.
+#
+# 🔴 BU BIR BAKIM ISI DEGIL, VERININ TUTULMA KOSULU. Suresiz saklanan konum
+# gecmisi toplanma amaciyla ilgisi olmayan seyleri de anlatir: ev adresi,
+# mesai disi aliskanliklar. Zamanlayiciya baglanmamis bir silme politikasi,
+# yazilmis ama uygulanmayan bir politikadir.
+Description=L'CARLIE saha konum saklama temizligi
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+ExecStart=/opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/saha-konum-temizle.py
+TimeoutStartSec=120
+Nice=15
+UMask=0077
+NoNewPrivileges=true

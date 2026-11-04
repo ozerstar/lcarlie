@@ -1,0 +1,18 @@
+[Unit]
+Description=LCARLIE siparis teyidi + musteri onayinda HepsiJET barkodu
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+EnvironmentFile=/etc/lcarlie/jarvis-web.env
+EnvironmentFile=/etc/lcarlie/siparis-teyit.env
+Environment=JARVIS_STATE_DIR=/opt/lcarlie/jarvis-phase2/state
+# 1) Yeni siparis -> odeme yoluna gore teyit mesaji
+ExecStart=/usr/bin/flock -n /run/lcarlie-siparis-teyit.lock /opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/siparis-teyit-tarama.py --gonder
+# 2) Musteri onayi -> HepsiJET barkodu  (🔴 BAKIYEDEN PARA DUSER)
+ExecStart=/usr/bin/flock -n /run/lcarlie-kargo-onay.lock /opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/kargo-onay-tarama.py --gercek
+TimeoutStartSec=900
+NoNewPrivileges=true
+UMask=0077

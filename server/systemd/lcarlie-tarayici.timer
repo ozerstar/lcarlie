@@ -1,0 +1,12 @@
+[Unit]
+Description=Tarayici sonuclarini dakikada bir onay kuyruguna tasi
+
+[Timer]
+# Dakikada bir: push bildirimi (lcarlie-push-approvals) da dakikada bir
+# kosuyor, yani sonuc en kotu iki dakikada telefona duser.
+OnBootSec=2min
+OnUnitActiveSec=1min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

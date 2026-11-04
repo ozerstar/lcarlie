@@ -1,0 +1,12 @@
+[Unit]
+Description=Site nobeti - gunde iki kez
+
+[Timer]
+# Sabah erken (gece degisiklikleri) ve ogleden sonra (gun ici degisiklikler).
+OnCalendar=*-*-* 07:15:00 Europe/Istanbul
+OnCalendar=*-*-* 15:15:00 Europe/Istanbul
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

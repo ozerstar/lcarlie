@@ -1,0 +1,10 @@
+[Unit]
+Description=Gunluk rapor - her sabah 09:00
+
+[Timer]
+OnCalendar=*-*-* 09:00:00 Europe/Istanbul
+Persistent=true
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target

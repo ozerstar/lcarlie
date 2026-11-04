@@ -1,0 +1,24 @@
+[Unit]
+# Instagram gonderi/reklam paketlerini olculmus veriden uretir.
+#
+# NEDEN HAFTALIK: paket uretmek bedava, KARAR VERMEK degil. Gunluk
+# kossaydi sahip 7 gunde 49 paketle karsilasir ve hicbirine bakmazdi.
+#
+# TEKRAR ONLEME BETIKTE: karar bekleyen (ONERI) paket varken ayni
+# urun/amac icin ikincisi yazilmaz. Onaylanmis ya da reddedilmis paket
+# tekrar uretilebilir -- o karar verilmis, yenisi yeni bir denemedir.
+#
+# Uretilen paket YAYINLANMAZ. Sahip panelden onaylar; dis eylem kapali.
+Description=LCARLIE Instagram gonderi paketleri (haftalik)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+Environment=JARVIS_STATE_DIR=/opt/lcarlie/jarvis-phase2/state
+ExecStart=/opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/ig-gonderi-uret.py
+TimeoutStartSec=600
+Nice=15
+UMask=0077
+NoNewPrivileges=true

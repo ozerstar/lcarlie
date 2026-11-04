@@ -1,0 +1,322 @@
+{
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+n8n.lcarlie.shop {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "geolocation=(), microphone=(), camera=()"
+		-Server
+	}
+
+	# 🔴 ISTEK GOVDESI SINIRI - sadece herkese acik webhook yolunda.
+	#
+	# /webhook/sohbet kimlik dogrulamasi istemiyor. Sinir olmazsa tek bir
+	# istekle yuzlerce MB gonderilip bellek ve disk tuketilebilir; hiz
+	# siniri sayiyi kisitliyor ama BOYUTU kisitlamiyordu.
+	# Mesaj zaten 1000 karakterle sinirli, 64KB fazlasiyla yeterli.
+	#
+	# ⚠️ Site geneline UYGULANMAZ: n8n arayuzunden workflow ice aktarmak
+	#    bundan cok daha buyuk govde gonderir, panel calismaz hale gelir.
+	@herkeseAcik path /webhook/*
+	request_body @herkeseAcik {
+		max_size 64KB
+	}
+
+	# Idefix urun gorselleri — HERKESE ACIK, salt okunur.
+	# Idefix urun olusturmada "images.url" istiyor: SSL sertifikali HTTPS
+	# adres sart, dosya yuklenemiyor (barkod basina en fazla 8 gorsel).
+	# Wix medya API anahtarimiz 403 veriyor, bu yuzden kendi sunucumuzdan.
+	# Icerik zaten pazaryeri vitrininde gorunecek; gizli veri yok.
+	handle_path /urun-gorsel/* {
+		# Idefix satici paneli (satici.idefix.com) bu dizindeki icerik
+		# dosyasini sayfa icinden okuyabilsin diye CORS acik. Dizin zaten
+		# herkese acik statik gorsel sunuyor; gizli veri yok.
+		header Access-Control-Allow-Origin "*"
+		@sadeceJpg path *.jpg
+		header @sadeceJpg Cache-Control "public, max-age=86400"
+		root * /urun-gorsel
+		file_server {
+			precompressed
+		}
+	}
+
+	# Sunucu durum sayfasi - gizli yol
+	handle_path /durum-<DURUM_TOKEN>* {
+		root * /durum
+		file_server
+	}
+
+	# Site sohbet widget dosyasi.
+	# Wix Ozel Kod alaninin 15.000 karakter siniri var; widget kodu
+	# buradan servis edilir, Wix tarafinda tek satirlik script etiketi kalir.
+	# Guncelleme icin Wix'e dokunmak gerekmez.
+	handle /lc-sohbet.js {
+		header Content-Type "application/javascript; charset=utf-8"
+		header Cache-Control "public, max-age=300"
+		root * /widget
+		file_server
+	}
+
+	reverse_proxy n8n:5678 {
+		flush_interval -1
+
+		# 🔴 HIZ SINIRI ICIN GERCEK IP
+		#
+		# X-Forwarded-For KULLANILAMAZ: Caddy gelen bu basliga EKLEME yapar,
+		# yani musteri kendi istegine "X-Forwarded-For: 1.2.3.4" koyarsa
+		# listenin BASINDA o sahte deger durur. Her istekte farkli bir sahte
+		# deger yazarak IP sinirini sonsuza kadar asmak mumkun olurdu.
+		#
+		# header_up basligi SET eder (varsa uzerine yazar) ve {client_ip}
+		# yukaridaki 'trusted_proxies' ayarina gore Caddy'nin kendi gordugu
+		# baglanti adresidir. Musteri tarafindan degistirilemez.
+		header_up X-Gercek-IP {client_ip}
+	}
+
+	# 🔴 ERISIM KAYDINDA ANAHTAR GIZLENIR.
+	#
+	# Panel ve durum sayfasi anahtari adres satirinda gidiyor
+	# (?k=<PILOT_TOKEN>). Caddy varsayilan olarak tam adresi kaydediyordu,
+	# yani anahtarlar 50 MB'lik erisim kaydinda DUZ METIN duruyordu.
+	# Kayda erisen herkes panele de erisebilirdi; anahtar degistirmeden
+	# eski kayitlar da tehlike olmaya devam ederdi.
+	#
+	# 🔴 IKI AYRI YERDE ANAHTAR VAR - ikisi de maskelenmeli:
+	#   1) Pilot/sohbet paneli : ?k=<PILOT_TOKEN>   -> SORGU parametresi
+	#   2) Durum sayfasi       : /durum-<TOKEN>/    -> ADRES YOLUNUN KENDISI
+	#
+	# Once yalniz 'query' filtresi konuldu; canli testte durum sayfasinin
+	# anahtarinin kayda DUZ METIN dustugu gorulду - cunku o sorguda degil
+	# yolda gidiyor. Bu yuzden tek bir 'regexp' filtresi kullaniliyor:
+	# ayni alana iki filtre baglanamaz.
+	#
+	# Desen hem "k=..." hem "durum-..." yakalar, basligi korur, gerisini siler.
+	log {
+		output file /data/access.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+		format filter {
+			wrap json
+			fields {
+				request>uri regexp "(k=|durum-)[A-Za-z0-9_-]+" "${1}GIZLENDI"
+			}
+		}
+	}
+}
+
+jarvis.lcarlie.shop {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "geolocation=(self), microphone=(self), camera=()"
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self' wss://jarvis.lcarlie.shop; frame-ancestors 'none'"
+		-Server
+	}
+
+	# Jarvis Web Console runs on the HOST (systemd, jarvis-web.service), not
+	# a container -- it needs the same docker-exec Postgres access
+	# jarvis-phase2.service already uses. 172.18.0.1 is the lcarlie_web
+	# bridge's OWN gateway IP (docker network inspect lcarlie_web); this
+	# container reaches it directly since it is a member of that network,
+	# no extra_hosts/port publish needed. The host firewall separately
+	# restricts port 8091 to this exact subnet (ufw status | grep 8091).
+	handle /personal/* {
+		request_body {
+			max_size 20MB
+		}
+		reverse_proxy 172.18.0.1:8092 {
+			header_up X-Gercek-IP {client_ip}
+		}
+	}
+	handle /rtc* {
+		reverse_proxy 172.18.0.1:7880
+	}
+	handle {
+		reverse_proxy 172.18.0.1:8091 {
+			header_up X-Gercek-IP {client_ip}
+		}
+	}
+
+	log {
+		output file /data/jarvis-access.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+	}
+}
+
+olcum.lcarlie.shop {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+
+	# 🔴 BURAYA SIKI CSP KONULMADI ve bu bilincli. jarvis blogundaki
+	# "script-src 'self'" kurali BIZIM yazdigimiz bir arayuz icin dogru;
+	# Umami ucuncu taraf bir Next.js uygulamasi ve kendi panelini ayni
+	# kisitla calistiramaz. Yanlis CSP burada guvenlik degil, bozuk bir
+	# panel uretirdi. Diger basliklar (nosniff, HSTS, frame DENY) duruyor.
+	#
+	# Izleme betigi (/script.js) lcarlie.shop sayfalarindan CAPRAZ KOKEN
+	# yuklenir; Umami bu ucun CORS basliklarini kendi verir, Caddy'de ek
+	# bir ayar gerekmez.
+	reverse_proxy umami:3000
+
+	log {
+		output file /data/olcum-access.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+	}
+}
+
+# Alan adi disindaki tum istekleri (dogrudan IP dahil) reddet
+:80, :443 {
+	respond "Not found" 404
+}
+
+
+
+
+
+
+
+
+
+
+
+
+# ===== ICAZ 1986 BASLANGIC - kapi-kapat.sh ile silinir =====
+# İCAZ 1986 · Gece Oyunu · dış kapı yapılandırması
+#
+# Bu dosya TEK BAŞINA geçerli bir Caddyfile'dır. İCAZ başka bir sunucuya
+# taşınırsa olduğu gibi oraya kopyalanır; hiçbir satırı L'CARLIÉ'ye ait değil.
+#
+# Açmak için : /opt/icaz/kapi/kapi-ac.sh
+# Kapatmak   : /opt/icaz/kapi/kapi-kapat.sh
+#
+# Ortak kapıya nasıl bağlanıyor: kapi-ac.sh bu dosyanın içeriğini
+# L'CARLIÉ'nin Caddyfile'ına işaretli bir blok olarak yazar ve
+# lcarlie-caddy konteynerini İCAZ'ın `icaz_kapi` ağına bağlar.
+# Kapatma işlemi ikisini de geri alır; L'CARLIÉ'nin kendi satırlarına
+# hiçbir aşamada dokunulmaz.
+
+# Tanıtım sayfası — kök alan adı.
+#
+# 16.09.2026'da sahip onayıyla Wix'ten bu sunucuya alındı.
+# www asıl adres; çıplak alan adı ona yönlendiriliyor ki aynı sayfa iki
+# ayrı adreste yayınlanmasın (paylaşım görseli ve arama için de tek adres).
+icaz1986.com {
+	redir https://www.icaz1986.com{uri} permanent
+}
+
+www.icaz1986.com {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	reverse_proxy icaz-site:3000 {
+		# Uygulama yeniden başlatıldığında misafir 502 görmesin: Caddy
+		# isteği beş saniye boyunca çeyrek saniyede bir yeniden dener.
+		# Deploy penceresi ~2 sn olduğu için istek düşmeden geçer.
+		lb_try_duration 5s
+		lb_try_interval 250ms
+		header_up X-Gercek-IP {client_ip}
+	}
+
+	log {
+		output file /data/icaz-site-access.log {
+			roll_size 10MiB
+			roll_keep 3
+		}
+	}
+}
+
+oyun.icaz1986.com {
+	# Eski önizleme bağlantısını elinde tutan olursa yeni adrese gitsin.
+	redir /onizleme* https://www.icaz1986.com/ permanent
+
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "geolocation=(), microphone=(), camera=(self)"
+		-Server
+	}
+
+	# 05.10.2026: oyun 31.57.154.184 (Windows) sunucusuna taşındı. DNS (Wix)
+	# değişmedi; bu kapı TLS'i sonlandırıp isteği oraya şifreli iletiyor.
+	# Eski konteyner (icaz-oyun:3000) geri dönüş için duruyor:
+	#   bu satırı "reverse_proxy icaz-oyun:3000 {" yap, transport ve Host
+	#   satırlarını sil, kapi-ac.sh çalıştır.
+	reverse_proxy https://31.57.154.184:8443 {
+		transport http {
+			# Karşı tarafın sertifikası kendi iç CA'sından; kökü burada GÖMÜLÜ.
+			# (Dosya yolu olmaz: kapi-ac.sh doğrulamayı tek kullanımlık bir
+			# konteynerde yapıyor, orada /data yok.) Kök 10 yıllık.
+			tls_trust_pool inline {
+				trust_der MIIBozCCAUmgAwIBAgIQZ7qIbbf9NAiMBofKka6qrDAKBggqhkjOPQQDAjAwMS4wLAYDVQQDEyVDYWRkeSBMb2NhbCBBdXRob3JpdHkgLSAyMDI2IEVDQyBSb290MB4XDTI2MTAwNDIyMTE0N1oXDTM2MDgxMjIyMTE0N1owMDEuMCwGA1UEAxMlQ2FkZHkgTG9jYWwgQXV0aG9yaXR5IC0gMjAyNiBFQ0MgUm9vdDBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABL01Qjwr6Jv9+KvMQYm5e19HuARwAaUFd+Fk8Zs3UULfp16mxcn2oR+InxtwXB8OD3NtvM3nIE4TyRm/msGrUhSjRTBDMA4GA1UdDwEB/wQEAwIBBjASBgNVHRMBAf8ECDAGAQH/AgEBMB0GA1UdDgQWBBSI4FnQUN6skODBecq2Zxj1ZYCEpDAKBggqhkjOPQQDAgNIADBFAiA0pthC2PeIWI7EZecRZISH1BPdANff50XpZRGhNnE1dwIhALO6z7kwkORZmH1JvgoI41CStn1CYwv6KqY/dwwz/S81
+			}
+		}
+		# Karşıdaki Caddy siteyi IP adresiyle eşliyor.
+		header_up Host {upstream_hostport}
+		# Uygulama yeniden başlatıldığında misafir 502 görmesin: Caddy
+		# isteği beş saniye boyunca çeyrek saniyede bir yeniden dener.
+		lb_try_duration 5s
+		lb_try_interval 250ms
+		# 🔴 Yönetim panelinin canlı akışı (SSE) tamponlanmamalı.
+		flush_interval -1
+
+		# 🔴 HIZ SINIRI VE KAYIT İÇİN GERÇEK IP
+		# X-Forwarded-For'a Caddy EKLEME yapar; misafir sahte değer
+		# koyabilir. header_up SET eder ve {client_ip} Caddy'nin kendi
+		# gördüğü adrestir, dışarıdan değiştirilemez.
+		header_up X-Gercek-IP {client_ip}
+	}
+
+	# 🔴 ERİŞİM KAYDINDA SIRLAR GİZLENİR.
+	# İki ayrı sır adres satırında gidiyor:
+	#   1) /q/<sir>  → görev QR kodlarının sırrı (25 noktanın tamamı)
+	#   2) ?k=<jeton> → yönetim paneli anahtarı
+	# Maskelenmezse kaydı okuyan herkes gecenin bütün cevaplarını görür.
+	log {
+		output file /data/icaz-access.log {
+			roll_size 10MiB
+			roll_keep 3
+		}
+		format filter {
+			wrap json
+			fields {
+				request>uri regexp "(k=|/q/)[A-Za-z0-9_-]+" "${1}GIZLENDI"
+			}
+		}
+	}
+}
+# ===== ICAZ 1986 BITIS =====

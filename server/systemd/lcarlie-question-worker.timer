@@ -1,0 +1,8 @@
+[Unit]
+Description=Daily LCARLIE AI Data Gap Question
+[Timer]
+OnCalendar=*-*-* 08:45:00 Europe/Istanbul
+RandomizedDelaySec=5min
+Persistent=false
+[Install]
+WantedBy=timers.target

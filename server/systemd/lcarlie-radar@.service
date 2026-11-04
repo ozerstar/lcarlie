@@ -1,0 +1,28 @@
+[Unit]
+Description=LCARLIE Radar (%i): rakip/mevzuat/sabah ozeti (ucuncu kisiye gonderim onaysiz yok)
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/radar
+Environment=RADAR_DIR=/opt/lcarlie/radar
+Environment=JARVIS_KOK=/opt/lcarlie/jarvis-phase2
+Environment=JARVIS_STATE_DIR=/opt/lcarlie/jarvis-phase2/state
+Environment=EXTERNAL_ACTIONS=false
+Environment=PLAYWRIGHT_BROWSERS_PATH=/opt/lcarlie/radar/.tarayici
+# Gizli anahtarlar ve kill-switch burada (chmod 600): RADAR_ENABLED, JARVIS_AGENT_CMD, ...
+EnvironmentFile=-/opt/lcarlie/radar/.env
+ExecCondition=/bin/sh -c 'test "$${RADAR_ENABLED:-true}" != "false"'
+ExecStart=/opt/lcarlie/radar/run.sh %i
+TimeoutStartSec=3300
+# Rossmann sayfaları başsız Chromium ile çizilir (Playwright) -> bellek payı.
+MemoryMax=1536M
+# Chromium çok sayıda işlem/iş parçacığı açar; 32 iken "Network service crashed" ile düştü (30.10.2026).
+TasksMax=256
+NoNewPrivileges=true
+ProtectHome=true
+ProtectSystem=strict
+PrivateTmp=true
+UMask=0077
+# Radar kendi klasörüne yazar; ajan Jarvis'in kullanım sayacına (state) yazar.
+ReadWritePaths=/opt/lcarlie/radar /opt/lcarlie/jarvis-phase2/state

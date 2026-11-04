@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="tr">
+<meta charset="utf-8">
+<title>KINESIS+ sahne v2</title>
+<!-- lang="tr" ZORUNLU: yoksa text-transform:uppercase "i" harfini "I" yapar,
+     "PEKİ CİLDİNE" yerine "PEKI CILDINE" cikar. -->
+<style>
+  /* L'CARLIE - KINESIS+ reklam sahnesi v2, 1080x1920 (9:16)
+     ?v=A|B secer, ?t=<saniye> o andaki kareyi cizer. Deterministik.
+     Urun katmani = gercek cekim fotografinin pikselleri (yeniden cizilmez).
+     Tipografi = marka fontlariyla dizgi katmani.
+     DOKUNULMAZ ALAN: urun y=0..1512. Metin y=1540'tan asagisi. Binmez. */
+  @font-face{font-family:Monument;src:url('https://static.wixstatic.com/ufonts/118f01_8a9435f80a7c4aa9bab563f89bea2fef/woff2/file.woff2') format('woff2');font-weight:400;font-display:block}
+  @font-face{font-family:Metropolis;src:url('https://static.wixstatic.com/ufonts/027da2_9364e745b205450096a4bef333505abf/woff2/file.woff2') format('woff2');font-weight:400;font-display:block}
+
+  :root{ --ink:#132F36; --aqua:#1E7F96; --lime:#6E8216; --soguk:#3E555C; }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1080px;height:1920px;overflow:hidden}
+  body{
+    background:linear-gradient(180deg,#B6CBD9 0%,#BCCAD4 40%,#C6CCD0 72%,#C9CFD2 100%);
+    font-family:Metropolis,Arial,sans-serif;color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+  }
+  .sahne{position:relative;width:1080px;height:1920px;overflow:hidden}
+
+  .urun{position:absolute;left:50%;top:0;width:1080px;
+    transform:translateX(-50%) translateY(var(--uy,0px)) scale(var(--us,1));
+    transform-origin:50% 100%;}
+  .urun img{display:block;width:100%;height:auto}
+  .erit-alt{position:absolute;inset:auto 0 0 0;height:640px;
+    background:linear-gradient(0deg,#C7CDD1 0%,#C7CDD1 38%,rgba(199,205,209,0) 100%);z-index:2}
+
+  .marka{position:absolute;top:92px;left:0;right:0;text-align:center;z-index:4;
+    font-family:Monument,Metropolis,sans-serif;font-size:28px;letter-spacing:.42em;
+    text-indent:.42em;color:var(--ink);opacity:var(--om,1);}
+
+  /* vurus bandi: ucu de ayni yerde durur, capraz gecisle degisir */
+  .bant{position:absolute;left:70px;right:70px;top:1540px;height:300px;z-index:3}
+  .vurus{position:absolute;left:0;right:0;top:0;text-align:center;
+    opacity:0;transform:translateY(14px)}
+
+  .kanca{font-family:Monument,Metropolis,sans-serif;font-size:72px;line-height:1.1;color:var(--ink)}
+  .kanca .kucuk{display:block;font-size:50px;line-height:1.22}  /* 3 satirlik kanca icin */
+  .kanca small{display:block;margin-top:20px;font-family:Metropolis,sans-serif;
+    font-size:30px;letter-spacing:.18em;text-transform:uppercase;color:var(--soguk)}
+
+  .liste{font-size:40px;line-height:1.58;color:var(--ink)}
+  .liste i{font-style:normal;color:var(--soguk)}
+  .mineral{font-family:Monument,Metropolis,sans-serif;font-size:50px;line-height:1.5;color:var(--ink)}
+  .ustbilgi{font-size:27px;letter-spacing:.20em;text-transform:uppercase;
+    color:var(--soguk);margin-bottom:26px}
+
+  .kapanis .ad{font-family:Monument,Metropolis,sans-serif;font-size:76px;line-height:1;color:var(--ink)}
+  .kapanis .ad b{color:var(--lime);font-weight:400}
+  .kapanis .cizgi{width:140px;height:2px;background:var(--aqua);margin:30px auto}
+  .kapanis .fiyat{font-family:Monument,Metropolis,sans-serif;font-size:52px;color:var(--ink)}
+  .kapanis .kargo{margin-top:12px;font-size:24px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--soguk)}
+</style>
+
+<div class="sahne">
+  <div class="urun"><img id="foto" src="kinesis.jpg" alt=""></div>
+  <div class="erit-alt"></div>
+  <div class="marka" id="marka">L'CARLIÉ</div>
+
+  <div class="bant">
+    <div class="vurus" id="v1"></div>
+    <div class="vurus" id="v2"></div>
+    <div class="vurus kapanis" id="v3">
+      <div class="ad">KINESIS<b>+</b></div>
+      <div class="cizgi"></div>
+      <div class="fiyat">150 ml · 1.950 TL</div>
+      <div class="kargo">Ücretsiz kargo</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const q = new URLSearchParams(location.search);
+const t = parseFloat(q.get('t') || '0');
+const v = (q.get('v') || 'A').toUpperCase();
+
+// ---- varyant icerigi -----------------------------------------------------
+// Metinler gercek INCI'den cikarildi. Fayda iddiasi YOK.
+const ICERIK = {
+  A: {
+    kanca: `Etiketi çevir.<small>Kaç şey okuyorsun?</small>`,
+    orta: `<div class="ustbilgi">20'den fazla bitkisel yağ ve ekstre</div>
+           <div class="liste">susam · avokado · hindistan cevizi<br>
+           hodan · tamanu · aloe vera<br>
+           kantaron · ardıç · lavanta · nane</div>`
+  },
+  B: {
+    kanca: `Kremde mineral<br>ne arar?<small>Beş tanesi var</small>`,
+    orta: `<div class="ustbilgi">KINESIS+ formülünde</div>
+           <div class="mineral">kalsiyum · magnezyum<br>çinko · bakır · bor</div>`
+  },
+  // C ve D: zorunluluk KIMLIKTEN kurulur, vucuttan DEGIL.
+  // Terleme/yipranma/agri/toparlanma bu metinlere giremez (yasak nesne).
+  C: {
+    kanca: `Antrenman bitti.<br>Duş bitti.<small>Sonra ne yapıyorsun?</small>`,
+    orta: `<div class="ustbilgi">Çoğu kişi hiçbir şey</div>
+           <div class="liste">Bakım tam burada başlıyor.<br>
+           <i>20'den fazla bitkisel yağ · 5 mineral</i></div>`
+  },
+  D: {
+    kanca: `<span class="kucuk">Spor yapıyorsan.<br>Kendine bakıyorsan.<br>Çok çalışıyorsan.</span><small>Üçü de bir rutin ister</small>`,
+    orta: `<div class="ustbilgi">Seninkinde kaç ürün var?</div>
+           <div class="liste">20'den fazla bitkisel yağ · 5 mineral<br>
+           zeytin türevi taşıyıcı<br>
+           <i>Ambalaj değil, formül.</i></div>`
+  }
+};
+document.getElementById('v1').innerHTML = `<div class="kanca">${ICERIK[v].kanca}</div>`;
+document.getElementById('v2').innerHTML = ICERIK[v].orta;
+
+// ---- zamanlama -----------------------------------------------------------
+const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
+const ease = x => x<=0?0 : x>=1?1 : 1-Math.pow(1-x,3);
+
+// bir vurusun [gir, cik] araliginda gorunurlugu
+function gorunur(gir, cik){
+  const a = ease(clamp((t-gir)/0.6,0,1));          // giris
+  const b = 1 - ease(clamp((t-cik)/0.5,0,1));      // cikis
+  return Math.min(a,b);
+}
+function uygula(el, o){
+  el.style.opacity = o.toFixed(3);
+  el.style.transform = `translateY(${(14*(1-o)).toFixed(2)}px)`;
+}
+
+uygula(document.getElementById('v1'), gorunur(0.3, 3.2));
+uygula(document.getElementById('v2'), gorunur(3.6, 7.0));
+uygula(document.getElementById('v3'), gorunur(7.4, 99));
+
+// marka yazisi basta gelir, sonuna kadar kalir
+document.documentElement.style.setProperty('--om', ease(clamp(t/0.9,0,1)).toFixed(3));
+
+// urun: cok yavas yaklasma; alt kenar sabit, metne girmez
+const p = clamp(t/10,0,1);
+document.documentElement.style.setProperty('--us', (1.00 + 0.045*p).toFixed(4));
+document.documentElement.style.setProperty('--uy', (-16*p).toFixed(2)+'px');
+
+// fontlar + foto gelmeden kare alinmaz
+window.__hazir = false;
+Promise.all([
+  document.fonts.ready,
+  new Promise(r=>{const i=document.getElementById('foto'); i.complete?r():i.onload=r;})
+]).then(()=>{ window.__hazir = true; });
+</script>

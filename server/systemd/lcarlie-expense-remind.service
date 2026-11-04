@@ -1,0 +1,20 @@
+[Unit]
+Description=Jarvis expense month-end receipt reminder (push)
+After=network-online.target lcarlie-postgres.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Environment=JARVIS_DB_HOST=127.0.0.1
+Environment=JARVIS_DB_PORT=5433
+Environment=JARVIS_DB_PASSWORD_FILE=/etc/lcarlie/jarvis-web-db.pass
+Environment=JARVIS_STATE_DIR=/opt/lcarlie/jarvis-phase2/state
+Environment=JARVIS_WEB_STATE_DIR=/opt/lcarlie/jarvis-phase2/state/webconsole
+Environment=JARVIS_EXPENSE_OWNER=operator
+ExecStart=/opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/tools/expense_jobs.py remind
+TimeoutStartSec=10min
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/lcarlie/jarvis-phase2/state

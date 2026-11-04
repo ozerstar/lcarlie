@@ -1,0 +1,3 @@
+# Ucuncu taraf klonlar: kopyalanmadi, kaynak + surum kaydi
+kanca-kaynaklari/meta-ads-scraper https://github.com/athm793/meta-ads-scraper.git 737feeed5e86b9821dcf57129668a72b38876ca9
+seo-araclari/open-seo-crawler https://github.com/puneetindersingh/open-seo-crawler.git dcfd8797bf2667f80f6a3d2b427541f26b33ebb6

@@ -1,0 +1,20 @@
+[Unit]
+Description=LCARLIE siparis nobetcisi - tum pazaryerlerini tarar, yeni siparisi haber verir
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+EnvironmentFile=/etc/lcarlie/jarvis-web.env
+EnvironmentFile=/etc/lcarlie/google-oauth.env
+EnvironmentFile=/etc/lcarlie/siparis-nobetci.env
+Environment=JARVIS_STATE_DIR=/opt/lcarlie/jarvis-phase2/state
+# 1) API yolu: bagli pazaryerlerinin siparis uclari
+ExecStart=/usr/bin/flock -n /run/lcarlie-siparis-nobetci.lock /opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/siparis-nobetci.py
+# 2) E-posta yolu: API'si olmayan kanallarin (Hepsiburada, Idefix) tek gorunur
+#    izi. Ayni tabloya yazar; API zaten gorduyse ikinci haber CIKMAZ.
+ExecStart=/usr/bin/flock -n /run/lcarlie-eposta-nobet.lock /opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/eposta-nobet.py
+TimeoutStartSec=600
+NoNewPrivileges=true
+UMask=0077

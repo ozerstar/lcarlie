@@ -1,0 +1,8 @@
+[Unit]
+Description=Daily LCARLIE AI Executive Brief
+[Timer]
+OnCalendar=*-*-* 08:15:00 Europe/Istanbul
+RandomizedDelaySec=5min
+Persistent=false
+[Install]
+WantedBy=timers.target

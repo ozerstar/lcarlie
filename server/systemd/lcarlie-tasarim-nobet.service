@@ -1,0 +1,12 @@
+[Unit]
+Description=Tasarim departmani gunluk nobeti - tikanikligi bulur, URETIM YAPMAZ
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+Environment=JARVIS_MEMORY_TRANSPORT=local-docker
+ExecStart=/opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/tasarim-gunluk.py
+TimeoutStartSec=600
+StandardOutput=append:/opt/lcarlie/jarvis-phase2/state/tasarim-nobet.log
+StandardError=append:/opt/lcarlie/jarvis-phase2/state/tasarim-nobet.log

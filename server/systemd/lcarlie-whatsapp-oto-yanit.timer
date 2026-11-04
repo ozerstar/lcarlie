@@ -1,0 +1,10 @@
+[Unit]
+Description=Check active WhatsApp conversations every 10 seconds
+
+[Timer]
+OnBootSec=10s
+OnUnitActiveSec=10s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

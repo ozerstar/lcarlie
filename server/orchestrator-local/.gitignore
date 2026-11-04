@@ -1,0 +1,25 @@
+# 🔴 SIRLAR - bu dizinde API anahtarlari var, depoya ASLA girmez.
+#    Desenler hem onek hem sonek varyantlarini kapsar: ilk denemede
+#    '.action-env' ve '.env.yedek.<zaman>' dosyalari suzgecten kacmisti.
+.env
+.env.*
+*.env
+*.env.*
+.action-env
+*-env
+*-env.*
+.*-env
+.*-env.*
+*secret*
+*credential*
+*token*
+*.pem
+*.key
+
+# Yedek kopyalar: gecmisi artik git tutuyor
+*.yedek-*
+*.yedek.*
+*.oncesi-*
+*.bak
+
+node_modules/

@@ -1,0 +1,10 @@
+[Unit]
+Description=Resume LCARLIE product image visual reviews
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Unit=lcarlie-image-visual-queue.service
+
+[Install]
+WantedBy=timers.target

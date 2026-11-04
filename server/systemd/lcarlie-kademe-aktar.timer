@@ -1,0 +1,13 @@
+[Unit]
+Description=Schedule L'CARLIE kademe telemetrisi aktarimi
+
+[Timer]
+OnBootSec=6min
+OnUnitActiveSec=30min
+RandomizedDelaySec=60s
+AccuracySec=1min
+Persistent=false
+Unit=lcarlie-kademe-aktar.service
+
+[Install]
+WantedBy=timers.target

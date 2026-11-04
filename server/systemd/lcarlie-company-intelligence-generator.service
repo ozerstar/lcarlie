@@ -1,0 +1,10 @@
+[Unit]
+Description=LCARLIE Company Intelligence Task Generator
+After=docker.service
+[Service]
+Type=oneshot
+ExecStart=/opt/lcarlie/orchestrator/run-task-generator.sh
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true

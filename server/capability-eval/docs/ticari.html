@@ -1,0 +1,452 @@
+<!doctype html><html lang="tr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L'CARLIÉ · Ticari Durum</title>
+<style>
+:root{
+  /* zemin - warm white / ivory / light stone */
+  --bg:#FBFAF8; --yuzey:#FFFFFF; --yuzey2:#F6F4F1; --yuzey3:#F0EDE8;
+  /* cizgiler - ince, dusuk kontrast */
+  --cizgi:#E9E5DF; --cizgi2:#DBD5CC;
+  /* metin - charcoal / soft black */
+  --metin:#1B1A18; --metin2:#3E3B37; --sol:#7B766F;
+  /* aksan - L'CARLIE turkuazi, KONTROLLU kullanilir */
+  --aksan:#2E9FB7; --aksan-koyu:#1F7C91; --aksan-yum:#EAF5F8;
+  /* statu - yalniz gercekten anlam tasidiginda */
+  --yesil:#1D7A54; --yesil-bg:#EAF4EF; --yesil-cz:#CBE3D8;
+  --sari:#8A6410;  --sari-bg:#FAF2E0;  --sari-cz:#EBDCBB;
+  --kirmizi:#A93430;--kirmizi-bg:#FBECEB;--kirmizi-cz:#EFD2D0;
+  --mavi:#1F7C91;
+  --golge:0 1px 2px rgba(27,26,24,.04);
+  --r:10px;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;
+  font:15px/1.6 "Inter","Helvetica Neue",Helvetica,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+  background:var(--bg); color:var(--metin);
+  font-feature-settings:"tnum" 0;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ---------- KABUK: sol navigasyon + ana alan ---------- */
+.app{display:flex;min-height:100vh;align-items:flex-start}
+.nav{
+  position:sticky;top:0;flex:0 0 244px;width:244px;height:100vh;
+  background:var(--yuzey);border-right:1px solid var(--cizgi);
+  padding:26px 0 20px;overflow-y:auto;
+}
+.marka{padding:0 22px 20px;border-bottom:1px solid var(--cizgi);margin-bottom:16px}
+.marka .ad{
+  font-size:15px;font-weight:600;letter-spacing:.24em;text-transform:uppercase;
+  color:var(--metin);line-height:1.2;
+}
+.marka .alt2{
+  margin-top:7px;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--sol);font-weight:500;
+}
+.nav-grup{padding:0 14px;margin-bottom:14px}
+.nav-baslik{
+  font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:#A5A099;
+  font-weight:600;padding:0 8px;margin:0 0 5px;
+}
+.nav a{
+  display:block;padding:7px 8px;border-radius:7px;font-size:13.5px;
+  color:var(--metin2);text-decoration:none;line-height:1.35;
+  border-left:2px solid transparent;
+}
+.nav a:hover{background:var(--yuzey2);color:var(--metin)}
+.nav a.aktif{background:var(--aksan-yum);color:var(--aksan-koyu);font-weight:600;border-left-color:var(--aksan)}
+
+.main{flex:1 1 auto;min-width:0;padding:30px 34px 60px;max-width:1120px}
+
+/* ---------- BASLIK ---------- */
+.ust{margin-bottom:26px}
+.ust h1{
+  font-size:23px;font-weight:600;letter-spacing:.02em;margin:0;color:var(--metin);
+}
+.ust .kunye{
+  margin:9px 0 0;font-size:12.5px;color:var(--sol);
+  display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;
+}
+.ust .kunye a{color:var(--aksan-koyu);text-decoration:none;border-bottom:1px solid var(--cizgi2)}
+.ust .kunye a:hover{border-bottom-color:var(--aksan)}
+
+h1{font-size:23px;margin:0 0 4px;letter-spacing:.01em;font-weight:600}
+h2{
+  font-size:10.5px;text-transform:uppercase;letter-spacing:.15em;color:var(--sol);
+  margin:34px 0 11px;font-weight:600;
+  padding-bottom:8px;border-bottom:1px solid var(--cizgi);
+}
+.alt{color:var(--sol);font-size:12.5px;margin:0 0 18px}
+
+/* ---------- KART ---------- */
+.kart{
+  background:var(--yuzey);border:1px solid var(--cizgi);border-radius:var(--r);
+  padding:18px 20px;margin-bottom:12px;box-shadow:var(--golge);
+}
+
+/* ---------- SATIR ---------- */
+.sr{
+  display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;
+  gap:4px 14px;padding:10px 0;border-bottom:1px solid var(--cizgi);
+}
+.sr:last-child{border-bottom:0}
+.sr>div{min-width:0;flex:1 1 auto}
+.et{color:var(--sol);font-size:13.5px;min-width:0;overflow-wrap:anywhere}
+.dg{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap;color:var(--metin)}
+.buyuk{
+  font-size:27px;font-weight:600;font-variant-numeric:tabular-nums;
+  letter-spacing:-.02em;color:var(--metin);
+}
+.kucuk{font-size:11.5px;color:var(--sol);margin-top:4px;line-height:1.5}
+
+/* ---------- STATU RENKLERI (semantik DEGISMEDI) ---------- */
+.yesil{color:var(--yesil)}.sari{color:var(--sari)}.kirmizi{color:var(--kirmizi)}
+.mavi{color:var(--mavi)}.sol{color:var(--sol)}
+
+/* ---------- UYARI / BILGI ---------- */
+.uyari{
+  background:var(--kirmizi-bg);border:1px solid var(--kirmizi-cz);
+  border-left:3px solid var(--kirmizi);border-radius:var(--r);
+  padding:14px 16px;margin-bottom:12px;font-size:13.5px;line-height:1.55;color:var(--metin2);
+}
+.bilgi{
+  background:var(--yuzey2);border:1px solid var(--cizgi);
+  border-left:3px solid var(--aksan);border-radius:var(--r);
+  padding:14px 16px;margin-bottom:12px;font-size:13.5px;line-height:1.55;color:var(--metin2);
+}
+
+/* ---------- ROZET ---------- */
+.rozet{
+  display:inline-block;padding:3px 10px;border-radius:99px;font-size:10px;
+  font-weight:700;letter-spacing:.07em;text-transform:uppercase;border:1px solid transparent;
+}
+.r-ok{background:var(--yesil-bg);color:var(--yesil);border-color:var(--yesil-cz)}
+.r-yok{background:var(--sari-bg);color:var(--sari);border-color:var(--sari-cz)}
+.r-hata{background:var(--kirmizi-bg);color:var(--kirmizi);border-color:var(--kirmizi-cz)}
+
+/* ---------- TABLO ---------- */
+table{width:100%;border-collapse:collapse;font-size:13.5px;table-layout:fixed}
+td{
+  padding:9px 0;border-bottom:1px solid var(--cizgi);vertical-align:top;
+  overflow-wrap:anywhere;color:var(--metin2);
+}
+tr:last-child td{border-bottom:0}
+td.s{
+  width:33%;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;
+  padding-left:12px;color:var(--metin);font-weight:600;
+}
+
+/* ---------- DIPNOT / LINK ---------- */
+.dn{
+  font-size:11.5px;color:var(--sol);text-align:center;margin:34px 0 8px;line-height:1.7;
+  padding-top:18px;border-top:1px solid var(--cizgi);
+}
+a{color:var(--aksan-koyu)}
+
+#bayat{
+  display:none;background:var(--sari-bg);border:1px solid var(--sari-cz);
+  border-left:3px solid var(--sari);border-radius:var(--r);
+  padding:14px 16px;margin-bottom:12px;font-size:13.5px;color:var(--metin2);
+}
+
+/* ---------- RESPONSIVE ---------- */
+@media (max-width:980px){
+  .app{display:block}
+  .nav{
+    position:static;width:auto;height:auto;flex:none;
+    border-right:0;border-bottom:1px solid var(--cizgi);padding:18px 0 10px;
+  }
+  .marka{padding:0 18px 14px}
+  .nav-grup{display:inline-block;vertical-align:top;padding:0 10px;margin-bottom:8px}
+  .main{padding:22px 18px 48px;max-width:none}
+}
+@media (max-width:620px){
+  body{font-size:14.5px}
+  .main{padding:18px 14px 40px}
+  .kart{padding:15px 16px}
+  .nav-grup{display:block}
+  .buyuk{font-size:24px}
+}
+</style></head><body>
+<div class="app">
+<aside class="nav">
+  <div class="marka">
+    <div class="ad">L&rsquo;CARLI&Eacute;</div>
+    <div class="alt2">Growth Control Center</div>
+  </div>
+  <div id="navi"></div>
+</aside>
+<main class="main">
+<div class="ust"><h1>Ticari Durum</h1>
+<p class="kunye"><span>18.09.2026 08:30</span><span>·</span><a href="./">Sistem durumu →</a></p></div>
+<div id="bayat"><strong>Bu sayfa bayat.</strong> Son üretimden bu yana 90 dakikadan fazla geçti — rakamlar güncel olmayabilir.</div>
+<div class="bilgi">
+<strong>Ölçüm henüz başlamadı.</strong><br>
+Ticari ölçüm <strong>2026-10-01</strong> tarihinde başlıyor — <strong>13 gün</strong> kaldı.
+Aşağıdaki ölçüm rakamları o tarihe kadar boş kalacak; bu bir arıza değil.
+<div class="kucuk" style="margin-top:8px">Sıfır ile yokluk aynı şey değildir: bu panel
+ölçüm başlamadan &ldquo;0 TL ciro&rdquo; demez.</div>
+</div>
+<h2>Bugünkü ticari nabız</h2>
+<div class="bilgi">🔴 Bu görünüm <strong>attribution/ROAS raporu değildir</strong>.
+Bağlı kaynaklardan ölçülebilen <strong>ticari nakit ve maliyet</strong> görünümüdür —
+ve <strong>1 Ekim ölçüm penceresini beklemez</strong>.
+&ldquo;Bu satışı şu reklam getirdi&rdquo; demez, diyemez.</div>
+<div class="kart">
+<div class="sr"><div><span class="et"><strong>Son 7 gün</strong></span></div>
+<span class="rozet r-hata">CRITICAL</span></div>
+<div class="sr"><span class="et">Sipariş (iptal hariç)</span><span class="dg">0</span></div>
+<div class="sr"><span class="et">Net ciro (KDV hariç)</span><span class="dg">₺0</span></div>
+<div class="sr"><span class="et kucuk">— tahsil beyan edilen</span><span class="dg sol">₺0</span></div>
+<div class="sr"><span class="et kucuk">— tahsil edilmemiş</span><span class="dg sol">₺0</span></div>
+<div class="sr"><span class="et">Bilinen ürün maliyeti</span><span class="dg">₺0</span></div>
+<div class="sr"><span class="et">Kargo (satış + numune + sınıfsız)</span><span class="dg">₺663</span></div>
+<div class="sr"><span class="et">Reklam öncesi katkı</span><span class="dg">₺-663</span></div>
+<div class="sr"><div><span class="et">Meta harcaması</span>
+<div class="kucuk">hesap kapsaması <strong>1/1</strong> — bu bir <strong>taban</strong>, gerçek daha yüksek olabilir</div></div>
+<span class="dg">₺7.416</span></div>
+<div class="sr"><span class="et"><strong>Reklam sonrası</strong></span><span class="dg buyuk kirmizi">₺-8.079</span></div>
+<div class="sr"><span class="et">Ciro ÷ harcama</span><span class="dg kirmizi">0.00</span></div>
+<div class="sr"><span class="et">Harcama var, sipariş yok</span><span class="dg kirmizi">7 gün</span></div>
+<div class="kucuk" style="margin-top:8px">Ürün maliyetinin <strong>%0</strong>'i ölçülmüş
+(gerisi sahip tahmini) · Wix dışı bekleyen kapıda ödeme <strong>₺1.000</strong> bu ciroya
+<strong>dahil değil</strong>.</div></div>
+<div class="kart">
+<div class="sr"><div><span class="et"><strong>Son 30 gün</strong></span></div>
+<span class="rozet r-hata">CRITICAL</span></div>
+<div class="sr"><span class="et">Sipariş (iptal hariç)</span><span class="dg">8</span></div>
+<div class="sr"><span class="et">Net ciro (KDV hariç)</span><span class="dg">₺15.182</span></div>
+<div class="sr"><span class="et kucuk">— tahsil beyan edilen</span><span class="dg sol">₺15.182</span></div>
+<div class="sr"><span class="et kucuk">— tahsil edilmemiş</span><span class="dg sol">₺0</span></div>
+<div class="sr"><span class="et">Bilinen ürün maliyeti</span><span class="dg">₺4.800</span></div>
+<div class="sr"><span class="et">Kargo (satış + numune + sınıfsız)</span><span class="dg">₺2.268</span></div>
+<div class="sr"><span class="et">Reklam öncesi katkı</span><span class="dg">₺8.113</span></div>
+<div class="sr"><div><span class="et">Meta harcaması</span>
+<div class="kucuk">hesap kapsaması <strong>1/1</strong> — bu bir <strong>taban</strong>, gerçek daha yüksek olabilir</div></div>
+<span class="dg">₺28.903</span></div>
+<div class="sr"><span class="et"><strong>Reklam sonrası</strong></span><span class="dg buyuk kirmizi">₺-20.789</span></div>
+<div class="sr"><span class="et">Ciro ÷ harcama</span><span class="dg kirmizi">0.53</span></div>
+<div class="sr"><span class="et">Harcama var, sipariş yok</span><span class="dg kirmizi">19 gün</span></div>
+<div class="kucuk" style="margin-top:8px">Ürün maliyetinin <strong>%0.0</strong>'i ölçülmüş
+(gerisi sahip tahmini) · Wix dışı bekleyen kapıda ödeme <strong>₺1.000</strong> bu ciroya
+<strong>dahil değil</strong>.</div></div>
+<div class="kart"><div class="kucuk" style="margin-bottom:8px"><strong>Bu hesaba GİREMEYEN kalemler</strong>
+— eksik maliyetler sıfır sayılmadı, bu yüzden yukarıdaki katkı rakamları <strong>olduğundan iyimser</strong>:</div><table>
+<tr><td>Basarisiz teslimat maliyeti<div class="kucuk">gercek katki DAHA DUSUK</div></td><td class="s kirmizi">MISSING</td></tr>
+<tr><td>COGS KDV tabani<div class="kucuk">marj yonu degismez, tutar degisir</div></td><td class="s kirmizi">MISSING</td></tr>
+<tr><td>Cevrim disi odeme dogrulamasi<div class="kucuk">tahsil edilmis ciro DOGRULANMAMIS</div></td><td class="s kirmizi">MISSING</td></tr>
+<tr><td>Gonderi sinifi (UNKNOWN)<div class="kucuk">ne ciroya ne pazarlama giderine yazilir; kargosu katkidan DUSULUR</div></td><td class="s kirmizi">MISSING</td></tr>
+<tr><td>Kapida odeme komisyonu<div class="kucuk">gercek katki DAHA DUSUK</div></td><td class="s kirmizi">MISSING</td></tr>
+<tr><td>Meta harcamasi KDV tabani<div class="kucuk">sinandi: KDV dahil varsayilsa bile harcama ciroyu asiyor</div></td><td class="s kirmizi">MISSING</td></tr>
+<tr><td>Numune/UGC URUN maliyeti<div class="kucuk">gercek katki DAHA DUSUK</div></td><td class="s kirmizi">MISSING</td></tr>
+<tr><td>Odeme komisyonu (PayTR)<div class="kucuk">gercek katki DAHA DUSUK</div></td><td class="s kirmizi">MISSING</td></tr>
+<tr><td>COGS (urun maliyeti)<div class="kucuk">katki OLDUGUNDAN IYIMSER olabilir</div></td><td class="s sari">TAHMIN</td></tr>
+<tr><td>Stok<div class="kucuk">nakit hesabina girmiyor</div></td><td class="s sol">PARTIAL</td></tr>
+<tr><td>Wix disi satis (WhatsApp/telefon)<div class="kucuk">gercek ciro biraz DAHA YUKSEK olabilir</div></td><td class="s sol">PARTIAL</td></tr>
+</table></div>
+<h2>Growth brief</h2><div class="kart">
+<div class="sr"><span class="et">Son brief</span><span class="dg">18.09 01:17</span></div>
+<div class="sr"><span class="et">Kanıt kalitesi</span><span class="dg yesil">HIGH (100/12)</span></div>
+<div class="sr"><span class="et">Red Team itirazı</span><span class="dg ">0</span></div>
+<div class="kucuk" style="margin-top:6px"><strong>En önemli 3 veri boşluğu</strong></div><table>
+<tr><td>Basarisiz teslimat maliyeti<span class="s kirmizi"> MISSING</span></td></tr>
+<tr><td>COGS KDV tabani<span class="s kirmizi"> MISSING</span></td></tr>
+<tr><td>Cevrim disi odeme dogrulamasi<span class="s kirmizi"> MISSING</span></td></tr>
+</table>
+<div class="kucuk" style="margin-top:10px">🔴 Brief <strong>karar vermez</strong>; her öneri insan onayı bekler.
+AI/LLM çağrısı <strong>yapılmıyor</strong> — tüm çıkarımlar deterministik kural.</div></div>
+<h2>Karar hafızası</h2><div class="kart">
+<div class="sr"><span class="et">Açık karar</span><span class="dg">21</span></div>
+<div class="sr"><span class="et">İnsan onayı bekleyen</span><span class="dg sari">5</span></div>
+<div class="sr"><span class="et">Uygulandı · ölçülüyor</span><span class="dg">0</span></div>
+<div class="sr"><span class="et">Sonuçlanan</span><span class="dg">2</span></div>
+<div class="sr"><span class="et">Sonuçsuz (yetersiz kanıt)</span><span class="dg sol">0</span></div>
+<div class="sr"><div><span class="et">Red Team itirazı</span>
+<div class="kucuk">17 kararın tamamına uygulanıyor</div></div><span class="dg sari">16 tekil</span></div>
+<div class="kucuk" style="margin-top:10px"><strong>Son 5 karar</strong></div><table>
+<tr><td>Meta reklam harcamalarının mevcut net ciroyu aşması ve nakit<div class="kucuk">2026-09-18 · insan: — · PROPOSED</div></td><td class="s">—</td></tr>
+<tr><td>Meta reklam harcamaları net ciroyu aştığı ve son 5 gündür sa<div class="kucuk">2026-09-18 · insan: — · PROPOSED</div></td><td class="s">—</td></tr>
+<tr><td>Son 30 günlük verilerde reklam harcamalarının net ciroyu aşt<div class="kucuk">2026-09-18 · insan: — · PROPOSED</div></td><td class="s">—</td></tr>
+<tr><td>VIREON FOR MEN · Erkek Bakım Kremi (urun_id: b94c3b37-b362-3<div class="kucuk">2026-09-18 · insan: — · PROPOSED</div></td><td class="s">—</td></tr>
+<tr><td>VIREON FOR MEN · Erkek Bakım Kremi (brut marj: 66.3%, ciro_n<div class="kucuk">2026-09-18 · insan: — · PROPOSED</div></td><td class="s">—</td></tr>
+</table>
+<div class="kucuk" style="margin-top:10px">🔴 Panelden <strong>aksiyon alınmaz</strong>.
+İnsan onayı olmadan hiçbir karar <strong>EXECUTED</strong> olamaz (veritabanı kısıtı).
+Test senaryoları bu sayımlara <strong>dahil değildir</strong>.</div></div>
+<h2>Ciro · ölçüm penceresi</h2><div class="kart">
+<div class="sr"><span class="et">Doğrulanmış (PayTR)</span><span class="dg sol">—</span></div>
+<div class="sr"><span class="et">Beyan edilmiş</span><span class="dg sol">—</span></div>
+<div class="kucuk" style="margin-top:10px">🔴 Bu iki rakam <strong>bilerek ayrı</strong>.
+Toplanıp tek &ldquo;ciro&rdquo; gösterilseydi, doğrulanmamış para doğrulanmış gibi görünürdü.
+Toplamak isteyen ikisini görerek toplar.</div></div>
+<h2>Reklam</h2><div class="kart">
+<div class="sr"><span class="et">Harcama (ölçüm penceresi)</span><span class="dg">—</span></div>
+<div class="sr"><div><span class="et">Karma ROAS</span>
+<div class="kucuk">karar metriği olarak <strong>gösterilmiyor</strong></div></div>
+<div class="dg sol">PARTIAL</div></div>
+<div class="kucuk" style="margin-top:8px">Bir oranın gösterilebilmesi için
+payının ve paydasının <strong>tam</strong> olması gerekir. Şu an değil:</div>
+<div class="sr" style="margin-top:8px"><div><span class="et kirmizi">
+Ölçüm temeli kurulmadı (P0)</span><div class="kucuk">Takvim hazırlık değildir:
+1 Ekim gelse bile bunlar kapanmadan ROAS <strong>karar metriği yapılmaz</strong>,
+çünkü çıkacak sayının hangi yöne yanlış olduğu bilinemez.</div></div></div><table>
+<tr><td>WhatsApp/telefon siparişleri sisteme giriliyor<div class="kucuk">0 gonderi Wix kaydi olmadan kapida odemeli</div></td><td class="s yesil">tamam</td></tr>
+<tr><td><strong>Numune AÇIKÇA işaretli (varsayımla değil)</strong><div class="kucuk">31 gonderinin sinifi BILINMIYOR (4278.73 TL kargo)</div></td><td class="s kirmizi">eksik</td></tr>
+<tr><td><strong>BasitKargo EK BİLGİ alanı API'de okunabiliyor</strong><div class="kucuk">kanit kaydi: YOK (test gonderisi yapilmadi) · veride dolu ek_bilgi: 0/</div></td><td class="s kirmizi">eksik</td></tr>
+</table><div class="kucuk" style="margin-top:6px">Günlük kontrol:
+<code>ssh lcarlie "/opt/lcarlie/hazirlik-gunluk.sh"</code></div>
+<table>
+<tr><td><strong>Ölçüm penceresi açıldı</strong><div class="kucuk">olcum baslangici 01.10.2026</div></td><td class="s kirmizi">eksik</td></tr>
+<tr><td>KDV okunabiliyor (net ciro hesaplanabilir)<div class="kucuk">0 sayilan siparişte KDV okunamadi</div></td><td class="s yesil">tamam</td></tr>
+<tr><td>Her gönderi sınıflandırılmış<div class="kucuk">0 gonderinin yonu bilinmiyor</div></td><td class="s yesil">tamam</td></tr>
+<tr><td>Reklam harcamasının tamamı bağlı<div class="kucuk">CONNECTED</div></td><td class="s yesil">tamam</td></tr>
+<tr><td>Tüm siparişler Wix'e girilmiş<div class="kucuk">0 gonderi Wix kaydi olmadan kapida odemeli</div></td><td class="s yesil">tamam</td></tr>
+</table>
+<div class="kucuk" style="margin-top:10px">🔴 Bunlar <strong>atıf değil</strong>: günün tüm cirosu ÷
+günün tüm harcaması. &ldquo;Bu satışı şu reklam getirdi&rdquo; demiyor, diyemez.
+Meta'nın kendi dönüşüm iddiası ayrı tutulur, bu rakamla toplanmaz.</div></div>
+<h2>Marj</h2><div class="kart">
+<div class="sr"><span class="et">Brüt marj</span><span class="dg sol">—</span></div>
+<div class="sr"><span class="et">Maliyeti bilinen ciro</span><span class="dg sol">—</span></div>
+<div class="kucuk" style="margin-top:6px">Ölçüm başlayınca hesaplanır.
+Aşağıdaki liste <strong>şimdiden</strong> doldurulabilir.</div>
+<div class="sr"><span class="et">Kargo maliyeti</span><span class="dg">—</span></div>
+<div class="sr"><div><span class="et">Maliyet kalitesi</span>
+<div class="kucuk">kaçının maliyeti gerçekten <strong>ölçüldü</strong></div></div>
+<div class="dg kirmizi">0 / 36</div></div>
+<div class="kucuk" style="margin-top:6px">36 ürünün maliyeti
+<strong>sahip tahmini</strong> (ortalama ₺400) — gerçek ürün maliyeti değil.
+Kapsama oranı yüksek görünse de <strong>ürün bazında karlılık karşılaştırması
+bu veriyle yapılamaz</strong>: hepsi aynı sayı.</div>
+<div class="kucuk" style="margin-top:10px">Marj <strong>KDV hariç</strong> cirodan
+hesaplanır — KDV bizim paramız değil. Ölçülen KDV oranı <strong>%20</strong>.
+Maliyetin KDV tabanı: <strong>TEYIT_EDILMEDI</strong> — ₺400'ün KDV dahil mi hariç mi olduğu sorulmadı; KDV hariç varsayılıyor</div>
+</div>
+<h2>Para nerede</h2><div class="kart">
+<div class="sr"><span class="et">Zincir</span><span class="dg sol">—</span></div>
+<div class="kucuk" style="margin-top:8px">Ölçüm penceresi açılınca dolar.
+Zincir: sipariş → kargolandı → teslim edildi → tahsil edildi → iade.</div>
+<div class="kucuk" style="margin-top:10px">🔴 Sipariş verilmiş olması teslim edildiği,
+teslim edilmiş olması tahsil edildiği anlamına <strong>gelmez</strong>.
+Kart ödemesinde &ldquo;onaylı&rdquo; bilgisi Wix beyanıdır — PayTR mutabakatı
+<strong>yapılmıyor</strong>.</div></div>
+<h2>Maliyeti girilmemiş · en çok satanlar</h2><div class="kart">
+<div class="kucuk" style="margin-bottom:10px">Bu liste <strong>tüm satış geçmişinden</strong>
+gelir (ölçüm penceresiyle sınırlı değil) — böylece maliyetler 1 Ekimden önce girilebilir.</div><table>
+<tr><td>Dermanova - Liftelle<div class="kucuk">1 kalem</div></td><td class="s">₺2.750</td></tr>
+</table><div class="kucuk" style="margin-top:10px">Wix → Ürünler → ürün → <strong>Maliyet</strong>
+alanına gir. Sistem gerisini yapar ve değişimi tarihleyerek saklar.</div></div>
+<h2>Gönderi</h2><div class="kart">
+<div class="sr"><span class="et">Satış</span><span class="dg">—</span></div>
+<div class="sr"><span class="et">Numune / UGC</span><span class="dg sol">— <span class="kucuk">(pazarlama gideri, satış değil)</span></span></div>
+<div class="sr"><span class="et">İade</span><span class="dg sol">—</span></div>
+</div>
+<h2>Konuşma</h2><div class="kart">
+<div class="sr"><div><span class="et kirmizi">Cevapsız müşteri mesajı</span><div class="kucuk">24 saati geçmiş · en eskisi 11.8 gündür bekliyor</div></div><span class="dg buyuk kirmizi">8</span></div>
+<div class="sr"><span class="et">Yeni konuşma (ölçüm penceresi)</span><span class="dg">—</span></div>
+<div class="sr"><span class="et">Gelen mesaj</span><span class="dg">—</span></div>
+<div class="kucuk" style="margin-top:10px">🔴 Konuşma sayısı ile satış arasında
+<strong>bağ kurulamıyor</strong>: Messenger müşteriyi Meta'ya özel bir kimlikle (PSID)
+tanır, Wix'te karşılığı yok. Ad eşleştirmesi denendi — <strong>sıfır</strong> tam eşleşme.
+Bu rakamlar hacim ölçer, <strong>atıf değildir</strong>.</div></div>
+<h2>Açık işler</h2>
+<div class="kart"><table>
+<tr><td><strong>SINIFI_BILINMEYEN_GONDERI</strong><div class="kucuk">Bu gonderi neydi? Numune ise BasitKargo EK BILGI alanina NUMUNE-&lt;tarih&gt; yaz; sat</div></td><td class="s sari">31</td></tr>
+<tr><td><strong>CEVAPSIZ_MESAJ</strong><div class="kucuk">Meta gelen kutusundan cevapla (Sayfa gelen kutusu, filtresiz liste)</div></td><td class="s sari">8</td></tr>
+</table></div>
+<div class="kucuk" style="margin-top:-6px">Bu liste <strong>eksiktir</strong>:
+ölçüm penceresine bağlı dallar (ödenmemiş sipariş, sınıflandırılmamış gönderi,
+maliyeti girilmemiş ürün…) 1 Ekim&rsquo;e kadar <strong>hiç bakılmaz</strong>.
+Burada yalnızca ölçümden bağımsız işler var.</div>
+<h2>Kaynaklar</h2><div class="kart"><table>
+<tr><td>basitkargo<div class="kucuk">18.09 08:30 · 0.0 saat önce</div></td><td class="s"><span class="rozet r-ok">SUCCESS</span></td></tr>
+<tr><td>meta_reklam<div class="kucuk">18.09 08:30 · 0.0 saat önce</div></td><td class="s"><span class="rozet r-yok">KISMİ</span></td></tr>
+<tr><td>meta_reklam_ad<div class="kucuk">16.09 22:25 · 34.1 saat önce</div><div class="kucuk kirmizi">30 saatten eski — hat durmuş olabilir</div></td><td class="s"><span class="rozet r-yok">KISMİ</span></td></tr>
+<tr><td>wix<div class="kucuk">18.09 08:30 · 0.0 saat önce</div></td><td class="s"><span class="rozet r-ok">SUCCESS</span></td></tr>
+<tr><td>wix_urun<div class="kucuk">18.09 08:30 · 0.0 saat önce</div></td><td class="s"><span class="rozet r-ok">SUCCESS</span></td></tr>
+</table></div>
+<h2>Ölçüm öncesi · referans</h2><div class="kart">
+<div class="sr"><span class="et">Doğrulanmış</span><span class="dg sol">₺56.579</span></div>
+<div class="sr"><span class="et">Beyan edilmiş</span><span class="dg sol">₺15.645</span></div>
+<div class="sr"><span class="et">Sipariş</span><span class="dg sol">32</span></div>
+<div class="sr"><span class="et">Kayıtlı müşteri</span><span class="dg sol">31</span></div>
+<div class="kucuk" style="margin-top:10px">🔴 Bu rakamlar <strong>ölçüm dışıdır</strong> ve
+ROAS/marj hesabına girmez. O dönemde WhatsApp ve telefon siparişleri Wix'e
+girilmiyordu, yani <strong>ciro eksik</strong>. Eksik ciroyla hesaplanan oran gerçek değildir.</div>
+</div>
+<p class="dn">Ticari ayna · CR-004…CR-007<br>
+Kaynaklar günde bir kez 08:30'da tazelenir · bu sayfa her tazelemeden sonra üretilir</p>
+<script>
+(function(){
+  // 🔴 Sayfanin kendi tazeligi TARAYICIDA kontrol edilir. Panel ureticisi
+  //    olurse sunucu tarafinda bunu fark edecek kimse yok; sayfayi acan
+  //    kisi yine de bayat veriye bakmamali.
+  var u = 1789709417 * 1000, dk = (Date.now() - u) / 60000;
+  if (dk > 90) document.getElementById('bayat').style.display = 'block';
+})();
+</script>
+</main>
+</div>
+
+<script>
+(function(){
+  var GRUP = [
+    ['Commercial',          ['Bugünkü ticari nabız','Ciro','Marj','Para nerede','Gönderi']],
+    ['Acquisition',         ['Reklam','Konuşma']],
+    ['Growth Intelligence', ['Growth brief','Karar hafızası']],
+    ['Action Center',       ['Açık işler','Maliyeti girilmemiş']],
+    ['Sistem',              ['Kaynaklar','Ölçüm öncesi']]
+  ];
+  var ana = document.querySelector('.main');
+  if(!ana) return;
+  var basliklar = [].slice.call(ana.querySelectorAll('h2'));
+  if(!basliklar.length) return;
+
+  basliklar.forEach(function(h,i){ if(!h.id) h.id = 'b'+i; });
+
+  function grubu(metin){
+    for(var g=0; g<GRUP.length; g++){
+      var anahtarlar = GRUP[g][1];
+      for(var k=0; k<anahtarlar.length; k++){
+        if(metin.indexOf(anahtarlar[k]) === 0) return g;
+      }
+    }
+    return GRUP.length - 1;   // eslesmeyen bolum kaybolmaz, Sistem'e duser
+  }
+
+  var kova = GRUP.map(function(){ return []; });
+  basliklar.forEach(function(h){ kova[grubu(h.textContent.trim())].push(h); });
+
+  var hedef = document.getElementById('navi'), html = '';
+  kova.forEach(function(liste, g){
+    if(!liste.length) return;
+    html += '<div class="nav-grup"><p class="nav-baslik">'+GRUP[g][0]+'</p>';
+    liste.forEach(function(h){
+      html += '<a href="#'+h.id+'" data-h="'+h.id+'">'+h.textContent.trim()+'</a>';
+    });
+    html += '</div>';
+  });
+  hedef.innerHTML = html;
+
+  // aktif bolum isareti
+  var baglar = [].slice.call(hedef.querySelectorAll('a'));
+  function isaretle(){
+    var en = null, enUst = -1e9;
+    basliklar.forEach(function(h){
+      var t = h.getBoundingClientRect().top - 90;
+      if(t <= 0 && t > enUst){ enUst = t; en = h.id; }
+    });
+    baglar.forEach(function(a){
+      a.className = (a.getAttribute('data-h') === en) ? 'aktif' : '';
+    });
+  }
+  isaretle();
+  var bekle;
+  window.addEventListener('scroll', function(){
+    clearTimeout(bekle); bekle = setTimeout(isaretle, 60);
+  }, {passive:true});
+})();
+</script>
+</body></html>

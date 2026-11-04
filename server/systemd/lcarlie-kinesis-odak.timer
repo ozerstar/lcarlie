@@ -1,0 +1,9 @@
+[Unit]
+Description=KINESIS odagi - 3 saatte bir, 2 gun
+
+[Timer]
+OnCalendar=*-*-* 00/3:20:00
+Persistent=false
+
+[Install]
+WantedBy=timers.target

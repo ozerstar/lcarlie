@@ -1,0 +1,15 @@
+[Unit]
+# Overture Maps Places -> raw.overture_poi (ikinci hedef kaynagi).
+# Ayri venv kullanir: duckdb ana venv'e kurulmaz.
+Description=L'CARLIE Overture Places taramasi
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+ExecStart=/opt/lcarlie/venv-veri/bin/python /opt/lcarlie/jarvis-phase2/scripts/overture-tara.py
+TimeoutStartSec=900
+Nice=15
+UMask=0077
+NoNewPrivileges=true

@@ -1,0 +1,11 @@
+[Unit]
+Description=Schedule L'CARLIE saha hedefleri taramasi (aylik)
+
+[Timer]
+OnCalendar=*-*-01 04:30:00
+RandomizedDelaySec=30min
+Persistent=true
+Unit=lcarlie-saha-tara.service
+
+[Install]
+WantedBy=timers.target

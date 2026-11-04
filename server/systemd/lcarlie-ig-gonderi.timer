@@ -1,0 +1,11 @@
+[Unit]
+Description=Schedule LCARLIE Instagram gonderi paketleri (haftalik pazartesi)
+
+[Timer]
+OnCalendar=Mon 06:10:00
+RandomizedDelaySec=20min
+Persistent=true
+Unit=lcarlie-ig-gonderi.service
+
+[Install]
+WantedBy=timers.target
