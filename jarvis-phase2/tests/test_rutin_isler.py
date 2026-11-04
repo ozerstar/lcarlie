@@ -206,7 +206,10 @@ class TestRutin(unittest.TestCase):
         self.assertEqual(gonderilen[0][0], "teslim.r9")
         self.assertIn("JARVIS · ", gonderilen[0][1])
         self.assertEqual(g["s1"]["durum"], "ACIK")
-        self.assertEqual(anahtarlar, ["is-uretici-yurut", "is-uretici-yurut-guclu"])
+        # Yönetici her teslimi denetler (04.11); iş çağrıları sırası değişmez.
+        self.assertEqual([a for a in anahtarlar if a != "is-uretici-yonetici"],
+                         ["is-uretici-yurut", "is-uretici-yurut-guclu"])
+        self.assertIn("is-uretici-yonetici", anahtarlar)
 
     def test_gercek_katalog_gecerli(self):
         yol = Path(__file__).resolve().parent.parent / "config" / "rutin-isler.json"

@@ -777,9 +777,10 @@ class IsUretici:
             dep_agac = self._dep_agac(agac, dep)
             if any(x.get("id", "").startswith(f"{tarih}-{dep.kod}-g") for x in dep_agac["gorevler"]):
                 continue  # bugün zaten üretildi (yeniden çalıştırmada çift iş yok)
-            acik = sum(x.get("durum") == "ACIK" for x in dep_agac["gorevler"])
+            # Rutin iş sayılmaz: o ekibin sabit işi, her gün akar. Tavan yalnız İCAT işi frenler.
+            acik = sum(x.get("durum") == "ACIK" and not x.get("rutin_id") for x in dep_agac["gorevler"])
             if acik >= ACIK_IS_TAVANI:
-                self.kayit.append({"bilgi": f"{dep.kod}: {acik} açık iş var, yeni iş icat edilmedi"})
+                self.kayit.append({"bilgi": f"{dep.kod}: {acik} açık icat iş var, yeni iş icat edilmedi"})
                 continue
             kanitlar = self._kanitlar(dep)
             lider = dep.uyeler[0].key
