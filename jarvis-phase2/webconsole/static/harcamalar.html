@@ -1,0 +1,245 @@
+<!doctype html>
+<html data-lcarlie-theme="botanical" lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f7f5ef">
+  <title>Harcamalar · L’carlie</title>
+  <link rel="stylesheet" href="/lcarlie-theme.css?v=1">
+  <link rel="stylesheet" href="/harcamalar.css?v=20">
+  <script defer src="/lcarlie-identity.js?v=1"></script>
+  <script defer src="/harcamalar.js?v=20"></script>
+</head>
+<body>
+  <main class="fx viz-root">
+    <nav class="fx-crumbs" aria-label="Konum"><a href="/">L’carlie</a><span aria-hidden="true">/</span><span>Harcamalar</span><a class="fx-crumbs-right" href="/belgeler.html">Fiş ve faturalar</a></nav>
+
+    <div class="fx-side" role="tablist" aria-label="Taraf"><button type="button" role="tab" data-side="sahsi" class="on" aria-selected="true">Şahsi</button><button type="button" role="tab" data-side="sirket" aria-selected="false">Şirket</button></div>
+    <header class="fx-head">
+      <div class="fx-title">
+        <h1>Harcamalar</h1>
+        <p id="rangeLabel" class="fx-sub">Yükleniyor…</p>
+      </div>
+      <div class="fx-period" aria-label="Dönem">
+        <div class="fx-seg" role="group" aria-label="Görünüm">
+          <button type="button" data-view="day">Gün</button><button type="button" data-view="week">Hafta</button><button type="button" data-view="month" class="on">Ay</button>
+        </div>
+        <div class="fx-step"><button type="button" id="prev" aria-label="Önceki dönem">‹</button><input id="day" type="date" aria-label="Tarih"><button type="button" id="next" aria-label="Sonraki dönem">›</button></div>
+        <label class="fx-account"><span class="sr">Banka / hesap</span><select id="accountSelect" aria-label="Banka / hesap"><option value="">Tüm bankalar ve kartlar</option></select></label>
+      </div>
+    </header>
+
+    <div class="fx-books"><div class="fx-seg" id="books" role="tablist" aria-label="Şirket" hidden><button type="button" role="tab" data-book="lemos">Lemos</button><button type="button" role="tab" data-book="moy">MOY</button></div>
+      <p class="fx-note" id="bookNote"></p></div>
+    <div class="fx-tabs" id="scopeTabs" role="tablist" aria-label="Hesap başlığı">
+      <button type="button" role="tab" data-scope="" class="on">Tümü</button><button type="button" role="tab" data-scope="kisisel"><i class="dot s-kisisel"></i>Kişisel</button><button type="button" role="tab" data-scope="lemos"><i class="dot s-lemos"></i>Lemos</button><button type="button" role="tab" data-scope="moy"><i class="dot s-moy"></i>MOY</button><button type="button" role="tab" data-scope="lcarlie"><i class="dot s-lcarlie"></i>L’CARLIÉ</button><button type="button" role="tab" data-scope="aile"><i class="dot s-aile"></i>Aile</button><button type="button" role="tab" data-scope="none"><i class="dot s-none"></i>Belirsiz</button>
+    </div>
+    <p id="error" class="fx-error" role="alert" hidden></p>
+
+    <section class="fx-hero" aria-label="Özet">
+      <div class="fx-hero-main">
+        <p class="lbl">Harcanan</p>
+        <p class="big" id="kOut">–</p>
+        <p class="d" id="dOut"></p>
+        <p class="say" id="heroSay"></p>
+      </div>
+      <div class="fx-hero-stats">
+        <div><p class="lbl">Gelen</p><p class="v" id="kIn">–</p><p class="d" id="dIn"></p></div>
+        <div><p class="lbl">Net</p><p class="v" id="kNet">–</p><p class="d" id="dNet"></p></div>
+        <div><p class="lbl" id="kFourLabel">Günlük ortalama</p><p class="v" id="kFour">–</p><p class="d" id="dFour"></p></div>
+      </div>
+      <div class="fx-hero-spark"><p class="lbl">Son 6 ay harcama</p><div id="sOut"></div></div>
+    </section>
+
+    <section class="fx-card fx-inv" id="invoiceCard" hidden aria-labelledby="invTitle">
+      <header class="fx-card-h"><div><h2 id="invTitle">Faturalar</h2><p class="fx-note" id="invNote"></p></div></header>
+      <div class="fx-ana" id="invAnalysis" hidden>
+        <header class="fx-card-h"><div><h3 class="fx-h3">İki iş: L’CARLIÉ ve Lemos</h3><p class="fx-note" id="anaNote"></p></div>
+          <ul class="fx-legend inline"><li><i class="sq s-lcarlie"></i>L’CARLIÉ</li><li><i class="sq s-lemos"></i>Lemos (muayenehane)</li></ul></header>
+        <div class="fx-ana-biz" id="anaBiz"></div>
+        <p class="fx-note" id="anaFlags"></p>
+        <section class="fx-chan" aria-labelledby="chanTitle">
+          <header class="fx-card-h"><div><h3 class="fx-h3" id="chanTitle">Toplam satış: fatura + Wix + Trendyol</h3><p class="fx-note" id="chanNote"></p></div>
+            <ul class="fx-legend inline"><li><i class="sq ch-dogrudan"></i>Doğrudan</li><li><i class="sq ch-wix"></i>Wix</li><li><i class="sq ch-trendyol"></i>Trendyol</li></ul></header>
+          <div class="fx-chan-tiles" id="chanTiles"></div>
+          <div class="fx-chart" id="chanMonthly"></div>
+        </section>
+        <section class="fx-explore" id="anaExplore" aria-labelledby="exTitle">
+          <header class="fx-card-h"><div><h3 class="fx-h3" id="exTitle">Süz ve topla</h3><p class="fx-note">Toplamı görün, sonra ürüne, firmaya ya da kaleme göre daraltın. Aşağıdaki listelerden birine tıklamak da buraya getirir.</p></div>
+            <div class="fx-seg" role="tablist" aria-label="Satış ya da alış"><button type="button" role="tab" data-exbox="out" class="on" aria-selected="true">Satış</button><button type="button" role="tab" data-exbox="in" aria-selected="false">Alış (gider)</button></div></header>
+          <div class="fx-filters ex-filters">
+            <select id="exBook" aria-label="Şirket"><option value="">Lemos + MOY (toplam)</option><option value="lemos">Lemos</option><option value="moy">MOY</option></select>
+            <select id="exBiz" aria-label="İş"></select>
+            <select id="exTheme" aria-label="Konu"></select>
+            <select id="exChan" aria-label="Kanal"></select>
+            <select id="exMonth" aria-label="Ay"></select>
+          </div>
+          <div class="fx-filters ex-filters">
+            <input id="exText" type="search" maxlength="120" placeholder="Ürün, firma ya da kalem adı · virgülle birden çok: yeni nesil, mim" aria-label="Ürün, firma ya da kalem adı">
+            <select id="exMode" aria-label="Süzme biçimi"><option value="only">Yalnız bunlar</option><option value="except">Bunlar hariç</option></select>
+            <select id="exGroup" aria-label="Neye göre listele"><option value="item">Ürün / kalem</option><option value="party">Firma</option><option value="theme">Konu</option><option value="month">Ay</option><option value="biz">İş</option><option value="chan">Kanal</option></select>
+            <button type="button" class="fx-btn ghost" id="exReset">Temizle</button>
+          </div>
+          <div class="fx-chan-tiles ex-tiles" id="exTiles"></div>
+          <ul class="fx-bars" id="exList"></ul>
+          <div class="fx-more" id="exMoreWrap" hidden><button type="button" class="fx-btn ghost" id="exMore">Tümünü göster</button></div>
+        </section>
+        <h3 class="fx-h3">Aylık satış: iki iş</h3><div class="fx-chart" id="anaMonthly"></div>
+        <div class="fx-twin">
+          <div><h3 class="fx-h3">En çok satılan L’CARLIÉ ürünleri</h3><ul class="fx-bars" id="anaProducts"></ul></div>
+          <div><h3 class="fx-h3">Neye ne harcandı (konu)</h3><ul class="fx-bars" id="anaThemes"></ul></div>
+        </div>
+        <div class="fx-twin">
+          <div><h3 class="fx-h3">Takviye / ilaç: alınan ve satılan</h3><p class="fx-note" id="anaSuppNote"></p><ul class="fx-bars" id="anaSupp"></ul></div>
+          <div><h3 class="fx-h3">Promosyon / matbaa / baskı</h3><ul class="fx-bars" id="anaPromo"></ul></div>
+        </div>
+        <h3 class="fx-h3">En çok alınanlar</h3><ul class="fx-bars" id="anaBought"></ul>
+        <p class="fx-note" id="anaMethod"></p>
+      </div>
+      <div class="fx-inv-sum" id="invSum"></div>
+      <div class="fx-inv-cats" id="invCats"></div>
+      <div class="fx-inv-tabs fx-seg" role="tablist" aria-label="Fatura yönü"><button type="button" role="tab" data-invbox="in" class="on" aria-selected="true">Gelen (alış)</button><button type="button" role="tab" data-invbox="out" aria-selected="false">Giden (satış)</button></div>
+      <div id="invList" class="fx-inv-list"></div>
+    </section>
+
+    <section class="fx-row r-2-1">
+      <article class="fx-card" id="paceCard">
+        <header class="fx-card-h"><div><h2>Harcama temposu</h2><p class="fx-note" id="paceNote"></p></div>
+          <ul class="fx-legend inline" id="paceLegend"><li><i class="ln cur"></i>Bu dönem</li><li><i class="ln prev"></i>Önceki dönem</li></ul></header>
+        <div class="fx-chart" id="paceChart"></div>
+      </article>
+      <article class="fx-card">
+        <header class="fx-card-h"><h2>Öne çıkanlar</h2></header>
+        <ul class="fx-insights" id="insights"></ul>
+      </article>
+    </section>
+
+    <section class="fx-card" id="flowCard">
+      <header class="fx-card-h"><div><h2>Para nereden geldi, nereye gitti?</h2><p class="fx-note" id="sankeyNote">Bu dönem · kendi hesaplar arası hariç · bir kaleme dokunun, içindekiler açılır</p></div>
+        <ul class="fx-legend inline"><li><i class="sq cf-in"></i>Gelen</li><li><i class="sq sk-out"></i>Giden</li><li><i class="sq sk-save"></i>Kenarda kalan</li></ul></header>
+      <div class="fx-sankey-wrap"><div class="fx-chart" id="sankey"></div></div>
+      <div class="fx-twin">
+        <div><h3 class="fx-h3">Gelir kalemleri</h3><table class="fx-table compact click-rows" id="inTable"><tbody></tbody></table></div>
+        <div><h3 class="fx-h3">Gider kalemleri</h3><table class="fx-table compact click-rows" id="outTable"><tbody></tbody></table></div>
+      </div>
+    </section>
+
+    <section class="fx-row r-1-1">
+      <article class="fx-card">
+        <header class="fx-card-h"><div><h2>Bütçeler</h2><p class="fx-note" id="budgetNote">Bu ayın harcaması · çizgi: bugün itibarıyla olmanız gereken yer</p></div><button type="button" id="toggleBudget" class="fx-btn ghost">Bütçe ekle</button></header>
+        <form id="budgetForm" class="fx-form two" hidden>
+          <label>Kategori<select name="category" id="budgetCategory"></select></label>
+          <label>Aylık limit (₺)<input name="monthly" inputmode="decimal" placeholder="5.000" required></label>
+          <div class="full fx-form-actions"><button type="submit" class="fx-btn">Kaydet</button></div>
+        </form>
+        <div id="budgets"></div>
+      </article>
+      <article class="fx-card fx-review">
+        <header class="fx-card-h"><div><h2>Ayın değerlendirmesi</h2><p class="fx-note">Jarvis bu dönemin rakamlarından yazdı · veriler sunucudan çıkmaz</p></div></header>
+        <div id="review"></div>
+      </article>
+    </section>
+
+    <section class="fx-row r-1-1">
+      <article class="fx-card">
+        <header class="fx-card-h"><div><h2>Nakit akışı</h2><p class="fx-note">Son 6 ay · kendi hesaplar arası hariç</p></div>
+          <ul class="fx-legend inline"><li><i class="sq cf-in"></i>Gelen</li><li><i class="sq cf-out"></i>Harcanan</li></ul></header>
+        <div class="fx-chart" id="flowChart"></div>
+        <table class="fx-table compact" id="flowTable"><thead><tr><th>Ay</th><th class="num">Gelen</th><th class="num">Harcanan</th><th class="num">Net</th></tr></thead><tbody></tbody></table>
+      </article>
+      <article class="fx-card">
+        <header class="fx-card-h"><div><h2>Harcama dağılımı</h2><p class="fx-note">Son 6 ay · en büyük 5 kategori · bir dilime dokunun, o ayın kalemleri açılır</p></div></header>
+        <div class="fx-chart" id="mixChart"></div>
+        <ul class="fx-legend" id="mixLegend"></ul>
+      </article>
+    </section>
+
+    <section class="fx-card">
+      <header class="fx-card-h"><div><h2>Kategoriler</h2><p class="fx-note">Bir satıra dokunun: kategorinin 6 aylık seyri, en çok ödenen yerler ve hareketleri açılır.</p></div></header>
+      <div class="fx-table-wrap"><table class="fx-table" id="categoryTable"><thead><tr><th>Kategori</th><th class="num">Tutar</th><th class="share">Pay</th><th class="num">Önceki dönem</th><th class="num">Değişim</th><th class="num">İşlem</th></tr></thead><tbody></tbody></table></div>
+    </section>
+
+    <section class="fx-row r-1-1">
+      <article class="fx-card" id="calendarCard">
+        <header class="fx-card-h"><div><h2>Takvim</h2><p class="fx-note" id="calendarNote">Günlük harcama yoğunluğu</p></div>
+          <div class="fx-ramp" aria-hidden="true"><span>Az</span><i class="h1"></i><i class="h2"></i><i class="h3"></i><i class="h4"></i><i class="h5"></i><span>Çok</span></div></header>
+        <div class="fx-calendar" id="calendar"></div>
+      </article>
+      <article class="fx-card">
+        <header class="fx-card-h"><div><h2>Haftanın günleri</h2><p class="fx-note">Son 90 gün</p></div></header>
+        <div class="fx-chart" id="weekdayChart"></div>
+      </article>
+    </section>
+
+    <section class="fx-row r-1-1-1">
+      <article class="fx-card"><header class="fx-card-h"><div><h2>Kimin hesabına</h2><p class="fx-note">Son 6 ay · altta bu dönem</p></div></header><div class="fx-chart" id="scopeTrend"></div><div id="scopeChart"></div></article>
+      <article class="fx-card"><header class="fx-card-h"><h2>En çok ödenen</h2></header><div id="partyList" class="fx-bars"></div></article>
+      <article class="fx-card"><header class="fx-card-h"><div><h2>Düzenli ödemeler</h2><p class="fx-note">2+ ayda benzer tutarla tekrar edenler</p></div></header><div id="recurring"></div></article>
+    </section>
+
+    <section class="fx-row r-1-1">
+      <article class="fx-card">
+        <header class="fx-card-h"><div><h2>Bu ne için?</h2><p class="fx-note">Her hareket ayrı, tarihiyle. Birini etiketleyin; “Hepsi böyle” işaretlerseniz o kişinin etiketsiz diğer hareketleri de aynı olur.</p></div><span class="fx-pill" id="questionCount"></span></header>
+        <div id="questions"></div>
+      </article>
+      <article class="fx-card">
+        <header class="fx-card-h"><div><h2>Anlaşmalar ve borçlar</h2><p class="fx-note">Aylık ödemeler, sırayla aylara dağıtılır.</p></div><button type="button" id="toggleRule" class="fx-btn ghost">Anlaşma ekle</button></header>
+        <form id="ruleForm" class="fx-form" hidden>
+          <label>Kişi / firma<input name="party" required maxlength="80" list="partyNames" autocomplete="off"></label><datalist id="partyNames"></datalist>
+          <label>Ne için<select name="category" id="ruleCategory"></select></label>
+          <label>Kimin hesabına<select name="scope" id="ruleScope"></select></label>
+          <label>Aylık tutar (₺)<input name="monthly" inputmode="decimal" placeholder="12.000"></label>
+          <label>Başlangıç ayı<input name="start_month" type="month"></label>
+          <label>Bitiş ayı<input name="end_month" type="month"></label>
+          <label class="full">Not<input name="note" maxlength="300"></label>
+          <div class="full fx-form-actions"><button type="submit" class="fx-btn">Kaydet</button></div>
+        </form>
+        <div id="agreements"></div>
+      </article>
+    </section>
+
+    <section class="fx-card">
+      <header class="fx-card-h"><div><h2>Eşleşen para akışları</h2><p class="fx-note">Gelen para iki gün içinde başka yerlere gittiyse Jarvis ikisini eşler. Başkası adına geçen para (aracılık) ne gelir ne gider sayılır; kendi borcunuza gittiyse yalnız açıklama olur.</p></div><span class="fx-pill" id="flowCount"></span></header>
+      <div id="flows" class="fx-links"></div>
+    </section>
+
+    <section class="fx-card">
+      <header class="fx-card-h"><div><h2>Hareketler</h2><p class="fx-note" id="movementNote"></p></div><button type="button" id="toggleAdd" class="fx-btn ghost">Hareket ekle</button>
+        <div class="fx-filters"><input id="search" type="search" placeholder="Kişi, firma, not ara" aria-label="Ara"><select id="categoryFilter" aria-label="Kategori"></select><select id="directionFilter" aria-label="Yön"><option value="">Giren ve çıkan</option><option value="out">Yalnız çıkan</option><option value="in">Yalnız giren</option></select></div></header>
+      <form id="addForm" class="fx-form" hidden>
+        <label>Tarih<input name="date" id="addDate" type="date" required></label>
+        <label>Giren / çıkan<select name="direction" id="addDirection"><option value="out">Çıkan (harcama, gönderilen)</option><option value="in">Giren</option></select></label>
+        <label>Tutar (₺)<input name="amount" inputmode="decimal" placeholder="2.500" required></label>
+        <label>Kişi / firma<input name="party" required maxlength="80" list="partyNames" autocomplete="off"></label>
+        <label>Ne için<select name="category" id="addCategory"></select></label>
+        <label>Kimin hesabına<select name="scope" id="addScope"></select></label>
+        <label>Alt kalem<input name="subcategory" maxlength="40" list="subList"></label>
+        <label class="full">Not<input name="note" maxlength="300" placeholder="ör. nakit ödendi, bankada görünmüyor"></label>
+        <div class="full fx-form-actions"><button type="submit" class="fx-btn">Ekle</button></div>
+      </form>
+      <div class="fx-table-wrap fx-cards"><table class="fx-table movements"><thead><tr><th><button type="button" data-sort="tx_date">Tarih</button></th><th>Kişi / firma</th><th>Ne için</th><th>Alt kalem</th><th>Kimin hesabına</th><th>Hesap</th><th class="num"><button type="button" data-sort="amount_cents">Tutar</button></th><th aria-label="İşlem"></th></tr></thead><tbody id="movementRows"></tbody></table></div>
+      <div class="fx-more"><button type="button" id="moreRows" class="fx-btn ghost" hidden>Daha fazla göster</button></div>
+    </section>
+
+    <section class="fx-card fx-upload">
+      <header class="fx-card-h"><div><h2>Veri ekle</h2><p class="fx-note">Hesap dökümü PDF’i, kart ekstresi veya banka uygulamasının hareket ekranı görüntüsü. Aynı hareket birden çok dosyada olsa da bir kez sayılır; bankanın e-postayla gönderdiği ekstreler günde dört kez kendiliğinden okunur.</p></div></header>
+      <form id="uploadForm" class="fx-upload-form"><label class="fx-drop">Dosya seç<input id="files" type="file" multiple accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,application/pdf"></label><label class="fx-upload-book">Hangi defter<select id="uploadBook" aria-label="Hangi defter"><option value="">Kendisi anlasın</option><option value="kisisel">Kişisel</option><option value="lemos">Lemos şirket (QNB)</option><option value="moy">MOY şirket (Enpara Şirketim)</option></select></label><button type="submit" id="uploadButton" class="fx-btn">Oku ve ekle</button><p id="uploadResult" class="fx-note" aria-live="polite"></p></form>
+    </section>
+    <dialog id="catDialog" class="fx-dialog" aria-labelledby="catTitle">
+      <header class="fx-card-h"><div class="fx-dlg-title"><span class="fx-ic big" id="catIcon"></span><div><h2 id="catTitle">Kategori</h2><p class="fx-note" id="catSub"></p></div></div><button type="button" id="catClose" class="fx-btn ghost" aria-label="Kapat">Kapat</button></header>
+      <div class="fx-dlg-stats" id="catStats"></div>
+      <h3 class="fx-h3">Son 6 ay</h3><div class="fx-chart" id="catTrend"></div>
+      <div class="fx-dlg-cols"><div><h3 class="fx-h3">Alt kalemler</h3><div id="catSubs" class="fx-bars"></div></div><div><h3 class="fx-h3" id="catPartyTitle">En çok ödenen</h3><div id="catParties" class="fx-bars"></div></div></div>
+      <h3 class="fx-h3">Hareketler <span class="fx-note" id="catMoveNote"></span></h3>
+      <p class="fx-note">Kategori, alt kalem veya hesap başlığını değiştirip “Kaydet”e basın. “Hep böyle” işaretliyse o kişi/firmanın bütün ödemeleri buna göre etiketlenir.</p>
+      <div class="fx-table-wrap fx-cards"><table class="fx-table edit"><thead><tr><th>Tarih</th><th>Kişi / firma</th><th>Ne için</th><th>Alt kalem</th><th>Kimin hesabına</th><th class="num">Tutar</th><th></th></tr></thead><tbody id="catMoves"></tbody></table></div>
+    </dialog>
+    <dialog id="otherDialog" class="fx-dialog narrow" aria-labelledby="otherTitle">
+      <header class="fx-card-h"><div><h2 id="otherTitle">Diğer</h2><p class="fx-note" id="otherSub"></p></div><button type="button" id="otherClose" class="fx-btn ghost">Kapat</button></header>
+      <table class="fx-table click-rows" id="otherTable"><tbody></tbody></table>
+    </dialog>
+    <datalist id="subList"></datalist>
+    <div id="tooltip" class="fx-tip" role="status" hidden></div>
+  </main>
+</body>
+</html>

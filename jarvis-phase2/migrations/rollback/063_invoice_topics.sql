@@ -1,0 +1,4 @@
+BEGIN;
+ALTER TABLE core.jarvis_invoice_line DROP COLUMN IF EXISTS theme, DROP COLUMN IF EXISTS business, DROP COLUMN IF EXISTS product;
+ALTER TABLE core.jarvis_invoice DROP COLUMN IF EXISTS theme, DROP COLUMN IF EXISTS business;
+COMMIT;

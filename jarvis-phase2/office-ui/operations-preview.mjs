@@ -1,0 +1,31 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import {chromium} from 'playwright';
+import {createServer} from 'vite';
+const snapshot=JSON.parse(await fs.readFile('../../../office-preview-data.json','utf8'));
+const agents=JSON.parse(await fs.readFile('../../../office-preview-agents.json','utf8'));
+const operations=JSON.parse(await fs.readFile('../../../operations-preview.json','utf8'));
+const output='../../../../outputs/v4/';
+const server=await createServer({configFile:'vite.config.js',server:{host:'127.0.0.1',port:5177,strictPort:true}});await server.listen();await server.watcher.close();
+const browser=await chromium.launch({headless:true,executablePath:'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',args:['--use-gl=angle','--use-angle=swiftshader','--disk-cache-size=1','--media-cache-size=1','--disable-gpu-shader-disk-cache']});
+try{
+ const page=await browser.newPage({viewport:{width:1440,height:1000},reducedMotion:'reduce'});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.route('**/katalog-gorsel/*',r=>r.fulfill({path:'../../../office-preview-images/'+new URL(r.request().url()).pathname.split('/').pop()}));
+ await page.route('**/api/**',async r=>{const p=new URL(r.request().url()).pathname;if(p==='/api/office/events')return r.fulfill({contentType:'text/event-stream',body:'event: snapshot\ndata: {"active":{}}\n\n'});let data={};if(p==='/api/session')data={authenticated:true,csrf_token:'test'};if(p==='/api/panel/ekip')data=snapshot;if(p==='/api/panel/ajanlar')data=agents;if(p==='/api/panel/ofis')data=operations;
+ if(p==='/api/office/followup'){const body=r.request().postDataJSON();assert.equal(r.request().headers()['x-csrf-token'],'test');const item=operations.items.find(i=>i.id===body.id);Object.assign(item,body,{version:item.version+1});data=item;}
+ if(p==='/api/office/acknowledge'){const body=r.request().postDataJSON();operations.items.find(i=>i.id===body.id).new=false;data={ok:true};}
+ if(p==='/api/office/source-check')data={ok:false,last_success:null,results:[],note:'Kaynak okuması doğrulanamadı.'};
+ return r.fulfill({contentType:'application/json',body:JSON.stringify(data)});});
+ await page.goto('http://127.0.0.1:5177/office.html');await page.locator('#departmentCount').filter({hasText:'50'}).waitFor();await page.locator('#officeLife').uncheck();await page.locator('#qualityMode').selectOption('low');await page.locator('#operationsStatus').filter({hasText:'takip'}).waitFor();
+ assert.equal(await page.locator('.scene-label').count(),50);assert.equal(await page.locator('#officeMinimap button').count(),50);console.log('50 birim ve gerçek takip kayıtları yüklendi');
+ await page.locator('.favorite-button').first().click();await page.locator('#favoriteOnly').check();assert.equal(await page.locator('.department-row').count(),1);await page.locator('#favoriteOnly').uncheck();await page.locator('#problemOnly').check();assert.ok(await page.locator('.department-row').count()<50);await page.locator('#problemOnly').uncheck();
+ console.log('Favori ve sorun filtreleri geçti');await page.locator('#showOperations').click();const dialog=page.locator('.ops-dialog');await dialog.locator('h2').filter({hasText:'Birim çalışma tahtası'}).waitFor();assert.equal(await dialog.locator('.ops-card').count(),operations.items.length);
+ await dialog.getByRole('button',{name:'Kaydı aç ve takibi düzenle'}).first().click();const form=dialog.locator('form');await form.getByLabel('Birim',{exact:true}).selectOption('WEB');await form.getByLabel('Sorumlu',{exact:true}).selectOption(operations.members.WEB[0].key);await form.getByLabel('Teslim tarihi').fill('2026-11-05');await form.getByLabel('Çözüm açıklaması').fill('Kaynak kapsamı incelemesi planlandı.');await form.getByRole('button',{name:'Takibi kaydet'}).click();await dialog.getByText('Takip kaydı kaydedildi.',{exact:true}).waitFor();
+ console.log('Sorumlu ve tarih kaydı geçti');await dialog.getByRole('button',{name:'İK takibi',exact:true}).click();await page.screenshot({clip:await dialog.boundingBox(),path:output+'01-ik-ve-is-takibi.png',timeout:60000});
+ await dialog.getByRole('button',{name:'Bağlantılar',exact:true}).click();await dialog.getByRole('button',{name:'Okuma denetimini çalıştır'}).first().click();await dialog.getByText('Kaynak okuması doğrulanamadı.',{exact:true}).waitFor();await page.screenshot({clip:await dialog.boundingBox(),path:output+'02-baglanti-merkezi.png',timeout:60000});
+ console.log('Bağlantı denetimi geçti');await dialog.getByRole('button',{name:'Ürünler',exact:true}).click();await dialog.locator('img').first().waitFor();assert.equal(await dialog.locator('.ops-card').count(),100);await dialog.getByRole('searchbox').fill('BABY RESCUE');assert.ok(await dialog.locator('.ops-card').count()>=1);assert.ok(!(await dialog.innerText()).includes('Invalid Date'));await page.screenshot({clip:await dialog.boundingBox(),path:output+'03-gercek-urun-karti.png',timeout:60000});
+ console.log('Ürün kartları geçti');await dialog.getByRole('button',{name:'Kapat',exact:true}).click();await page.locator('#showRetail').click();await page.screenshot({clip:await page.locator('#sceneFrame').boundingBox(),path:output+'04-gercek-urunlu-sergi.png',timeout:60000});
+ await page.setViewportSize({width:390,height:844});await page.locator('#qualityMode').selectOption('auto');assert.equal(await page.locator('#scene').getAttribute('data-quality'),'low');await page.locator('#showOperations').click();await dialog.locator('h2').filter({hasText:'Birim çalışma tahtası'}).waitFor();assert.ok(await dialog.evaluate(e=>e.scrollWidth<=e.clientWidth+1));await page.screenshot({clip:await dialog.boundingBox(),path:output+'05-mobil-calisma-merkezi.png',timeout:60000});
+ await page.route('**/api/panel/ofis',r=>r.abort());await dialog.getByRole('button',{name:'Kayıtları yenile',exact:true}).click();await dialog.locator('.ops-notice').waitFor();assert.match(await dialog.locator('.ops-notice').innerText(),/İşlem tamamlanamadı/);assert.ok(!(await dialog.locator('.ops-notice').innerText()).includes('fetch'));
+ assert.deepEqual(errors,[]);console.log(JSON.stringify({rooms:50,products:100,images:35,assignment:true,favorites:true,mobile:true,errors}));
+}finally{await browser.close();await server.close();}

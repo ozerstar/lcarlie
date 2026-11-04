@@ -1,0 +1,46 @@
+<!doctype html>
+<html data-lcarlie-theme="botanical" lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f7f5ef">
+  <title>Fiş ve Faturalar · L’carlie</title>
+  <link rel="stylesheet" href="/belgeler.css?v=5">
+  <script defer src="/belgeler.js?v=6"></script>
+<link rel="stylesheet" href="/lcarlie-theme.css?v=1">
+<script defer src="/lcarlie-identity.js?v=1"></script>
+</head>
+<body>
+  <main class="page">
+    <header class="top"><a href="/">← L’carlie</a><span>L’CARLIÉ / BELGE ARŞİVİ</span></header>
+    <section class="hero"><div><p class="eyebrow">GÜNLÜK GİDER BELGELERİ</p><h1>Fiş ve Faturalar</h1><p>Fişler ortak havuzda, faturalar Lemos ve MOY altında saklanır. Asıl görseller korunur.</p></div><div class="hero-mark" aria-hidden="true">↥</div></section>
+    <p id="error" class="error" role="alert" hidden></p>
+    <section class="grid">
+      <div class="card upload"><div class="section-head"><div><p class="eyebrow">BELGE EKLE</p><h2>Fotoğraf çek veya dosya yükle</h2></div></div>
+        <form id="uploadForm"><div class="fields"><label>Belge türü<select name="kind"><option value="receipt">Fiş · ortak</option><option value="invoice">Fatura</option></select></label><label id="companyLabel" hidden>Fatura şirketi<select name="company"><option value="lemos">Lemos</option><option value="moy">MOY</option><option value="unknown">Henüz belli değil</option></select></label></div>
+          <label class="file-pick">Dosya seç<input id="files" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,application/pdf" multiple></label>
+          <label class="camera-pick">📷 Kamerayla çek<input id="camera" type="file" accept="image/*" capture="environment"></label>
+          <p class="hint">JPG, PNG, WebP veya PDF · her dosya en fazla 12 MB. Birden fazla dosyayı birlikte seçebilirsiniz.</p>
+          <button id="uploadButton" type="submit">Belgeleri kaydet</button><p id="uploadResult" class="hint" aria-live="polite"></p>
+        </form>
+      </div>
+      <div class="card mail"><p class="eyebrow">E-POSTA VE AY SONU</p><h2>Gelen faturalar</h2><p id="mailStatus">Bağlantı kontrol ediliyor…</p><a id="connectGoogle" href="/google/start" hidden>Gmail okuma iznini bağla ↗</a><p class="hint"><strong>E-postayla fiş:</strong> fotoğrafı Jarvis’e bağlı Gmail adresinize konu satırına <strong>fiş</strong> yazarak gönderin; gün içinde dört kez taranır.</p><hr><p>Ayın son günü fişler ve şirketlere ayrılmış faturalar <strong>moy.ozeryildiz@gmail.com</strong> adresine ZIP ekiyle gönderilir. İncelenmemiş faturalar ayrı klasörde belirtilir; pakette kategori özeti de bulunur.</p><div id="dispatchStatus" class="hint"></div></div>
+    </section>
+    <section class="grid insights">
+      <div class="card"><p class="eyebrow">AYLIK GÖRÜNÜM</p><h2>Gider özeti</h2><p class="hint">Belge tarihine göre; ay seçimi arşivdeki ay ile aynıdır. Pakete alınmayan belgeler sayılmaz.</p><div id="summaryBox"><p class="hint">Yükleniyor…</p></div></div>
+      <div class="card"><p class="eyebrow">DÜZENLİ ÖDEMELER</p><h2>Abonelikler</h2><p class="hint">En az iki farklı ay faturası gelen yazılım/sunucu ödemeleri. Önceki aya göre %5’ten fazla artışta telefonunuza bildirim gelir.</p><div id="subsBox"><p class="hint">Yükleniyor…</p></div></div>
+    </section>
+    <section class="card cardmatch"><div class="section-head"><div><p class="eyebrow">KART EKSTRESİ</p><h2>Kart harcaması ↔ fiş</h2></div></div>
+      <p class="hint">Kredi kartı ekstresi PDF’i, hesap dökümü veya banka uygulamasındaki hareket listesinin ekran görüntülerini yükleyin. Aynı harcama birden fazla görüntüde olsa da bir kez sayılır. Transfer, maaş, EFT, ATM, faiz ve ödeme satırları kaydedilmez.</p>
+      <form id="cardForm"><label class="file-pick">Ekstre veya ekran görüntüsü seç<input id="cardFiles" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,application/pdf" multiple></label><button id="cardButton" type="submit">Ekstreyi oku ve eşleştir</button><p id="cardResult" class="hint" aria-live="polite"></p></form>
+      <nav class="filters" aria-label="Kart hareketleri"><button type="button" data-card="open" class="active">Fişi eksik <span id="cardOpen">0</span></button><button type="button" data-card="matched">Eşleşti <span id="cardMatched">0</span></button><button type="button" data-card="ignored">Fişi gerekmiyor <span id="cardIgnored">0</span></button></nav>
+      <div id="cardLines" class="card-lines"><p class="hint">Bu ay için kart hareketi yok.</p></div>
+    </section>
+    <section class="card archive"><div class="section-head"><div><p class="eyebrow">ARŞİV</p><h2>Belgeler</h2></div><label>Ay<input id="period" type="month"></label></div>
+      <nav class="filters" aria-label="Belge klasörleri"><button type="button" data-filter="review" class="active">İnceleme kuyruğu <span id="countReview">0</span></button><button type="button" data-filter="common">Ortak fişler <span id="countCommon">0</span></button><button type="button" data-filter="lemos">Lemos faturaları <span id="countLemos">0</span></button><button type="button" data-filter="moy">MOY faturaları <span id="countMoy">0</span></button><button type="button" data-filter="unknown">Şirketi belirsiz <span id="countUnknown">0</span></button></nav>
+      <div id="documents" class="documents"><p>Belgeler yükleniyor…</p></div>
+    </section>
+  </main>
+  <dialog id="editDialog"><div class="edit-layout"><aside class="proof"><h2>Belgenin aslı</h2><img id="documentPreview" alt="Belge önizlemesi"><a id="documentOriginal" target="_blank" rel="noopener">Tüm sayfaları yeni sekmede aç ↗</a></aside><form id="editForm"><div class="section-head"><h2>Belge bilgileri</h2><button type="button" id="closeDialog" class="ghost" aria-label="Kapat">×</button></div><p id="missingFields" class="hint" hidden></p><input name="id" type="hidden"><div class="fields"><label>Tür<select name="kind"><option value="receipt">Fiş · ortak</option><option value="invoice">Fatura</option></select></label><label>Şirket<select name="company"><option value="common">Ortak fiş</option><option value="lemos">Lemos</option><option value="moy">MOY</option><option value="unknown">İncelenecek</option></select></label><label>Belge tarihi<input name="document_date" type="date"></label><label>Satıcı<input name="supplier" maxlength="200"></label><label>Alıcı<input name="buyer" maxlength="200"></label><label>Fatura numarası<input name="invoice_number" maxlength="100"></label><label>Toplam<input name="gross" inputmode="decimal" placeholder="0,00"></label><label>KDV<input name="tax" inputmode="decimal" placeholder="0,00"></label><label>Para birimi<input name="currency" maxlength="3" value="TRY"></label><label>Kategori<select name="category" id="categorySelect"><option value="">Belirlenmedi</option></select></label><label>Durum<select name="status"><option value="ready">Kontrol edildi</option><option value="review">İncelenecek</option><option value="excluded">Aylık pakete alma</option></select></label></div><label id="relatedLabel">Bu fişin faturası<select name="related_document_id"><option value="">Eşleştirilmedi</option></select></label><p class="hint" id="relatedHint">Aynı harcamaya ait faturayı seçin. Her iki orijinal belge korunur.</p><label>Not<textarea name="note" rows="3" maxlength="2000"></textarea></label><p id="editError" class="error" role="alert" hidden></p><button type="submit">Bilgileri kaydet</button></form></div></dialog>
+</body>
+</html>

@@ -1,0 +1,24 @@
+description: Jarvis HR evidence and connection regression checks; no external model calls
+providers:
+  - file://hr_eval_provider.py
+prompts:
+  - '{{snapshot}}'
+tests:
+  - description: Disconnected RND source remains visible despite successful internal reading
+    vars:
+      snapshot: '[{"kod":"RND","birim_durumu":"YOK","uyeler":[{"key":"yeni_urun_on_arastirma","ad":"Araştırmacı","durum":"KONUŞTU"}]}]'
+    assert:
+      - type: javascript
+        value: '(() => { const r=JSON.parse(output); return r.source_missing===1 && !r.findings.some(f=>f.kind.startsWith("member_")) && r.read_only; })()'
+  - description: Partial read must be surfaced even when member spoke
+    vars:
+      snapshot: '[{"kod":"META_MEDIA","birim_durumu":"CALISIYOR","uyeler":[{"key":"meta_performance","ad":"Analist","durum":"KONUŞTU","eksik":["advertising_spend"]}]}]'
+    assert:
+      - type: javascript
+        value: '(() => { const r=JSON.parse(output); return r.source_missing===0 && r.findings.some(f=>f.detail.includes("advertising_spend")); })()'
+  - description: Missing state must never become healthy
+    vars:
+      snapshot: '[{"kod":"NEW","uyeler":[]}]'
+    assert:
+      - type: javascript
+        value: '(() => { return JSON.parse(output).findings.some(f=>f.kind==="source_unknown"); })()'
