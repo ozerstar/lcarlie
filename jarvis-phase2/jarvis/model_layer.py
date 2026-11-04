@@ -684,7 +684,7 @@ class ModelRouter:
         kademe_kaydi.kaydet(
             uc="-", kademe=None, sonuc=kademe_kaydi.SONUC_ZINCIR_TUKENDI,
             deneme=attempts, escalate=escalate, is_anahtari=is_anahtari)
-        raise ModelUnavailable("no model provider could answer")
+        raise ModelUnavailable("Yanıt hizmetlerinden cevap alınamadı. Biraz sonra yeniden deneyin.")
 
     # -- the two capabilities this layer exposes ------------------------
     def synthesize(self, question: str, evidence: Iterable[dict[str, Any]],
@@ -705,7 +705,8 @@ class ModelRouter:
                     + f"SORU: {question}")
         # Prior turns sit between the system prompt and the new question, so
         # "onu değil, diğerini" has something to refer back to.
-        messages = ([{"role": "system", "content": system or GROUNDING_SYSTEM}]
+        from .display_language import POLICY, foreign, display
+        messages = ([{"role": "system", "content": (system or GROUNDING_SYSTEM) + "\n\n" + POLICY}]
                     + list(history or [])
                     + [{"role": "user", "content": user}])
         if system is None:
@@ -780,8 +781,11 @@ class ModelRouter:
         else:
             confidence = "HIGH" if len(refs) >= 3 else "MEDIUM"
 
+        answer = result["text"].strip()
+        if not answer or foreign(answer):
+            raise ModelUnavailable("Türkçe ve açıklayıcı bir yanıt hazırlanamadı. Yeniden deneyebilirsiniz.")
         return ModelResult(
-            answer=result["text"].strip(),
+            answer=display(answer),
             evidence_refs=refs,               # what we read, never what it wrote
             confidence=confidence, missing_data=missing,
             model=result.get("model"), tier=tier, model_calls=calls,
@@ -793,6 +797,41 @@ class ModelRouter:
         )
 
     def stream_text(self, question: str, system: str, max_tokens: int = 160,
+                    history: list[dict[str, str]] | None = None,
+                    escalate: bool = False):
+        # 🔴 GERÇEK AKIŞ — 04.11.2026. Önceki hâli bütün cevabı list() ile
+        # toplayıp tek parça veriyordu (panelde parca=1). Dil kapısı zaten
+        # chat.stream'de: açılış Türkçe kanıtlanmadan token bırakılmaz, İngilizce
+        # taslak `done`da yeniden yazılır. Burada parçalar kelime sınırında
+        # display() ile süzülüp anında akar.
+        # Açılış (ilk ~8 kelime) Türkçe kanıtlanana kadar tutulur; İngilizce
+        # taslak hiç sızmaz ve kısa cevap tek parça gelir (eski sözleşme).
+        from .display_language import POLICY, display, foreign
+        acilis = ""
+        acildi = False
+        tampon = ""
+        for parca in self._stream_text_raw(question, system + "\n\n" + POLICY,
+                                           max_tokens, history, escalate):
+            if not acildi:
+                acilis += parca
+                if len(re.findall(r"\w+", acilis)) >= 8 and not foreign(acilis):
+                    acildi, tampon = True, acilis.lstrip()
+                else:
+                    continue
+            else:
+                tampon += parca
+            kes = max(tampon.rfind(" "), tampon.rfind("\n"))
+            if kes > 0:
+                hazir, tampon = tampon[:kes + 1], tampon[kes + 1:]
+                yield display(hazir)
+        if not acildi:
+            if not acilis.strip() or foreign(acilis):
+                raise ModelUnavailable("Türkçe bir yanıt hazırlanamadı. Yeniden deneyebilirsiniz.")
+            yield display(acilis.strip())
+        elif tampon:
+            yield display(tampon)
+
+    def _stream_text_raw(self, question: str, system: str, max_tokens: int = 160,
                     history: list[dict[str, str]] | None = None,
                     escalate: bool = False):
         """Stream a conversational reply.
@@ -831,7 +870,7 @@ class ModelRouter:
                     yield parca
             except Exception:  # noqa: BLE001 - dis akis dusunce yerele inilir
                 if uretildi:
-                    return  # yarim cevabi baska modelle TAMAMLAMA
+                    raise ModelUnavailable("Yanıt tamamlanmadan bağlantı kesildi. Yeniden deneyin.")  # noqa: B904
             else:
                 if uretildi:
                     return
@@ -851,7 +890,7 @@ class ModelRouter:
                     yield delta
             except (urllib.error.URLError, TimeoutError, OSError, ValueError):
                 if produced:
-                    return
+                    raise ModelUnavailable("Yanıt tamamlanmadan bağlantı kesildi. Yeniden deneyin.")  # noqa: B904
             else:
                 if produced:
                     return

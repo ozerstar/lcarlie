@@ -785,7 +785,7 @@ qs('findingTask').addEventListener('click', async () => {
     if (!ok || !body?.ok) throw new Error(body?.error || 'Takip işi kaydedilemedi.');
     qs('findingStatus').textContent = `Takip işi #${body.id} kaydedildi. Raporlar bölümündeki Gelişim Döngüsü'nde izlenebilir; dış değişiklik uygulanmadı.`;
   } catch (error) {
-    qs('findingStatus').textContent = error.message || 'Takip işi kaydedilemedi.';
+    qs('findingStatus').textContent = JarvisDil.error(error.message, 'Takip işi kaydedilemedi. Yeniden deneyin.');
   } finally { button.disabled = false; }
 });
 
@@ -1252,7 +1252,7 @@ document.addEventListener('keydown', (e) => {
  * grounded answers actually produce: headings, bold, inline code, code
  * blocks, lists, simple tables. */
 function renderMarkdownLite(raw) {
-  const escaped = escapeHtml(raw);
+  const escaped = escapeHtml(JarvisDil.text(raw));
   const lines = escaped.split('\n');
   let html = '';
   let inList = false;
@@ -1322,7 +1322,7 @@ function renderAnswerBody(body) {
   if (body.source === 'operator.inspect' && body.data) {
     return renderProposalCard(body.data);
   }
-  return renderMarkdownLite(body.text || '(boş yanıt)') + renderDetailBlocks(body.details);
+  return renderMarkdownLite(body.text || 'Bu soru için yanıt hazırlanamadı. Yeniden deneyin.') + renderDetailBlocks(body.details);
 }
 
 /* ---------------- chat: send / stream / stop / retry / copy ----------------
@@ -1409,20 +1409,20 @@ async function sendMessage(message) {
           const result = event.result;
           if (result.kind === 'REQUIRES_REASONING_CAPABILITY') {
             stageDiv.className = 'chat-msg jarvis reasoning';
-            stageDiv.innerHTML = escapeHtml(result.message);
-            spoken = result.message || '';
+            stageDiv.innerHTML = escapeHtml(JarvisDil.error(result.message));
+            spoken = JarvisDil.error(result.message);
           } else if (result.kind === 'ERROR') {
             stageDiv.className = 'chat-msg jarvis';
-            stageDiv.innerHTML = 'Anlaşılamadı: ' + escapeHtml(result.message);
-            spoken = 'Anlaşılamadı. ' + (result.message || '');
+            stageDiv.innerHTML = 'Anlaşılamadı: ' + escapeHtml(JarvisDil.error(result.message));
+            spoken = 'Anlaşılamadı. ' + JarvisDil.error(result.message);
           } else {
             stageDiv.className = 'chat-msg jarvis';
             stageDiv.innerHTML = renderAnswerBody(result);
-            spoken = result.text || streamed || '';
+            spoken = JarvisDil.text(result.text || streamed || '');
           }
         } else if (event.type === 'error') {
-          stageDiv.innerHTML = 'Hata: ' + escapeHtml(event.message);
-          spoken = 'Hata. ' + (event.message || '');
+          stageDiv.innerHTML = 'Hata: ' + escapeHtml(JarvisDil.error(event.message));
+          spoken = 'Hata. ' + JarvisDil.error(event.message);
         }
       }
       log_scroll();
@@ -1432,7 +1432,7 @@ async function sendMessage(message) {
       stageDiv.innerHTML = 'Bağlantı kesildi.';
       spoken = 'Bağlantı kesildi.';
     } else {
-      stageDiv.innerHTML = '(durduruldu)';
+      stageDiv.innerHTML = 'Yanıt sizin isteğinizle durduruldu.';
       spoken = '';
     }
   } finally {
@@ -2221,7 +2221,7 @@ document.addEventListener('submit', async (event) => {
     await postJSON('/api/improvement', data);
     message.textContent = 'Kaydedildi.';
     await loadSection('raporlar');
-  } catch (error) { message.textContent = error.message || String(error); }
+  } catch (error) { message.textContent = JarvisDil.error(error.message || String(error)); }
   finally { button.disabled = false; }
 });
 
@@ -2918,7 +2918,7 @@ async function loadSection(name) {
         : name === 'raporlar' ? `${data.finding_total || 0} kayıt` : 'salt okunur';
     }
   } catch (err) {
-    body.innerHTML = `<p class="sect-empty is-bad">Bölüm çizilemedi: ${escapeHtml(String(err.message || err))}</p>`;
+    body.innerHTML = `<p class="sect-empty is-bad">Bölüm çizilemedi: ${escapeHtml(JarvisDil.error(err.message || String(err)))}</p>`;
     if (count) count.textContent = 'hata';
   }
 }
@@ -4755,7 +4755,7 @@ document.addEventListener('click', async function (e) {
     if (durumEl) {
       durumEl.className = 'oo-durum oo-hata';
       /* Sessiz basarisizlik YOK: sebep ekranda yazar. */
-      durumEl.textContent = 'Karar kaydedilemedi: ' + String(err.message || err);
+      durumEl.textContent = JarvisDil.error(err.message || String(err), 'Karar kaydedilemedi. Yeniden deneyin.');
     }
   }
 });

@@ -88,7 +88,15 @@ import cari  # noqa: E402
 import cari_invoice  # noqa: E402
 import cari_draft  # noqa: E402
 import cari_channels  # noqa: E402
+import cari_reconciliation  # noqa: E402
+import cari_export  # noqa: E402
 import expense_vault  # noqa: E402
+import expense_insights  # noqa: E402
+import money_ledger  # noqa: E402
+import money_invoices  # noqa: E402
+import invoice_analysis  # noqa: E402
+import finance_overview  # noqa: E402
+import product_profit  # noqa: E402
 
 STATE_DIR = Path(os.environ.get("JARVIS_STATE_DIR", "/opt/lcarlie/jarvis-phase2/state"))
 image_jobs = ImageJobs(STATE_DIR)
@@ -810,8 +818,15 @@ def _chat_thread(session, mode: str, chat_id: str | None) -> str:
 
 
 def _scoped_events(events, thread: str):
+    from jarvis.display_language import public_errors, error_message
     with _cmem.thread_scope(thread):
-        yield from events
+        for event in events:
+            safe = public_errors(event)
+            if safe.get("type") == "error":
+                safe["message"] = error_message(safe.get("message", ""))
+            if isinstance(safe.get("result"), dict) and str(safe["result"].get("kind", "")).upper() in ("ERROR", "REASONING_UNAVAILABLE", "REQUIRES_REASONING_CAPABILITY"):
+                safe["result"]["message"] = error_message(safe["result"].get("message", ""))
+            yield safe
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -852,7 +867,8 @@ class Handler(BaseHTTPRequestHandler):
 
     # -- response helpers ---------------------------------------------------
     def _send_json(self, status: int, payload: dict, extra_headers: list[tuple[str, str]] | None = None) -> None:
-        body = json.dumps(payload, ensure_ascii=False, default=str).encode("utf-8")
+        from jarvis.display_language import public_errors
+        body = json.dumps(public_errors(payload, status), ensure_ascii=False, default=str).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
@@ -1625,6 +1641,25 @@ class Handler(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(raw)
                 return
+        if path == "/api/cari/export":
+            try:
+                mime, data, filename = cari_export.export(session.username, query)
+                self.send_response(200)
+                self.send_header("Content-Type", mime)
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Content-Disposition", 'attachment; filename="' + filename + '"')
+                self.send_header("Cache-Control", "private, no-store")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.end_headers()
+                self.wfile.write(data)
+            except cari.CariNotFound as exc:
+                self._send_json(404, {"error": str(exc)})
+            except cari.CariError as exc:
+                self._send_json(400, {"error": str(exc)})
+            except Exception:  # noqa: BLE001
+                traceback.print_exc()
+                self._send_json(503, {"error": "Rapor hazırlanamadı. Kayıtlar değiştirilmedi; yeniden deneyebilirsiniz."})
+            return
         if path == "/api/cari/documents/content":
             try:
                 mime, data = cari_invoice.content(session.username, (query.get("id") or [""])[0])
@@ -1653,10 +1688,88 @@ class Handler(BaseHTTPRequestHandler):
             except expense_vault.ExpenseError as exc:
                 self._send_json(404, {"error": str(exc)})
             return
+        if path == "/api/expenses/preview":
+            try:
+                mime, data = expense_vault.preview(session.username, (query.get("id") or [""])[0])
+                self.send_response(200)
+                self.send_header("Content-Type", mime)
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Cache-Control", "private, no-store")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.end_headers()
+                self.wfile.write(data)
+            except expense_vault.ExpenseError as exc:
+                self._send_json(404, {"error": str(exc)})
+            return
         if path == "/api/expenses":
             try:
                 self._send_json(200, expense_vault.list_documents(
                     session.username, (query.get("period") or [None])[0]))
+            except expense_vault.ExpenseError as exc:
+                self._send_json(400, {"error": str(exc)})
+            return
+        if path == "/api/expenses/insights":
+            try:
+                period = (query.get("period") or [""])[0]
+                self._send_json(200, {
+                    "summary": expense_insights.summary(session.username, period),
+                    "card": money_ledger.receipt_lines(session.username, period),
+                    "subscriptions": expense_insights.subscriptions(session.username),
+                    "categories": expense_insights.CATEGORIES})
+            except expense_vault.ExpenseError as exc:
+                self._send_json(400, {"error": str(exc)})
+            return
+        if path == "/api/money/invoice-analysis":
+            try:
+                self._send_json(200, invoice_analysis.analysis(session.username, (query.get("book") or ["lemos"])[0],
+                                                               (query.get("year") or [""])[0] or None, (query.get("month") or [""])[0]))
+            except expense_vault.ExpenseError as exc:
+                self._send_json(400, {"error": str(exc)})
+            return
+        if path == "/api/money/invoices":
+            try:
+                self._send_json(200, money_invoices.invoices(session.username, (query.get("book") or ["moy"])[0],
+                                                             (query.get("month") or [""])[0]))
+            except expense_vault.ExpenseError as exc:
+                self._send_json(400, {"error": str(exc)})
+            return
+        if path == "/api/money/category":
+            try:
+                self._send_json(200, money_ledger.category_detail(session.username, (query.get("key") or [""])[0],
+                    (query.get("day") or [""])[0], (query.get("scope") or [""])[0],
+                    (query.get("account") or [""])[0], (query.get("month") or [""])[0],
+                    (query.get("book") or ["kisisel"])[0]))
+            except expense_vault.ExpenseError as exc:
+                self._send_json(400, {"error": str(exc)})
+            return
+        if path == "/api/money/product-profit":
+            # L'CARLIÉ ürün maliyet / kâr tablosu (02.11.2026)
+            try:
+                self._send_json(200, product_profit.report(session.username, (query.get("alloc") or ["esit"])[0]))
+            except expense_vault.ExpenseError as exc:
+                self._send_json(400, {"error": str(exc)})
+            return
+        if path == "/api/money/overview":
+            # Finans Merkezi (02.11.2026): üç defter tek görünümde, aralarındaki para bir kez
+            try:
+                self._send_json(200, finance_overview.overview(session.username, (query.get("ws") or ["tumu"])[0],
+                    (query.get("view") or ["month"])[0], (query.get("day") or [""])[0] or None, (query.get("start") or [""])[0] or None, (query.get("end") or [""])[0] or None))
+            except expense_vault.ExpenseError as exc:
+                self._send_json(400, {"error": str(exc)})
+            return
+        if path == "/api/money/report":
+            try:
+                self._send_json(200, {
+                    "report": money_ledger.report(session.username, (query.get("view") or ["month"])[0],
+                                                  (query.get("day") or [""])[0], (query.get("scope") or [""])[0],
+                                                  (query.get("account") or [""])[0],
+                                                  (query.get("book") or ["kisisel"])[0]),
+                    "subcategories": money_ledger.SUBCATEGORIES,
+                    "questions": money_ledger.questions(session.username, book=(query.get("book") or ["kisisel"])[0]),
+                    "agreements": money_ledger.agreements(session.username),
+                    "categories": money_ledger.CATEGORIES, "out_categories": money_ledger.OUT_CATEGORIES,
+                    "in_categories": money_ledger.IN_CATEGORIES, "scopes": money_ledger.SCOPES,
+                    "books": money_ledger.BOOKS})
             except expense_vault.ExpenseError as exc:
                 self._send_json(400, {"error": str(exc)})
             return
@@ -2106,12 +2219,12 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/panel":
             # Bolum listesi: uc nokta kesfedilebilir olsun, arayuz sabit
             # isim listesi tasimak zorunda kalmasin.
-            self._send_json(200, {"sections": ["ekip", "veri", "ajanlar", "raporlar", "ayarlar"]})
+            self._send_json(200, {"sections": ["ekip", "veri", "ajanlar", "raporlar", "ayarlar", "holding", "ofis"]})
             return
         if path.startswith("/api/panel/"):
             section = path.rsplit("/", 1)[-1]
             builder = {"ekip": _panel_ekip, "veri": _panel_veri, "ajanlar": _panel_ajanlar,
-                       "raporlar": _panel_raporlar, "ayarlar": _panel_ayarlar}.get(section)
+                       "raporlar": _panel_raporlar, "ayarlar": _panel_ayarlar, "holding": _panel_holding, "ofis": lambda: _office_snapshot(session.username)}.get(section)
             if builder is None:
                 self._send_json(404, {"error": "unknown panel"})
                 return
@@ -2252,11 +2365,67 @@ class Handler(BaseHTTPRequestHandler):
                 traceback.print_exc()
                 self._send_json(503, {"error": "Belge yüklenemedi; listeyi kontrol edin."})
             return
-        if path in ("/api/expenses/update", "/api/expenses/process"):
+        if path == "/api/money/upload":
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if not 0 < length <= expense_vault.MAX_BYTES:
+                    raise expense_vault.ExpenseError("Dosya 12 MB veya daha küçük olmalı.")
+                self._send_json(200, money_ledger.upload(session.username, self.rfile.read(length),
+                                                         unquote(self.headers.get("X-File-Name", "ekstre")),
+                                                         self.headers.get("X-Book", "")))
+            except expense_vault.ExpenseError as exc:
+                self._send_json(400, {"error": str(exc)})
+            except Exception:  # noqa: BLE001
+                traceback.print_exc()
+                self._send_json(503, {"error": "Döküm okunamadı; tekrar deneyin."})
+            return
+        if path in ("/api/money/product-cost", "/api/money/product-cost-delete"):
+            try:
+                body = _read_json_body(self)
+                if path.endswith("-delete"):
+                    result = product_profit.delete_cost(session.username, body.get("id"))
+                else:
+                    result = product_profit.add_cost(session.username, body)
+                self._send_json(200, result)
+            except expense_vault.ExpenseError as exc:
+                self._send_json(400, {"error": str(exc)})
+            return
+        if path in ("/api/money/classify", "/api/money/rule", "/api/money/receipt", "/api/money/budget",
+                    "/api/money/link", "/api/money/add", "/api/money/delete",
+                    "/api/money/invoice-payment", "/api/money/invoice-category"):
+            try:
+                body = _read_json_body(self)
+                if path.endswith("/invoice-payment"):
+                    result = money_invoices.set_payment(session.username, body)
+                elif path.endswith("/invoice-category"):
+                    result = money_invoices.set_category(session.username, body)
+                elif path.endswith("/budget"):
+                    result = money_ledger.set_budget(session.username, body.get("category"), body.get("monthly"))
+                elif path.endswith("/link"):
+                    result = money_ledger.set_link(session.username, body)
+                elif path.endswith("/add"):
+                    result = money_ledger.add_movement(session.username, body)
+                elif path.endswith("/delete"):
+                    result = money_ledger.delete_movement(session.username, body.get("id"))
+                elif path.endswith("/classify"):
+                    result = money_ledger.classify(session.username, body.get("id"), body)
+                elif path.endswith("/rule"):
+                    result = money_ledger.set_rule(session.username, body)
+                else:
+                    result = money_ledger.set_receipt(session.username, body.get("id"), body.get("action"),
+                                                      body.get("document_id"), bool(body.get("remember")))
+                self._send_json(200, result)
+            except expense_vault.ExpenseError as exc:
+                self._send_json(400, {"error": str(exc)})
+            return
+        if path in ("/api/expenses/update", "/api/expenses/process", "/api/expenses/retry-dispatch"):
             try:
                 body = _read_json_body(self)
                 if path.endswith("/update"):
                     result = expense_vault.update(session.username, body.get("id"), body)
+                elif path.endswith("/retry-dispatch"):
+                    result = expense_vault.request_dispatch_retry(
+                        session.username, body.get("period"), body.get("part"))
                 else:
                     expense_vault.start_processing(session.username, body.get("id"), force=True)
                     result = {"id": body.get("id"), "status": "uploaded"}
@@ -2571,6 +2740,32 @@ class Handler(BaseHTTPRequestHandler):
                 yorum=str(body.get("yorum", "")),
             )
             self._send_json(200 if sonuc.get("ok") else 400, sonuc)
+            return
+        if path in ("/api/office/followup", "/api/office/acknowledge", "/api/office/source-check"):
+            from jarvis.office_operations import Store, Conflict, check_source
+            from jarvis import roster
+            body = _read_json_body(self)
+            try:
+                if path.endswith("source-check"):
+                    result = check_source(_memory, _office_state(), str(body.get("department", "")))
+                else:
+                    snapshot = _office_snapshot(session.username)
+                    store = Store(_office_state())
+                    if path.endswith("followup"):
+                        result = store.save(body, session.username, snapshot["items"], roster.departman_uyeleri())
+                    else:
+                        item = next((i for i in snapshot["items"] if i["id"] == body.get("id")), None)
+                        if item is None:
+                            raise ValueError("Takip kaydı bulunamadı.")
+                        store.acknowledge(session.username, item["id"], item["fingerprint"])
+                        result = {"ok": True}
+                self._send_json(200, result)
+            except Conflict as exc:
+                self._send_json(409, {"error": str(exc)})
+            except ValueError as exc:
+                self._send_json(400, {"error": str(exc)})
+            except Exception:  # noqa: BLE001
+                self._send_json(503, {"error": "Ofis kaydı işlenemedi. Listeyi yenileyip yeniden deneyin."})
             return
         if path == "/api/ekip/sor":
             # Departman sorumlusuna soru. Model cagrilir ama KANITA bagli:
@@ -3197,7 +3392,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.flush()
         except (JarvisMemoryError, BrokenPipeError, ConnectionResetError) as exc:
             try:
-                line = json.dumps({"type": "error", "message": str(exc)}, ensure_ascii=False) + "\n"
+                from jarvis.display_language import error_message
+                line = json.dumps({"type": "error", "message": error_message(str(exc))}, ensure_ascii=False) + "\n"
                 self.wfile.write(line.encode("utf-8"))
             except OSError:
                 pass
@@ -3249,6 +3445,8 @@ class Handler(BaseHTTPRequestHandler):
                     result = cari_channels.observe(session.username, body)
                 elif path == "/api/cari/accounts":
                     result = cari.create_account(session.username, body)
+                elif path == "/api/cari/reconciliation/update":
+                    result = cari_reconciliation.update(session.username, body)
                 elif path == "/api/cari/accounts/update":
                     result = cari.update_account(session.username, body.get("account_id"), body)
                 elif path == "/api/cari/preview":
@@ -3901,6 +4099,25 @@ def _arastirma_bulgulari(tavan: int = 3000) -> dict:
     return out
 
 
+def _office_state():
+    return os.environ.get("JARVIS_WEB_STATE_DIR") or STATE_DIR
+
+
+def _office_snapshot(actor=""):
+    from jarvis.office_operations import snapshot
+    from jarvis.role_activity import latest_report
+    try:
+        catalog = json.loads(katalog._yol().read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        catalog = {}
+    return snapshot(_memory, _office_state(), actor, catalog, latest_report())
+
+
+def _panel_holding() -> dict:
+    from jarvis.holding import snapshot
+    return snapshot(_memory)
+
+
 def _panel_ekip() -> dict:
     """EKIP PANOSU: kadro, veri okuma sonucu ve kanitli faaliyet ayridir.
 
@@ -4017,8 +4234,10 @@ def _panel_ekip() -> dict:
         sayim[s["renk"]] = sayim.get(s["renk"], 0) + 1
 
     from jarvis.team_lead import load_brief
+    from jarvis.hr_team import review as hr_review
 
     return {
+        "ik": hr_review(satirlar, member_error=uye_hatasi),
         "departmanlar": satirlar,
         "yonetim": load_brief(satirlar),
         "ozet": {
@@ -4069,16 +4288,16 @@ def _ekip_sor(kod: str, soru: str, extra_evidence: list[dict] | None = None) -> 
         from jarvis.role_activity import latest_report
         from jarvis.office_events import active_members
         from jarvis.model_layer import ModelRouter
-    except Exception as exc:  # noqa: BLE001
-        return {"hata": f"model katmani yuklenemedi: {exc}"}
+    except Exception as exc:  # noqa: BLE001, F841
+        return {"hata": "Yanıt hizmeti başlatılamadı. Biraz sonra yeniden deneyin."}
 
     soru = (soru or "").strip()
     if not soru:
-        return {"hata": "soru bos"}
+        return {"hata": "Lütfen sormak istediğiniz soruyu yazın."}
 
     uyeler = roster.departman_uyeleri().get(kod, ())
     if not uyeler:
-        return {"hata": f"{kod} departmaninin kadrosu yok; soru sorulamaz.",
+        return {"hata": "Bu birime henüz ekip atanmadı. Önce bir sorumlu atanması gerekiyor.",
                 "kod": kod}
 
     # --- departman kimligi (misyon core.departman'dan, uydurulmaz) ---------
@@ -4086,7 +4305,7 @@ def _ekip_sor(kod: str, soru: str, extra_evidence: list[dict] | None = None) -> 
     try:
         for d in _memory._fetch("departments").records:
             if str(d.get("kod")) == kod:
-                misyon = str(d.get("misyon") or "")
+                misyon = str(d.get("misyon") or "")  # noqa: F841
                 birim_adi = str(d.get("ad") or kod)
                 birim_durumu = str(d.get("durum") or "")
                 break
@@ -4104,12 +4323,16 @@ def _ekip_sor(kod: str, soru: str, extra_evidence: list[dict] | None = None) -> 
     #    O yuzden satir basina bir parca DEGIL, sorgu basina TEK YOGUN ozet
     #    uretilir ve uyelerin damitilmis bulgulari ONE konur.
     kanit: list[dict] = list(extra_evidence or [])
+    office_report = latest_report()
     office_record = activity_evidence(
-        kod, tuple(m.key for m in uyeler), latest_report(), active_members())
+        kod, tuple(m.key for m in uyeler), office_report, active_members())
     if office_record:
+        office_record["at"] = office_report.get("generated_at", "")
         kanit.insert(0, office_record)
     okunamayan: list[str] = []
     sorgular: list[str] = []
+    source_data = {}
+    from datetime import datetime, timezone
 
     # 1) Uyelerin kendi deterministik bulgulari -- en damitilmis kanit, once.
     try:
@@ -4186,12 +4409,13 @@ def _ekip_sor(kod: str, soru: str, extra_evidence: list[dict] | None = None) -> 
             except Exception:  # noqa: BLE001
                 okunamayan.append(q)
                 continue
+            source_data[q] = {"records": list(e.records), "source": e.source, "at": datetime.now(timezone.utc).isoformat()}
             if not e.records:
-                kanit.append({"ref": e.source, "summary": "kayıt yok (0 satır)"})
+                kanit.append({"ref": e.source, "at": source_data[q]["at"], "summary": "kayıt yok (0 satır)"})
                 continue
             satirlar = [_satir_ozeti(r) for r in e.records[:12]]
             ozet = " | ".join(s for s in satirlar if s)[:1400]
-            kanit.append({"ref": e.source,
+            kanit.append({"ref": e.source, "at": source_data[q]["at"],
                           "summary": f"{len(e.records)} satır. {ozet}"})
 
     # 1. KANIT KAPISI
@@ -4203,75 +4427,12 @@ def _ekip_sor(kod: str, soru: str, extra_evidence: list[dict] | None = None) -> 
                 "model_kullanildi": False, "kanit_sayisi": 0,
                 "okunamayan": okunamayan, "uyeler": [m.name for m in uyeler]}
 
-    # 🔴 ISTEM BIR YAPI DAYATIR, "dikkatli ol" DEMEZ.
-    #    Ilk surumde yalnizca "kanittan konus, bilmiyorsan bilinmiyor de"
-    #    yaziyordu ve model OLCULEN RAKAMI HIC YAZMADAN dogrudan
-    #    "bu veriyle bilinmiyor" dedi -- oysa kanit fiyatin sorularin %56'si
-    #    oldugunu soyluyordu. Cekingenlik de bir hatadir: elindeki olcumu
-    #    saklayan cevap, uyduran cevap kadar ise yaramaz.
-    #    Cozum istemde "daha iyi ol" demek degil, BOLUM DAYATMAK.
-    manager = roster.departman_sorumlusu(kod)
-    sistem = (
-        f"Sen L'CARLIÉ şirketinde {birim_adi} biriminin sorumlusu "
-        f"{manager.name if manager else 'olarak görevli kişisin'}. "
-        f"Görevin: {misyon or 'bu birimin işi'}. "
-        "SADECE sana verilen kanıttan konuş; kanıtta olmayan rakamı, ürünü veya "
-        "olguyu ASLA yazma.\n"
-        "Kullanıcı ne yaptığını veya neden boş göründüğünü sorarsa, önce "
-        "BİRİM FAALİYET KAYDI içindeki canlı olayları ve zamanlı son ölçümü açıkla. "
-        "Canlı olay bulunmamasını boş durma, izin veya görevsizlik kanıtı sayma. "
-        "Son ölçümde beklenen veya başarısız kalan işi saklama; neden kayıtlı "
-        "değilse bunu açıkça söyle. Yapılmayan işi yapılmış gibi anlatma.\n"
-        "Kanıtta 'DIŞ KAYNAK' ile başlayan satırlar şirketin kendi ölçümü "
-        "DEĞİLDİR, dışarıdan okunan iddialardır. Onları kullanırken 'dışarıda "
-        "şöyle deniyor' diye ayır; şirket ölçümüyle aynı kesinlikte sunma.\n"
-        "Cevabını TAM OLARAK şu dört başlıkla ver:\n"
-        "ÖLÇÜLEN: kanıttaki somut rakamları yaz (kaç, yüzde kaç, hangi kaynak). "
-        "Bu bölüm boş geçilemez; kanıtta rakam varsa yazılır.\n"
-        "OKUMA: bu rakamlar bu birimin işi açısından ne anlama geliyor. "
-        "Nedensellik iddia etme; örtüşme ile nedeni ayır.\n"
-        "SEÇENEKLER: en fazla üç yol. Her birinin yanında ÇÜRÜTÜCÜSÜ olsun — "
-        "yani hangi ölçüm görülürse o yolun yanlış olduğu anlaşılır.\n"
-        "BİLİNMEYEN: bu veriyle cevaplanamayan kısım ve onu cevaplamak için "
-        "hangi ölçümün gerektiği.\n"
-        "Kesin sonuç vaat etme. Türkçe yaz, toplam 12 cümleyi geçme."
-    )
-
-    router = ModelRouter()
-    try:
-        sonuc = router.synthesize(soru, kanit, missing_data=okunamayan,
-                                  escalate=True, max_tokens=900, system=sistem)
-    except Exception as exc:  # noqa: BLE001
-        return {"kod": kod, "departman": birim_adi,
-                "hata": f"model cevap veremedi: {str(exc)[:200]}",
-                "kanit_sayisi": len(kanit)}
-
-    # 🔴 ModelResult'ta alan adi 'answer'. 'text' diye bir alan YOK; ilk
-    #    yazimda oyle varsayilmisti ve cevap sessizce None donuyordu --
-    #    kanit toplama calisirken metin bos geliyordu, hata da vermiyordu.
-    cevap = getattr(sonuc, "answer", "") or ""
-    refs = list(getattr(sonuc, "evidence_refs", ()) or ())
-
-    # 3. SAYI KAPISI
-    kanit_metni = json.dumps(kanit, ensure_ascii=False)
-    dogrulanmayan = sorted(_sayilari(cevap) - _sayilari(kanit_metni))
-
-    return {
-        "kod": kod,
-        "departman": birim_adi,
-        "birim_durumu": birim_durumu,
-        "soru": soru,
-        "cevap": cevap,
-        "uyeler": [m.name for m in uyeler],
-        "kanit_sayisi": len(kanit),
-        "kanit_kaynaklari": sorted({k["ref"] for k in kanit}),
-        "evidence_refs": refs,
-        "okunamayan": okunamayan,
-        "dogrulanmayan_sayilar": dogrulanmayan,
-        "model_kullanildi": True,
-        "guven": getattr(sonuc, "confidence", None),
-        "model": getattr(sonuc, "model", "") or "",
-    }
+    from jarvis.office_questions import synthesize_bounded
+    from jarvis.office_answer_guard import answer
+    result = answer(soru, kanit, source_data, ModelRouter(), synthesize_bounded)
+    result.update(kod=kod, departman=birim_adi, birim_durumu=birim_durumu,
+                  soru=soru, uyeler=[m.name for m in uyeler], okunamayan=okunamayan)
+    return result
 
 
 def _panel_ayarlar() -> dict:

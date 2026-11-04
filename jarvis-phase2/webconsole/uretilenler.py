@@ -202,6 +202,16 @@ def uretilenler() -> dict:
                      "sonuçları.",
          **_tasarim_isleri()},
     ]
+    # İş üretici ve programların çıktıları (26.10.2026): ekip_isleri.py yalnız okur.
+    try:
+        from webconsole import ekip_isleri
+    except ImportError:
+        import ekip_isleri  # type: ignore
+    try:
+        bolumler = ekip_isleri.bolumler() + bolumler
+    except Exception as hata:  # noqa: BLE001 - bölüm okunamazsa sayfa yine açılır
+        bolumler.insert(0, {"anahtar": "ekip", "baslik": "Ekip işleri", "durum": "SORAMADIM",
+                            "sebep": str(hata)[:200], "kayitlar": []})
     sayi = sum(len(b.get("kayitlar") or []) for b in bolumler)
     soramadim = [b["baslik"] for b in bolumler if b.get("durum") == "SORAMADIM"]
     return {"bolumler": bolumler, "toplam": sayi,

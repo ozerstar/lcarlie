@@ -1,11 +1,18 @@
 {
-  "name": "L’CARLIÉ Jarvis",
-  "short_name": "L’CARLIÉ",
-  "description": "L’CARLIÉ Jarvis mobil yönetim ve sesli sohbet.",
+  "name": "L’carlie",
+  "short_name": "L’carlie",
+  "description": "L’carlie kurumsal yönetim ve çalışma alanı.",
   "start_url": "/mobile/index.html",
   "scope": "/mobile/",
   "display": "standalone",
-  "background_color": "#101923",
-  "theme_color": "#101923",
-  "icons": [{"src": "/iphone-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any maskable"}]
+  "background_color": "#f7f5ef",
+  "theme_color": "#f7f5ef",
+  "icons": [
+    {
+      "src": "/iphone-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
 }

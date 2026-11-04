@@ -1,12 +1,12 @@
 <!doctype html>
-<html lang="tr">
+<html data-lcarlie-theme="botanical" lang="tr">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#06121b">
+  <meta name="theme-color" content="#f7f5ef">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>L’CARLIÉ Jarvis</title>
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>L’carlie</title>
   <link rel="manifest" href="/mobile/manifest.webmanifest">
   <link rel="apple-touch-icon" href="/iphone-icon.png">
   <link rel="stylesheet" href="/mobile/mobile.css?v=2">
@@ -22,18 +22,20 @@
   <script defer src="/display-text.js?v=4"></script>
   <script defer src="/mobile/voice-rtc.js?v=3"></script>
   <script defer src="/mobile/mobile.js?v=32"></script>
+<link rel="stylesheet" href="/lcarlie-theme.css?v=1">
+<script defer src="/lcarlie-identity.js?v=1"></script>
 </head>
 <body>
   <main class="shell">
     <header class="header">
-      <div class="brand"><span class="brand-icon" aria-hidden="true">✦</span><div><strong>JARVIS</strong><small>L’CARLIÉ · senin asistanın</small></div></div>
+      <div class="brand"><span class="brand-icon" aria-hidden="true">✦</span><div><img class="lcarlie-brand-logo" src="/img/lcarlie-mark-dark.png" alt="L’carlie"><small>Kurumsal yönetim alanı</small></div></div>
       <div class="header-actions"><span id="status" class="status">Bağlanıyor</span><button id="logout" class="text-button" hidden>Çıkış</button></div>
     </header>
 
     <section id="login" class="login card" hidden>
       <div class="halo" aria-hidden="true"></div>
       <h1>Tekrar hoş geldin.</h1>
-      <p>L’CARLIÉ Jarvis hesabınla giriş yap.</p>
+      <p>L’carlie hesabınla giriş yap.</p>
       <form id="login-form">
         <label>Kullanıcı adı<input id="username" autocomplete="username" required></label>
         <label>Parola<input id="password" type="password" autocomplete="current-password" required></label>
@@ -77,15 +79,18 @@
             <a href="/?view=fiyat"><strong>Fiyat</strong><small>Fiyat çalışmaları</small></a>
             <a href="/?view=kargo"><strong>Kargo</strong><small>Gönderiler</small></a>
             <a href="/?view=musteri"><strong>Müşteriler</strong><small>Müşteri görünümü</small></a>
-            <a href="/cari.html"><strong>Cari Ekstreler</strong><small>Ürün, tahsilat ve bakiye</small></a>
+            <a href="/finans.html"><strong>Finans Merkezi</strong><small>Muhasebe · şirketler ve şahsi tek yerde</small></a>
+            <a href="/finans.html#/urunkar"><strong>Ürün Kârlılığı</strong><small>L’CARLIÉ ürün maliyeti, satış, kâr/zarar</small></a>
+            <a href="/harcamalar.html"><strong>Harcamalarım</strong><small>Nereye, kime, ne için ne kadar</small></a>
             <a href="/belgeler.html"><strong>Fiş ve Faturalar</strong><small>Ortak fişler · Lemos / MOY faturaları</small></a>
+            <a href="/cari.html"><strong>Cari Ekstreler</strong><small>Ürün, tahsilat ve bakiye</small></a>
             <button type="button" data-tab="creative"><strong>Görseller</strong><small>Üretilen reklam çalışmaları</small></button>
             <a href="/?view=raporlar"><strong>Raporlar</strong><small>Şirket raporları</small></a>
           </div>
         </details>
       </section>
       <section id="chat-panel" class="tab-panel" role="dialog" aria-modal="true" aria-labelledby="chat-title" hidden>
-      <div class="chat-heading"><div><span class="chat-presence" aria-hidden="true"></span><h1 id="chat-title">Jarvis</h1><p>Yaz veya konuş, birlikte ilerleyelim.</p></div><div class="chat-heading-actions"><button type="button" class="chat-new" id="chat-new" aria-label="Yeni konuşma">Yeni sohbet</button><button type="button" class="chat-close" id="chat-close" aria-label="Asistanı kapat">Kapat ✕</button></div></div>
+      <div class="chat-heading"><div><span class="chat-presence" aria-hidden="true"></span><h1 id="chat-title">L’carlie</h1><p>Yaz veya konuş, birlikte ilerleyelim.</p></div><div class="chat-heading-actions"><button type="button" class="chat-new" id="chat-new" aria-label="Yeni konuşma">Yeni sohbet</button><button type="button" class="chat-close" id="chat-close" aria-label="Asistanı kapat">Kapat ✕</button></div></div>
       <div class="chat-mode" role="group" aria-label="Sohbet alanı">
         <button type="button" class="active" data-chat-mode="work" aria-pressed="true">İş</button>
         <button type="button" data-chat-mode="personal" aria-pressed="false">Kişisel</button>
@@ -113,7 +118,7 @@
         <form id="reminder-form" class="mobile-form card"><h2>Hatırlatıcılarım</h2><label>Ne hatırlatayım?<input id="reminder-text" maxlength="240" required></label><label>Ne zaman?<input id="reminder-time" type="datetime-local" required></label><label>Tekrar<select id="reminder-repeat"><option value="none">Bir kez</option><option value="daily">Her gün</option><option value="weekly">Her hafta</option><option value="monthly">Her ay</option></select></label><button id="reminder-save" type="submit" class="secondary">Hatırlatıcı ekle</button><button id="reminder-cancel" type="button" class="secondary" hidden>Vazgeç</button><div id="reminder-list"></div></form>
         </section>
         <section class="personal-pane" data-personal-pane="memory" hidden>
-        <form id="memory-form" class="mobile-form card"><h2>Jarvis’in benimle ilgili bildikleri</h2><p class="help">Buraya eklediklerini kişisel sohbette hatırlar. İstediğini silebilirsin.</p><label>Hatırlamasını istediğin bilgi<input id="memory-text" maxlength="400" required></label><button type="submit" class="secondary">Bilgiyi kaydet</button><label>Hafızamda ara<input id="memory-query" placeholder="Örneğin sevdiğim renk" maxlength="240"></label><p id="memory-search-method" class="help"></p><div id="memory-list"></div></form>
+        <form id="memory-form" class="mobile-form card"><h2>L’carlie’in benimle ilgili bildikleri</h2><p class="help">Buraya eklediklerini kişisel sohbette hatırlar. İstediğini silebilirsin.</p><label>Hatırlamasını istediğin bilgi<input id="memory-text" maxlength="400" required></label><button type="submit" class="secondary">Bilgiyi kaydet</button><label>Hafızamda ara<input id="memory-query" placeholder="Örneğin sevdiğim renk" maxlength="240"></label><p id="memory-search-method" class="help"></p><div id="memory-list"></div></form>
         <form id="person-form" class="mobile-form card">
           <h2>Tanıdığım kişiler</h2>
           <p class="help">Yalnızca paylaşmak istediğin bilgileri ekle. Kişileri sonradan düzenleyebilirsin.</p>
@@ -129,7 +134,7 @@
         </section>
         <section class="personal-pane" data-personal-pane="google" hidden>
         <div class="personal-settings-head"><span class="eyebrow">Kişisel asistan</span><h2>Ayarlar</h2><p>Bağlantılarını ve dışarıya yönelik işlemleri buradan yönet.</p></div>
-        <section class="mobile-form card" aria-label="Google uygulamaları"><h2>Google uygulamalarım</h2><p id="google-status">Bağlantı kontrol ediliyor…</p><button id="google-connect" type="button" class="secondary">Google hesabını bağla</button><button id="google-disconnect" type="button" class="secondary" hidden>Bağlantıyı kaldır</button><p class="help">Jarvis yalnızca izin verdiğin Takvim, E-posta ve Drive işlemlerini yapabilir. Takvime ekleme ve e-posta gönderme ayrıca onay ister.</p></section>
+        <section class="mobile-form card" aria-label="Google uygulamaları"><h2>Google uygulamalarım</h2><p id="google-status">Bağlantı kontrol ediliyor…</p><button id="google-connect" type="button" class="secondary">Google hesabını bağla</button><button id="google-disconnect" type="button" class="secondary" hidden>Bağlantıyı kaldır</button><p class="help">L’carlie yalnızca izin verdiğin Takvim, E-posta ve Drive işlemlerini yapabilir. Takvime ekleme ve e-posta gönderme ayrıca onay ister.</p></section>
         <form id="personal-notification-form" class="mobile-form card"><h2>Günlük bildirimler</h2><label><input id="notify-morning" type="checkbox"> Sabah özeti</label><label><input id="notify-evening" type="checkbox"> Akşam özeti</label><button type="submit" class="secondary">Tercihleri kaydet</button></form>
         <details class="personal-setting"><summary>Takvim <span>Etkinlikler ve yeni kayıt</span></summary>
         <form id="calendar-form" class="mobile-form card" hidden><h2>Takvime etkinlik ekle</h2><label>Başlık<input id="calendar-title" maxlength="160" required></label><label>Başlangıç<input id="calendar-start" type="datetime-local" required></label><label>Bitiş<input id="calendar-end" type="datetime-local" required></label><button type="submit" class="secondary">Önce bana göster</button><div id="calendar-list"></div></form>
@@ -138,7 +143,7 @@
         <form id="email-form" class="mobile-form card" hidden><h2>E-posta hazırla</h2><label>Alıcı<input id="email-to" type="email" required></label><label>Konu<input id="email-subject" maxlength="160" required></label><label>Mesaj<textarea id="email-body" rows="4" maxlength="5000" required></textarea></label><button type="submit" class="secondary">Önce bana göster</button></form>
         </details>
         <details class="personal-setting" id="drive-details"><summary>Drive <span>Dosyalara eriş ve kaydet</span></summary>
-        <section id="drive-section" class="mobile-form card" hidden><h2>Drive dosyalarım</h2><label>Dosya adıyla ara<input id="drive-query" maxlength="100"></label><button id="drive-search" type="button" class="secondary">Dosyaları göster</button><div id="drive-list"></div><p class="help">Desteklenen dosyayı Jarvis’e ekleyip kişisel sohbette sorabilirsin. Dosya kendi sunucuna alınır ve orada işlenir. En fazla 5 MB.</p><h3>Drive’a kaydet</h3><p class="help">Telefonundan seçtiğin dosya veya aşağıdaki ekip görseli yeni dosya olarak kaydedilir. Mevcut dosyanın üzerine yazılmaz; kaydetme ayrı onay ister.</p><label>Hedef klasör bağlantısı veya kimliği (boşsa ana dizin)<input id="drive-folder" maxlength="300" autocomplete="off"></label><button id="drive-save" type="button" class="secondary">Seçili dosyayı Drive’a kaydet</button><h3>Kreatif ekibin görselleri</h3><button id="creative-refresh" type="button" class="secondary">Görselleri göster</button><div id="drive-creative-list"></div></section>
+        <section id="drive-section" class="mobile-form card" hidden><h2>Drive dosyalarım</h2><label>Dosya adıyla ara<input id="drive-query" maxlength="100"></label><button id="drive-search" type="button" class="secondary">Dosyaları göster</button><div id="drive-list"></div><p class="help">Desteklenen dosyayı L’carlie’ye ekleyip kişisel sohbette sorabilirsin. Dosya kendi sunucuna alınır ve orada işlenir. En fazla 5 MB.</p><h3>Drive’a kaydet</h3><p class="help">Telefonundan seçtiğin dosya veya aşağıdaki ekip görseli yeni dosya olarak kaydedilir. Mevcut dosyanın üzerine yazılmaz; kaydetme ayrı onay ister.</p><label>Hedef klasör bağlantısı veya kimliği (boşsa ana dizin)<input id="drive-folder" maxlength="300" autocomplete="off"></label><button id="drive-save" type="button" class="secondary">Seçili dosyayı Drive’a kaydet</button><h3>Kreatif ekibin görselleri</h3><button id="creative-refresh" type="button" class="secondary">Görselleri göster</button><div id="drive-creative-list"></div></section>
         </details>
         <details class="personal-setting" id="google-actions-details"><summary>Bekleyen işlemler <span>İncele ve karar ver</span></summary>
         <section id="google-pending" class="mobile-form card" hidden><h2>Bekleyen Google işlemleri</h2><div id="google-pending-list"></div></section>
@@ -165,12 +170,12 @@
       </section>
       <section id="messages" class="messages" aria-label="Sohbet" aria-live="polite"></section>
       <form id="chat-form" class="composer">
-        <textarea id="chat-input" rows="2" maxlength="4000" placeholder="İş için Jarvis’e yaz…" aria-label="Jarvis'e yaz" autocomplete="off" required></textarea>
+        <textarea id="chat-input" rows="2" maxlength="4000" placeholder="İş için L’carlie’ye yaz…" aria-label="L’carlie’ye yaz" autocomplete="off" required></textarea>
         <button id="mic" type="button" aria-label="Sesli görüşmeyi başlat">🎙</button>
         <button id="voice-stop" type="button" aria-label="Sesli görüşmeyi bitir" hidden>Bitir</button>
         <button id="send" type="submit" aria-label="Gönder">➤</button>
       </form>
-      <p id="chat-help" class="help">Mikrofona dokunarak sesli görüşmeyi başlat. Konuşurken Jarvis'in sözünü kesebilirsin. Bitir düğmesi mikrofonu ve görüşmeyi kapatır.</p>
+      <p id="chat-help" class="help">Mikrofona dokunarak sesli görüşmeyi başlat. Konuşurken L’carlie'in sözünü kesebilirsin. Bitir düğmesi mikrofonu ve görüşmeyi kapatır.</p>
       </section>
       <section id="jobs-panel" class="tab-panel" hidden>
         <div class="intro"><span class="eyebrow">Görevler</span><h1>İşlerini takip et.</h1><p id="job-count">Yükleniyor…</p></div>
@@ -180,11 +185,11 @@
         </div>
         <div id="job-list" class="card-list" aria-live="polite"></div>
         <details class="job-compose"><summary>Yeni görev ver <span aria-hidden="true">＋</span></summary><form id="job-form" class="mobile-form card">
-          <label>Yeni iş<textarea id="job-request" rows="3" placeholder="Jarvis ne yapsın?" required></textarea></label>
+          <label>Yeni iş<textarea id="job-request" rows="3" placeholder="L’carlie ne yapsın?" required></textarea></label>
           <label>Yapılmaması gerekenler<input id="job-negative" placeholder="İsteğe bağlı"></label>
           <button class="primary" type="submit">İşi kuyruğa ekle</button>
         </form></details>
-        <details class="job-analysis"><summary>Jarvis’in yaptığı analizler <span id="orchestration-count">Yükleniyor…</span></summary><p>Hazırlanan öneri taslağı kendiliğinden onay listesine eklenmez.</p><div id="orchestration-list" class="card-list" aria-live="polite"></div></details>
+        <details class="job-analysis"><summary>L’carlie’in yaptığı analizler <span id="orchestration-count">Yükleniyor…</span></summary><p>Hazırlanan öneri taslağı kendiliğinden onay listesine eklenmez.</p><div id="orchestration-list" class="card-list" aria-live="polite"></div></details>
       </section>
       <section id="approvals-panel" class="tab-panel" hidden>
         <div class="intro"><span class="eyebrow">Kararların</span><h1>Bekleyen onaylar</h1><p>Ne önerildiğini ve riskini okuyup karar ver.</p></div>
@@ -195,7 +200,7 @@
         <div id="creative-list" class="creative-list" aria-live="polite"></div>
       </section>
       <section id="system-panel" class="tab-panel" hidden>
-        <div class="intro"><span class="eyebrow">Canlı durum</span><h1>Jarvis durumu</h1><p>Sunucu ve iş akışı özeti.</p></div>
+        <div class="intro"><span class="eyebrow">Canlı durum</span><h1>L’carlie durumu</h1><p>Sunucu ve iş akışı özeti.</p></div>
         <div id="system-list" class="card-list"></div>
         <button id="refresh-system" type="button" class="secondary">Yenile</button>
         <a class="full-console" href="/">Tam yönetim panelini aç</a>

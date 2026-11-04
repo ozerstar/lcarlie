@@ -1,4 +1,10 @@
+import {OperationsView} from './operations-view.js';
+import {DEFAULT_VIEW,departmentsForView} from './office-views.js';
+import { displayText, errorText } from './turkish.js';
+import { familyName } from './labels.js';
 import './style.css';
+import { openHolding } from './holding-view.js';
+import { syncDepartments } from './roster-data.js';
 import { OfficeScene, departmentStatus, statusKind } from './office-scene.js';
 
 const $ = (id) => document.getElementById(id);
@@ -9,10 +15,14 @@ const STATUS_LABELS = {
   'İŞLEV YAZILMADI': 'İşlev yazılmadı', 'İŞLEM HATASI': 'İşlem hatası'
 };
 
+let favorites=new Set();try{favorites=new Set(JSON.parse(localStorage.getItem('lcarlie-favorites')||'[]'));}catch{}
+let favoriteOnly=false,problemOnly=false;
+const operations=new OperationsView({csrf:()=>state.csrfToken,departments:()=>state.departments,scene:()=>state.scene,onChange:()=>renderDepartments()});
+function hasProblem(code){return operations.data?.items.some(i=>i.department===code&&i.status!=='resolved'&&(i.issues.length||['source','failure','staff'].includes(i.kind)));}
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
-  if (text !== undefined && text !== null) node.textContent = String(text);
+  if (text !== undefined && text !== null) node.textContent = displayText(text);
   return node;
 }
 
@@ -27,31 +37,6 @@ async function fetchJson(path) {
   if (response.status === 401) throw new Error('AUTH');
   if (!response.ok) throw new Error(`${path}: ${response.status}`);
   return response.json();
-}
-
-function syncDepartments(agentsData, ekipData) {
-  const detailed = new Map((ekipData?.departmanlar || []).map((d) => [d.kod, d]));
-  const items = (agentsData?.departmanlar || []).filter((d) => d && d.kod);
-  const roster = items.map((d) => {
-    const extra = detailed.get(d.kod) || {};
-    const extraMembers = new Map((extra.uyeler || []).map((m) => [m.key, m]));
-    return {
-      ...d, aile: extra.aile || '', misyon: extra.misyon || d.misyon || '',
-      birim_durumu: extra.birim_durumu || '', veri_kaynagi: extra.veri_kaynagi || '',
-      otonomi_tavani: extra.otonomi_tavani || '', renk: extra.renk || '',
-      kadro: (d.kadro || []).map((m) => ({ ...extraMembers.get(m.key), ...m }))
-    };
-  });
-  // Preserve departments that have no roster, so the company map stays complete.
-  for (const d of ekipData?.departmanlar || []) {
-    if (!items.some((item) => item.kod === d.kod)) {
-      roster.push({ ...d, kisi: d.uye_sayisi || 0, kadro: (d.uyeler || []).map((m) => ({
-        key: m.key, name: m.ad, job: m.gorev, status: m.durum,
-        statement: m.soyledigi, reads: m.okur, sorumlu_mu: false
-      })) });
-    }
-  }
-  return roster.sort((a, b) => (a.kod === 'EXEC' ? -1 : b.kod === 'EXEC' ? 1 : (a.aile || '').localeCompare(b.aile || '', 'tr') || (a.ad || '').localeCompare(b.ad || '', 'tr')));
 }
 
 function showLogin() {
@@ -79,6 +64,7 @@ async function refresh() {
     if (!agents && !ekip) throw new Error('Kadro uçları yanıt vermedi');
     const previousShape = state.departments.map((d) => `${d.kod}:${d.kadro?.map((m) => m.key).join(',')}`).join('|');
     state.departments = syncDepartments(agents, ekip);
+    renderFloors();
     const activity = activityResult.status === 'fulfilled' ? activityResult.value : null;
     state.cycleAt = activity?.generated_at || null;
     if (activity?.active) state.live = activity.active;
@@ -96,7 +82,8 @@ async function refresh() {
     $('updated').textContent = `Güncelleme ${state.lastLoaded.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}`;
     $('connection').textContent = 'Canlı bağlantı';
     document.querySelector('.live-led').classList.add('connected');
-    renderSummary(); renderDepartments();
+    renderSummary(); renderDepartments(); renderHR(ekip?.ik);
+    operations.load().catch(()=>{ $('operationsStatus').textContent='İş kayıtları okunamadı; Çalışma merkezi düğmesinden yeniden deneyin.'; });
     if (state.selectedCode) renderDetail(state.selectedCode, state.selectedMember, false);
     renderFlow(flowResult.status === 'fulfilled' ? flowResult.value : null,
       actionsResult.status === 'fulfilled' ? actionsResult.value : null);
@@ -116,7 +103,11 @@ function initializeScene() {
       $('walkMode').querySelector('span').textContent = walking ? 'Dolaşmadan çık' : 'Ofiste dolaş';
     });
     state.scene.renderDepartments(state.departments);
+    state.scene.setOfficeLife($('officeLife').checked);
     state.scene.updateLive(state.live);
+    state.scene.onProductSelect=id=>operations.open('products','',id);
+    state.scene.onFurnitureUse=(code,mode)=>mode==='board'?operations.open('work',code):state.scene.useFurniture(code,mode);
+    if(operations.data)state.scene.setOperations(operations.data);
   } catch (error) {
     $('sceneFallback').hidden = false;
     $('scene').replaceChildren();
@@ -158,6 +149,8 @@ function renderSummary() {
   $('departmentCount').textContent = departments.length;
   $('memberCount').textContent = members;
   $('managerCount').textContent = managers;
+  $('staffedCount').textContent = departments.filter(d => d.kadro?.length).length;
+  $('readingCount').textContent = `${departments.reduce((n,d)=>n+d.kadro.filter(m=>m.status==='KONUŞTU').length,0)}/${members}`;
   $('summaryText').textContent = 'Yönetimden uzman ekiplere bütün kadro. Durumlar son ölçüme dayanır.';
   renderLiveCount();
 }
@@ -165,8 +158,10 @@ function renderSummary() {
 function renderDepartments() {
   const query = $('search').value.trim().toLocaleLowerCase('tr-TR');
   const visible = state.departments.filter((d) => {
+    if(favoriteOnly&&!favorites.has(d.kod))return false;
+    if(problemOnly&&!hasProblem(d.kod))return false;
     if (!query) return true;
-    return [d.kod, d.ad, d.aile, d.sorumlu?.name, ...(d.kadro || []).flatMap((m) => [m.name, m.job])]
+    return [d.kod, d.ad, d.original_name, d.aile, familyName(d.aile), d.sorumlu?.name, ...(d.kadro || []).flatMap((m) => [m.name, m.job])]
       .some((value) => String(value || '').toLocaleLowerCase('tr-TR').includes(query));
   });
   $('filteredCount').textContent = `${visible.length} / ${state.departments.length}`;
@@ -175,7 +170,7 @@ function renderDepartments() {
   for (const d of visible) {
     const family = d.aile || 'DİĞER BİRİMLER';
     if (family !== lastFamily) {
-      list.append(el('div', 'family-label', family)); lastFamily = family;
+      list.append(el('div', 'family-label', familyName(family))); lastFamily = family;
     }
     const button = el('button', `department-row ${state.selectedCode === d.kod ? 'selected' : ''}`);
     button.type = 'button'; button.addEventListener('click', () => renderDetail(d.kod, null, true));
@@ -184,8 +179,10 @@ function renderDepartments() {
     const copy = el('span', 'department-copy');
     copy.append(el('strong', '', d.ad || d.kod), el('small', '', d.sorumlu?.name || 'Sorumlu atanmamış'));
     button.append(copy, el('span', 'department-size', d.kadro?.length || 0));
-    list.append(button);
+    const wrap=el('div','department-with-favorite');const favorite=el('button','favorite-button',favorites.has(d.kod)?'★':'☆');favorite.type='button';favorite.setAttribute('aria-label',d.ad+' birimini '+(favorites.has(d.kod)?'favorilerden çıkar':'favorilere ekle'));favorite.setAttribute('aria-pressed',String(favorites.has(d.kod)));favorite.onclick=()=>{favorites.has(d.kod)?favorites.delete(d.kod):favorites.add(d.kod);try{localStorage.setItem('lcarlie-favorites',JSON.stringify([...favorites]));}catch{}renderDepartments();};wrap.append(button,favorite);list.append(wrap);
   }
+  const mini=$('officeMinimap');mini.replaceChildren();for(const d of visible){const b=el('button',hasProblem(d.kod)?'has-problem':'',d.ad);b.title=d.ad;b.type='button';b.setAttribute('aria-pressed',String(d.kod===state.selectedCode));b.onclick=()=>renderDetail(d.kod,null,true);mini.append(b);}
+  if(operations.data)$('operationsStatus').textContent=operations.data.items.filter(i=>i.new&&i.status!=='resolved').length+' yeni veya değişen takip · çalışma merkezinde';
   if (!visible.length) list.append(el('p', 'empty', 'Bu aramayla eşleşen birim veya çalışan yok.'));
 }
 
@@ -206,7 +203,8 @@ function renderDetail(code, memberKey, focusScene) {
   $('detail').classList.add('open');
   $('detailCode').textContent = `${d.aile || 'ORGANİZASYON'} / ${d.kod}`;
   $('detailName').textContent = d.ad || d.kod;
-  $('detailMission').textContent = d.misyon || 'Bu birim için açıklama bulunmuyor.';
+  $('detailMission').textContent = displayText(d.misyon || 'Bu birim için açıklama bulunmuyor.');
+  renderRoomTools(d);
   $('detailMeta').replaceChildren();
   addMeta('Birim sorumlusu', d.sorumlu?.name || 'Atanmamış');
   addMeta('Kadrodaki kişi', `${d.kadro?.length || 0}`);
@@ -250,6 +248,18 @@ function selectMember(d, m) {
   renderDetail(d.kod, m.key, false);
   (m.sorumlu_mu ? $('managerDesk') : $('memberDetail'))
     .scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function renderRoomTools(department) {
+  let tools=$('roomTools');if(!tools){tools=el('section','room-tools');tools.id='roomTools';$('detailMeta').after(tools);}tools.replaceChildren();
+  tools.append(el('h3','','ODA KULLANIMI'),el('p','','Akıllı tahtada planlama, toplantı masasında görüşme ve dolapta dosya düzenleme. Canlandırmalar temsili ziyaretçilerdir; gerçek görev ya da ekip sayısını değiştirmez.'));
+  const row=el('div');const note=el('p');note.setAttribute('aria-live','polite');
+  for(const [mode,name] of [['board','Akıllı tahta'],['meeting','Toplantı masası'],['storage','Dosya dolabı'],['rest','Canlandırmayı bitir']]){
+    const button=el('button','',name);button.type='button';button.dataset.roomUse=mode;button.setAttribute('aria-pressed','false');
+    button.addEventListener('click',()=>{state.scene?.useFurniture(department.kod,mode);for(const b of row.children)b.setAttribute('aria-pressed',String(b===button));note.textContent=mode==='rest'?'Oda canlandırması durduruldu.':name+' kullanımı gösteriliyor. Hareket için ofis yaşamı animasyonlarını açabilirsiniz.';});row.append(button);
+  }
+  const board=el('button','','Gerçek işleri ve karar gündemini aç');board.type='button';board.onclick=()=>operations.open('work',department.kod);tools.append(board,row,note);
+  if(state.scene)state.scene.onFurnitureUse=(code,mode)=>{if(mode==='board')operations.open('work',code);else{renderDetail(code,null,false);document.querySelector('[data-room-use="'+mode+'"]')?.click();}};
 }
 
 function renderOrgTree(department) {
@@ -333,7 +343,7 @@ function renderManagerDesk(department) {
   for (const message of messages) {
     const item = el('div', `conversation-item ${message.role}`);
     item.append(el('small', '', message.role === 'user' ? 'SİZ' : manager.name || 'MÜDÜR'));
-    item.append(el('p', '', message.text));
+    const messageBody=el('p');messageBody.textContent=message.role==='user'?message.text:displayText(message.text);item.append(messageBody);
     if (message.role === 'manager') {
       if (message.warning) item.append(el('p', 'answer-warning', message.warning));
       if (message.sources) item.append(el('small', 'answer-sources', message.sources));
@@ -372,26 +382,29 @@ async function askManager(code, rawQuestion) {
   if (state.selectedCode === code) renderManagerDesk(department);
   try {
     const response = await fetch('/api/ekip/sor', {
+      signal: AbortSignal.timeout(65000),
       method: 'POST', credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': state.csrfToken || '' },
       body: JSON.stringify({ kod: code, soru: question })
     });
     if (response.status === 401) throw new Error('Oturum sona erdi. Jarvis’e yeniden giriş yapın.');
     if (response.status === 403) throw new Error('Oturum doğrulaması yenilenmeli. Sayfayı yenileyip tekrar deneyin.');
-    const result = await response.json();
+    let result;
+    try { result = await response.json(); } catch { throw new Error('Yanıt hizmetine ulaşılamadı. Biraz sonra yeniden deneyin.'); }
     if (!response.ok || result.hata) throw new Error(result.hata || result.error || 'Yanıt alınamadı.');
     const unverified = result.dogrulanmayan_sayilar || [];
     const unread = result.okunamayan || [];
     messages.push({
       role: 'manager', text: result.cevap || 'Bu soru için doğrulanmış yanıt üretilemedi.',
       warning: [
+        result.uyari || '',
         unverified.length ? `Doğrulanmayan sayılar: ${unverified.join(', ')}` : '',
-        unread.length ? `Okunamayan kaynaklar: ${unread.join(', ')}` : ''
+        unread.length ? `Okunamayan kaynaklar: ${unread.map(displayText).join(', ')}` : ''
       ].filter(Boolean).join(' · '),
-      sources: `${result.kanit_sayisi || 0} kanıt parçası · ${(result.kanit_kaynaklari || []).join(' · ') || 'Kaynak yok'}`
+      sources: `${result.kanit_sayisi || 0} kanıt parçası · ${(result.kanit_kaynaklari || []).map(displayText).join(' · ') || 'Kaynak yok'}`
     });
   } catch (error) {
-    messages.push({ role: 'manager', text: error.message || 'Yanıt alınamadı. Tekrar deneyin.', warning: 'Soru işlenemedi.' });
+    messages.push({ role: 'manager', text: errorText(error.name === 'TimeoutError' ? 'timeout' : error.message), warning: 'Soru işlenemedi.' });
   } finally {
     state.asking.delete(code);
     if (state.selectedCode === code) renderManagerDesk(department);
@@ -416,7 +429,7 @@ function renderChart() {
   const grid = el('div', 'chart-groups');
   for (const department of state.departments) {
     const button = el('button', 'chart-unit'); button.type = 'button';
-    button.append(el('small', '', department.aile || 'BİRİM'), el('strong', '', department.ad || department.kod),
+    button.append(el('small', '', familyName(department.aile)), el('strong', '', department.ad || department.kod),
       el('span', '', `${department.sorumlu?.name || 'Sorumlu atanmamış'} · ${department.kadro?.length || 0} kişi`));
     button.addEventListener('click', () => { $('chartDialog').hidden = true; renderDetail(department.kod, null, true); });
     grid.append(button);
@@ -424,6 +437,12 @@ function renderChart() {
   body.append(grid);
 }
 
+$('showRetail').addEventListener('click',()=>{state.selectedCode=null;state.selectedMember=null;state.scene?.setView('showcase');$('detail').classList.remove('open');});
+$('retailView').addEventListener('change',()=>{if($('retailView').value){state.selectedCode=null;$('detail').classList.remove('open');state.scene?.focusRetail($('retailView').value);}});
+$('showOperations').onclick=()=>operations.open();
+$('favoriteOnly').onchange=e=>{favoriteOnly=e.target.checked;renderDepartments();};
+$('problemOnly').onchange=async e=>{problemOnly=e.target.checked;if(problemOnly&&!operations.data)try{await operations.load();}catch{ $('operationsStatus').textContent='Sorun kayıtları okunamadı. Filtre sonucu doğrulanamıyor.'; }renderDepartments();};
+$('qualityMode').onchange=e=>state.scene?.setQuality(e.target.value);
 $('search').addEventListener('input', renderDepartments);
 $('clearSearch').addEventListener('click', () => { $('search').value = ''; renderDepartments(); $('search').focus(); });
 $('refresh').addEventListener('click', refresh);
@@ -432,12 +451,53 @@ $('walkMode').addEventListener('click', () => {
   if (state.scene?.walking) state.scene.stopWalk();
   else state.scene?.startWalk(state.selectedCode);
 });
+$('showHolding').addEventListener('click',()=>openHolding(state.departments,renderDetail));
+$('closeHolding').addEventListener('click',()=>{ $('holdingDialog').hidden=true; });
 $('showChart').addEventListener('click', () => { renderChart(); $('chartDialog').hidden = false; });
 $('closeChart').addEventListener('click', () => { $('chartDialog').hidden = true; });
 document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !$('holdingDialog').hidden) $('closeHolding').click();
   if (event.key === 'Escape' && !$('chartDialog').hidden) $('chartDialog').hidden = true;
 });
 window.addEventListener('pagehide', () => state.eventSource?.close());
-$('closeDetail').addEventListener('click', () => { $('detail').classList.remove('open'); state.selectedCode = null; state.selectedMember = null; state.scene?.selectMember(null); $('sceneTitle').textContent = 'Tüm şirket'; $('sceneSubtitle').textContent = 'Birime tıklayarak kadroyu inceleyin'; renderDepartments(); });
+$('closeDetail').addEventListener('click', () => { $('detail').classList.remove('open'); state.selectedCode = null; state.selectedMember = null; state.scene?.selectMember(null); $('sceneTitle').textContent = $('floorSelect').selectedOptions[0]?.textContent || 'Ofis'; $('sceneSubtitle').textContent = 'Birime tıklayarak kadroyu inceleyin'; renderDepartments(); });
 refresh();
 setInterval(refresh, 30000);
+
+
+function renderHR(report) {
+  const box = $('hrFindings'); box.replaceChildren();
+  if (!report) {
+    $('hrSummary').textContent = 'İK verisi alınamadı';
+    $('hrTimestamp').textContent = 'Bağlantı durumları doğrulanamadı. Yenileyin.';
+    return;
+  }
+  $('hrSummary').textContent = 'İK · ' + report.source_missing + ' kaynak bağlı değil · ' + report.source_partial + ' kısmi';
+  $('hrTimestamp').textContent = 'Kontrol: ' + timeText(report.generated_at) + (report.member_error ? ' · Üye verileri eksik' : '');
+  for (const f of report.findings || []) {
+    const row = el('article', 'hr-finding');
+    const name = state.departments.find(d=>d.kod===f.department)?.ad || f.department;
+    row.append(el('strong','',name + ' · ' + f.title),el('p','',f.detail),el('small','',f.action));
+    const button = el('button','','Birimi incele'); button.type='button';
+    button.addEventListener('click',()=>renderDetail(f.department,null,true)); row.append(button); box.append(row);
+  }
+  if (!report.findings?.length) box.append(el('p','','Bu kontrolde eksik bulunmadı.'));
+}
+$('officeLife').addEventListener('change', event => state.scene?.setOfficeLife(event.target.checked));
+
+$('focusLounge').addEventListener('click',()=>{state.scene?.focusLounge();$('sceneTitle').textContent='Ortak yaşam alanı';$('sceneSubtitle').textContent='Kahve, WC ve açık hava terası · temsili animasyonlar';});
+$('lightingMode').addEventListener('click',e=>{const b=e.currentTarget;const night=b.getAttribute('aria-pressed')!=='true';b.setAttribute('aria-pressed',String(night));b.textContent=night?'Gündüz ışığı':'Akşam ışığı';state.scene?.setLighting(night?'night':'day');});
+
+$('loungeView').addEventListener('change',e=>{if(e.target.value!==''){state.scene?.focusLounge(Number(e.target.value));$('sceneTitle').textContent=e.target.selectedOptions[0].textContent;$('sceneSubtitle').textContent='Temsili ofis yaşamı';}});
+
+function renderFloors(){
+ const select=$('floorSelect'),value=state.scene?.viewKey||select.value||DEFAULT_VIEW;
+ const options=[['all','Bütün birimler'],['brand:tecdynasty','TECDYNASTY · Teknoloji ve yazılım'],['brand:goril','Goril Ajans'],['center','Merkez kat · 4 birim'],['showcase','Mağaza ve sergi alanları'],...[...new Set(state.departments.map(d=>d.aile||'Diğer'))].map(f=>['family:'+f,familyName(f)])];
+ select.replaceChildren(...options.map(([value,label])=>{const option=document.createElement('option');option.value=value;option.textContent=label;return option;}));select.value=options.some(([v])=>v===value)?value:DEFAULT_VIEW;
+ for(const [id,key,label] of [['showAllOffices','all','Bütün birimler'],['showTechdynasty','brand:tecdynasty','TECDYNASTY'],['showGoril','brand:goril','Goril Ajans']]){const b=$(id);b.textContent=label+' · '+departmentsForView(state.departments,key).length;b.setAttribute('aria-pressed',String(key===value));}
+}
+function selectOfficeView(key){$('floorSelect').value=key;$('floorSelect').dispatchEvent(new Event('change'));}
+$('showAllOffices').addEventListener('click',()=>selectOfficeView('all'));
+$('showTechdynasty').addEventListener('click',()=>selectOfficeView('brand:tecdynasty'));
+$('showGoril').addEventListener('click',()=>selectOfficeView('brand:goril'));
+$('floorSelect').addEventListener('change',e=>{state.selectedCode=null;state.selectedMember=null;$('detail').classList.remove('open');state.scene?.setView(e.target.value);$('sceneTitle').textContent=e.target.selectedOptions[0]?.textContent||'Ofis';$('sceneSubtitle').textContent=e.target.value==='showcase'?'Ürün düzeni temsili; canlı stok veya satış bilgisi değildir':'Birime tıklayarak ekibi ve kaynaklarını inceleyin';renderFloors();});

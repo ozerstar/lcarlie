@@ -29,7 +29,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from . import department_activation
+from . import department_activation, hr_team
 
 # --- durumlar
 SPEAKS = "KONUŞTU"          # veriye bakti, bir sey soyledi
@@ -62,6 +62,15 @@ class Member:
 # 20 uzman + 8 ajans rolu. Ad ve gorev Turkce; "reads" gercekten okudugu
 # Company Memory sorgulari.
 ROSTER: tuple[Member, ...] = (
+    Member('ik_organizasyon', 'İK ve Organizasyon Sorumlusu',
+           'Kadro boşluklarını ve departman sorumluluk eşleşmelerini denetler.', ('departments',)),
+    Member('ik_kaynak', 'İK Kaynak Bağlantı Uzmanı',
+           'Eksik kaynak bağlantılarını ve kullanıcıdan beklenen adımları bildirir.', ('departments',)),
+    Member('ik_is_takibi', 'İK İş Takip Uzmanı',
+           'Açık iş ve gündem kayıtlarını inceler; eksikleri raporlar.', ('open_work', 'agenda')),
+    Member('ik_gelisim', 'İK Gelişim Uzmanı',
+           'İyileştirme önerilerini ve öğrenme kayıtlarını inceler.', ('own_proposals', 'learning_loop')),
+
     # --- 22.09.2026: WEB departmani ---------------------------------------
     # Sahip: "web site developer ve web site yapicisi ekle; bunlar siteyi 7/24
     # kontrol edip urun sayfalari yapacak, satis ve reklam odakli."
@@ -480,7 +489,8 @@ ROSTER: tuple[Member, ...] = (
     Member("SOCIAL_CONTENT", "Sosyal İçerik",
            "Haftalık gönderi planını kurar.", kind="agency", mode="synthesis"),
     Member("CRO_SPECIALIST", "Dönüşüm Uzmanı",
-           "Açılış sayfası önerilerini çıkarır.", kind="agency", mode="synthesis"),
+           "GA4 huni kayıtlarını okur; dönüşüm kayıplarını ölçüm sınırlarıyla açıklar.",
+           ("ecommerce_funnel", "urun_karti"), kind="agency", mode="data"),
     Member("GROWTH_STRATEGIST", "Büyüme Stratejisti",
            "Problem ve fırsatları listeler.", kind="agency", mode="synthesis"),
     Member("musteri_hizmetleri", "Müşteri Hizmetleri Takipçisi",
@@ -536,6 +546,7 @@ BY_KEY = {m.key: m for m in ROSTER}
 #    ayni olmak zorunda -- panoda departman basligi oradan geliyor.
 UYE_DEPARTMAN: dict[str, str] = {
     'ihracat_pazar': 'EXPORT', 'ihracat_partner': 'EXPORT', 'ihracat_yazisma': 'EXPORT',
+    'ik_organizasyon': 'HR', 'ik_kaynak': 'HR', 'ik_is_takibi': 'HR', 'ik_gelisim': 'HR',
     "web_gelistirici": "WEB",
     "sayfa_donusum": "WEB",
     "site_izleme": "WEB",
@@ -690,6 +701,7 @@ def eslenmeyen_uyeler() -> tuple[str, ...]:
 # departman, muhatabi olmayan departmandir.
 DEPARTMAN_SORUMLUSU: dict[str, str] = {
     'EXPORT': 'ihracat_pazar',
+    'HR': 'ik_organizasyon',
     # --- 22.09.2026: sahip onayiyla atandi ------------------------------
     "WEB": "web_gelistirici",
     "SEO": "seo_icerik",
@@ -715,7 +727,8 @@ DEPARTMAN_SORUMLUSU: dict[str, str] = {
     "CRO": "CRO_SPECIALIST",
     "RED_TEAM": "karar_denetcisi",
     "REGULATORY": "alan_tutarlilik",
-    "BIZDEV": "pazaryeri_uzmani",
+    "BIZDEV": "firsat_takibi",
+    "MARKETPLACE": "pazaryeri_uzmani",
     "TASARIM": "tasarim_direktoru",
     "BRAND": "marka_kimlik",
     "PR": "halkla_iliskiler_muduru",
@@ -2007,11 +2020,14 @@ def _say_tekrar_satin_alma(rows: dict[str, list]) -> str:
     s = rows.get("sales_orders", []) or []
     if not m:
         return "Müşteri kaydı okunamadı."
-    tekrar = [r for r in m if (_num(r, "siparis_sayisi") or 0) > 1]
-    oran = (len(tekrar) / len(m) * 100) if m else 0
-    return (f"{len(m)} müşteriden {len(tekrar)} tanesi birden fazla sipariş "
+    known = [r for r in m if r.get("siparis_tum_zaman") is not None]
+    if not known:
+        return "Müşteri kayıtlarında tüm zaman sipariş sayısı yok; tekrar satın alma oranı hesaplanamadı."
+    tekrar = [r for r in known if _num(r, "siparis_tum_zaman") > 1]
+    oran = len(tekrar) / len(known) * 100
+    return (f"Sipariş sayısı bilinen {len(known)} müşteriden {len(tekrar)} tanesi birden fazla sipariş "
             f"vermiş (%{oran:.0f}). {len(s)} sipariş kaydı var. "
-            "Tekrar satın alma oranı düşükse büyüme her ay sıfırdan başlar.")
+            f"{len(m)-len(known)} müşteride sipariş sayısı bilinmiyor. Kimlik eşlemesi eksikleri oranı etkileyebilir.")
 
 
 # --- SEO konusmacilari (22.09.2026) ---------------------------------------
@@ -2259,6 +2275,8 @@ SPEAKERS: dict[str, Callable[[dict[str, list]], str]] = {
     "growth": _say_decisions,
     "ai_prompt_engineering": _say_capability,
     **department_activation.SPEAKERS,
+    **hr_team.SPEAKERS,
+    "CRO_SPECIALIST": _say_sayfa_donusum,
 }
 
 
@@ -2339,7 +2357,7 @@ def opinions(memory: Any, only: tuple[str, ...] = (), *, activity: dict | None =
             kayit.update(status=NO_DATA, missing=eksik,
                          statement="Okuması gereken veri açık değil: "
                                    + ", ".join(eksik))
-        elif member.key in department_activation.SPEAKERS and not any(rows.values()):
+        elif member.key in (department_activation.SPEAKERS.keys() | hr_team.SPEAKERS.keys() | {"CRO_SPECIALIST"}) and not any(rows.values()):
             kayit.update(status=NO_DATA, missing=list(member.reads),
                          statement="Okunabilen kaynaklarda ilgili kayıt yok; iş bekliyor.")
         elif konusmaci is None:
