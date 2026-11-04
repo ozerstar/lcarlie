@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+from pathlib import Path
 import subprocess
 import sys
 
@@ -249,6 +250,39 @@ def b_instagram() -> str:
         bic, "bugün paket üretilmedi -- lcarlie-ig-gunluk.timer 07:30'da koşar")
 
 
+def b_ekip() -> str:
+    """Ekip işi (sahip 04.11: "bana hatasız gelsin"). Yalnız yöneticiden ONAY alan teslim listelenir;
+    düzeltmede ve reddedilen yalnız sayı olarak. Kaynak: state/is-uretici/agac.json."""
+    yol = Path("/opt/lcarlie/jarvis-phase2/state/is-uretici/agac.json")
+    g = ["\n13) EKİP — yöneticiden geçen işler (son 24 saat)", "-" * 46]
+    try:
+        a = json.loads(yol.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        return "\n".join(g + [f"  okunamadı: {e}"[:120]])
+    sinir = dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=24)
+    onayli, duzeltme, red = [], 0, 0
+    for kod, d in (a.get("departmanlar") or {}).items():
+        for x in d.get("gorevler", []):
+            for y in x.get("yonetici_gecmisi") or []:
+                try:
+                    if dt.datetime.fromisoformat(y["tarih"]) < sinir:
+                        continue
+                except (KeyError, ValueError):
+                    continue
+                if y.get("karar") == "ONAY":
+                    t = x.get("teslim") or {}
+                    onayli.append(f"  • {d.get('ad', kod)} · {x.get('baslik', '')}\n    {t.get('ozet', '')}")
+                elif y.get("karar") == "DUZELT":
+                    duzeltme += 1
+                else:
+                    red += 1
+    g += onayli[:15] or ["  Son 24 saatte yöneticiden geçen teslim yok."]
+    if len(onayli) > 15:
+        g.append(f"  … ve {len(onayli) - 15} teslim daha (panel: EKİP > Teslimler)")
+    g.append(f"  Yönetici düzeltmeye geri gönderdi: {duzeltme} · reddetti: {red}")
+    return "\n".join(g)
+
+
 def rapor() -> str:
     bugun = dt.datetime.now().strftime("%d.%m.%Y %A")
     bas = [
@@ -259,7 +293,7 @@ def rapor() -> str:
     ]
     parcalar = [b_ozet(), b_para(), b_satis(), b_elle(), b_reklam(),
                 b_musteri(), b_gundem(), b_itibar(), b_departman(),
-                b_sistem(), b_site(), b_instagram()]
+                b_sistem(), b_site(), b_instagram(), b_ekip()]
     son = ["", "=" * 52,
            "Panel: https://jarvis.lcarlie.shop",
            "Bu raporu üreten: lcarlie-gunluk-rapor.timer (her gün 09:00)"]
