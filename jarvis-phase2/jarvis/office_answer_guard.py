@@ -92,7 +92,7 @@ def answer(question, evidence, data, router, bounded):
     payload = [dict(ref=i['id'], summary=i['summary']) for i in prepared]
     verified = None
     try:
-        result = bounded(lambda: router.synthesize(question, payload, escalate=True, max_tokens=1100, system=SYSTEM))
+        result = bounded(lambda: router.synthesize(question, payload, escalate=True, max_tokens=2500, system=SYSTEM))
         verified = validate(result.answer, prepared)
     except Exception:  # noqa: BLE001
         pass

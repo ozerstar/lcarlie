@@ -35,6 +35,15 @@ import re
 import subprocess
 import sys
 import unicodedata
+
+
+def _sigdir(metin: str, sinir: int) -> str:
+    """Paragraf sınırında keser ve kesildiğini yazar (jarvis.sinirlar.kisalt ile aynı kural)."""
+    if len(metin) <= sinir:
+        return metin
+    kes = metin[: sinir - 40]
+    yer = kes.rfind("\n")
+    return (kes[:yer] if yer > sinir * 0.6 else kes).rstrip() + "\n… (kısaltıldı)"
 from pathlib import Path
 
 KOK = Path(os.environ.get("JARVIS_KOK", "/opt/lcarlie/jarvis-phase2"))
@@ -190,7 +199,8 @@ def _sartname_yaz(slug: str, bulgu: dict) -> Path:
         "signature": bulgu.get("signature"),
         "payload": {
             "subject_ref": f"bulgu:{slug}",
-            "reason": "\n".join(satirlar)[:3500],
+            # core.ai_propose_action reason <= 2000; aşınca öneri HİÇ yazılmıyordu (04.11).
+            "reason": _sigdir("\n".join(satirlar), 1950),
         },
     }
     yol = SARTNAME_DIZIN / f"{slug}.json"

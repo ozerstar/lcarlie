@@ -334,7 +334,7 @@ def sayfa_cikar(url, getir, uret, zaman=None, markalar=None):
     mesajlar = [{"role": "system", "content": SISTEM},
                 {"role": "user", "content": f"Şema:\n{SEMA}\n\nSayfa: {son_url}\n<veri>\n{goster}\n</veri>"}]
     try:
-        cikti = json_ayikla(uret(mesajlar, max_tokens=1800, is_anahtari="radar-cikar")["text"])
+        cikti = json_ayikla(uret(mesajlar, max_tokens=4000, is_anahtari="radar-cikar")["text"])
     except Exception as e:  # noqa: BLE001
         return [], dict(durum, ok=False, error=f"model çıktısı okunamadı: {str(e)[:120]}"), 0
     ts = iso(zaman)

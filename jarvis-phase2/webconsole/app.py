@@ -3003,7 +3003,7 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/chat":
             body = _read_json_body(self)
-            message = str(body.get("message", ""))[:2000]
+            message = str(body.get("message", ""))[:4000]  # arayüz maxlength=4000 ile aynı
             try:
                 thread = _chat_thread(self._current_session(), "work", body.get("chat_id"))
                 with _cmem.thread_scope(thread):
@@ -3025,7 +3025,7 @@ class Handler(BaseHTTPRequestHandler):
             # database, spawns no subprocess and calls no model, so the only
             # I/O here is the read-only registry probe above.
             body = _read_json_body(self)
-            message = str(body.get("message", ""))[:2000]
+            message = str(body.get("message", ""))[:4000]  # arayüz maxlength=4000 ile aynı
             try:
                 plan = plan_request(message, registry=_live_registry())
             except JarvisMemoryError as exc:
@@ -3057,7 +3057,7 @@ class Handler(BaseHTTPRequestHandler):
             # Buraya giriş yapmış operatörün kullanıcı adı veriliyor, yani
             # her çalıştırma bunu isteyen insana kadar izlenebilir.
             body = _read_json_body(self)
-            message = str(body.get("message", ""))[:2000]
+            message = str(body.get("message", ""))[:4000]  # arayüz maxlength=4000 ile aynı
             try:
                 plan = plan_request(message, registry=_live_registry())
             except JarvisMemoryError as exc:
@@ -3305,7 +3305,7 @@ class Handler(BaseHTTPRequestHandler):
         change, only more frame types.
         """
         body = _read_json_body(self)
-        message = str(body.get("message", ""))[:2000]
+        message = str(body.get("message", ""))[:4000]  # arayüz maxlength=4000 ile aynı
         mode = body.get("mode", "work")
         turn_id = body.get("turn_id")
         session = self._current_session()
