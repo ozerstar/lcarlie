@@ -143,6 +143,23 @@ def json_ayikla(text: str) -> dict:
     raise ValueError("JSON ayrıştırılamadı")
 
 
+def sahibe_metin(govde: str, sinir: int = 1950) -> str:
+    """Onay kutusu kısa (2000 karakter). Metin sığmıyorsa sahibin karar vereceği bölüm
+    ('karar' geçen başlık) öne alınır; yoksa baştan kesilir. Tam metin teslim dosyasında."""
+    if len(govde) <= sinir:
+        return govde
+    basliklar = list(re.finditer(r"^#{1,4} .*$", govde, re.M))
+    for i, m in enumerate(basliklar):
+        if "karar" in m.group().casefold() and m.start() > 0:
+            son = basliklar[i + 1].start() if i + 1 < len(basliklar) else len(govde)
+            bolum = govde[m.start():son].strip()
+            if len(bolum) < 200:   # "# Sahibe Karar Notu" gibi boş üst başlık
+                continue
+            bas = govde[:basliklar[0].start()].strip() if basliklar[0].start() > 0 else ""
+            return ((bas + "\n\n" if bas else "") + bolum)[:sinir]
+    return govde[:sinir]
+
+
 def _kesik_json_onar(t: str) -> dict | None:
     """Çıktı sınırında yarıda kesilmiş JSON'u son tam öğeye kadar kurtarır.
 
@@ -1003,8 +1020,8 @@ class IsUretici:
             if gecti or kismi:
                 g["durum"] = "TESLIM_EDILDI"
                 if g.get("sahibe_gonder") and not self.kuru and self.o.oneri_ac and not g.get("sahibe_gonderildi"):
-                    metin = (f"JARVIS · {dep.ad}\n{g['baslik']}\n\n{t['teslim_ozeti']}\n\n{t['icerik']}"
-                             + (f"\n\nEksik: {t['eksik']}" if t.get("eksik") else ""))[:3500]
+                    metin = sahibe_metin(f"JARVIS · {dep.ad}\n{g['baslik']}\n\n{t['teslim_ozeti']}\n\n{t['icerik']}"
+                                         + (f"\n\nEksik: {t['eksik']}" if t.get("eksik") else ""))
                     try:
                         g["sahibe_gonderildi"] = self.o.oneri_ac(
                             f"teslim.{g['id']}"[:120], metin,

@@ -49,8 +49,15 @@ def _oneri_ac(anahtar: str, metin: str, sebep: str) -> int | None:
     """Kurulun YAP dediği onay işini ana sayfadaki onay kuyruğuna koyar (REQUEST_HUMAN_REVIEW).
     Değerler psql değişkeni olarak geçer (:'x' tırnaklar); SQL'e metin eklenmez."""
     import subprocess
+    # core.ai_propose_action reason'ı 2000 karakterle sınırlar; aşınca öneri HİÇ yazılmıyordu
+    # (ölçüldü 04.11, EXEC karar notu). Paragraf sınırında kısalt; tam metin teslim dosyasında.
+    if len(metin) > 2000:
+        kes = metin[:1900]
+        sinir = kes.rfind("\n\n")
+        kes = kes[:sinir] if sinir > 1200 else kes
+        metin = kes.rstrip() + f"\n\n… (devamı EKİP panosunda: {anahtar})"
     sql = ("SELECT core.ai_sistem_onerisi('kurul', 'REQUEST_HUMAN_REVIEW', :'a', "
-           "jsonb_build_object('reason', :'m'), :'s');")
+           "jsonb_build_object('subject_ref', :'a', 'reason', :'m'), :'s');")
     r = subprocess.run(["docker", "exec", "-i", "lcarlie-postgres", "psql", "-U", "n8n", "-d", "n8n",
                         "-v", "ON_ERROR_STOP=1", "-tA", "-v", f"a={anahtar}", "-v", f"m={metin}", "-v", f"s={sebep}"],
                        input=sql, capture_output=True, text=True, timeout=60, check=False)
