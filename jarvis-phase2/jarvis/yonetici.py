@@ -33,7 +33,8 @@ _AYLAR = {"ocak": 1, "şubat": 2, "subat": 2, "mart": 3, "nisan": 4, "mayıs": 5
 
 # Kanıtla karşılaştırılan rakam: en az 3 basamak ya da TL/% taşıyan sayı.
 _SAYI = re.compile(r"(?<![\w.,])(\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{1,2})?|\d{3,}(?:[.,]\d{1,2})?|\d+(?:[.,]\d+)?(?=\s*(?:TL|₺|%)))")
-_BOZUK_TUTAR = re.compile(r"\b\d{1,3}(?:\.\d{3})*\.\d{2}\.\d+\b|\b\d+,\d{3},\d{3}\.\d{3}\b")
+# En az bir binlik grubu şart: "03.11.2026" bir TARİHTİR, bozuk tutar değil (ilk canlı koşuda yanlış alarm).
+_BOZUK_TUTAR = re.compile(r"\b\d{1,3}(?:\.\d{3})+\.\d{2}\.\d+\b|\b\d+,\d{3},\d{3}\.\d{3}\b")
 _TARIH_NOKTALI = re.compile(r"\b(\d{1,2})[./](\d{1,2})[./](20\d{2})\b")
 _TARIH_AYLI = re.compile(r"\b(\d{1,2})\s+(" + "|".join(_AYLAR) + r")(?:\s+(20\d{2}))?\b", re.I)
 

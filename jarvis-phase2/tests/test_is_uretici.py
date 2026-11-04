@@ -342,6 +342,9 @@ class OlguDenetimiTest(unittest.TestCase):
     def test_bozuk_tutar(self):
         b = self.y.olgu_denetimi("Toplam 9.289.18.81 TL harcandı.", "", self.bugun, "ANALIZ")
         self.assertTrue(any("bozuk tutar" in x for x in b))
+        # Tarih bozuk tutar sayılmaz (04.11 ilk canlı koşu yanlış alarmı).
+        b = self.y.olgu_denetimi("Veri 03.11.2026 tarihli.", "", self.bugun, "TASLAK")
+        self.assertFalse(any("bozuk tutar" in x for x in b))
 
     def test_analizde_gelecek_tarih(self):
         b = self.y.olgu_denetimi("Siparişler 11 Kasım 2026'ya kadar arttı; 12.11.2026 raporu.", "", self.bugun, "ANALIZ")
