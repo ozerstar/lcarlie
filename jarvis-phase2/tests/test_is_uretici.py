@@ -77,6 +77,8 @@ def cevap(mesajlar, kw):
         return {"ay_degerlendirmesi": "İyi.", "hedefler": [
             {"baslik": "Organik trafiği artır", "olcut": "+%20", "neden": "...",
              "katki": [{"departman": "SEO", "rol": "içerik"}, {"departman": "YOK", "rol": "?"}]}], "riskler": []}
+    if "Kararını ver" in u:
+        return {"karar": "ONAY", "duzeltmeler": [], "gerekce": "doğru"}
     if "Görevi şimdi yap" in u:
         return {"teslim_ozeti": "Liste çıkarıldı.", "icerik": "## Liste\n- a\n- b\n- c\n" + " ".join(["kelime"] * 130),
                 "kullanilan_kanit": ["K1"], "kabul_karsilandi_mi": True, "eksik": "", "sonraki_adim": "düzelt"}
@@ -145,15 +147,94 @@ class Test(unittest.TestCase):
         self.assertTrue(ok)
         self.assertNotIn("rm -rf", t["icerik"])
 
-    def test_yurut_kaliteyi_gecemeyen_iki_denemede_insana(self):
+    def test_yurut_kaliteyi_gecemeyen_geri_bildirimle_tekrar_sonra_reddedilir(self):
+        # Sahipsiz INSAN_INCELEMESI kuyruğu yok (04.11: 197 birikmişti). Sebepler bir
+        # sonraki denemeye düzeltme listesi olarak gider; 3 denemede olmazsa gerekçeyle kapanır.
         IsUretici(self.o, gunluk_tavan=50).gunluk()
         self.model.cevaplar = lambda m, k: {"teslim_ozeti": "?", "icerik": "az", "kullanilan_kanit": [],
                                             "kabul_karsilandi_mi": False, "eksik": "veri yok"}
         IsUretici(self.o, gunluk_tavan=50).yurut()
+        g = self.agac()["departmanlar"]["SEO"]["gorevler"][0]
+        self.assertEqual(g["durum"], "ACIK")
+        self.assertTrue(g["duzeltme"]["liste"])
+        IsUretici(self.o, gunluk_tavan=50).yurut()
+        self.assertIn("YÖNETİCİDEN GERİ DÖNDÜ", self.model.cagri[-1][0][1]["content"])
         IsUretici(self.o, gunluk_tavan=50).yurut()
         g = self.agac()["departmanlar"]["SEO"]["gorevler"][0]
-        self.assertEqual(g["durum"], "INSAN_INCELEMESI")
+        self.assertEqual(g["durum"], "REDDEDILDI")
+        self.assertIn("kalite kapısından", g["red_sebebi"])
         self.assertEqual(self.defter.apps, [])
+
+    def _denetim(self, kararlar):
+        """Yönetici kararlarını sırayla döndüren sahte model; diğer istemler normal."""
+        sira = list(kararlar)
+
+        def c(m, k):
+            if "Kararını ver" in m[-1]["content"]:
+                return sira.pop(0) if sira else {"karar": "ONAY", "duzeltmeler": [], "gerekce": "tamam"}
+            return cevap(m, k)
+        self.model.cevaplar = c
+
+    def test_yonetici_duzelttirir_sonra_onaylar(self):
+        IsUretici(self.o, gunluk_tavan=50).gunluk()
+        self._denetim([{"karar": "DUZELT", "duzeltmeler": ["2. maddedeki sayı kanıtta yok; K1'i kullan"],
+                        "gerekce": "rakam hatalı"}])
+        s = IsUretici(self.o, gunluk_tavan=50).yurut()
+        self.assertEqual((s["teslim"], s["duzeltmede"]), (0, 1))
+        g = self.agac()["departmanlar"]["SEO"]["gorevler"][0]
+        self.assertEqual(g["durum"], "ACIK")
+        self.assertEqual(g["duzeltme"]["tur"], 1)
+        self.assertEqual(self.defter.apps, [])          # düzeltmedeki iş teslim sayılmaz
+        s = IsUretici(self.o, gunluk_tavan=50).yurut()
+        istem = [m for m, _ in self.model.cagri if "Görevi şimdi yap" in m[-1]["content"]][-1][-1]["content"]
+        self.assertIn("2. maddedeki sayı kanıtta yok", istem)
+        self.assertIn("<onceki_teslim>", istem)
+        g = self.agac()["departmanlar"]["SEO"]["gorevler"][0]
+        self.assertEqual(g["durum"], "TESLIM_EDILDI")
+        self.assertEqual(g["teslim"]["yonetici"], "ONAY")
+        self.assertEqual([x["karar"] for x in g["yonetici_gecmisi"]], ["DUZELT", "ONAY"])
+
+    def test_yonetici_iki_turda_temizlenmezse_reddeder(self):
+        IsUretici(self.o, gunluk_tavan=50).gunluk()
+        d = {"karar": "DUZELT", "duzeltmeler": ["tarih yanlış"], "gerekce": "dönem karışık"}
+        self._denetim([d, d, d])
+        for _ in range(3):
+            IsUretici(self.o, gunluk_tavan=50).yurut()
+        g = self.agac()["departmanlar"]["SEO"]["gorevler"][0]
+        self.assertEqual(g["durum"], "REDDEDILDI")
+        self.assertIn("2 turda", g["red_sebebi"])
+        self.assertEqual(self.defter.apps, [])
+
+    def test_yonetici_red(self):
+        IsUretici(self.o, gunluk_tavan=50).gunluk()
+        self._denetim([{"karar": "RED", "duzeltmeler": [], "gerekce": "bu veriyle yapılamaz"}])
+        IsUretici(self.o, gunluk_tavan=50).yurut()
+        g = self.agac()["departmanlar"]["SEO"]["gorevler"][0]
+        self.assertEqual(g["durum"], "REDDEDILDI")
+        self.assertIn("bu veriyle yapılamaz", g["red_sebebi"])
+
+    def test_model_kapaliyken_deneme_hakki_yenmez(self):
+        IsUretici(self.o, gunluk_tavan=50).gunluk()
+
+        def kapali(m, k):
+            raise RuntimeError("ücretsiz model yanıt vermedi (PC kapalı ve sunucu modeli düştü?)")
+        self.model.cevaplar = kapali
+        IsUretici(self.o, gunluk_tavan=50).yurut()
+        g = self.agac()["departmanlar"]["SEO"]["gorevler"][0]
+        self.assertEqual((g["durum"], g["deneme"]), ("ACIK", 0))
+
+    def test_acik_is_tavani_yeni_is_icat_ettirmez(self):
+        from jarvis import is_uretici
+        eski = is_uretici.ACIK_IS_TAVANI
+        is_uretici.ACIK_IS_TAVANI = 1
+        try:
+            IsUretici(self.o, gunluk_tavan=50).gunluk()
+            yarin = datetime(2026, 10, 27, 8, 0, tzinfo=timezone.utc)
+            self.o.saat = lambda: yarin
+            s = IsUretici(self.o, gunluk_tavan=50).gunluk()
+        finally:
+            is_uretici.ACIK_IS_TAVANI = eski
+        self.assertEqual(s["gorev"], 0)
 
     def test_haftalik_ve_aylik(self):
         s = IsUretici(self.o, gunluk_tavan=50).haftalik()
@@ -241,10 +322,44 @@ class Test(unittest.TestCase):
         IsUretici(self.o, gunluk_tavan=50).yurut()
         yol = IsUretici(self.o, gunluk_tavan=50).ozet_yaz({"mod": "yurut"})
         m = Path(yol).read_text(encoding="utf-8")
-        self.assertIn("tebrik edilecek", m)
+        self.assertIn("yöneticiden geçen", m)
         self.assertIn("Meta açıklaması eksik", m)
         self.assertIn("onayını bekleyen", m)
 
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OlguDenetimiTest(unittest.TestCase):
+    """Modelsiz olgu denetimi: ölçülmüş gerçek hatalar (04.11 teslimleri)."""
+
+    def setUp(self):
+        from jarvis import yonetici
+        self.y = yonetici
+        self.bugun = datetime(2026, 11, 4).date()
+
+    def test_bozuk_tutar(self):
+        b = self.y.olgu_denetimi("Toplam 9.289.18.81 TL harcandı.", "", self.bugun, "ANALIZ")
+        self.assertTrue(any("bozuk tutar" in x for x in b))
+
+    def test_analizde_gelecek_tarih(self):
+        b = self.y.olgu_denetimi("Siparişler 11 Kasım 2026'ya kadar arttı; 12.11.2026 raporu.", "", self.bugun, "ANALIZ")
+        self.assertTrue(any("bugünden sonraki tarih" in x for x in b))
+        # Taslakta ileri tarih normaldir (kampanya planı).
+        self.assertEqual(self.y.olgu_denetimi("11 Kasım 2026 kampanyası", "", self.bugun, "TASLAK"), [])
+
+    def test_kanitta_olmayan_rakamlar(self):
+        icerik = "Dün 39 sipariş, 71.061 TL ciro; ortalama 1.822 TL; iade 4.500 TL; kargo 2.310 TL."
+        kanit = "2026-10-22 | 1 sipariş | 1.250,00 TL"
+        b = self.y.olgu_denetimi(icerik, kanit, self.bugun, "ANALIZ")
+        self.assertTrue(any("kanıtta yok" in x for x in b))
+
+    def test_kanittaki_rakam_bicim_farkina_ragmen_bulunur(self):
+        icerik = "Ciro 71.061,50 TL; 1.250 TL; 3.400 TL; 12.000 TL."
+        kanit = "ciro=71061.50 | 1250 | 3400 | 12000"
+        self.assertEqual(self.y.olgu_denetimi(icerik, kanit, self.bugun, "ANALIZ"), [])
+
+    def test_okunamayan_karar_onay_sayilmaz(self):
+        karar, d, _ = self.y.karar_ayikla({"karar": "belki"}, ["bozuk tutar yazımı"])
+        self.assertEqual((karar, d), ("DUZELT", ["bozuk tutar yazımı"]))

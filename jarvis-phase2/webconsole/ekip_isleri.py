@@ -86,8 +86,9 @@ def teslimler() -> dict:
     for kod, d in (a.get("departmanlar") or {}).items():
         for g in d.get("gorevler", []):
             t = g.get("teslim") or {}
-            if t.get("kalite") in ("GECTI", "KISMI"):
-                etiket = "" if t.get("kalite") == "GECTI" else "KISMİ · "
+            if (g.get("durum") == "TESLIM_EDILDI" and t.get("kalite") in ("GECTI", "KISMI")
+                    and t.get("yonetici", "ONAY") == "ONAY"):
+                etiket = "Yönetici onaylı · " if t.get("yonetici") else ("" if t.get("kalite") == "GECTI" else "KISMİ · ")
                 kay.append((t.get("tarih", ""), _satir(f"{etiket}{d.get('ad', kod)} · {g.get('baslik')}",
                                                        f"{t.get('ozet', '')} — hazırlayan: {g.get('sorumlu')}", t.get("yol"), _tr(t.get("tarih")))))
     kay.sort(key=lambda x: x[0], reverse=True)

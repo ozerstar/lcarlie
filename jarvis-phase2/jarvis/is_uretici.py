@@ -47,12 +47,21 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+from . import yonetici
+
 MODLAR = ("gunluk", "haftalik", "aylik", "yurut", "rakip", "kreatif", "b2b", "retro")
 GOREV_TIPLERI = ("ARASTIRMA", "ANALIZ", "TASLAK", "VERI_BAGLANTISI", "ONAY_GEREKTIREN")
 YURUTULEBILIR = ("ARASTIRMA", "ANALIZ", "TASLAK")
 KADEME = {"gunluk": "hizli", "haftalik": "hizli", "aylik": "muhakeme",
-          "yurut": os.environ.get("IS_URETICI_YURUT_KADEME", "muhakeme")}
-MAX_TOKENS = {"gunluk": 1400, "haftalik": 1800, "aylik": 2600, "yurut": 2200}
+          "yurut": os.environ.get("IS_URETICI_YURUT_KADEME", "muhakeme"), "denetim": "muhakeme"}
+MAX_TOKENS = {"gunluk": 1400, "haftalik": 1800, "aylik": 2600, "yurut": 2200, "denetim": 1500}
+# Yönetici denetimi (sahip 04.11). Kapatmak için IS_URETICI_YONETICI=false.
+YONETICI_ACIK = os.environ.get("IS_URETICI_YONETICI", "true").lower() not in ("0", "false", "no", "hayir")
+# Departmanda bu kadar açık iş varken model yeni iş İCAT etmez (rutin iş yine açılır).
+# Ölçüldü: 03-04.11'de 271 görev açıldı, günlük temiz kapasite ~50; kuyruk boğuluyordu.
+ACIK_IS_TAVANI = int(os.environ.get("IS_URETICI_ACIK_TAVAN", "3"))
+# Yerel model kapalıyken (PC kapalı) düşen deneme hakkı yemez: işin suçu değil.
+_MODEL_KAPALI = ("yanıt vermedi", "Remote end closed", "timed out", "Connection refused")
 
 SISTEM = (
     "Sen L'CARLIÉ (Türk dermokozmetik markası, www.lcarlie.shop) şirket işletim "
@@ -141,6 +150,13 @@ def json_ayikla(text: str) -> dict:
     if onarilan is not None:
         return onarilan
     raise ValueError("JSON ayrıştırılamadı")
+
+
+def teslim_onayli(g: dict) -> bool:
+    """Teslim edildi VE (yöneticiden ONAY aldı ya da yönetici öncesi eski teslim)."""
+    t = g.get("teslim") or {}
+    return (g.get("durum") == "TESLIM_EDILDI" and t.get("kalite") in ("GECTI", "KISMI")
+            and t.get("yonetici", yonetici.ONAY) == yonetici.ONAY)
 
 
 def sahibe_metin(govde: str, sinir: int = 1950) -> str:
@@ -440,7 +456,7 @@ Teslim edilecek: {gorev['cikti']}
 Kabul ölçütü: {gorev['kabul_olcutu']}
 <veri>
 {_kanit_blogu(kanitlar, 9000)}
-</veri>
+</veri>{yonetici.duzeltme_blogu(gorev)}
 Görevi şimdi yap. Teslimin KENDİSİNİ yaz: analizse veriden hesapladığın rakamlar ve tablo,
 listeyse maddeler, taslaksa metnin tamamı. Veride olmayan rakam uydurma; veri yetmiyorsa
 yapabildiğin kadarını yap, kalanını "eksik" alanında açıkça söyle ve kabul_karsilandi_mi=false yaz.
@@ -761,6 +777,10 @@ class IsUretici:
             dep_agac = self._dep_agac(agac, dep)
             if any(x.get("id", "").startswith(f"{tarih}-{dep.kod}-g") for x in dep_agac["gorevler"]):
                 continue  # bugün zaten üretildi (yeniden çalıştırmada çift iş yok)
+            acik = sum(x.get("durum") == "ACIK" for x in dep_agac["gorevler"])
+            if acik >= ACIK_IS_TAVANI:
+                self.kayit.append({"bilgi": f"{dep.kod}: {acik} açık iş var, yeni iş icat edilmedi"})
+                continue
             kanitlar = self._kanitlar(dep)
             lider = dep.uyeler[0].key
             self._ofis(lider, "WORKING", f"{dep.ad}: bugünün iş planını hazırlıyor")
@@ -932,9 +952,10 @@ class IsUretici:
                 if g.get("tip") in YURUTULEBILIR and kod in deps:
                     adaylar.append((g.get("son_tarih", ""), kod, g))
         # Önce rutin, sonra yeni tarihli; aynı işte daha az denenen önce.
-        adaylar.sort(key=lambda x: (0 if x[2].get("oncelik") == "ACIL" else 1 if x[2].get("rutin_id") else 2,
+        adaylar.sort(key=lambda x: (0 if x[2].get("oncelik") == "ACIL" else 1 if x[2].get("duzeltme") else
+                                    2 if x[2].get("rutin_id") else 3,
                                     x[2].get("deneme", 0), x[0]))
-        teslim = basarisiz = 0
+        teslim = basarisiz = duzeltmede = reddedilen = 0
         for _, kod, g in adaylar[:sinir]:
             if bitis is not None and time.monotonic() >= bitis:
                 break
@@ -992,6 +1013,8 @@ class IsUretici:
             except Exception as e:  # noqa: BLE001
                 self._ofis(uye.key, "FAILED", g["baslik"])
                 self.kayit.append({"gorev": g["id"], "hata": str(e)[:300]})
+                if any(x in str(e) for x in _MODEL_KAPALI):
+                    g["deneme"] = max(0, int(g["deneme"]) - 1)
                 if "tavan" in str(e):
                     break
                 continue
@@ -999,13 +1022,16 @@ class IsUretici:
             # Ekip içeriği yazmış ama veri eksik diye kabulü tam saymamışsa bu bir iş ÇIKTISIDIR:
             # dürüst eksik beyanı reddetmek ekibi susturuyordu (03.11 deneme: 3/3 bu sebeple döndü).
             kismi = bool(sebepler) and all(x.startswith("ekip kabul ölçütünü") for x in sebepler)
+            yon = self._yonetici(dep, g, t, kanitlar) if (gecti or kismi) and YONETICI_ACIK and not self.kuru else None
             kanit_haritasi = {k.kimlik: k.kaynak for k in kanitlar}
             md = [f"# Teslim: {g['baslik']}", "",
                   f"- Görev: `{g['id']}` · {dep.ad} ({dep.kod}) · {g['tip']}",
                   f"- Hazırlayan: {uye.ad} (`{uye.key}`)",
                   f"- Kabul ölçütü: {g['kabul_olcutu']}",
                   f"- Kalite kapısı: {'GEÇTİ' if gecti else ('KISMİ — ' if kismi else 'GEÇEMEDİ — ') + '; '.join(sebepler)}",
-                  f"- Eksik: {t['eksik']}" if t.get("eksik") else "", "",
+                  f"- Eksik: {t['eksik']}" if t.get("eksik") else "",
+                  (f"- Yönetici: {yon['karar']} — {yon['gerekce']}"
+                   + "".join(f"\n  - {x}" for x in yon["duzeltmeler"])) if yon else "", "",
                   "## Özet", t["teslim_ozeti"], "", "## İçerik", t["icerik"], "",
                   "## Kullanılan kanıt"] + [f"- {k}: {kanit_haritasi.get(k, '')}" for k in t["kullanilan_kanit"]] + [
                   "", f"**Sonraki adım:** {t['sonraki_adim']}"]
@@ -1015,6 +1041,18 @@ class IsUretici:
                 yol.write_text("\n".join(md), encoding="utf-8")
             g["teslim"] = {"yol": str(yol), "tarih": self.o.saat().isoformat(), "kalite": "GECTI" if gecti else "KISMI" if kismi else "GECEMEDI",
                            "sebepler": sebepler, "ozet": t["teslim_ozeti"]}
+            if yon:
+                g["teslim"]["yonetici"] = yon["karar"]
+                g.setdefault("yonetici_gecmisi", []).append(
+                    {"tarih": self.o.saat().isoformat(), "karar": yon["karar"], "gerekce": yon["gerekce"],
+                     "duzeltmeler": yon["duzeltmeler"], "olgu": yon["bulgular"]})
+                if yon["karar"] != yonetici.ONAY:
+                    self._geri_gonder(g, yon["karar"], yon["duzeltmeler"], yon["gerekce"], t["icerik"])
+                    if g["durum"] == "ACIK":
+                        duzeltmede += 1
+                    else:
+                        reddedilen += 1
+                    continue
             self._ofis(uye.key, "COMPLETED" if gecti or kismi else "FAILED",
                        ("Teslim etti: " if gecti else "Kısmi teslim: " if kismi else "Kalite kapısından döndü: ") + g["baslik"])
             if gecti or kismi:
@@ -1037,27 +1075,63 @@ class IsUretici:
                         self.kayit.append({"gorev": g["id"], "uyari": f"uygulama kanıtı yazılamadı: {e}"[:200]})
             else:
                 basarisiz += 1
-                if g["deneme"] >= 2:
-                    g["durum"] = "INSAN_INCELEMESI"
+                # Geri bildirimsiz tekrar aynı hatayı üretiyordu; kalite kapısının sebepleri
+                # düzeltme listesi olarak bir sonraki denemeye gider. Sahipsiz kuyruk yok.
+                if g["deneme"] >= 3:
+                    g["durum"] = "REDDEDILDI"
+                    g["red_sebebi"] = "3 denemede kalite kapısından geçemedi: " + "; ".join(sebepler)[:300]
+                else:
+                    g["duzeltme"] = {"tur": g["deneme"], "liste": sebepler[:5], "onceki": t["icerik"][:5000],
+                                     "tarih": self.o.saat().isoformat()}
         self.agac_deposu.yaz(agac, self.o.saat()) if not self.kuru else None
         return {"mod": "yurut", "tarih": tarih, "aday": len(adaylar), "teslim": teslim,
+                "duzeltmede": duzeltmede, "reddedilen": reddedilen,
                 "kalite_gecemedi": basarisiz, "suresi_doldu": suresi_doldu, "kayit": self.kayit}
+
+    def _yonetici(self, dep: Departman, g: dict, t: dict, kanitlar: list[Kanit]) -> dict:
+        """Teslimi denetler: olgu denetimi (modelsiz) + yönetici modeli. Model düşerse modelsiz karar."""
+        kanit = _kanit_blogu(kanitlar, 7000)
+        bulgular = yonetici.olgu_denetimi(t["icerik"], kanit, date.fromisoformat(self._gun()), g.get("tip", ""))
+        tur = int((g.get("duzeltme") or {}).get("tur", 0)) + 1
+        try:
+            v = self._model("denetim", yonetici.istem_denetim(g, f"{dep.kod} — {dep.ad}", t["teslim_ozeti"],
+                                                               t["icerik"], kanit, bulgular, tur),
+                            "is-uretici-yonetici")
+        except Exception as e:  # noqa: BLE001 - denetçi düşerse modelsiz karar verilir, iş durmaz
+            self.kayit.append({"gorev": g["id"], "uyari": f"yönetici modeli çalışmadı: {e}"[:200]})
+            v = {}
+        karar, duzeltmeler, gerekce = yonetici.karar_ayikla(v, bulgular)
+        return {"karar": karar, "duzeltmeler": duzeltmeler, "gerekce": gerekce, "bulgular": bulgular}
+
+    def _geri_gonder(self, g: dict, karar: str, duzeltmeler: list[str], gerekce: str, icerik: str) -> None:
+        """DUZELT: aynı görev düzeltme listesiyle yeniden açılır. Tur biterse ya da RED ise kapanır."""
+        tur = int((g.get("duzeltme") or {}).get("tur", 0)) + 1
+        if karar == yonetici.DUZELT and tur <= yonetici.DUZELTME_TURU:
+            g["durum"] = "ACIK"
+            g["deneme"] = 0
+            g["duzeltme"] = {"tur": tur, "liste": duzeltmeler, "onceki": icerik[:5000],
+                             "tarih": self.o.saat().isoformat()}
+            self._ofis(g.get("sorumlu") or "", "WORKING", f"Yönetici düzeltme istedi ({tur}. tur): {g['baslik']}")
+            return
+        g["durum"] = "REDDEDILDI"
+        g["red_sebebi"] = (f"Yönetici {yonetici.DUZELTME_TURU} turda temizleyemedi: " if karar == yonetici.DUZELT
+                           else "Yönetici reddetti: ") + (gerekce or "; ".join(duzeltmeler))[:300]
 
     def ozet_yaz(self, sonuc: dict) -> str:
         """Günün sahibe dönük kısa özeti."""
         tarih = self._gun()
         agac = self.agac_deposu.oku()
         satir = [f"# Jarvis iş özeti — {tarih}", ""]
-        toplam = {"ACIK": 0, "TESLIM_EDILDI": 0, "ONAY_BEKLIYOR": 0, "INSAN_INCELEMESI": 0, "SURESI_DOLDU": 0}
+        toplam = {"ACIK": 0, "TESLIM_EDILDI": 0, "ONAY_BEKLIYOR": 0, "REDDEDILDI": 0, "SURESI_DOLDU": 0}
         bugun_teslim = []
         for kod, d in sorted(agac["departmanlar"].items()):
             for g in d.get("gorevler", []):
                 toplam[g.get("durum", "ACIK")] = toplam.get(g.get("durum", "ACIK"), 0) + 1
                 t = g.get("teslim") or {}
-                if t.get("kalite") in ("GECTI", "KISMI") and str(t.get("tarih", "")).startswith(tarih):
+                if teslim_onayli(g) and str(t.get("tarih", "")).startswith(tarih):
                     bugun_teslim.append(f"- **{d.get('ad', kod)}** · {g['baslik']} → {t.get('ozet', '')}")
         satir += ["Durum: " + ", ".join(f"{k} {v}" for k, v in toplam.items()), "",
-                  "## Bugün tebrik edilecek teslimler"] + (bugun_teslim or ["- (henüz yok)"])
+                  "## Bugün yöneticiden geçen teslimler"] + (bugun_teslim or ["- (henüz yok)"])
         satir += ["", "## Departmanlar bugün", "| Birim | Teslim | Kısmi | Açık | Dönen |", "|---|---|---|---|---|"]
         for kod, d in sorted(agac["departmanlar"].items()):
             bugun = [g for g in d.get("gorevler", []) if str((g.get("teslim") or {}).get("tarih", "")).startswith(tarih)]
