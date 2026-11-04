@@ -412,8 +412,15 @@ def katalog_pdf_durumu() -> list:
 
 
 def gonderi_gorsel_yolu(dosya: str) -> Path:
-    """Üretilen gönderi görseli. Yol kaçışı reddedilir."""
-    ad = str(dosya or "")
+    """Üretilen gönderi görseli. Yol kaçışı reddedilir.
+
+    Ad URL'den kodlu gelir ("l-carli%C3%A9-…"); çözülüp NFC'ye getirilir. Çözülmediği için
+    Türkçe harfli ürünlerin görselleri hiç açılmıyordu (04.11).
+    """
+    import unicodedata
+    from urllib.parse import unquote
+
+    ad = unicodedata.normalize("NFC", unquote(str(dosya or "")))
     if not ad or "/" in ad or "\\" in ad or ".." in ad:
         raise KatalogHatasi("gecersiz gorsel adi")
     hedef = (GONDERI_DIZIN / ad).resolve()

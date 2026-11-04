@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import time
 from pathlib import Path
 
@@ -712,6 +713,8 @@ def uret(slug: str, bicim: str = "AKIS", baslik: str = "", alt: str = "",
     damga = time.strftime("%Y%m%dT%H%M%S")
     ad = "%s-%s-%s" % (slug, bicim.lower(), damga)
     tuval.save(cikti_dizin / (ad + ".jpg"), quality=92, subsampling=1)
+    # Servis UMask=0077 ile koşuyor; 600 yazılan görseli panel (jarvis-web) okuyamıyordu (04.11).
+    os.chmod(cikti_dizin / (ad + ".jpg"), 0o644)
 
     rapor.update({
         "urun": slug, "bicim": bicim, "boyut": [g, y],
@@ -736,6 +739,7 @@ def uret(slug: str, bicim: str = "AKIS", baslik: str = "", alt: str = "",
     })
     (cikti_dizin / (ad + ".json")).write_text(
         json.dumps(rapor, ensure_ascii=False, indent=1), encoding="utf-8")
+    os.chmod(cikti_dizin / (ad + ".json"), 0o644)
     return rapor
 
 
