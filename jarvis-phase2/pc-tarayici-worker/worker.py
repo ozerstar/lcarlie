@@ -160,7 +160,7 @@ def ekrani_sakla(is_id: int, ham: bytes | None) -> None:
 # --------------------------------------------------------------------------
 # Bir is
 # --------------------------------------------------------------------------
-def isi_yap(playwright, kapi: Kapi, is_: dict) -> str:
+def isi_yap(playwright, kapi: Kapi, is_: dict, sayfa_havuzu: dict | None = None) -> str:
     """Tek isi bastan sona yurutur. Sonuc durumunu dondurur."""
     from handlers import ortak
 
@@ -171,11 +171,19 @@ def isi_yap(playwright, kapi: Kapi, is_: dict) -> str:
 
     sayfa = None
     goruntusu: bytes | None = None
+    sayfa_havuzu = sayfa_havuzu if sayfa_havuzu is not None else {}
     try:
         modul = handlers.getir(hedef)
-        tarayici = tarayiciya_baglan(playwright)
-        baglam = tarayici.contexts[0]
-        sayfa = baglam.new_page()
+        onbellek = sayfa_havuzu.get(hedef)
+        if onbellek:
+            tarayici, sayfa = onbellek
+            if sayfa.is_closed():
+                sayfa = None
+        if sayfa is None:
+            tarayici = tarayiciya_baglan(playwright)
+            baglam = tarayici.contexts[0]
+            sayfa = baglam.new_page()
+            sayfa_havuzu[hedef] = (tarayici, sayfa)
         # Girdi dosyalari kullanicinin Chrome oturumuna aktarilmak uzere
         # yalnizca bu is boyunca gecici dosyalara yazilir.
         with tempfile.TemporaryDirectory(prefix="jarvis-browser-job-") as gecici:
@@ -227,11 +235,9 @@ def isi_yap(playwright, kapi: Kapi, is_: dict) -> str:
         return "HATA"
 
     finally:
-        if sayfa is not None:
-            try:
-                sayfa.close()
-            except Exception:                              # noqa: BLE001
-                pass
+        # Hedef sekmesi acik kalir; kullanici GPT/Claude cevabini gorebilir.
+        # Sonraki is ayni sekmeyi yeni bir istem icin kullanir.
+        pass
 
 
 # --------------------------------------------------------------------------
@@ -262,6 +268,7 @@ def main() -> int:
     son_nabiz = 0.0
     son_temizlik = time.time()
     son_is: str | None = None
+    sayfa_havuzu: dict = {}
 
     with sync_playwright() as playwright:
         while True:
@@ -298,7 +305,7 @@ def main() -> int:
                 time.sleep(YOKLAMA_S)
                 continue
 
-            son_is = isi_yap(playwright, kapi, is_)
+            son_is = isi_yap(playwright, kapi, is_, sayfa_havuzu)
 
             # 🔴 TEK SEFERDE TEK IS + isler arasi rastgele bekleme.
             bekle = random.uniform(ISLER_ARASI_EN_AZ_S, ISLER_ARASI_EN_COK_S)

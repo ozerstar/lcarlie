@@ -41,6 +41,7 @@ import json
 import os
 import sys
 import time
+import uuid
 from pathlib import Path
 
 KOK = Path(__file__).resolve().parent.parent
@@ -137,7 +138,8 @@ def chatgpt_web_gorsel(istem: str, oran: str, girdi_dosyalari: list[Path],
     from jarvis import tarayici as browser_queue
     is_ = browser_queue.enqueue_browser_task(
         istem, "chatgpt_image", input_files=[str(p.resolve()) for p in girdi_dosyalari],
-        requested_by="tasarim-departmani")
+        requested_by="tasarim-departmani",
+        idempotency_key="gptwork:" + uuid.uuid4().hex)
     print(f"GPT Work Chrome kuyruğuna eklendi: iş {is_['is_id']}", flush=True)
     bitis = time.monotonic() + zaman_asimi_s
     while time.monotonic() < bitis:
