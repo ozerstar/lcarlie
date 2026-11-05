@@ -111,6 +111,9 @@ def yedek_dene(is_: dict) -> dict | None:
     """
     if is_.get("durum") not in ("HATA", "INSAN_GEREKLI"):
         return None
+    # Web-session fallback is a real queue job; do not recursively queue another fallback.
+    if is_.get("isteyen") == "tarayici-yedek":
+        return None
     try:
         sonuc = tarayici_yedek.dene(is_.get("hedef") or "", is_.get("istem") or "")
     except tarayici_yedek.YedekYok as hata:

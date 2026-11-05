@@ -190,6 +190,15 @@ def enqueue_browser_task(prompt: str, target: str,
                      "verify": [b.to_dict() for b in inceleme.verify]}}
 
 
+def enqueue_claude_task(prompt: str, input_files: list[str] | None = None,
+                        requested_by: str = "jarvis",
+                        idempotency_key: str | None = None) -> dict[str, Any]:
+    """Claude Web oturumuna is ekler; sunucu Anthropic API'si kullanmaz."""
+    return enqueue_browser_task(
+        prompt, "claude_chat", input_files=input_files,
+        requested_by=requested_by, idempotency_key=idempotency_key)
+
+
 def _girdi_dogrula(input_files: list[str] | None) -> list[str]:
     """Girdi dosyası yollarını doğrular.
 

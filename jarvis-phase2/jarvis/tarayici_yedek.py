@@ -19,8 +19,8 @@ dener. Sıra şudur:
 
 ## 🔴 ÖLÇÜLDÜ (16.10.2026) — HER HEDEFİN YEDEĞİ VAR DEĞİL
 
-    claude_chat    YEDEK VAR     providers.generate() çağrılabilir
-    chatgpt_chat   YEDEK VAR     aynı zincir
+    claude_chat    YEDEK VAR     karsi web oturumu
+    chatgpt_chat   YEDEK VAR     Claude web oturumu
     chatgpt_image  YEDEK YOK*    * ComfyUI kuyruğu duruyor ama onu işleyen
                                  PC-2 worker'ının son raporu 04.10.2026.
                                  Higgsfield anahtarı sunucuda HİÇ YOK.
@@ -57,25 +57,24 @@ class YedekYok(RuntimeError):
 # --------------------------------------------------------------------------
 # METİN: mevcut sağlayıcı zinciri
 # --------------------------------------------------------------------------
-def _metin_yedegi(istem: str) -> dict[str, Any]:
-    """İşi model sağlayıcı zincirine verir.
-
-    `kademe="muhakeme"` seçilir, çünkü bu metin sahibin onayına ve
-    muhtemelen yayına gider; hızlı kademe sınıflandırma için.
-    """
-    from . import providers
-    try:
-        sonuc = providers.generate(
-            [{"role": "user", "content": istem}],
-            max_tokens=1200, kademe="muhakeme",
-            is_anahtari="tarayici-yedek")
-    except providers.NoProvider as hata:
-        raise YedekYok("sağlayıcı zincirinde çalışan model yok: %s" % hata) from None
-    metin = (sonuc.get("text") or sonuc.get("content") or "").strip()
-    if not metin:
-        raise YedekYok("sağlayıcı boş metin döndürdü")
-    return {"metin": metin, "dosyalar": [],
-            "yedek": "model-zinciri:%s" % (sonuc.get("model") or "?")}
+def _metin_yedegi(istem: str, kaynak_hedef: str) -> dict[str, Any]:
+    """Sohbet yedegini model API'sine degil karsi web oturumuna verir."""
+    import hashlib
+    from . import tarayici
+    hedef = "claude_chat" if kaynak_hedef == "chatgpt_chat" else "chatgpt_chat"
+    parmak_izi = hashlib.sha256(
+        (kaynak_hedef + "|" + istem).encode("utf-8")).hexdigest()[:32]
+    if hedef == "claude_chat":
+        is_ = tarayici.enqueue_claude_task(
+            istem, requested_by="tarayici-yedek",
+            idempotency_key="browser-fallback:" + parmak_izi)
+    else:
+        is_ = tarayici.enqueue_browser_task(
+            istem, hedef, requested_by="tarayici-yedek",
+            idempotency_key="browser-fallback:" + parmak_izi)
+    return {"metin": "", "dosyalar": [],
+            "yedek": "%s-web-is:%s" % (hedef, is_["is_id"]),
+            "beklemede": True}
 
 
 # --------------------------------------------------------------------------
@@ -142,4 +141,6 @@ def dene(hedef: str, istem: str) -> dict[str, Any]:
     islev = YEDEKLER.get(hedef)
     if not islev:
         raise YedekYok("bu hedefin tanımlı yedeği yok: %r" % (hedef,))
+    if hedef in ("claude_chat", "chatgpt_chat"):
+        return islev(istem, hedef)
     return islev(istem)
