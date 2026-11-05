@@ -1,6 +1,7 @@
 """Branded customer documents: genuine XLSX with logo, PDF builds, no DB."""
 import sys
 import unittest
+import re
 import zipfile
 from decimal import Decimal
 from io import BytesIO
@@ -34,10 +35,14 @@ class BrandedExportTests(unittest.TestCase):
             self.assertNotIn('xl/worksheets/sheet3.xml', names)
             sheet = z.read('xl/worksheets/sheet2.xml').decode()
             self.assertIn('Mcaris', sheet)
-            self.assertNotIn('<f>', sheet)  # =OPTYWAVE stays inert text
-            self.assertIn('=OPTYWAVE', sheet)
+            # =OPTYWAVE düz metin kalır; formül yalnız bizim yazdığımız toplamlarda olur.
+            self.assertRegex(sheet, r'<c r="A7" s="\d+" t="inlineStr"><is><t xml:space="preserve">=OPTYWAVE</t>')
+            self.assertEqual(sorted(set(re.findall(r'<f>([A-Z]+)\(', sheet))), ['SUM'])
+            self.assertIn('<f>SUM(H7:H7)</f><v>660</v>', sheet)
+            self.assertNotIn('i̇', sheet)  # büyük İ küçültülünce bozulan nokta
             self.assertIn('s="9"', sheet)  # total row style
-            self.assertIn('<autoFilter ref="A5:H7"/>', sheet)
+            self.assertIn('<autoFilter ref="A6:H7"/>', sheet)
+            self.assertIn('orientation="landscape"', sheet)
 
     def test_seller_block_only_from_owner_file(self):
         import tempfile
@@ -48,6 +53,12 @@ class BrandedExportTests(unittest.TestCase):
                 self.assertEqual(cari_export.firm(), {})
                 path.write_text('{"unvan": "Örnek Ltd.", "iban": "TR00 0000", "banka": ""}', encoding='utf-8')
                 self.assertEqual(cari_export.firm(), {'unvan': 'Örnek Ltd.', 'iban': 'TR00 0000'})
+
+    def test_pdf_and_excel_share_one_preparation_time(self):
+        meta = cari_export.report_meta('Mcaris', [('Cari özeti', [['Alan', 'Bilgi'], ['Hazırlanma', '01.02.2026 09:30']])])
+        self.assertEqual(meta['stamp'], '01.02.2026 09:30')
+        with zipfile.ZipFile(BytesIO(cari_export.xlsx(TABLES, 'Mcaris', meta))) as z:
+            self.assertIn('01.02.2026 09:30', z.read('xl/worksheets/sheet1.xml').decode())
 
     def test_pdf_builds_with_logo(self):
         try:
