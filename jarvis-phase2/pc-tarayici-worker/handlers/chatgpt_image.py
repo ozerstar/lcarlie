@@ -40,10 +40,13 @@ MESAJ = (
 # Uretilen gorselin kendisi. Avatar/simge gorsellerini DISLAMAK icin
 # kaynak adresi desenle suzulur.
 GORSEL = (
-    'div[data-message-author-role="assistant"] img[src*="oaiusercontent"]',
-    'div[data-message-author-role="assistant"] img[src*="files.oaiusercontent"]',
-    'div[data-message-author-role="assistant"] img[alt*="Generated" i]',
-    'div[data-message-author-role="assistant"] img[src^="blob:"]',
+    # ChatGPT's current image card may use backend-api URLs instead of
+    # oaiusercontent URLs. Scope broad discovery to assistant outputs.
+    'div[data-message-author-role="assistant"] img',
+    'div.agent-turn img',
+    'div[data-testid*="image"] img',
+    'img[alt*="Generated" i]',
+    'img[src^="blob:"]',
 )
 
 # Avatar/ikon kaynaklari: bunlar uretilmis gorsel DEGIL.
@@ -60,8 +63,16 @@ def _gorsel_adresleri(page) -> list[str]:
         try:
             loc = page.locator(secici)
             for i in range(loc.count()):
-                src = loc.nth(i).get_attribute("src") or ""
-                if src and not GORSEL_DISLANAN.search(src) and src not in adresler:
+                im = loc.nth(i)
+                src = im.get_attribute("src") or ""
+                if not src:
+                    try:
+                        src = im.evaluate("(el) => el.currentSrc || el.src") or ""
+                    except Exception:                          # noqa: BLE001
+                        src = ""
+                if (src and not GORSEL_DISLANAN.search(src)
+                        and src.startswith(("http://", "https://", "blob:", "data:image/"))
+                        and src not in adresler):
                     adresler.append(src)
         except Exception:                              # noqa: BLE001
             continue
@@ -70,6 +81,12 @@ def _gorsel_adresleri(page) -> list[str]:
 
 def _indir(page, adres: str) -> bytes | None:
     """Gorseli sayfanin oturumuyla indirir."""
+    if adres.startswith("data:image/"):
+        import base64
+        try:
+            return base64.b64decode(adres.split(",", 1)[1])
+        except Exception:                                  # noqa: BLE001
+            return None
     if adres.startswith("blob:"):
         # blob: adresi ag uzerinden alinamaz; sayfa icinde base64'e cevrilir.
         try:
