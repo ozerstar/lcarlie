@@ -752,9 +752,11 @@
       summary.textContent = get('product').value.trim() ? 'Fiyat yok — listeden seçin veya “Fiyat ve KDV” bölümünden girin.' : '';
       return;
     }
+    // Sunucuyla aynı: satır tutarı adet × fiyat üzerinden BİR KEZ yuvarlanır; birim fiyat bilgi içindir.
+    const line = Math.round(Math.round(price * 100) * quantity * (100 - discount) / 100);
     const unit = Math.round(price * 100 * (100 - discount) / 100);
     const vat = get('tax').value === '' ? 'KDV dahil' : 'KDV hariç';
-    summary.textContent = `PSF ${money(Math.round(price * 100))} · %${discount.toLocaleString('tr-TR')} iskonto → ${money(unit)} (${vat}) × ${quantity} = ${money(unit * quantity)}`;
+    summary.textContent = `PSF ${money(Math.round(price * 100))} · %${discount.toLocaleString('tr-TR', {maximumFractionDigits: 4})} iskonto → birim ≈ ${money(unit)} (${vat}) · ${quantity} adet = ${money(line)}`;
   }
 
   function pickProduct(row, product) {
