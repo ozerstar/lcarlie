@@ -117,5 +117,13 @@ class CariProductTableTests(unittest.TestCase):
         self.assertEqual(cari._goods_body(payload, cari.Decimal("60"))["note"], "%60 indirimli satış")
 
 
+    def test_discount_accepts_four_decimals_for_agreed_totals(self):
+        # 10 × 1.000 TL PSF, anlaşılan 8.123,45 TL → %18,7655 iskonto; 4 hane kuruşu tutar.
+        row = entry('a', quantity=10, price='1000', discount='18.7655', tax=None)['payload']
+        self.assertEqual(row['net_cents'], 812345)
+        with self.assertRaises(cari.CariError):
+            entry('b', discount='18.76551')
+
+
 if __name__ == '__main__':
     unittest.main()

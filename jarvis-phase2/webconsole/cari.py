@@ -132,7 +132,7 @@ def calculate(body):
             if type(quantity) is not int or not 1 <= quantity <= 100000:
                 raise CariError("Adet pozitif tam sayı olmalı.")
             price = _money(item.get("unit_price"), "KDV hariç birim fiyat")
-            discount = _number(item.get("discount", "0"), "İskonto", 100)
+            discount = _number(item.get("discount", "0"), "İskonto", 100, places=4)
             rate = item.get("tax_rate")
             rate = None if rate is None else _number(rate, "KDV oranı", 100)
             if kind.startswith("gift_") and (price != 0 or discount != 0 or rate != 0):
@@ -796,7 +796,7 @@ def apply_discount(owner, account_id, body):
     if not isinstance(body, dict):
         raise CariError("İskonto isteği geçersiz.")
     key = _key(body.get("request_id"))
-    discount = _number(body.get("discount"), "İskonto", 100)
+    discount = _number(body.get("discount"), "İskonto", 100, places=4)
     today = datetime.now(ZoneInfo("Europe/Istanbul")).date().isoformat()
     reason = f"{BULK_REASON}{discount} uygulandı"
     from psycopg.types.json import Jsonb

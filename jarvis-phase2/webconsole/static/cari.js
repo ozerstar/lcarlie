@@ -126,7 +126,7 @@
       <dialog id="cariEntryDialog" aria-labelledby="cariEntryTitle"><div class="cari-section-head"><h2 id="cariEntryTitle">Yeni hareket</h2><button type="button" data-close="cariEntryDialog" aria-label="Kapat">×</button></div><form id="cariEntryForm" class="cari-form"><div class="cari-fields"><label>Hareket türü<select name="kind">${Object.entries(labels).map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}</select></label><label>İşlem tarihi<input name="date" type="date" required></label><label>Vade (isteğe bağlı)<input name="due_date" type="date"></label><label>Belge / fatura numarası<input name="reference" maxlength="100"></label></div><div id="cariGoods"><p class="cari-muted">Ürün adını yazmaya başlayın ve listeden seçin. PSF (KDV dahil) fiyatı kendiliğinden gelir; siz yalnız adet ve iskontoyu girin.</p><div id="cariLines"></div><button type="button" id="cariAddLine">+ Ürün satırı</button></div><label id="cariCash" hidden>Tutar (TL)<input name="amount" inputmode="decimal" placeholder="0,00"></label><div id="cariPaymentFields" class="cari-fields" hidden><label>Ödeme yöntemi<select name="payment_method"><option value="">Belirtilmedi</option><option value="pos">POS</option><option value="havale">Havale / EFT</option><option value="elden">Elden</option><option value="other">Diğer</option></select></label><label>Hangi belgeye?<select name="applies_to"><option value="">Eşleştirilmedi</option></select></label></div><label>Açıklama<textarea name="note" rows="2" maxlength="2000"></textarea></label><div id="cariCorrectionFields" hidden><p class="cari-alert">Eski hareket ve düzeltme birlikte korunur. Kaydetme işlemi tek seferde yapılır.</p><div class="cari-fields"><label>Düzeltme tarihi<input name="correction_date" type="date"></label><label>Düzeltme gerekçesi<input name="reason" maxlength="500"></label></div></div><p id="cariEntryError" class="cari-error" role="alert" hidden></p><div id="cariPreview" class="cari-preview" aria-live="polite" hidden></div><div class="cari-form-actions"><button type="submit">Hesapla ve kontrol et</button><button type="button" id="cariSaveEntry" class="cari-primary" hidden>Hareketi kaydet</button></div></form></dialog>
       <dialog id="cariReverseDialog" aria-labelledby="cariReverseTitle"><div class="cari-section-head"><h2 id="cariReverseTitle">Hareketi ters kayıtla düzelt</h2><button type="button" data-close="cariReverseDialog" aria-label="Kapat">×</button></div><p>Asıl kayıt korunur; tutarı ve ürün adetlerini dengeleyen bir ters kayıt eklenir.</p><form id="cariReverseForm" class="cari-form"><input name="entry_id" type="hidden"><label>Düzeltme tarihi<input name="date" type="date" required></label><label>Gerekçe<textarea name="reason" required maxlength="500" rows="3"></textarea></label><p id="cariReverseError" class="cari-error" role="alert" hidden></p><button class="cari-primary" type="submit">Ters kaydı oluştur</button></form></dialog>
       <dialog id="cariPaymentDialog" aria-labelledby="cariPaymentTitle"><div class="cari-section-head"><h2 id="cariPaymentTitle">Ödeme kaydet</h2><button type="button" data-close="cariPaymentDialog" aria-label="Kapat">×</button></div><form id="cariPaymentForm" class="cari-form"><input name="applies_to" type="hidden"><label>Tarih<input name="date" type="date" required></label><label>Alınan / ödenen tutar (TL)<input name="amount" inputmode="decimal" required></label><label>Yöntem<select name="payment_method"><option value="pos">POS</option><option value="havale">Havale / EFT</option><option value="elden">Elden</option><option value="other">Diğer</option></select></label><label>Not<textarea name="note" maxlength="2000" rows="2"></textarea></label><p id="cariPaymentError" class="cari-error" role="alert" hidden></p><button class="cari-primary" type="submit">Ödemeyi kaydet</button></form></dialog>`;
-    el('cariGoods').querySelector('p').insertAdjacentHTML('afterend', '<div class="cari-fields cari-bulk-discount"><label>Toplu iskonto %<input id="cariBulkDiscount" inputmode="decimal" placeholder="Ör. 30"></label><button type="button" id="cariApplyDiscount">Tüm ürünlere uygula</button></div><p id="cariDiscountHint" class="cari-muted" hidden></p>');
+    el('cariGoods').querySelector('p').insertAdjacentHTML('afterend', '<div class="cari-fields cari-bulk-discount"><label>Toplu iskonto %<input id="cariBulkDiscount" inputmode="decimal" placeholder="Ör. 30"></label><button type="button" id="cariApplyDiscount">Tüm ürünlere uygula</button></div><p id="cariDiscountHint" class="cari-muted" hidden></p><div class="cari-agreed"><p class="cari-agreed-title">İskontoyu bilmiyor musun? Anlaştığın toplam fiyatı yaz.</p><div class="cari-fields"><label>Anlaşılan toplam (TL)<input id="cariAgreedAmount" inputmode="decimal" placeholder="Ör. 8000"></label><label>Bu tutar<select id="cariAgreedBasis"><option value="dahil">KDV dahil</option><option value="haric">KDV hariç</option></select></label><button type="button" id="cariAgreedApply">Hesapla ve uygula</button></div><p id="cariAgreedResult" class="cari-agreed-result" aria-live="polite"></p></div>');
     el('cariSaveEntry').insertAdjacentHTML('afterend', '<button type="button" id="cariSaveDraft" hidden>Taslak olarak kaydet</button>');
     const tabs = [...root.querySelectorAll('[data-cari-tab]')];
     tabs.forEach((button, index) => {
@@ -159,12 +159,14 @@
     el('cariSaveDraft').onclick = saveDraft;
     el('cariApplyDiscount').onclick = () => {
       const value = decimal(el('cariBulkDiscount').value);
-      if (!/^\d{1,3}(?:\.\d{1,2})?$/.test(value) || Number(value) > 100) {
+      if (!/^\d{1,3}(?:\.\d{1,4})?$/.test(value) || Number(value) > 100) {
         error('İskonto 0 ile 100 arasında olmalı.', 'cariEntryError'); return;
       }
       el('cariLines').querySelectorAll('[name=discount]').forEach(input => {input.value = value;});
+      el('cariLines').querySelectorAll('.cari-line').forEach(refreshLine);
       clearPreview(); error('', 'cariEntryError');
     };
+    el('cariAgreedApply').onclick = applyAgreedTotal;
     el('cariReverseForm').onsubmit = reverseEntry;
     el('cariPaymentForm').onsubmit = savePayment;
     el('cariInvoiceForm').onsubmit = uploadInvoice;
@@ -681,6 +683,49 @@
       state.selected = result.id; el('cariAccountDialog').close(); await refresh();
     } catch (exc) {error(exc.message, 'cariAccountError');}
     finally {button.disabled = false;}
+  }
+
+  // Anlaşılan toplamdan iskonto: liste fiyatı (PSF × adet) ile anlaşılan tutarı
+  // karşılaştırır, oranı bulur ve bütün satırlara yazar. Sunucu aynı yuvarlamayı
+  // yapar (satır bazında yarım yukarı); kalan kuruş farkı açıkça gösterilir.
+  function applyAgreedTotal() {
+    const rows = [...el('cariLines').children], target = el('cariAgreedResult');
+    const amount = Number(decimal(el('cariAgreedAmount').value || ''));
+    target.textContent = ''; error('', 'cariEntryError');
+    if (!(amount > 0)) {error('Anlaşılan toplam tutarı yazın.', 'cariEntryError'); return;}
+    if (el('cariEntryForm').elements.kind.value.startsWith('gift_')) {error('Bedelsiz teslimde fiyat olmaz.', 'cariEntryError'); return;}
+    const lines = [];
+    for (const row of rows) {
+      const get = name => row.querySelector('[name=' + name + ']').value;
+      const price = Math.round(Number(decimal(get('price'))) * 100), quantity = Number(get('quantity'));
+      if (!get('price').trim() || !(price >= 0) || !(quantity > 0)) {
+        row.querySelector('.cari-line-more').open = !get('price').trim();
+        error('Önce her satırda ürünü ve adedi seçin; fiyatı olmayan satır var.', 'cariEntryError'); return;
+      }
+      const tax = get('tax'), rate = tax === '' ? null : Number(decimal(tax === 'custom' ? get('customTax') : tax));
+      lines.push({row, price, quantity, rate});
+    }
+    if (!lines.length) {error('Önce ürün ekleyin.', 'cariEntryError'); return;}
+    // Liste fiyatı: oranı boş satır PSF'tir, KDV %20 dahildir; oranı olan satır KDV hariçtir.
+    const gross = line => line.price * line.quantity;
+    const listIncl = lines.reduce((sum, line) => sum + (line.rate === null ? gross(line) : gross(line) * (1 + line.rate / 100)), 0);
+    const listExcl = lines.reduce((sum, line) => sum + (line.rate === null ? gross(line) / 1.2 : gross(line)), 0);
+    const agreedIncl = el('cariAgreedBasis').value === 'dahil' ? amount * 100 : amount * 100 * listIncl / listExcl;
+    if (agreedIncl > listIncl + 0.5) {error(`Anlaşılan tutar liste fiyatından (${money(Math.round(listIncl))} KDV dahil) yüksek; bu iskonto değil zam olur. Fiyatı “Fiyat ve KDV” bölümünden değiştirin.`, 'cariEntryError'); return;}
+    const discount = Math.max(0, Math.round((1 - agreedIncl / listIncl) * 1000000) / 10000);
+    let resultIncl = 0;
+    for (const line of lines) {
+      line.row.querySelector('[name=discount]').value = String(discount);
+      const net = Math.round(gross(line) * (100 - discount) / 100);
+      resultIncl += line.rate === null ? net : net + Math.round(net * line.rate / 100);
+      refreshLine(line.row);
+    }
+    el('cariBulkDiscount').value = String(discount);
+    clearPreview();
+    const want = Math.round(agreedIncl), excl = Math.round(want * listExcl / listIncl), gap = resultIncl - want;
+    target.textContent = `Liste fiyatı ${money(Math.round(listIncl))} → anlaşılan ${money(want)} KDV dahil (${money(excl)} KDV hariç + ${money(want - excl)} KDV). `
+      + `İskonto %${discount.toLocaleString('tr-TR', {maximumFractionDigits: 4})} bütün satırlara yazıldı.`
+      + (gap ? ` Kuruş yuvarlaması nedeniyle kayıt toplamı ${money(resultIncl)} olacak (${gap > 0 ? '+' : ''}${money(gap)}).` : ' Kayıt toplamı anlaşılan tutarla birebir aynı.');
   }
 
   function clearPreview() {state.pending = null; el('cariPreview').hidden = true; el('cariSaveEntry').hidden = true; el('cariSaveDraft').hidden = true;}

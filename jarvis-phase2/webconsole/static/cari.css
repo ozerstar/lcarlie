@@ -364,3 +364,9 @@
 .cari-accounts>*{flex-shrink:0}
 .cari-accounts>button{min-height:0;padding:11px 14px;gap:3px;line-height:1.3}
 .cari-accounts>button small{line-height:1.35}
+/* Anlaşılan toplamdan iskonto (05.11.2026) */
+.cari-agreed{margin:4px 0 12px;padding:12px 14px;border:1px solid var(--c-line);border-radius:10px;background:#f8f6f1}
+.cari-agreed-title{margin:0 0 6px;font-weight:700;font-size:13px;color:#244f43}
+.cari-agreed .cari-fields{align-items:end}
+.cari-agreed-result{margin:8px 0 0;font-size:13px;color:#244f43;font-variant-numeric:tabular-nums}
+.cari-agreed-result:empty{display:none}
