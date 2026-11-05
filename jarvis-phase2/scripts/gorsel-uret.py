@@ -61,14 +61,13 @@ For your verification, the packaging is printed with exactly these lines:
 {satirlar}
 """
 
-TAM_GORSEL_ISTEM = """Art-direct a premium contemporary beauty-editorial campaign for L'CARLIÉ HYDRAVIE.
-Make the supplied product the hero in an unexpected sculptural still life: pale
-mineral stone, one vivid cobalt-glass form, precise directional light and an
-asymmetric crop. Avoid water ribbons, splash effects and stock-ad styling.
-Invent one concise, elegant Turkish headline and one short ingredient line.
-Integrate the typography into the composition, with no dark panel. Use a bold
-Monument Extended and Metropolis editorial type mood. Keep the real product and
-logo recognizable; make no unsupported skincare promises. Aspect ratio {oran}."""
+TAM_GORSEL_ISTEM = """Create a premium editorial skincare ad for L'CARLIÉ HYDRAVIE. Use the supplied
+product as the hero. Build a tactile, humid atmosphere with one sculptural form in
+the product's aqua blue, naturally integrated into the scene. Give it distinctive
+magazine art direction and refined light. Write one short Turkish headline yourself;
+keep it fully visible with generous safe margins. A small supporting line is optional.
+Preserve the package logo; do not add a second large masthead logo. No dark text panel
+or unsupported claim. Monument Extended / Metropolis editorial type mood. Aspect ratio {oran}."""
 
 
 def etiket_satirlari(urun_yolu: Path) -> str:
