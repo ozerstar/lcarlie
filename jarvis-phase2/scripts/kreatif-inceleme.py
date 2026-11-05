@@ -211,10 +211,16 @@ bak (ambalajın üstündeki basılı metne değil):
 
 
 def goz_incele(im: Image.Image, kod: str, ad: str, rubrik: str,
-               ust: str, alt: str, aci: str) -> dict:
-    baglam = (f"Karede OLMASI GEREKEN yazı şu ikisidir, başkası değil:\n"
-              f"  başlık: {ust}\n  alt satır: {alt}\n"
-              f"Bu karenin anlatması gereken açı: {aci}\n\n{rubrik}")
+               ust: str, alt: str, aci: str, gpt_yazi: bool = False) -> dict:
+    if gpt_yazi:
+        baglam = ("Metinler görsel modelince yazılmış. Karedeki yazıları aynen oku; "
+                  "Türkçe yazımı, okunurluğu, marka/ürün adı ve dayanaksız vaat olup "
+                  "olmadığını denetle. Beklenen metin kalıbı verme.\n"
+                  f"Bu karenin anlatması gereken açı: {aci}\n\n{rubrik}")
+    else:
+        baglam = (f"Karede OLMASI GEREKEN yazı şu ikisidir, başkası değil:\n"
+                  f"  başlık: {ust}\n  alt satır: {alt}\n"
+                  f"Bu karenin anlatması gereken açı: {aci}\n\n{rubrik}")
     try:
         metin = _cagir([_resim(im), {"text": ORTAK + "\n\n" + baglam}])
     except (urllib.error.URLError, OSError, RuntimeError, ValueError) as hata:
@@ -303,7 +309,8 @@ def main() -> int:
                 "tipografi, palet ve mesaj uyumunu da değerlendir.")
         gorusler = [goz_incele(im, kod, ad, rubrik,
                                g.get("ust_yazi", ""), g.get("alt_yazi", ""),
-                               format_konteksti)
+                               format_konteksti,
+                               gpt_yazi=(g.get("yazi_modeli") == "gpt_work"))
                     for kod, ad, rubrik in GOZLER]
         karar, gerekce = direktor(olcum, gorusler)
         print(f"\n{g['dosya']} -> {karar}")

@@ -61,22 +61,17 @@ For your verification, the packaging is printed with exactly these lines:
 {satirlar}
 """
 
-TAM_GORSEL_ISTEM = """Create the complete premium {oran} Instagram skincare advertisement image.
-Use the attached product photograph as the exact product reference. Reproduce the
-container faithfully: same silhouette, cap, colors, label layout and visible
-packaging text. Do not invent a different package. Use the attached official logo
-as the brand mark, keeping its shape and colors. Compose the full art direction,
-lighting, scene, props and product placement yourself. Make the product prominent,
-sharp and naturally integrated, with a distinctive art direction based on this
-scene direction: {sahne}
+TAM_GORSEL_ISTEM = """Create one original, premium editorial skincare campaign image for L'CARLIÉ HYDRAVIE.
+Use the attached product and logo as visual references. Art direct freely: refined
+beauty-magazine photography, a memorable sculptural hydration motif, confident
+composition and elegant light. Avoid stock-ad layouts and generic templates.
 
-Do not add any advertising headline, caption, CTA, extra lettering, badge or
-watermark. Keep a calm, uncluttered lower 27% of the image for a separate exact
-brand-font text overlay. The final image must be a complete designed visual apart
-from that reserved copy area. Aspect ratio {oran}.
-
-Packaging reference notes (preserve rather than retype):
-{etiket}"""
+Create the Turkish headline and supporting line yourself. Keep both short, polished,
+correctly spelled and naturally integrated into the image. Use Monument Extended-like
+display typography with Metropolis-like supporting type. Do not add a dark text panel,
+gradient band, badge, price or unsupported skincare promise. Keep package and logo
+recognizable. Product context: Niacinamide, hyaluronic acid and squalane.
+Creative seed: {sahne}. Aspect ratio {oran}."""
 
 
 def etiket_satirlari(urun_yolu: Path) -> str:
@@ -132,33 +127,12 @@ def chatgpt_web_gorsel(istem: str, oran: str, girdi_dosyalari: list[Path],
 
 def montaj_uret(sahne: str, ust: str, alt: str, oran: str,
                 urun_yolu: Path, logo_yolu: Path, etiket: str) -> Image.Image:
-    """GPT composes the complete product ad; Jarvis overlays only exact copy."""
-    itiraz_blok = ""
-    try:
-        from jarvis.kreatif_itiraz import acik_itirazlar_metni
-        ham = acik_itirazlar_metni(_URUN_ONEKI or "")
-        if ham:
-            itiraz_blok = "\n\nMANDATORY ART-DIRECTION FEEDBACK:\n" + ham
-    except Exception:  # noqa: BLE001 - feedback store failure must not block generation
-        pass
+    """GPT creates image and copy together; Jarvis returns it without overlays."""
     if not urun_yolu.is_file() or not logo_yolu.is_file():
         raise gk.GorselHatasi("urun fotografi veya resmi logo bulunamadi")
-    istem = TAM_GORSEL_ISTEM.format(
-        oran=oran, sahne=(sahne.strip() + itiraz_blok).strip(),
-        etiket=etiket.strip() or "No separate label transcription; use the attached photo.")
-    # GPT Work sees the original product and logo and builds the whole visual.
-    gorsel = chatgpt_web_gorsel(istem, oran, [urun_yolu, logo_yolu])
-    bicim = {"1:1": "KARE", "4:5": "AKIS", "9:16": "REELS"}.get(oran)
-    if not bicim:
-        raise gk.GorselHatasi("desteklenmeyen oran: %s" % oran)
-    g, y = gk.BICIMLER[bicim]
-    tuval = gorsel.resize((g, y), Image.Resampling.LANCZOS).convert("RGB")
-    # GPT leaves the lower copy area clear. Jarvis measures the actual background
-    # there, chooses readable contrast and uses the installed brand font files.
-    yerlesim = gk.dizgi_yerlesim(tuval, ust, alt, bicim)
-    tuval, metin_renk, alt_renk, _ = gk.okunurluk_ayarla(tuval, yerlesim)
-    gk.dizgi_yaz(tuval, yerlesim, metin_renk, alt_renk)
-    return tuval
+    seed = " ".join(sahne.split())[:180]
+    istem = TAM_GORSEL_ISTEM.format(oran=oran, sahne=seed)
+    return chatgpt_web_gorsel(istem, oran, [urun_yolu, logo_yolu])
 
 # ══════════════════════════════════════════════════════════════════════════
 # 🔴 OTOMATİK AMBALAJ DENETİMİ DENENDİ VE ÇALIŞMIYOR — KALDIRILDI
@@ -261,23 +235,10 @@ def main() -> int:
         # Sahne tarifi zaten "ürünsüz arka plan" diye yazılmıştı; artık ürün
         # de karede olacağı için mühürdeki yasak cümlesi kullanılmaz --
         # sahnenin yalnız ortam kısmı alınır.
-        sahne = str(g.get("sahne_istemi") or "").split("NEGATIVE")[0].strip()
-        if instagram_format == "2_KART_KARUSEL":
-            rol = "first-frame hook" if kart_no == "1" else "substantiated product value and one CTA"
-            sahne += (f"\n\nINSTAGRAM TWO-CARD CAROUSEL — series {seri_kodu}, "
-                      f"card {kart_no}/2, role: {rol} ({kart_rolu}). "
-                      "Keep the paired card's palette, lighting and type system coherent. "
-                      "Card 1 must be compliant and clear by itself; card 2 may use only "
-                      "the approved, evidence-backed copy.")
-        elif instagram_format == "3_5_KART_KARUSEL":
-            sahne += (f"\n\nINSTAGRAM CAROUSEL — series {seri_kodu}, card {kart_no}, "
-                      f"role: {kart_rolu}. Keep art direction coherent across the set.")
-        geri_bildirim = [str(x).strip() for x in (g.get("onceki_inceleme_notlari") or [])
-                         if str(x).strip()]
-        if geri_bildirim:
-            sahne += "\n\nMANDATORY REVISION NOTES FROM THE PREVIOUS DESIGN REVIEW:\n" + "\n".join(
-                "- " + x for x in geri_bildirim[:8])
-            sahne += "\nResolve every listed issue in this new composition."
+        sahne = str(g.get("ad") or "") + "; " + str(g.get("hangi_aci") or "")
+        # GPT'nin sanat yönetimini eski, birbiriyle çelişen revizyon notlarıyla
+        # boğmuyoruz; yalnız brief'teki kısa konsept ve ürün açısı gönderilir.
+        geri_bildirim = []
         try:
             kare = montaj_uret(sahne, ust, alt, oran, urun_yolu, logo_yolu, etiket)
         except (OSError, RuntimeError, ValueError) as e:
@@ -291,15 +252,16 @@ def main() -> int:
                                      quality=93)
         print(f"{n}. {g.get('ad','?')} · {oran} -> {ad.name} {kare.size}")
         teslim.append({"dosya": ad.name, "sahne": g.get("ad"), "oran": oran,
-                       "ust_yazi": ust, "alt_yazi": alt,
+                       "ust_yazi": "GPT tarafından görsel içinde yazıldı",
+                       "alt_yazi": "GPT tarafından görsel içinde yazıldı",
+                       "yazi_modeli": "gpt_work",
                        "hangi_aci": g.get("hangi_aci"),
                        "instagram_format": instagram_format,
                        "seri_kodu": seri_kodu, "kart_no": kart_no, "kart_rolu": kart_rolu,
                        "onceki_inceleme_notlari": geri_bildirim,
                        "inceleme_durumu": "DEPARTMAN_INCELEMESI_BEKLIYOR",
-                       "gorsel_uretme_yontemi": "gpt_work_tam_gorsel_jarvis_sadece_marka_fontlu_metin",
-                       "baslik_fontu": "Monument Extended Ultrabold",
-                       "destek_fontu": "Metropolis Semibold"})
+                       "gorsel_uretme_yontemi": "gpt_work_tam_gorsel_ve_yazi",
+                       "tipografi_tercihi": "Monument Extended + Metropolis stili GPT isteminde belirtildi"})
         time.sleep(2)
 
     (cikti / "teslim.json").write_text(
@@ -307,8 +269,8 @@ def main() -> int:
                     "brief": bp.name, "gorseller": teslim,
                     "saglayici": GORSEL_SAGLAYICI, "model": GORSEL_MODEL,
                     "instagram_reklam_format_karari": brief.get("instagram_reklam_format_karari"),
-                    "yontem": "GPT Work ürün, logo, sahne ve tam görsel kompozisyonunu üretir; Jarvis yalnızca Monument Extended ve Metropolis dosyalarıyla metin ekler; taslak departman incelemesi bekliyor",
-                    "tipografi": {"baslik": "Monument Extended Ultrabold", "destek": "Metropolis Semibold"},
+                    "yontem": "GPT Work görseli ve Türkçe yazıları birlikte üretir; Jarvis metne görsel katmanı eklemez; taslak inceleme bekliyor",
+                    "tipografi": "GPT görsel içinde oluşturdu; Monument Extended ve Metropolis görsel dili istendi",
                     "kontrol": "🔴 YAYINDAN ÖNCE JARVIS TASARIM EKİBİ VE İNSAN GÖZÜYLE BAKILMALI: "
                                "etiket-kontrol/ içindeki yakın planlarda "
                                "ambalaj yazısı doğru mu, şişenin beyazı "
