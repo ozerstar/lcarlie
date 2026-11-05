@@ -49,11 +49,11 @@ def sheets(owner,account_id,scope,as_of=None):
             tables.append((label,rows))
         # Müşteri belgesi: yalnız geçerli kayıtlar. İptal edilen belge ve onun ters
         # kaydı birbirini sıfırlar; bakiye aynı kalır, belge sadeleşir.
-        rows=[['Tarih','Hareket','Belge','Açıklama','Borç TL','Alacak TL','Bakiye TL']];balance=0
+        rows=[['Tarih','Hareket','Belge','Borç TL','Alacak TL','Bakiye TL']];balance=0
         for e in effective_entries(statement['entries']):
             p=e['payload'];signed=p['signed_cents'];balance+=signed
-            rows.append(['.'.join(reversed(p['date'].split('-'))),LABELS.get(p['kind'],'Hareket'),p.get('reference',''),p.get('note',''),amount(max(0,signed)),amount(max(0,-signed)),amount(balance)])
-        if len(rows)>1:rows.append(['GÜNCEL BAKİYE','','','','','',amount(balance)])
+            rows.append(['.'.join(reversed(p['date'].split('-'))),LABELS.get(p['kind'],'Hareket'),p.get('reference',''),amount(max(0,signed)),amount(max(0,-signed)),amount(balance)])
+        if len(rows)>1:rows.append(['GÜNCEL BAKİYE','','','','',amount(balance)])
         tables.append(('Hesap ekstresi',rows))
         seller=firm()
         if seller:tables.append(('Ödeme bilgileri',[['Alan','Bilgi']]+[[label,seller[k]] for k,label in FIRM_FIELDS if k in seller]))
@@ -184,7 +184,7 @@ def pdf(title,tables):
         # Split the wide delivery sheet into quantities; prices have their own sheet.
         pdfrows=[row[:6] for row in rows] if name.startswith('Teslim ve hediyeler') else rows
         columns=len(pdfrows[0]);widths=[available*.26]+[available*.74/(columns-1)]*(columns-1) if columns>2 else [available*.3,available*.7]
-        if name=='Hesap ekstresi':widths=[available*w for w in (.09,.09,.09,.43,.10,.10,.10)]
+        if name=='Hesap ekstresi':widths=[available*w for w in (.16,.18,.18,.16,.16,.16)]
         numeric_cols={j for row in pdfrows[1:] for j,v in enumerate(row) if isinstance(v,(int,Decimal)) and not isinstance(v,bool)}
         data=[[cell(v,(header_right if j in numeric_cols else header) if i==0 else bold if is_total(row) else style) for j,v in enumerate(row)] for i,row in enumerate(pdfrows)]
         table=Table(data,colWidths=widths,repeatRows=1,hAlign='LEFT')

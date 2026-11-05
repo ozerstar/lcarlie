@@ -1005,7 +1005,7 @@
       ['SATILAN ÜRÜNLER'], ['Ürün', 'Adet', 'PSF (KDV dahil) TL', 'İskonto %', 'İskontolu birim KDV hariç TL', 'İskontolu birim KDV dahil TL', 'Tutar KDV hariç TL', 'Tutar KDV dahil TL'],
       ...sales.map(item => [item.name, item.quantity, item.recommended_price_cents === null ? '' : item.recommended_price_cents / 100, Number(item.discount), item.unit_excl_cents / 100, item.unit_incl_cents / 100, item.net_excl_cents / 100, item.net_incl_cents / 100]),
       ...(sales.length ? [['GENEL TOPLAM', state.statement.product_tables.sale.quantity, '', '', '', '', state.statement.product_tables.sale.net_excl_cents / 100, state.statement.product_tables.sale.net_incl_cents / 100]] : []), [],
-      ['HAREKETLER'], ['Tarih', 'Tür', 'Belge', 'Açıklama', 'Ürün', 'Adet', 'Birim fiyat / PSF TL', 'Tavsiye satış fiyatı TL', 'İskonto %', 'KDV %', 'Net TL', 'KDV TL', 'İmzalı tutar TL']];
+      ['HAREKETLER'], ['Tarih', 'Tür', 'Belge', 'Ürün', 'Adet', 'Birim fiyat / PSF TL', 'Tavsiye satış fiyatı TL', 'İskonto %', 'KDV %', 'Net TL', 'KDV TL', 'İmzalı tutar TL']];
     const reversedIds = new Set(entries.filter(entry => entry.reverses).map(entry => entry.reverses));
     // Müşteriye giden dosya: iptal edilen kayıt ve ters kaydı birbirini sıfırlar, gösterilmez.
     for (const entry of entries.filter(entry => !entry.reverses && !reversedIds.has(entry.id)).filter(entry => (!state.filter.from || entry.payload.date >= state.filter.from) &&
@@ -1013,8 +1013,8 @@
       (!state.filter.kind || entry.payload.kind === state.filter.kind) &&
       (!state.filter.product || entry.payload.items.some(item => item.name.toLocaleLowerCase('tr-TR').includes(state.filter.product.toLocaleLowerCase('tr-TR')))))) {
       const p = entry.payload, sign = 1;
-      rows.push([p.date, labels[p.kind], p.reference, p.note, '', '', '', '', '', '', p.net_cents / 100, p.unknown_tax ? 'Belirlenecek' : p.tax_cents / 100, sign * p.signed_cents / 100]);
-      for (const item of p.items) rows.push(['', '', '', '', item.name, item.quantity, item.unit_price_cents / 100, item.recommended_price_cents === undefined ? '' : item.recommended_price_cents / 100, item.discount, item.tax_rate === null ? (p.unknown_tax ? 'Belirlenecek' : 'PSF, %20 dahil') : item.tax_rate, item.net_cents / 100, item.tax_rate === null ? (p.unknown_tax ? 'Belirlenecek' : 'Fiyata dahil') : item.tax_cents / 100, '']);
+      rows.push([p.date, labels[p.kind], p.reference, '', '', '', '', '', '', p.net_cents / 100, p.unknown_tax ? 'Belirlenecek' : p.tax_cents / 100, sign * p.signed_cents / 100]);
+      for (const item of p.items) rows.push(['', '', '', item.name, item.quantity, item.unit_price_cents / 100, item.recommended_price_cents === undefined ? '' : item.recommended_price_cents / 100, item.discount, item.tax_rate === null ? (p.unknown_tax ? 'Belirlenecek' : 'PSF, %20 dahil') : item.tax_rate, item.net_cents / 100, item.tax_rate === null ? (p.unknown_tax ? 'Belirlenecek' : 'Fiyata dahil') : item.tax_cents / 100, '']);
     }
     const cell = value => {
       if (typeof value === 'number') return String(value).replace('.', ',');
