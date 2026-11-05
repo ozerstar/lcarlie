@@ -15,6 +15,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import time
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -231,12 +232,48 @@ def hepsiburada(sayfa_boyu: int = 100) -> list[Siparis]:
 
 # -------------------------------------------------------------------- IDEFIX
 def idefix(sayfa_boyu: int = 100) -> list[Siparis]:
-    # 🔴 Idefix'in siparis ucu HENUZ BILINMIYOR. `oms/...` yollari
-    #    omsapi.idefix.com/api/shipment/connect/... altina gidiyor ama
-    #    denenen 13 yolun hepsi 404 verdi (25.10.2026). Tahminle yol
-    #    uydurulmaz; Idefix destege soruldu.
-    env_oku("/etc/lcarlie/idefix.env")          # kimlik duruyor mu
-    raise KanalKapali("Idefix siparis ucu belirlenmedi (destek talebi acik)")
+    e = env_oku("/etc/lcarlie/idefix.env")
+    anahtar = e.get("IDEFIX_API_KEY", "").strip()
+    gizli = e.get("IDEFIX_API_SECRET", "").strip()
+    vendor = e.get("IDEFIX_SELLER_ID", "").strip()
+    if not (anahtar and gizli and vendor):
+        raise KanalKapali("IDEFIX_API_KEY / IDEFIX_API_SECRET / IDEFIX_SELLER_ID eksik")
+    # Resmî İdefix shipment-list endpoint'i ve X-API-KEY auth biçimi.
+    token = base64.b64encode((anahtar + ":" + gizli).encode()).decode()
+    endpoint = "https://merchantapi.idefix.com/oms/%s/list" % urllib.parse.quote(vendor, safe="")
+    basliklar = {"X-API-KEY": token, "Accept": "application/json"}
+    cikti = []
+    sayfa, sayfa_sayisi = 1, 1
+    while sayfa <= sayfa_sayisi:
+        url = endpoint + "?" + urllib.parse.urlencode({"page": sayfa, "limit": sayfa_boyu})
+        veri = json.loads(_istek(url, basliklar))
+        sayfa_sayisi = max(1, int(veri.get("pageCount") or 1))
+        for p in veri.get("items") or []:
+            sevk = p.get("shippingAddress") or {}
+            musteri = str(p.get("customerContactName") or sevk.get("fullName") or "")
+            tutar = p.get("discountedTotalPrice")
+            if tutar is None:
+                tutar = p.get("totalPrice")
+            cikti.append(Siparis(
+                kanal="idefix",
+                siparis_no=str(p.get("orderNumber") or p.get("id") or ""),
+                paket_no=str(p.get("id") or "") or None,
+                durum=str(p.get("status") or "?"),
+                zaman=_iso_zaman(p.get("orderDate") or p.get("createdAt")),
+                tutar=float(tutar or 0) or None,
+                musteri_ad=musteri,
+                sehir=str(sevk.get("city") or ""),
+                # İdefix shipment list item'ları sevkiyat adedini temsil eder;
+                # dokümana göre ayrı quantity alanı dönmez.
+                kalemler=[{"ad": i.get("productName"), "adet": 1,
+                           "barkod": i.get("barcode") or i.get("merchantSku")}
+                          for i in (p.get("items") or [])],
+                ham={"id": p.get("id"), "orderNumber": p.get("orderNumber"),
+                     "status": p.get("status"), "cargoCompany": p.get("cargoCompany")}))
+        sayfa += 1
+        if sayfa <= sayfa_sayisi:
+            time.sleep(0.5)  # İdefix sınırlarına takılmamak için sayfalar arası boşluk.
+    return cikti
 
 
 # --------------------------------------------------------------- CICEKSEPETI
