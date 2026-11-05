@@ -94,19 +94,26 @@ no warm tungsten, no sunset, no amber glow, no strong colour cast of any kind.
 🔴 Measured: warm scene light tinted the white bottle cream AND scrambled the
 lettering on its label. Neutral light keeps both intact.
 
-DESIGN: place the logo from IMAGE 2 once, at the top. Leave clean, uncluttered
-space for the headline. Elegant, minimal, modern premium cosmetics advertising
-layout. Calm and quiet — not busy, not salesy, no badges, no starbursts, no
-price tags, no arrows.
+DESIGN: place the logo from IMAGE 2 once, at the top. Build a distinctive,
+high-end editorial beauty campaign with a clear visual idea tied to the
+ingredient/story in the scene. Use tactile materials, considered depth,
+intentional light and a composed focal point. Avoid generic stock-ad layouts,
+plain gradients, floating-product clichés and familiar water-splash tropes.
+Keep the frame calm and art-directed, with purposeful negative space; no
+badges, starbursts, price tags, arrows or decorative clutter.
 
 TEXT to typeset on the image. Copy these characters EXACTLY, including Turkish
 letters (ı İ ğ ş ç ö ü). Do not translate, do not rephrase, do not add words:
    headline: {ust}
    subline:  {alt}
-TYPOGRAPHY IS A HARD REQUIREMENT: use a bold geometric sans-serif for both
-lines, especially the supporting line. The supporting line must be large and
-high-contrast enough to read on a phone; never use thin, light or hairline
-weights. Keep every text line and the logo at least 8% inside every crop edge.
+TYPOGRAPHY IS A HARD REQUIREMENT: give the headline a refined, characterful
+editorial display face and pair it with a clean, premium grotesk for the
+supporting line. Do not use a default heavy geometric bold or template-style
+type. Set deliberate line breaks, precise kerning, optical alignment and a
+clear hierarchy; keep the support line comfortably readable on a phone with
+a confident medium weight and strong contrast. Make the typography feel
+custom art-directed for a premium skincare campaign, not pasted on. Keep every
+text line and the logo at least 8% inside every crop edge.
 Apart from the supplied logo and these two exact lines, there must be NO other
 text anywhere in the image.
 {itirazlar}"""

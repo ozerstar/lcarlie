@@ -111,9 +111,14 @@ def main() -> int:
                 f"Create a finished premium {oran} L'Carlie skincare social ad. "
                 "IMAGE 1 is the real product photo; IMAGE 2 is the official logo. "
                 "Use both as references, preserve the product's white color and visible package design. "
-                "Compose the full final image with the product and logo; do not add claims, prices, badges, "
-                "or extra copy. Use the exact headline and support line below, in Turkish, legibly and safely "
-                f"inside the crop. Headline: {baslik}. Support line: {alt_metin(p)}. "
+                "Compose a distinctive premium editorial beauty campaign with the product and logo; "
+                "use a concept specific to the product, with tactile materials, considered depth, "
+                "and deliberate lighting. Avoid stock-ad templates, generic gradients and cliché splashes. "
+                "Do not add claims, prices, badges, or extra copy. Pair a refined editorial display face "
+                "for the headline with a premium grotesk for the support line; precise kerning, optical "
+                "alignment, purposeful line breaks, never default heavy geometric bold. Use the exact "
+                "Turkish headline and support line, legibly and safely inside the crop. "
+                f"Headline: {baslik}. Support line: {alt_metin(p)}. "
                 f"Art direction: {istem}. Aspect ratio {oran}.")
             kare = gpt_gorsel.chatgpt_web_gorsel(
                 istem, oran, [urun_yolu, gpt_gorsel.VARLIK / "logo" / "lcarlie-logo.png"])
