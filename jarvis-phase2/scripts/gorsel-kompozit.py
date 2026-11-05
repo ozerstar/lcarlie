@@ -55,7 +55,7 @@ BICIMLER = {
 
 # Ürünün kare yüksekliğine oranı. Çok büyük olursa dizgiye yer kalmaz,
 # çok küçük olursa telefonda etiket okunmaz.
-URUN_YUKSEKLIK_ORANI = {"REELS": 0.46, "KARE": 0.58, "AKIS": 0.56}
+URUN_YUKSEKLIK_ORANI = {"REELS": 0.46, "KARE": 0.62, "AKIS": 0.60}
 
 # 🔴 BASLIK METROPOLIS DEGIL, MONUMENT EXTENDED. Ilk surumde basligi da
 # Metropolis ile dizdim; marka sistemi basliklar icin Monument Extended
@@ -348,11 +348,11 @@ def dizgi_yerlesim(tuval: Image.Image, baslik: str, alt: str, bicim: str) -> dic
     kenar = round(g * 0.075)
     genislik = g - 2 * kenar
 
-    b_punto = round(g * (0.062 if bicim == "REELS" else 0.070))
-    a_punto = round(g * 0.030)
+    b_punto = round(g * (0.062 if bicim == "REELS" else 0.062))
+    a_punto = round(g * 0.040)
     # Monument Extended cok genis bir yuzdur; ayni puntoda Metropolis'ten
     # belirgin daha genis yer kaplar, bu yuzden punto bir miktar kucultulur.
-    b_font, a_font = font("baslik", round(b_punto * 0.82)), font("light", a_punto)
+    b_font, a_font = font("baslik", round(b_punto * 0.82)), font("semibold", a_punto)
 
     # Eksik glifler BURADA temizlenir; asagisi artik cizilebilir metin.
     baslik = metin_guvenli(baslik, "baslik")
@@ -389,7 +389,7 @@ def kontrast(a, b) -> float:
 # Metin renkleri: acik zeminde koyu, koyu zeminde acik.
 ACIK_METIN = (242, 239, 233)
 KOYU_METIN = (18, 18, 20)
-ACIK_ALT = (201, 169, 97)
+ACIK_ALT = (242, 224, 177)
 KOYU_ALT = (120, 92, 30)
 EN_AZ_KONTRAST = 4.5          # WCAG AA (buyuk metin icin fazlasiyla yeterli)
 

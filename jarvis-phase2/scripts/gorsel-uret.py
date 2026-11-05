@@ -39,6 +39,7 @@ from __future__ import annotations
 import argparse
 import base64
 import io
+import importlib.util
 import json
 import os
 import sys
@@ -121,8 +122,12 @@ TEXT to typeset on the image. Copy these characters EXACTLY, including Turkish
 letters (ı İ ğ ş ç ö ü). Do not translate, do not rephrase, do not add words:
    headline: {ust}
    subline:  {alt}
-Use a clean geometric sans-serif. Apart from the logo and these two lines,
-there must be NO other text anywhere in the image.
+TYPOGRAPHY IS A HARD REQUIREMENT: use a bold geometric sans-serif for both
+lines, especially the supporting line. The supporting line must be large and
+high-contrast enough to read on a phone; never use thin, light or hairline
+weights. Keep every text line and the logo at least 8% inside every crop edge.
+Apart from the supplied logo and these two exact lines, there must be NO other
+text anywhere in the image.
 {itirazlar}"""
 
 
@@ -169,37 +174,42 @@ def _multipart(fields: list[tuple[str, str]], files: list[tuple[str, Path]]) -> 
     return b"".join(parcalar), sinir
 
 
-def _openai_montaj(istem: str, oran: str, urun_yolu: Path,
-                   logo_yolu: Path) -> Image.Image:
+_SON_KOMPOZIT_RAPOR: dict = {}
+
+
+def _openai_sahne(sahne: str, oran: str) -> Image.Image:
     anahtar = providers.load_env().get("OPENAI_API_KEY")
     if not anahtar:
         raise RuntimeError("OPENAI_API_KEY yok; görsel üretimi durduruldu")
-    # GPT Image edit endpoint keeps the supplied product photo and brand mark
-    # as references. Composition still receives human review before release.
     boyut = {"1:1": ("1024x1024", (1024, 1024)),
              "4:5": ("1024x1536", (1024, 1280)),
              "9:16": ("1024x1536", (1024, 1820)),
              "16:9": ("1536x1024", (1820, 1024))}[oran]
-    govde, sinir = _multipart(
-        [("model", GORSEL_MODEL), ("prompt", istem), ("size", boyut[0]),
-         ("quality", "high"), ("input_fidelity", "high"), ("output_format", "png")],
-        [("image[]", urun_yolu), ("image[]", logo_yolu)])
+    istem = ("Create a premium editorial advertising BACKGROUND PLATE only. "
+             "No product, bottle, jar, tube, package, logo, brand mark, text, "
+             "letters, numbers, typography, watermark or signage. Do not draw "
+             "any object that could be mistaken for the real product. Leave "
+             "clear composed space for a real product photo and typeset copy "
+             "to be added later. Scene direction: " + sahne)
+    govde = {"model": GORSEL_MODEL, "prompt": istem, "size": boyut[0],
+             "quality": "high", "output_format": "png", "background": "opaque"}
     istek = urllib.request.Request(
-        "https://api.openai.com/v1/images/edits", data=govde,
+        "https://api.openai.com/v1/images/generations",
+        data=json.dumps(govde).encode("utf-8"),
         headers={"Authorization": f"Bearer {anahtar}",
-                 "Content-Type": f"multipart/form-data; boundary={sinir}"})
+                 "Content-Type": "application/json"})
     try:
         with urllib.request.urlopen(istek, timeout=420) as cevap:
             d = json.loads(cevap.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
-        # Never include auth data or raw request content in logs.
         govde_hatasi = providers.mask(e.read().decode("utf-8", errors="replace"))
-        raise RuntimeError(f"OpenAI image edit HTTP {e.code}: {govde_hatasi[:500]}") from None
+        raise RuntimeError(f"OpenAI image generation HTTP {e.code}: {govde_hatasi[:500]}") from None
     veri = ((d.get("data") or [{}])[0]).get("b64_json")
     if not veri:
-        raise RuntimeError("OpenAI image edit boş görsel döndürdü")
+        raise RuntimeError("OpenAI background generation boş görsel döndürdü")
     kare = Image.open(io.BytesIO(base64.b64decode(veri))).convert("RGB")
-    kare = ImageOps.fit(kare, boyut[1], method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
+    kare = ImageOps.fit(kare, boyut[1], method=Image.Resampling.LANCZOS,
+                        centering=(0.5, 0.5))
     try:
         from jarvis import usage
         u = d.get("usage") or {}
@@ -239,7 +249,30 @@ def montaj_uret(sahne: str, ust: str, alt: str, oran: str,
         itirazlar=itiraz_blok,
         muhur=URUN_MUHRU.format(etiket=etiket))
     if GORSEL_SAGLAYICI == "openai":
-        return _openai_montaj(istem, oran, urun_yolu, logo_yolu)
+        # GPT creates only the art-directed background. Jarvis composes the
+        # actual package pixels and exact reviewed Turkish text deterministically.
+        global _SON_KOMPOZIT_RAPOR
+        sahne_im = _openai_sahne(sahne.strip(), oran)
+        sahne_dizin = Path("/opt/lcarlie/gorsel-kuyruk/cikti/.jarvis-gpt-scenes")
+        sahne_dizin.mkdir(parents=True, exist_ok=True)
+        damga = f"{time.time_ns()}-{oran.replace(':', 'x')}"
+        sahne_yolu = sahne_dizin / f"{damga}.png"
+        sahne_im.save(sahne_yolu, "PNG")
+        _sp = importlib.util.spec_from_file_location(
+            "jarvis_gorsel_kompozit", str(KOK / "scripts" / "gorsel-kompozit.py"))
+        gk = importlib.util.module_from_spec(_sp)
+        _sp.loader.exec_module(gk)
+        bicim = {"1:1": "KARE", "4:5": "AKIS", "9:16": "REELS"}.get(oran)
+        if not bicim:
+            raise RuntimeError("ürün kompozitörü bu oranı desteklemiyor: " + oran)
+        rapor = gk.uret(_URUN_ONEKI, bicim=bicim, baslik=ust, alt=alt,
+                        sahne=sahne_yolu,
+                        cikti_dizin=Path("/opt/lcarlie/gorsel-kuyruk/cikti"))
+        if (rapor.get("birebir_oran") or 0) < 0.999:
+            raise RuntimeError("ürün pikseli doğrulaması geçmedi")
+        _SON_KOMPOZIT_RAPOR = rapor
+        return Image.open(Path("/opt/lcarlie/gorsel-kuyruk/cikti") /
+                          rapor["dosya"]).convert("RGB")
     govde = {"generationConfig": {"imageConfig": {"aspectRatio": oran,
                                                  "imageSize": GORSEL_BOYUT}},
              "contents": [{"parts": [_resim_parcasi(urun_yolu),
@@ -353,11 +386,11 @@ def main() -> int:
     etiket = etiket_satirlari(urun_yolu)
     if etiket:
         print(f"etiket metni verildi: {urun_yolu.with_suffix('.etiket.txt').name}")
+    elif GORSEL_SAGLAYICI == "openai":
+        print("GPT yalnız arka plan üretir; gerçek ürün ve ambalaj yazısı Jarvis tarafından korunur.")
     else:
-        print("🔴 UYARI: etiket metni dosyası yok "
-              f"({urun_yolu.with_suffix('.etiket.txt').name}). Model ambalaj "
-              "yazısını UYDURABİLİR — ilk ölçümde 'HYORAVIE' yazdı.",
-              file=sys.stderr)
+        print("UYARI: bu sağlayıcı ürün etiketini yeniden çizebilir; "
+              "yayından önce insan gözüyle doğrulayın.", file=sys.stderr)
 
     cikti = Path(a.cikti) if a.cikti else bp.parent / (bp.stem + "-gorseller")
     (cikti / "etiket-kontrol").mkdir(parents=True, exist_ok=True)
@@ -367,8 +400,8 @@ def main() -> int:
         oran = g.get("oran") if g.get("oran") in ORANLAR else "1:1"
         yer = g.get("yerlesim") or {}
         tip = yer.get("katman_4_tipografi") or {}
-        ust = tip.get("ust_yazi") or g.get("ust_yazi") or ""
-        alt = tip.get("alt_yazi") or g.get("alt_yazi") or ""
+        ust = g.get("ust_yazi") or tip.get("ust_yazi") or ""
+        alt = g.get("alt_yazi") or tip.get("alt_yazi") or ""
         # Sahne tarifi zaten "ürünsüz arka plan" diye yazılmıştı; artık ürün
         # de karede olacağı için mühürdeki yasak cümlesi kullanılmaz --
         # sahnenin yalnız ortam kısmı alınır.
@@ -395,7 +428,8 @@ def main() -> int:
                        "ust_yazi": ust, "alt_yazi": alt,
                        "hangi_aci": g.get("hangi_aci"),
                        "onceki_inceleme_notlari": geri_bildirim,
-                       "inceleme_durumu": "DEPARTMAN_INCELEMESI_BEKLIYOR"})
+                       "inceleme_durumu": "DEPARTMAN_INCELEMESI_BEKLIYOR",
+                       "jarvis_kompozit_raporu": dict(_SON_KOMPOZIT_RAPOR)})
         time.sleep(2)
 
     (cikti / "teslim.json").write_text(

@@ -25,16 +25,23 @@ import importlib.util
 import json
 import pathlib
 import subprocess
+import sys
 import time
+import urllib.error
 
 KOK = pathlib.Path(__file__).resolve().parents[1]
 KAP = "lcarlie-postgres"
 CIKTI = pathlib.Path("/opt/lcarlie/gonderi-gorsel")
 
+sys.path.insert(0, str(KOK))
 _sp = importlib.util.spec_from_file_location(
     "gorsel_kompozit", str(KOK / "scripts" / "gorsel-kompozit.py"))
 gk = importlib.util.module_from_spec(_sp)
 _sp.loader.exec_module(gk)
+_gs = importlib.util.spec_from_file_location(
+    "gorsel_uret_gpt", str(KOK / "scripts" / "gorsel-uret.py"))
+gpt_gorsel = importlib.util.module_from_spec(_gs)
+_gs.loader.exec_module(gpt_gorsel)
 
 # Paket biçimi -> görsel biçimi. REELS video olduğu için kapak karesi
 # yine 9:16 üretilir.
@@ -82,7 +89,7 @@ def main() -> int:
         print("detached %d image links from unapproved posts; files retained for audit"
               % len(ayrilan))
     paketler = psql("""SELECT row_to_json(t) FROM (
-      SELECT plan_id, urun_slug, amac, bicim, kanca, caption, gorsel_dosya
+      SELECT plan_id, urun_slug, amac, bicim, kanca, caption, gorsel_brief, gorsel_dosya
         FROM core.ig_gonderi_plani
        WHERE durum IN ('ONERI', 'ONAYLANDI') AND uzman_karari = 'GECER'
          AND denetim = 'TEMIZ' AND gorsel_dosya IS NULL
@@ -97,9 +104,21 @@ def main() -> int:
         bicim = BICIM_ESLEME.get(p["bicim"], "AKIS")
         baslik = (p.get("kanca") or "").split("—")[0].strip() or p["urun_slug"]
         try:
+            oran = {"REELS": "9:16", "AKIS": "4:5", "KARE": "1:1"}.get(bicim, "4:5")
+            istem = (p.get("gorsel_brief") or "Premium, minimal, brand-safe editorial skincare studio.")
+            sahne = gpt_gorsel._openai_sahne(
+                str(istem) + "\\nBackground only: no product, packaging, logo, or text. "
+                "Leave a clean central area for Jarvis to compose the real product photo.",
+                oran)
+            sahne_dizin = CIKTI / ".jarvis-gpt-scenes"
+            sahne_dizin.mkdir(parents=True, exist_ok=True)
+            sahne_yolu = sahne_dizin / ("ig-%s-%d.png" % (p["urun_slug"], int(time.time() * 1000)))
+            sahne.save(sahne_yolu, "PNG")
             rapor = gk.uret(p["urun_slug"], bicim=bicim, baslik=baslik,
-                            alt=alt_metin(p), cikti_dizin=CIKTI)
-        except gk.GorselHatasi as hata:
+                            alt=alt_metin(p), sahne=sahne_yolu, cikti_dizin=CIKTI)
+            rapor["gorsel_saglayici"] = "openai"
+            rapor["gorsel_modeli"] = gpt_gorsel.GORSEL_MODEL
+        except (gk.GorselHatasi, urllib.error.URLError, OSError, RuntimeError, ValueError) as hata:
             print("  HATA plan %s (%s): %s" % (p["plan_id"], p["urun_slug"], hata))
             hatali += 1
             continue
