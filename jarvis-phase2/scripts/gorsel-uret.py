@@ -2,10 +2,10 @@
 """GÖRSEL ÜRETİM — brief'ten teslim edilebilir reklam görseli.
 
 ZİNCİRİN İKİNCİ YARISI. `kreatif-brief.py` brief'i, sahne tarifini ve
-onaylı Türkçe metinleri üretir. ChatGPT Work yalnızca sahne arka planını
-oluşturur. Gerçek ürün fotoğrafı, logo ve yazılar Pillow katmanında
-birleştirilir; başlık Monument Extended, destek metni Metropolis font
-dosyalarıyla basılır. Böylece GPT ambalajı ya da marka yazılarını yeniden çizmez.
+onaylı Türkçe metinleri üretir. ChatGPT Work ürün fotoğrafı ve logoyu
+kullanarak sahnenin tamamını ve ürün yerleşimini tasarlar. Jarvis yalnızca
+başlık ve destek metnini Monument Extended ve Metropolis font dosyalarıyla
+ekler.
 Çıkış: 0=görseller üretildi · 1=hata · 2=brief yok · 3=kısmi
 """
 from __future__ import annotations
@@ -15,7 +15,6 @@ import importlib.util
 import json
 import os
 import sys
-import tempfile
 import time
 import uuid
 from pathlib import Path
@@ -62,19 +61,22 @@ For your verification, the packaging is printed with exactly these lines:
 {satirlar}
 """
 
-ARKA_PLAN_ISTEM = """Create only a premium {oran} editorial skincare BACKGROUND PLATE.
-SCENE: {sahne}
+TAM_GORSEL_ISTEM = """Create the complete premium {oran} Instagram skincare advertisement image.
+Use the attached product photograph as the exact product reference. Reproduce the
+container faithfully: same silhouette, cap, colors, label layout and visible
+packaging text. Do not invent a different package. Use the attached official logo
+as the brand mark, keeping its shape and colors. Compose the full art direction,
+lighting, scene, props and product placement yourself. Make the product prominent,
+sharp and naturally integrated, with a distinctive art direction based on this
+scene direction: {sahne}
 
-This is a clean photographic environment for a real product to be composited later.
-Do NOT include any product, bottle, jar, package, logo, text, typography, lettering,
-watermark, badge, brush, hand, or cosmetic container. Do not invent a product.
-Reserve the top 8% as quiet space for the official logo. Leave the center-lower
-area visually clear for the real product photograph. Keep the bottom 27% calm,
-with no busy objects, so the exact brand headline and supporting copy can be set
-there with real font files. Create tactile depth, deliberate neutral lighting,
-and a concept specific to the ingredient/story; avoid generic gradients,
-stock-ad templates, water-splash clichés, floating objects, and clutter.
-Aspect ratio {oran}."""
+Do not add any advertising headline, caption, CTA, extra lettering, badge or
+watermark. Keep a calm, uncluttered lower 27% of the image for a separate exact
+brand-font text overlay. The final image must be a complete designed visual apart
+from that reserved copy area. Aspect ratio {oran}.
+
+Packaging reference notes (preserve rather than retype):
+{etiket}"""
 
 
 def etiket_satirlari(urun_yolu: Path) -> str:
@@ -130,29 +132,33 @@ def chatgpt_web_gorsel(istem: str, oran: str, girdi_dosyalari: list[Path],
 
 def montaj_uret(sahne: str, ust: str, alt: str, oran: str,
                 urun_yolu: Path, logo_yolu: Path, etiket: str) -> Image.Image:
+    """GPT composes the complete product ad; Jarvis overlays only exact copy."""
     itiraz_blok = ""
     try:
         from jarvis.kreatif_itiraz import acik_itirazlar_metni
         ham = acik_itirazlar_metni(_URUN_ONEKI or "")
         if ham:
-            itiraz_blok = "\n\nPREVIOUS ART-DIRECTION FEEDBACK: \n" + ham
+            itiraz_blok = "\n\nMANDATORY ART-DIRECTION FEEDBACK:\n" + ham
     except Exception:  # noqa: BLE001 - feedback store failure must not block generation
         pass
-    arka_plan_istem = ARKA_PLAN_ISTEM.format(
-        oran=oran, sahne=(sahne.strip() + itiraz_blok).strip())
-    arka_plan = chatgpt_web_gorsel(arka_plan_istem, oran, [])
+    if not urun_yolu.is_file() or not logo_yolu.is_file():
+        raise gk.GorselHatasi("urun fotografi veya resmi logo bulunamadi")
+    istem = TAM_GORSEL_ISTEM.format(
+        oran=oran, sahne=(sahne.strip() + itiraz_blok).strip(),
+        etiket=etiket.strip() or "No separate label transcription; use the attached photo.")
+    # GPT Work sees the original product and logo and builds the whole visual.
+    gorsel = chatgpt_web_gorsel(istem, oran, [urun_yolu, logo_yolu])
     bicim = {"1:1": "KARE", "4:5": "AKIS", "9:16": "REELS"}.get(oran)
     if not bicim:
-        raise gk.GorselHatasi("marka fontlu kompozitte desteklenmeyen oran: %s" % oran)
-    with tempfile.TemporaryDirectory(prefix="jarvis-gpt-background-") as gecici:
-        gecici = Path(gecici)
-        sahne_dosyasi = gecici / "gpt-arka-plan.png"
-        arka_plan.save(sahne_dosyasi, format="PNG")
-        rapor = gk.uret(
-            _URUN_ONEKI or urun_yolu.stem, bicim=bicim, baslik=ust, alt=alt,
-            sahne=sahne_dosyasi, cikti_dizin=gecici,
-            urun_gorsel=urun_yolu, logo_yolu=logo_yolu)
-        return Image.open(gecici / rapor["dosya"]).convert("RGB").copy()
+        raise gk.GorselHatasi("desteklenmeyen oran: %s" % oran)
+    g, y = gk.BICIMLER[bicim]
+    tuval = gorsel.resize((g, y), Image.Resampling.LANCZOS).convert("RGB")
+    # GPT leaves the lower copy area clear. Jarvis measures the actual background
+    # there, chooses readable contrast and uses the installed brand font files.
+    yerlesim = gk.dizgi_yerlesim(tuval, ust, alt, bicim)
+    tuval, metin_renk, alt_renk, _ = gk.okunurluk_ayarla(tuval, yerlesim)
+    gk.dizgi_yaz(tuval, yerlesim, metin_renk, alt_renk)
+    return tuval
 
 # ══════════════════════════════════════════════════════════════════════════
 # 🔴 OTOMATİK AMBALAJ DENETİMİ DENENDİ VE ÇALIŞMIYOR — KALDIRILDI
@@ -291,7 +297,7 @@ def main() -> int:
                        "seri_kodu": seri_kodu, "kart_no": kart_no, "kart_rolu": kart_rolu,
                        "onceki_inceleme_notlari": geri_bildirim,
                        "inceleme_durumu": "DEPARTMAN_INCELEMESI_BEKLIYOR",
-                       "gorsel_uretme_yontemi": "gpt_web_arka_plan_gercek_urun_ve_marka_fontlariyla_kompozit",
+                       "gorsel_uretme_yontemi": "gpt_work_tam_gorsel_jarvis_sadece_marka_fontlu_metin",
                        "baslik_fontu": "Monument Extended Ultrabold",
                        "destek_fontu": "Metropolis Semibold"})
         time.sleep(2)
@@ -301,7 +307,7 @@ def main() -> int:
                     "brief": bp.name, "gorseller": teslim,
                     "saglayici": GORSEL_SAGLAYICI, "model": GORSEL_MODEL,
                     "instagram_reklam_format_karari": brief.get("instagram_reklam_format_karari"),
-                    "yontem": "GPT Work ile üretilen arka plan; orijinal ürün, logo ve marka tipografisi gerçek dosyalardan Pillow ile kompozitlenmiş taslak; inceleme bekliyor",
+                    "yontem": "GPT Work ürün, logo, sahne ve tam görsel kompozisyonunu üretir; Jarvis yalnızca Monument Extended ve Metropolis dosyalarıyla metin ekler; taslak departman incelemesi bekliyor",
                     "tipografi": {"baslik": "Monument Extended Ultrabold", "destek": "Metropolis Semibold"},
                     "kontrol": "🔴 YAYINDAN ÖNCE JARVIS TASARIM EKİBİ VE İNSAN GÖZÜYLE BAKILMALI: "
                                "etiket-kontrol/ içindeki yakın planlarda "
