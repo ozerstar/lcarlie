@@ -1,0 +1,11 @@
+[Unit]
+Description=LCARLIE is uretici: stale or failed tasks are replanned into the persistent queue
+
+[Timer]
+OnCalendar=*-*-* 00,02,04,06,08,10,12,14,16,18,20,22:40:00
+Persistent=true
+RandomizedDelaySec=120
+Unit=lcarlie-is-uretici@replan.service
+
+[Install]
+WantedBy=timers.target

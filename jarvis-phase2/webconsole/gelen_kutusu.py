@@ -377,10 +377,9 @@ def taslak(konusma_id: int) -> dict:
                                 "Konuyu yetkili kişiye iletiyorum.",
             "SIKAYET": "Yaşadığınız olumsuz deneyim için üzgünüz, özür dileriz. "
                        "Konuyu bizzat incelemesi için yetkili kişiye iletiyorum.",
-            # Sahip kuralı (12.09.2026): soru sorulmaz, siteye yönlendirilir.
-            "ANLASILMADI": "Mesajınızı aldık, yetkili arkadaşımız en kısa sürede size "
-                           "dönecek. Ürünlerimizi incelemek ve sipariş vermek için: "
-                           "https://www.lcarlie.shop",
+            "ANLASILMADI": "Ne konuda yardımcı olabileceğimi anlayabilmem için "
+                           "mesajınızı biraz açabilir misiniz? Konuyu doğru kişiye "
+                           "yönlendireceğim.",
         }
         metin = yonlendirme.get(sinif, "") if son.get("mevzuat") not in {"BLOCKED", "BLOKE", "RED"} else ""
         return {"uretildi": bool(metin), "devredilmeli": True, "sinif": sinif,
@@ -415,8 +414,7 @@ def taslak(konusma_id: int) -> dict:
 
     if sinif == mesaj_sinifi.SELAMLAMA:
         return {"uretildi": True, "devredilmeli": False, "sinif": sinif,
-                "metin": "Merhaba, L’CARLIÉ’ye hoş geldiniz! Tüm ürünlerimizi incelemek ve "
-                         "hemen sipariş vermek için: https://www.lcarlie.shop",
+                "metin": "Merhaba, size nasıl yardımcı olabilirim?",
                 "bulgular": [], "gonderilebilir": True, "urun_soruluyor": False}
 
     if urun_adi and kart is None:

@@ -202,7 +202,7 @@ def _ortam(canli_arastirma: bool):
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--mod", required=True,
-                   choices=("gunluk", "haftalik", "aylik", "yurut", "rakip", "kreatif", "b2b", "retro", "kurul"))
+                   choices=("gunluk", "haftalik", "aylik", "yurut", "replan", "rakip", "kreatif", "b2b", "retro", "kurul"))
     p.add_argument("--sinir", type=int, default=None)
     p.add_argument("--kuru", action="store_true", help="deftere/ağaca yazmadan dene")
     p.add_argument("--sure", type=int, default=None, help="yurut: bu kadar saniye sonra yeni işe başlama")
@@ -215,7 +215,12 @@ def main() -> int:
     if not a.kuru:
         _suresi_dolanlari_kapat()
     try:
-        iu = IsUretici(_ortam(canli_arastirma=(a.mod == "yurut")), kuru=a.kuru)
+        ortam = _ortam(canli_arastirma=(a.mod == "yurut"))
+        recovered_tasks = 0
+        if not a.kuru:
+            from jarvis.task_autonomy import recover_pruned_work
+            recovered_tasks = recover_pruned_work(ortam.defter, DURUM / 'is-uretici', datetime.now(timezone.utc))
+        iu = IsUretici(ortam, kuru=a.kuru)
         if a.mod == "gunluk":
             sonuc = iu.gunluk(a.sinir or 50)
         elif a.mod == "haftalik":
@@ -225,12 +230,17 @@ def main() -> int:
         elif a.mod == "kurul":
             from jarvis.kurul import Kurul
             sonuc = Kurul(iu, radar_panel=Path(os.environ.get("RADAR_PANEL", "/opt/lcarlie/radar/data/panel.json"))).calistir()
+        elif a.mod == "replan":
+            sonuc = iu.replan(a.sinir or 6)
         elif a.mod in ("rakip", "kreatif", "b2b", "retro"):
             from jarvis.programlar import Programlar
             pr = Programlar(iu)
             sonuc = pr.calistir(a.mod, a.sinir)
         else:
             sonuc = iu.yurut(a.sinir or 12, sure_sn=a.sure)
+        if not a.kuru:
+            sonuc['recovered_evidence'] = iu.o.defter.reconcile_team_deliveries()
+            sonuc['recovered_tasks'] = recovered_tasks
         sonuc["ozet"] = iu.ozet_yaz(sonuc)
     except Exception as e:  # noqa: BLE001
         print(f"HATA: {type(e).__name__}: {e}"[:800], file=sys.stderr)

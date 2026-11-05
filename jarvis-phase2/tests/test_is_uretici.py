@@ -9,6 +9,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from jarvis.is_uretici import (
+    Agac,
+    Butce,
     Departman,
     IsUretici,
     Kanit,
@@ -250,6 +252,24 @@ class Test(unittest.TestCase):
         self.assertEqual(s["gorev"], 0)
         self.assertTrue(any("tavan" in k.get("hata", "") for k in s["kayit"]))
         self.assertEqual(self.model.cagri, [])
+
+    def test_negatif_tavan_gunluk_siniri_kaldirir(self):
+        b = Butce(Path(self.tmp.name), -1)
+        for _ in range(3):
+            self.assertGreater(b.kalan("2026-10-26"), 0)
+            b.harca("2026-10-26")
+        self.assertEqual(json.loads(b.yol.read_text())["2026-10-26"], 3)
+
+    def test_gorev_agaci_eski_gorevleri_korur_ve_bozuk_dosyayi_silmez(self):
+        depo = Agac(Path(self.tmp.name))
+        agac = {"hedefler": [], "departmanlar": {"SEO": {
+            "gorevler": [{"id": str(i)} for i in range(75)], "raporlar": [], "fikirler": []}}}
+        depo.yaz(agac, SAAT)
+        self.assertEqual(len(depo.oku()["departmanlar"]["SEO"]["gorevler"]), 75)
+        depo.yol.write_text("{bozuk", encoding="utf-8")
+        with self.assertRaises(json.JSONDecodeError):
+            depo.oku()
+        self.assertEqual(depo.yol.read_text(encoding="utf-8"), "{bozuk")
 
     def test_kuru_calisma_yazmaz(self):
         IsUretici(self.o, gunluk_tavan=50, kuru=True).gunluk()

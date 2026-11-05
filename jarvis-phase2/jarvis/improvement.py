@@ -162,6 +162,7 @@ class Store:
             evaluations = [json.loads(r[0]) for r in db.execute('SELECT payload FROM evaluation ORDER BY id DESC LIMIT 2')]
             evaluation = evaluations[0] if evaluations else None
             model_evaluation = db.execute('SELECT payload FROM model_evaluation ORDER BY id DESC LIMIT 1').fetchone()
+        task_states = self._task_states()
         lessons = []
         for w in works:
             w['applications'] = [r for r in apps if r['work_id'] == w['id']]
@@ -169,6 +170,19 @@ class Store:
             w['status'] = 'WAITING_MEASUREMENT' if w['applications'] else 'WAITING_APPLICATION_EVIDENCE'
             if w['approval_state'] in ('REJECTED', 'EXPIRED') and not w['applications']:
                 w['status'] = 'CANCELLED'
+            task = task_states.get(w['id'])
+            if task and not w['applications'] and w['status'] != 'CANCELLED':
+                w['task_id'] = task.get('id')
+                state = task.get('durum')
+                w['status'] = {
+                    'ACIK': 'QUEUED' if task.get('tip') in ('ARASTIRMA', 'ANALIZ', 'TASLAK') else 'WAITING_CAPABILITY',
+                    'REDDEDILDI': 'NEEDS_REWORK',
+                    'SURESI_DOLDU': 'NEEDS_REPLAN',
+                    'YENIDEN_PLANLA': 'NEEDS_REPLAN',
+                    'ONAY_BEKLIYOR': 'WAITING_APPROVAL',
+                    'ONAYA_GITTI': 'WAITING_APPROVAL',
+                    'TESLIM_EDILDI': 'EVIDENCE_MISSING',
+                }.get(state, w['status'])
             if w['measurements']:
                 m = w['measurements'][0]
                 reached = w['target'] is not None and (m['result'] <= w['target'] if w['direction'] == 'lower' else m['result'] >= w['target'])
@@ -181,6 +195,45 @@ class Store:
         return {'works': works, 'outcome_lessons': lessons, 'corrections': corrections,
                 'model_evaluation': json.loads(model_evaluation[0]) if model_evaluation else None, 'evaluation': evaluation, 'previous_evaluation': evaluations[1] if len(evaluations) > 1 else None, 'model_calls': 0, 'external_actions': 0,
                 'note': 'Onay, uygulama kanıtı değildir. Önce/sonra değişim nedensellik kanıtı değildir; kaynak ve örneklemle değerlendirilir.'}
+
+    def _task_states(self):
+        """Project the durable team queue onto the improvement ledger without altering either."""
+        path = self.path.parent.parent / 'is-uretici' / 'agac.json'
+        if not path.exists():
+            return {}
+        tree = json.loads(path.read_text(encoding='utf-8'))
+        tasks = (task for dep in tree.get('departmanlar', {}).values()
+                 for task in dep.get('gorevler', []))
+        return {task['work_id']: task for task in tasks if task.get('work_id')}
+
+    def reconcile_team_deliveries(self):
+        """Recover proof for already delivered team work after an interrupted run.
+
+        Only an existing delivery artifact under the state directory qualifies.
+        Repeated calls do not create duplicate application or audit records.
+        """
+        root = self.path.parent.parent.resolve()
+        with self.db() as db:
+            applied = {row[0] for row in db.execute('SELECT DISTINCT work_id FROM application')}
+            known = {row[0] for row in db.execute('SELECT id FROM work')}
+        recovered = 0
+        for work_id, task in self._task_states().items():
+            if work_id not in known or work_id in applied or task.get('durum') != 'TESLIM_EDILDI':
+                continue
+            delivery = task.get('teslim') or {}
+            if delivery.get('kalite') not in ('GECTI', 'KISMI'):
+                continue
+            path_text = delivery.get('yol')
+            if not isinstance(path_text, str):
+                continue
+            artifact = Path(path_text).resolve()
+            if not artifact.is_relative_to(root) or not artifact.is_file():
+                continue
+            self.apply(work_id=work_id, at=delivery.get('tarih') or now(),
+                       evidence=f'teslim: {artifact}', actor='jarvis-team-reconciler')
+            applied.add(work_id)
+            recovered += 1
+        return recovered
 
     def context(self, query, limit=3):
         def tokens(s):

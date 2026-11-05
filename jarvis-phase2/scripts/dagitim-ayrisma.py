@@ -43,7 +43,10 @@ def izlenen_dosyalar() -> list[str]:
                        capture_output=True, text=True, check=False)
     if p.returncode:
         raise SystemExit("git ls-files basarisiz: " + (p.stderr or "")[:200])
-    return [s for s in p.stdout.splitlines() if s.strip()]
+    # Match tools/deploy.sh: hidden files and directories are deliberately
+    # excluded from production copies, so they are not deployment drift.
+    return [s for s in p.stdout.splitlines()
+            if s.strip() and not any(part.startswith(".") for part in s.split("/"))]
 
 
 def ozet(yol: Path) -> str:

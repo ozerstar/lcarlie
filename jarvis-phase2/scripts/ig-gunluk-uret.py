@@ -269,9 +269,7 @@ satırında tam cümle olarak; serbest metinde etki fiili yok. Caption'ın
 {{"degerlendirme": [   // her içerik için bir öğe, verilen "sira" ile
   {{"sira": 1,
    "karar": "GECER" | "DUZELT",
-   "not": "1-2 cümle: neden; DUZELT ise neyin değişmesi gerektiği",
-   "itiraz": "bu içeriğe karşı en güçlü kreatif ya da ticari argüman",
-   "yanit": "itiraza cevabın; haklıysa ne değişti",
+   "not": "en çok 240 karakter: neden; DUZELT ise yapılacak değişiklik",
    "yeni_kanca": "", "yeni_ekran_kancasi": "", "yeni_caption": ""}}
 ],
  "gunun_notu": "paketin bütünü için 2 cümle: en güçlü içerik ve çekim sırası"}}"""

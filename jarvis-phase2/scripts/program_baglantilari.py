@@ -104,26 +104,69 @@ def bilgi_dosyasi(kok: Path):
 
 def pubmed_ara(Kanit):
     temel = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/"
+    europe_pmc = "https://www.ebi.ac.uk/europepmc/webservices/rest/search?"
 
     def al(url: str) -> bytes:
         with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "lcarlie-jarvis/1.0"}), timeout=30) as c:
             return c.read()
 
     def ara(sorgu: str) -> list:
-        q = urllib.parse.urlencode({"db": "pubmed", "term": sorgu, "retmax": 4, "sort": "relevance", "retmode": "json"})
-        ids = json.loads(al(temel + "esearch.fcgi?" + q))["esearchresult"].get("idlist", [])
-        if not ids:
+        try:
+            q = urllib.parse.urlencode({"db": "pubmed", "term": sorgu, "retmax": 4, "sort": "relevance", "retmode": "json"})
+            ids = json.loads(al(temel + "esearch.fcgi?" + q))["esearchresult"].get("idlist", [])
+            if not ids:
+                raise LookupError("PubMed araması sonuç döndürmedi")
+            time.sleep(0.4)  # anahtarsız sınır saniyede 3 istek
+            ozet = json.loads(al(temel + "esummary.fcgi?" + urllib.parse.urlencode({"db": "pubmed", "id": ",".join(ids), "retmode": "json"})))["result"]
+            time.sleep(0.4)
+            metin = al(temel + "efetch.fcgi?" + urllib.parse.urlencode({"db": "pubmed", "id": ",".join(ids), "rettype": "abstract", "retmode": "text"})).decode("utf-8", "replace")
+            parcalar = re.split(r"\n\n\d+\. ", "\n\n" + metin)
+            out = []
+            for i, pid in enumerate(ids):
+                s = ozet.get(pid) or {}
+                abstract = re.sub(r"\s+", " ", parcalar[i + 1] if i + 1 < len(parcalar) else "")[:900]
+                out.append(Kanit("", f"pubmed:{pid} https://pubmed.ncbi.nlm.nih.gov/{pid}/ · {s.get('source', '')} {str(s.get('pubdate', ''))[:4]}",
+                                 f"{s.get('title', '')} — {abstract}"))
+            return out
+        except Exception as exc:  # noqa: BLE001 - NCBI E-utilities can be unavailable independently
+            print("  ! PubMed E-utilities yanıt vermedi (%s); Europe PMC yedeği deneniyor" % type(exc).__name__)
+
+        # Europe PMC indexes PubMed MEDLINE and exposes the same PMID and
+        # abstract. SRC:MED prevents accidentally citing a preprint/patent.
+        # Restrict the fallback to title/abstract fields: passing a long
+        # free-text query to its general search backend can return HTTP 500.
+        stop = {"and", "or", "the", "of", "for", "in", "on", "to", "with"}
+        terms = [t for t in re.findall(r"[\w]+", sorgu, flags=re.UNICODE)
+                 if t.lower() not in stop]
+        if not terms:
             return []
-        time.sleep(0.4)  # anahtarsız sınır saniyede 3 istek
-        ozet = json.loads(al(temel + "esummary.fcgi?" + urllib.parse.urlencode({"db": "pubmed", "id": ",".join(ids), "retmode": "json"})))["result"]
-        time.sleep(0.4)
-        metin = al(temel + "efetch.fcgi?" + urllib.parse.urlencode({"db": "pubmed", "id": ",".join(ids), "rettype": "abstract", "retmode": "text"})).decode("utf-8", "replace")
-        parcalar = re.split(r"\n\n\d+\. ", "\n\n" + metin)
+        kayitlar = []
+        son_hata = None
+        # EPMC search occasionally 503s on long, highly constrained queries.
+        # Relax descriptive terms one by one, retain MEDLINE
+        # and title/abstract constraints, and never substitute another source.
+        for tut in range(len(terms), max(2, len(terms) - 4) - 1, -1):
+            q = urllib.parse.urlencode({
+                "query": "SRC:MED AND TITLE_ABS:(%s)" % " AND ".join(terms[:tut]),
+                "pageSize": 4, "resultType": "core", "format": "json"})
+            try:
+                veri = json.loads(al(europe_pmc + q))
+            except Exception as exc:  # noqa: BLE001 - retry a less restrictive search
+                son_hata = exc
+                continue
+            kayitlar = (veri.get("resultList") or {}).get("result") or []
+            if kayitlar:
+                break
+        if not kayitlar and son_hata:
+            raise son_hata
         out = []
-        for i, pid in enumerate(ids):
-            s = ozet.get(pid) or {}
-            abstract = re.sub(r"\s+", " ", parcalar[i + 1] if i + 1 < len(parcalar) else "")[:900]
-            out.append(Kanit("", f"pubmed:{pid} https://pubmed.ncbi.nlm.nih.gov/{pid}/ · {s.get('source', '')} {str(s.get('pubdate', ''))[:4]}",
+        for s in kayitlar:
+            pid = str(s.get("pmid") or "").strip()
+            if not pid or s.get("source") != "MED":
+                continue
+            abstract = re.sub(r"\s+", " ", s.get("abstractText") or "")[:900]
+            yil = str(s.get("firstPublicationDate") or s.get("pubYear") or "")[:4]
+            out.append(Kanit("", f"pubmed:{pid} https://pubmed.ncbi.nlm.nih.gov/{pid}/ · {s.get('journalTitle', '')} {yil}",
                              f"{s.get('title', '')} — {abstract}"))
         return out
     return ara

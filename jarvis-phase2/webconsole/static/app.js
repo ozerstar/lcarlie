@@ -2171,7 +2171,7 @@ function renderLessons(block) {
 
 function renderImprovement(d) {
   if (!d || d.error_type) return card('GELİŞİM DÖNGÜSÜ', '<p>Gelişim defteri okunamadı.</p>', '');
-  const statuses = {WAITING_APPLICATION_EVIDENCE:'Uygulama kanıtı bekliyor', WAITING_MEASUREMENT:'Sonuç ölçümü bekliyor', TARGET_REACHED:'Hedefe ulaştı', MEASURED_FOLLOW_UP:'Ölçüldü; takip gerekli', CANCELLED:'İptal edildi'};
+  const statuses = {WAITING_APPLICATION_EVIDENCE:'Uygulama kanıtı bekliyor', QUEUED:'Ekip yürütme kuyruğunda', WAITING_CAPABILITY:'İşlem aracı gerekli', NEEDS_REWORK:'Yeniden çalışma gerekli', NEEDS_REPLAN:'Süresi geçti; yeniden planlama gerekli', WAITING_APPROVAL:'Onay bekliyor', EVIDENCE_MISSING:'Teslim kanıtı eksik', WAITING_MEASUREMENT:'Sonuç ölçümü bekliyor', TARGET_REACHED:'Hedefe ulaştı', MEASURED_FOLLOW_UP:'Ölçüldü; takip gerekli', CANCELLED:'İptal edildi'};
   const works = d.works || [];
   const rows = works.slice(0, 60).map(w => `<div class="kv"><span class="kv-k">#${w.id} ${escapeHtml(JarvisMetin.safeTitle(w.objective, 'Gelişim işi'))}</span><span class="kv-v">${escapeHtml(statuses[w.status] || JarvisMetin.label(w.status, 'Durum bilinmiyor'))}</span></div><p class="sect-note">Sorumlu: ${escapeHtml(JarvisMetin.label(w.owner, 'Sorumlu belirtilmemiş'))} · Son tarih: ${escapeHtml(w.due)}${w.overdue ? ' · Süresi geçti' : ''}<br>Ölçüt: ${escapeHtml(JarvisMetin.safeTitle(w.metric, 'Başarı ölçütü'))} · Hedef: ${escapeHtml(String(w.target ?? 'belirlenecek'))} ${escapeHtml(w.unit)}<br>Kaynak: ${escapeHtml(JarvisMetin.label(w.source, 'Kaynak belirtilmemiş'))}</p>`).join('');
   const lessons = (d.outcome_lessons || []).map(r => `<p>${escapeHtml(r.summary)}<br><small>${r.sample} gözlem · ${escapeHtml(r.evidence.join(' · '))}</small></p>`).join('');

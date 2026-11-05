@@ -40,6 +40,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
@@ -49,12 +50,12 @@ from typing import Any
 
 from . import sinirlar, yonetici
 
-MODLAR = ("gunluk", "haftalik", "aylik", "yurut", "rakip", "kreatif", "b2b", "retro")
+MODLAR = ("gunluk", "haftalik", "aylik", "yurut", "replan", "rakip", "kreatif", "b2b", "retro")
 GOREV_TIPLERI = ("ARASTIRMA", "ANALIZ", "TASLAK", "VERI_BAGLANTISI", "ONAY_GEREKTIREN")
 YURUTULEBILIR = ("ARASTIRMA", "ANALIZ", "TASLAK")
-KADEME = {"gunluk": "hizli", "haftalik": "hizli", "aylik": "muhakeme",
+KADEME = {"gunluk": "hizli", "haftalik": "hizli", "aylik": "muhakeme", "replan": "muhakeme",
           "yurut": os.environ.get("IS_URETICI_YURUT_KADEME", "muhakeme"), "denetim": "muhakeme"}
-MAX_TOKENS = {"gunluk": 1400, "haftalik": 1800, "aylik": 2600, "yurut": 2200, "denetim": 1500}
+MAX_TOKENS = {"gunluk": 1400, "haftalik": 1800, "aylik": 2600, "yurut": 2200, "denetim": 1500, "replan": 1200}
 # Yönetici denetimi (sahip 04.11). Kapatmak için IS_URETICI_YONETICI=false.
 YONETICI_ACIK = os.environ.get("IS_URETICI_YONETICI", "true").lower() not in ("0", "false", "no", "hayir")
 # Departmanda bu kadar açık iş varken model yeni iş İCAT etmez (rutin iş yine açılır).
@@ -307,6 +308,8 @@ class Butce:
             return {}
 
     def kalan(self, gun: str) -> int:
+        if self.tavan < 0:
+            return sys.maxsize
         return max(0, self.tavan - int(self._oku().get(gun, 0)))
 
     def harca(self, gun: str) -> None:
@@ -323,21 +326,20 @@ class Agac:
         self.yol = dizin / "agac.json"
 
     def oku(self) -> dict:
-        try:
-            v = json.loads(self.yol.read_text(encoding="utf-8"))
-            if isinstance(v, dict):
-                v.setdefault("hedefler", [])
-                v.setdefault("departmanlar", {})
-                return v
-        except Exception:  # noqa: BLE001, S110 - bozuk ağaç boş ağaçla değişir
-            pass
-        return {"hedefler": [], "departmanlar": {}}
+        if not self.yol.exists():
+            return {"hedefler": [], "departmanlar": {}}
+        # Bozuk dosyayı boş bir ağaçla değiştirip mevcut görevleri kaybetme.
+        v = json.loads(self.yol.read_text(encoding="utf-8"))
+        if not isinstance(v, dict) or not isinstance(v.get("departmanlar"), dict):
+            raise ValueError(f"Görev ağacı geçersiz: {self.yol}")
+        v.setdefault("hedefler", [])
+        return v
 
     def yaz(self, agac: dict, zaman: datetime) -> None:
         agac["guncelleme"] = zaman.isoformat()
-        # Kapanan/eski görevleri buda: departman başına son 60 görev.
+        # Görevler kalıcı kuyruktur; kapanan veya eski işleri budamak aynı işi
+        # tekrar ürettirir ve iyileştirme defteriyle bağını koparır.
         for dep in agac["departmanlar"].values():
-            dep["gorevler"] = dep.get("gorevler", [])[-60:]
             dep["raporlar"] = dep.get("raporlar", [])[-20:]
             dep["fikirler"] = dep.get("fikirler", [])[-30:]
         self.yol.parent.mkdir(parents=True, exist_ok=True)
@@ -706,7 +708,7 @@ class IsUretici:
                     gid: str | None = None) -> dict | None:
         gid = gid or f"{tarih}-{dep.kod}-{kaynak[0]}{sira}"
         acik = [x for x in self._dep_agac(agac, dep)["gorevler"]
-                if x.get("id") != gid and x.get("durum") in ("ACIK", "ONAY_BEKLIYOR", "INSAN_INCELEMESI")]
+                if x.get("id") != gid and x.get("durum") not in ("TESLIM_EDILDI", "IPTAL_EDILDI")]
         if g.get("rutin_id"):
             # Rutin iş yalnız AYNI rutinin açık kopyası varsa atlanır (birikme yok);
             # benzer başlıklı icat edilmiş bir görev rutini engellemez.
@@ -716,6 +718,13 @@ class IsUretici:
                 return None
         elif any(self._benzer(g["baslik"], x.get("baslik", "")) for x in acik):
             self.kayit.append({"departman": dep.kod, "bilgi": f"tekrar eden görev atlandı: {g['baslik']}"[:200]})
+            return None
+        elif not g.get("rutin_id") and any(
+                x.get("durum") == "TESLIM_EDILDI" and not x.get("rutin_id")
+                and self._benzer(g["baslik"], x.get("baslik", ""))
+                and str(x.get("olusturma", ""))[:10] >= (date.fromisoformat(tarih)-timedelta(days=7)).isoformat()
+                for x in self._dep_agac(agac, dep)["gorevler"]):
+            self.kayit.append({"departman": dep.kod, "bilgi": f"yakın zamanda teslim edilen tekrar atlandı: {g['baslik']}"[:200]})
             return None
         son = (datetime.fromisoformat(tarih) + timedelta(days=g["sure_gun"])).replace(tzinfo=timezone.utc)
         kayit = dict(g, id=gid, kaynak=kaynak, olusturma=self.o.saat().isoformat(),
@@ -778,7 +787,8 @@ class IsUretici:
             if any(x.get("id", "").startswith(f"{tarih}-{dep.kod}-g") for x in dep_agac["gorevler"]):
                 continue  # bugün zaten üretildi (yeniden çalıştırmada çift iş yok)
             # Rutin iş sayılmaz: o ekibin sabit işi, her gün akar. Tavan yalnız İCAT işi frenler.
-            acik = sum(x.get("durum") == "ACIK" and not x.get("rutin_id") for x in dep_agac["gorevler"])
+            acik = sum(x.get("durum") in ("ACIK", "YENIDEN_PLANLA") and not x.get("rutin_id")
+                       for x in dep_agac["gorevler"])
             if acik >= ACIK_IS_TAVANI:
                 self.kayit.append({"bilgi": f"{dep.kod}: {acik} açık icat iş var, yeni iş icat edilmedi"})
                 continue
@@ -921,6 +931,92 @@ class IsUretici:
         agac["aylik_rapor"] = {"tarih": tarih, "yol": yol}
         self.agac_deposu.yaz(agac, self.o.saat()) if not self.kuru else None
         return {"mod": "aylik", "tarih": tarih, "hedef": len(hedefler), "kayit": self.kayit}
+
+    def replan(self, sinir: int = 8) -> dict:
+        """Reconsider preserved, failed or expired work without inventing a new task ID."""
+        agac = self.agac_deposu.oku()
+        departments = {d.kod: d for d in self.o.departmanlar()}
+        now_ = self.o.saat()
+        candidates = []
+        for code, dep_tree in agac['departmanlar'].items():
+            if code not in departments:
+                continue
+            for task in dep_tree.get('gorevler', []):
+                if task.get('durum') not in ('YENIDEN_PLANLA', 'SURESI_DOLDU', 'REDDEDILDI'):
+                    continue
+                last = (task.get('yeniden_planlama') or {}).get('tarih')
+                if last:
+                    try:
+                        if (now_ - datetime.fromisoformat(last)).total_seconds() < 86400:
+                            continue
+                    except ValueError:
+                        pass
+                candidates.append((task.get('son_tarih', ''), code, task))
+        candidates.sort(key=lambda item: item[0])
+        reopened = capability = obsolete = failed = 0
+        for _, code, task in candidates[:sinir]:
+            dep = departments[code]
+            prompt = (f"Bugün {self._gun()}. Daha önce açılmış şu görevi yeniden değerlendir. "
+                      "Görevi silme veya yapıldığını iddia etme. Zamanı geçmişse bugüne göre "
+                      "uygulanabilir biçimde planla. Dış sistemde yazma, yayın, mesaj, fiyat, "
+                      "stok veya ödeme işlemi gerekiyorsa karar ARAC_GEREKLI olsun. "
+                      "Yalnız mevcut veriye dayanarak araştırma, analiz veya taslak hazırlanabiliyorsa "
+                      "karar AC olsun. Artık anlamlı değilse GECERSIZ seç ve gerekçe yaz.\n"
+                      f"Görev: {task.get('baslik', '')}\nTür: {task.get('tip', '')}\n"
+                      f"Teslim: {task.get('cikti', '')}\nÖlçüt: {task.get('kabul_olcutu', '')}\n"
+                      f"Önceki hata: {task.get('red_sebebi', '')}\n"
+                      "Yalnız JSON: {\"karar\":\"AC|ARAC_GEREKLI|GECERSIZ\","
+                      "\"tip\":\"ARASTIRMA|ANALIZ|TASLAK|VERI_BAGLANTISI|ONAY_GEREKTIREN\","
+                      "\"baslik\":\"...\",\"cikti\":\"...\",\"kabul_olcutu\":\"...\","
+                      "\"sure_gun\":2,\"gerekce\":\"...\"}")
+            try:
+                result = self._model('replan', [{'role': 'system', 'content': SISTEM},
+                                                {'role': 'user', 'content': prompt}], 'is-uretici-replan')
+                decision = result.get('karar')
+                if decision not in ('AC', 'ARAC_GEREKLI', 'GECERSIZ'):
+                    raise ValueError('yeniden planlama kararı geçersiz')
+                history = task.setdefault('yeniden_planlama_gecmisi', [])
+                history.append({'tarih': now_.isoformat(), 'onceki_durum': task['durum'],
+                                'karar': decision, 'gerekce': temizle(result.get('gerekce'), 300)})
+                task['yeniden_planlama'] = history[-1]
+                if decision == 'GECERSIZ':
+                    task['durum'] = 'ARTIK_GECERLI_DEGIL'
+                    obsolete += 1
+                elif decision == 'ARAC_GEREKLI':
+                    task['durum'] = 'ARAC_GEREKLI'
+                    capability += 1
+                else:
+                    validated = gorev_dogrula(result, dep, {str(h.get('id')) for h in agac['hedefler']})
+                    if not validated or validated['tip'] not in YURUTULEBILIR:
+                        task['durum'] = 'ARAC_GEREKLI'
+                        capability += 1
+                        continue
+                    # A task created for an external action cannot be closed by
+                    # relabeling a written analysis as that action's completion.
+                    if task.get('tip') in ('VERI_BAGLANTISI', 'ONAY_GEREKTIREN'):
+                        task['durum'] = 'ARAC_GEREKLI'
+                        capability += 1
+                        continue
+                    task.update(validated)
+                    task['son_tarih'] = (now_ + timedelta(days=validated['sure_gun'])).isoformat()
+                    task['durum'] = 'ACIK'
+                    task['deneme'] = 0
+                    task['guclu'] = True
+                    reopened += 1
+                    if task.get('work_id') and not self.kuru:
+                        self.o.defter.plan(work_id=task['work_id'], owner=task['sorumlu'],
+                                           metric='Kabul: ' + task['kabul_olcutu'][:93],
+                                           unit='teslim', direction='higher', target=1,
+                                           due=task['son_tarih'], actor='jarvis-team-replanner')
+            except Exception as exc:  # noqa: BLE001 - a single bad task must not erase the queue
+                failed += 1
+                self.kayit.append({'gorev': task.get('id'), 'hata': str(exc)[:250]})
+                if 'tavan' in str(exc):
+                    break
+        if not self.kuru:
+            self.agac_deposu.yaz(agac, now_)
+        return {'mod': 'replan', 'aday': len(candidates), 'yeniden_acildi': reopened,
+                'arac_gerekli': capability, 'gecersiz': obsolete, 'hata': failed, 'kayit': self.kayit}
 
     def yurut(self, sinir: int = 8, sure_sn: int | None = None) -> dict:
         """Açık iç görevleri sırayla ilgili üyeye yaptırır. sure_sn verilirse o süre dolunca yeni işe başlamaz."""

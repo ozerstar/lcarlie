@@ -1,4 +1,5 @@
 import tempfile
+import json
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
@@ -32,6 +33,38 @@ class ImprovementTests(unittest.TestCase):
             with self.s.db() as db:
                 db.execute('UPDATE work SET approval_state=? WHERE id=?',(state,self.i))
             self.assertEqual(self.s.snapshot()['works'][0]['status'],'WAITING_APPLICATION_EVIDENCE')
+
+    def test_team_queue_state_is_visible_without_losing_work(self):
+        root = Path(self.tmp.name)
+        store = Store(root / 'improvement' / 'ledger.sqlite3')
+        work_id = store.work(source_key='queue-task', domain='operations', objective='Check source',
+                             owner='operations', metric='result', unit='item', source='team')
+        tree_path = root / 'is-uretici' / 'agac.json'
+        tree_path.parent.mkdir()
+        tree_path.write_text(json.dumps({'departmanlar': {'OPS': {'gorevler': [
+            {'id': 'task-1', 'work_id': work_id, 'tip': 'ANALIZ', 'durum': 'ACIK'}]}}}), encoding='utf-8')
+        self.assertEqual(store.snapshot()['works'][0]['status'], 'QUEUED')
+        tree = json.loads(tree_path.read_text(encoding='utf-8'))
+        tree['departmanlar']['OPS']['gorevler'][0]['durum'] = 'REDDEDILDI'
+        tree_path.write_text(json.dumps(tree), encoding='utf-8')
+        self.assertEqual(store.snapshot()['works'][0]['status'], 'NEEDS_REWORK')
+        self.assertEqual(len(store.snapshot()['works']), 1)
+
+    def test_team_delivery_evidence_recovers_once(self):
+        root = Path(self.tmp.name)
+        store = Store(root / 'improvement' / 'ledger.sqlite3')
+        work_id = store.work(source_key='finished-task', domain='operations', objective='Write report',
+                             owner='operations', metric='report', unit='item', source='team')
+        artifact = root / 'is-uretici' / 'teslimler' / 'task-2.md'
+        artifact.parent.mkdir(parents=True)
+        artifact.write_text('Verified report', encoding='utf-8')
+        tree_path = root / 'is-uretici' / 'agac.json'
+        tree_path.write_text(json.dumps({'departmanlar': {'OPS': {'gorevler': [{
+            'id': 'task-2', 'work_id': work_id, 'durum': 'TESLIM_EDILDI',
+            'teslim': {'kalite': 'GECTI', 'yol': str(artifact), 'tarih': self.at}}]}}}), encoding='utf-8')
+        self.assertEqual(store.reconcile_team_deliveries(), 1)
+        self.assertEqual(store.reconcile_team_deliveries(), 0)
+        self.assertEqual(store.snapshot()['works'][0]['status'], 'WAITING_MEASUREMENT')
 
     def test_application_without_measurement_waits(self):
         self.applied()
