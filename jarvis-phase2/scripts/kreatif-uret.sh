@@ -1,13 +1,8 @@
 #!/usr/bin/env bash
-# ONAY SONRASI ÜRETİM — sahip brief'i onayladıktan SONRA koşar.
-#
-#   kreatif-uret.sh hydravie-20260921-1232
-#
-# 🔴 BU BETİK KENDİ BAŞINA KOŞMAZ, ZAMANLAYICISI YOKTUR. Sahip kararı:
-#    "üretim benim onayım olmadan yapılmasın." Zamanlayıcıya bağlansaydı
-#    onay kapısı dekor olurdu.
-#
-# Zincir: görsel üretimi -> ekip incelemesi -> İKİNCİ öneri (yayın onayı).
+# KREATİF ÜRETİM + OTONOM EKİP ONAYI
+# GPT Work görseli ve metni üretir; departman incelemesi gerekirse en çok üç
+# kısa revizyon turu yapar. GECER olunca Jarvis içerik onayını kaydeder.
+# Bu hat Instagram'da yayın yapmaz.
 set -euo pipefail
 
 KOK="/opt/lcarlie/jarvis-phase2"
@@ -45,8 +40,32 @@ echo "== EKIP INCELEMESI ====================================="
 "$PY" scripts/kreatif-inceleme.py "state/kreatif-brief/${PARTI}-gorseller" \
       --urun-gorsel "$CEKIM"
 
-echo
-echo "== YAYIN ONAYI KUYRUGU ================================="
-"$KOK/bin/jarvis-operator" create-task KREATIF_INCELEME "$PARTI"
-echo "gorseller uretildi ve incelendi; yayin onayi kuyruga dustu."
+OUT="state/kreatif-brief/$PARTI-gorseller"
+RAPOR="$OUT/inceleme.json"
+
+# İlk inceleme düzeltme istiyorsa Jarvis kısa ekip notlarını GPT Work'e aktarır,
+# önceki kareyi referans verir ve en fazla üç kez üretip yeniden inceler.
+DUZELTME_GEREKLI="$($PY -c 'import json,sys; d=json.load(open(sys.argv[1],encoding="utf-8")); print(int(any(str(x.get("direktor_karari","")).upper() in ("DUZELT","RED") for x in d.get("gorseller",[]))))' "$RAPOR")"
+if [ "$DUZELTME_GEREKLI" = "1" ]; then
+  echo
+  echo "== OTONOM REVİZYON DÖNGÜSÜ ============================="
+  REV_LOG="state/kreatif-brief/$PARTI-otonom-revizyon.log"
+  REV_KOD=0
+  "$PY" scripts/kreatif-revizyon.py "$BRIEF" "$RAPOR" \
+    --urun-gorsel "$CEKIM" --azami-tur 3 2>&1 | tee "$REV_LOG" || REV_KOD=$?
+  SON_PARTI="$(sed -n 's/^FINAL_PARTI=//p' "$REV_LOG" | tail -n1)"
+  SON_DURUM="$(sed -n 's/^FINAL_DURUM=//p' "$REV_LOG" | tail -n1)"
+  [ -n "$SON_PARTI" ] || SON_PARTI="$PARTI"
+  if [ "$REV_KOD" -ne 0 ] || [ "$SON_DURUM" != "GECER" ]; then
+    echo "Jarvis üç revizyon turundan sonra da departman onayı alamadı; kullanıcı incelemesine bırakılıyor."
+    "$KOK/bin/jarvis-operator" create-task KREATIF_INCELEME "$SON_PARTI"
+    exit 3
+  fi
+  PARTI="$SON_PARTI"
+else
+  echo "ilk ekip incelemesi geçti; revizyon gerekmedi."
+fi
+
+echo "Jarvis departman onayı: GECER · çıktı: state/kreatif-brief/$PARTI-gorseller"
+echo "Görsel üretim ve ekip onayı tamamlandı; dış yayın ayrıca başlatılmadı."
 

@@ -61,13 +61,11 @@ For your verification, the packaging is printed with exactly these lines:
 {satirlar}
 """
 
-TAM_GORSEL_ISTEM = """Create a premium editorial skincare ad for L'CARLIÉ HYDRAVIE. Use the supplied
-product as the hero. Build a tactile, humid atmosphere with one sculptural form in
-the product's aqua blue, naturally integrated into the scene. Give it distinctive
-magazine art direction and refined light. Write one short Turkish headline yourself;
-keep it fully visible with generous safe margins. A small supporting line is optional.
-Preserve the package logo; do not add a second large masthead logo. No dark text panel
-or unsupported claim. Monument Extended / Metropolis editorial type mood. Aspect ratio {oran}."""
+TAM_GORSEL_ISTEM = """Design a premium editorial skincare ad for L'CARLIÉ {urun}. GPT creates the full
+image and one short Turkish headline. Keep the headline bold, phone-legible and safely
+inside the frame. Use Monument Extended / Metropolis brand typography style, an aqua
+moisture atmosphere, and a distinct editorial idea. Preserve the package. No dark band,
+duplicate logo, unsupported claim or extra copy. {referans_talimati} Aspect ratio {oran}.{revizyon}"""
 
 
 def etiket_satirlari(urun_yolu: Path) -> str:
@@ -122,13 +120,29 @@ def chatgpt_web_gorsel(istem: str, oran: str, girdi_dosyalari: list[Path],
     raise RuntimeError(f"ChatGPT web işi {is_['is_id']} {zaman_asimi_s} sn içinde tamamlanmadı; Jarvis tarayıcı kuyruğunu kontrol edin")
 
 def montaj_uret(sahne: str, ust: str, alt: str, oran: str,
-                urun_yolu: Path, logo_yolu: Path, etiket: str) -> Image.Image:
-    """GPT creates image and copy together; Jarvis returns it without overlays."""
+                urun_yolu: Path, logo_yolu: Path, etiket: str,
+                stil_referansi: Path | None = None,
+                revizyon_notu: str = "", urun_adi: str = "HYDRAVIE") -> Image.Image:
+    """GPT creates the whole ad and copy; review notes guide autonomous revisions."""
     if not urun_yolu.is_file() or not logo_yolu.is_file():
         raise gk.GorselHatasi("urun fotografi veya resmi logo bulunamadi")
-    seed = " ".join(sahne.split())[:180]
-    istem = TAM_GORSEL_ISTEM.format(oran=oran, sahne=seed)
-    return chatgpt_web_gorsel(istem, oran, [urun_yolu, logo_yolu])
+    if stil_referansi is not None and not Path(stil_referansi).is_file():
+        raise gk.GorselHatasi("onceki gorsel referansi bulunamadi")
+    revizyon = ""
+    if revizyon_notu.strip():
+        revizyon = "\n\nCREATIVE TEAM REVISION: " + " ".join(revizyon_notu.split())[:500]
+    referans_talimati = (
+        "IMAGE 1 is the product; IMAGE 2 is the previous draft; the final image is the logo."
+        if stil_referansi is not None else
+        "Use the supplied product photo and logo as faithful references.")
+    istem = TAM_GORSEL_ISTEM.format(
+        urun=urun_adi, oran=oran, revizyon=revizyon,
+        referans_talimati=referans_talimati)
+    dosyalar = [urun_yolu]
+    if stil_referansi is not None:
+        dosyalar.append(Path(stil_referansi))
+    dosyalar.append(logo_yolu)
+    return chatgpt_web_gorsel(istem, oran, dosyalar)
 
 # ══════════════════════════════════════════════════════════════════════════
 # 🔴 OTOMATİK AMBALAJ DENETİMİ DENENDİ VE ÇALIŞMIYOR — KALDIRILDI
@@ -182,6 +196,8 @@ def main() -> int:
     ap.add_argument("brief", help="kreatif-brief.py'nin ürettiği .json")
     ap.add_argument("--urun-gorsel", required=True, help="gerçek ürün çekimi")
     ap.add_argument("--logo", default=str(VARLIK / "logo" / "lcarlie-logo.png"))
+    ap.add_argument("--stil-referans", type=Path, default=None,
+                    help="revizyon icin onceki GPT gorseli")
     ap.add_argument("--cikti", default=None)
     ap.add_argument("--adet", type=int, default=0, help="0 = brief'teki hepsi")
     a = ap.parse_args()
@@ -236,7 +252,11 @@ def main() -> int:
         # boğmuyoruz; yalnız brief'teki kısa konsept ve ürün açısı gönderilir.
         geri_bildirim = []
         try:
-            kare = montaj_uret(sahne, ust, alt, oran, urun_yolu, logo_yolu, etiket)
+            kare = montaj_uret(
+                sahne, ust, alt, oran, urun_yolu, logo_yolu, etiket,
+                stil_referansi=a.stil_referans,
+                revizyon_notu=str(g.get("revizyon_notu") or ""),
+                urun_adi=str((brief.get("urun") or {}).get("urun_adi") or "HYDRAVIE").split("|")[0].strip())
         except (OSError, RuntimeError, ValueError) as e:
             print(f"{n}. HATA: {str(e)[:160]}", file=sys.stderr)
             hata += 1
@@ -251,6 +271,7 @@ def main() -> int:
                        "ust_yazi": "GPT tarafından görsel içinde yazıldı",
                        "alt_yazi": "GPT tarafından görsel içinde yazıldı",
                        "yazi_modeli": "gpt_work",
+                       "revizyon_yonlendirmesi": str(g.get("revizyon_notu") or ""),
                        "hangi_aci": g.get("hangi_aci"),
                        "instagram_format": instagram_format,
                        "seri_kodu": seri_kodu, "kart_no": kart_no, "kart_rolu": kart_rolu,
