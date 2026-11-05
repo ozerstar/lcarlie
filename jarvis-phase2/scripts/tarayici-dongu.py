@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -110,6 +111,9 @@ def yedek_dene(is_: dict) -> dict | None:
        çalıştı diye oturum sorunu kaybolmaz.
     """
     if is_.get("durum") not in ("HATA", "INSAN_GEREKLI"):
+        return None
+    # Web-session fallback is a real queue job; do not recursively queue another fallback.
+    if is_.get("isteyen") == "tarayici-yedek":
         return None
     try:
         sonuc = tarayici_yedek.dene(is_.get("hedef") or "", is_.get("istem") or "")
@@ -243,8 +247,46 @@ def oneri_metni(is_: dict, uyum: dict, dosyalar: list[str], slug: str,
     return "\n".join(s for s in satirlar if s is not None)
 
 
+# 🔴 05.11.2026 sahip: "başarısız olmuş işin neyini onaylayacağım?" Tarayıcı işinin
+#    sonucu için onaylanacak bir eylem YOKTUR (TARAYICI_SONUC onayı hiçbir şeyi
+#    yürütmüyordu). Hiçbir sonuç onay kuyruğuna girmez: hepsi Kreatif >
+#    Tarayıcı sonuçları'nda görünür, sahibe telefon bildirimi gider (push-send.py
+#    bu kaydı okur), başarısızlık ayrıca alarm merkezine yazılır.
+BILDIRIM_DURUMLARI = ("HATA", "INSAN_GEREKLI")
+
+
+def sade_sebep(hata: str | None) -> str:
+    """Teknik hata metnini sahibin okuyacağı cümleye çevirir."""
+    metin = re.sub(r"^[A-Za-z_]*(?:Hatasi|Error|Exception):\s*", "", (hata or "").strip())
+    sure = re.search(r"\((\d+)\s*sn beklendi\)", metin)
+    if re.search(r"gorsel uretilmedi|görsel üretilmedi", metin, re.I):
+        return "görsel %s içinde üretilmedi" % ("%d dakika" % (int(sure.group(1)) // 60) if sure else "beklenen süre")
+    return metin or "sebep bildirilmedi"
+
+
+def bildirim_metni(is_: dict, dosya_adedi: int = 0) -> tuple[str, str]:
+    """(başlık, gövde): ne oldu, onay gerekmez, ne yapılmalı."""
+    hedef = {"chatgpt_image": "ChatGPT görsel", "claude_chat": "Claude sohbet",
+             "chatgpt_chat": "ChatGPT sohbet"}.get(is_.get("hedef"), is_.get("hedef") or "tarayıcı")
+    kim = (is_.get("isteyen") or "Jarvis").replace("-", " ")
+    if is_.get("durum") == "INSAN_GEREKLI":
+        return ("⛔ Jarvis · Tarayıcı işi seni bekliyor",
+                "İş #%s (%s, %s) durdu: %s. Onay gerekmez. Bilgisayarda Chrome'u açıp "
+                "ChatGPT/Claude oturumunu kontrol et, sonra işi yeniden ver."
+                % (is_.get("is_id"), kim, hedef, sade_sebep(is_.get("hata"))))
+    if is_.get("durum") not in BILDIRIM_DURUMLARI:
+        ne = "%d görsel hazır" % dosya_adedi if dosya_adedi else "sonuç hazır"
+        return ("✅ Jarvis · Tarayıcı işi tamamlandı",
+                "İş #%s (%s, %s): %s. Onay gerekmez; Kreatif sekmesindeki "
+                "Tarayıcı sonuçları bölümünde görebilirsin." % (is_.get("is_id"), kim, hedef, ne))
+    return ("⚠️ Jarvis · Tarayıcı işi yapılamadı",
+            "İş #%s (%s, %s): %s; %s kez denendi. Onay gerekmez. Tekrar denemek için "
+            "işi yeniden ver." % (is_.get("is_id"), kim, hedef, sade_sebep(is_.get("hata")),
+                                  is_.get("deneme") or 1))
+
+
 def sonucu_sun(is_: dict) -> dict:
-    """Tek işi onay kuyruğuna koyar."""
+    """Tek işi sunar: karar isteyen sonuç onay kuyruğuna, başarısızlık bildirime."""
     is_id = int(is_["is_id"])
     slug = slug_uret(is_id)
     uyum = tarayici.sonuc_uyum(is_.get("sonuc_metin"))
@@ -262,6 +304,11 @@ def sonucu_sun(is_: dict) -> dict:
              "dosyalar": konan, "hata": is_.get("hata"),
              "deneme": is_.get("deneme"), "uyum": uyum, "yedek": yedek,
              "reason": oneri_metni(is_, uyum, konan, slug, yedek)}
+    gorsel_adedi = len([d for d in konan if not d.startswith("EKSIK:") and not d.startswith("ekran-")])
+    durum_kotu = is_.get("durum") in BILDIRIM_DURUMLARI and not (yedek or {}).get("durum") == "YEDEK_CALISTI"
+    baslik, govde = bildirim_metni(is_ if durum_kotu else dict(is_, durum="BITTI"), gorsel_adedi)
+    kayit["bildirim"] = {"baslik": baslik, "govde": govde}
+    bildirim = True
     # Atomik yazım: loop.py bu dosyayı okurken yarım hâlini görmesin.
     gecici = DURUM_KOK / (".yaziliyor-%s.json" % slug)
     with gecici.open("w", encoding="utf-8") as d:
@@ -269,6 +316,16 @@ def sonucu_sun(is_: dict) -> dict:
         d.flush()
         os.fsync(d.fileno())
     os.replace(gecici, DURUM_KOK / ("%s.json" % slug))
+
+    if bildirim:
+        if durum_kotu:
+            alarm("UYARI", "tarayici.%s" % slug, kayit["bildirim"]["baslik"], kayit["bildirim"]["govde"])
+        tarayici._psql(
+            "SELECT core.tarayici_isi_sunuldu(:'is_id'::bigint, :'slug', :'uyum');",
+            "human_approver",
+            degiskenler={"is_id": str(is_id), "slug": slug, "uyum": uyum["uyum_durumu"]})
+        return {"is_id": is_id, "slug": slug, "uyum": uyum["uyum_durumu"],
+                "yedek": (yedek or {}).get("durum"), "dosya_adedi": gorsel_adedi, "bildirim": True}
 
     # Görevi insan otoritesiyle aç.
     #

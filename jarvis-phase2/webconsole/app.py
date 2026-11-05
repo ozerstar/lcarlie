@@ -71,6 +71,7 @@ import meta_webhook  # noqa: E402
 import isler  # noqa: E402
 import katalog
 import uretilenler  # noqa: E402
+import gorsel_onay  # noqa: E402
 import gelen_kutusu  # noqa: E402
 import harita  # noqa: E402
 import saha  # noqa: E402
@@ -684,6 +685,92 @@ def _etiket_belgesi(siparisler: list) -> dict:
     return {"ok": True, "dosya": Path(dosya).name,
             "baglanti": "/etiket/" + Path(dosya).name,
             "ozet": ciktilar[-2] if len(ciktilar) > 1 else ""}
+
+
+TARAYICI_HEDEF = {"chatgpt_image": "ChatGPT · görsel", "chatgpt_chat": "ChatGPT · sohbet",
+                  "claude_chat": "Claude · sohbet"}
+TARAYICI_DURUM = {"BITTI": ("Tamamlandı", "ok"), "SUNULDU": ("Tamamlandı", "ok"),
+                  "HATA": ("Yapılamadı", "kotu"), "INSAN_GEREKLI": ("Seni bekliyor", "orta")}
+GORSEL_UZANTI = (".png", ".jpg", ".jpeg", ".webp", ".gif")
+
+
+def _tarayici_sebep(kayit: dict) -> str:
+    """Bildirim metni varsa o; yoksa teknik sınıf adı atılmış hata cümlesi."""
+    bildirim = kayit.get("bildirim") or {}
+    if bildirim.get("govde"):
+        return str(bildirim["govde"])
+    hata = re.sub(r"^[A-Za-z_]*(?:Hatasi|Error|Exception):\s*", "", str(kayit.get("hata") or "").strip())
+    return hata.replace("gorsel uretilmedi", "görsel üretilmedi")
+
+
+def _tarayici_sonuclari(limit: int = 60) -> dict:
+    """Tarayıcı işlerinin sonuçları (sahip 05.11.2026): onay kuyruğu yerine
+    Kreatif görünümünde toplu durur. Dosya adresleri /tarayici/ kapısından geçer."""
+    from datetime import datetime
+    from urllib.parse import quote
+    from zoneinfo import ZoneInfo
+    if not TARAYICI_DIR.is_dir():
+        return {"isler": []}
+    yollar = sorted(TARAYICI_DIR.glob("tarayici-*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    isler = []
+    for yol in yollar[:limit]:
+        try:
+            kayit = json.loads(yol.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        slug = str(kayit.get("slug") or yol.stem)
+        if not re.fullmatch(r"tarayici-\d+", slug):
+            continue
+        klasor = TARAYICI_DIR / f"{slug}-dosyalar"
+        dosyalar = []
+        for ad in kayit.get("dosyalar") or []:
+            ad = str(ad)
+            if ad.startswith(("EKSIK:", ".")) or "/" in ad or not (klasor / ad).is_file():
+                continue
+            dosyalar.append({"ad": ad, "url": f"/tarayici/{slug}-dosyalar/{quote(ad)}",
+                             "gorsel": ad.lower().endswith(GORSEL_UZANTI),
+                             "ekran": ad.startswith("ekran-")})
+        uyum = kayit.get("uyum") or {}
+        etiket = TARAYICI_DURUM.get(kayit.get("durum"), (str(kayit.get("durum") or "Bilinmiyor"), "orta"))
+        if etiket[1] == "ok" and uyum.get("uyum_durumu") == "BLOKLU":
+            etiket = ("Mevzuat engeli", "kotu")
+        isler.append({
+            "is_id": kayit.get("is_id"), "slug": slug,
+            "hedef": TARAYICI_HEDEF.get(kayit.get("hedef"), str(kayit.get("hedef") or "Tarayıcı")),
+            "isteyen": str(kayit.get("isteyen") or "Jarvis").replace("-", " "),
+            "durum": etiket[0], "sinif": etiket[1],
+            "tarih": datetime.fromtimestamp(yol.stat().st_mtime, ZoneInfo("Europe/Istanbul")).strftime("%d.%m.%Y %H:%M"),
+            "istem": str(kayit.get("istem") or "")[:4000],
+            "sonuc_metin": str(kayit.get("sonuc_metin") or "")[:6000],
+            "sebep": _tarayici_sebep(kayit) if etiket[1] != "ok" else "",
+            "dosyalar": dosyalar,
+        })
+    return {"isler": isler}
+
+
+def _gorsel_onizleme(job_id: str, product: str, slot: str) -> bytes:
+    """Paket görselinin küçük önizlemesi (05.11.2026): 3000 px orijinaller ızgarada
+    yüzlerce MB eder. Bir kez üretilir, state/image-jobs/onizleme altında saklanır."""
+    from jarvis.image_jobs import SLOTS
+    if (not re.fullmatch(r"[0-9a-f]{32}", job_id) or not re.fullmatch(r"[0-9]{2}-[a-z0-9-]+", product)
+            or slot not in SLOTS):
+        raise ValueError("Geçersiz görsel yolu.")
+    hedef = image_jobs.root / "onizleme" / job_id / f"{product}--{slot}"
+    if hedef.is_file():
+        return hedef.read_bytes()
+    raw = image_jobs.member(job_id, product, slot)
+    from io import BytesIO
+    from PIL import Image
+    with Image.open(BytesIO(raw)) as img:
+        img = img.convert("RGB")
+        img.thumbnail((480, 600))
+        out = BytesIO()
+        img.save(out, "JPEG", quality=82, optimize=True)
+    hedef.parent.mkdir(parents=True, exist_ok=True)
+    gecici = hedef.with_suffix(".yaziliyor")
+    gecici.write_bytes(out.getvalue())
+    gecici.replace(hedef)
+    return out.getvalue()
 
 
 def _kreatif_partiler(limit: int = 12) -> dict:
@@ -1629,7 +1716,9 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if len(parts) == 7 and parts[4] == "images":
                 try:
-                    raw = image_jobs.member(parts[3], parts[5], parts[6])
+                    raw = (_gorsel_onizleme(parts[3], parts[5], parts[6])
+                           if (query.get("boy") or [""])[0] == "kucuk"
+                           else image_jobs.member(parts[3], parts[5], parts[6]))
                 except (ValueError, KeyError, FileNotFoundError):
                     self._send_json(404, {"error": "image not found"})
                     return
@@ -2135,6 +2224,14 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(503, {"error": str(exc)[:200]})
             return
 
+        if path == "/api/gorsel-onay":
+            # Görsel onayları: kaydırılacak görseller + Jarvis'in öğrendikleri.
+            try:
+                self._send_json(200, gorsel_onay.durum(session.username, TARAYICI_DIR, KREATIF_DIR))
+            except Exception as exc:  # noqa: BLE001 - tablo yoksa/okunamazsa panel durmaz
+                self._send_json(503, {"error": "Görsel onayları okunamadı.", "detail": str(exc)[:200]})
+            return
+
         if path == "/api/kreatif-itiraz":
             # Sahibin acik itirazlari ve muhatabin cevaplari.
             from jarvis import kreatif_itiraz
@@ -2190,6 +2287,13 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(200, kargo_islem.kapida_ozet())
             except Exception as exc:  # noqa: BLE001
                 self._send_json(503, {"error": f"okunamadı: {str(exc)[:200]}"})
+            return
+
+        if path == "/api/tarayici-sonuclari":
+            try:
+                self._send_json(200, _tarayici_sonuclari())
+            except Exception as exc:  # noqa: BLE001 - liste okunamazsa panel durmaz
+                self._send_json(503, {"error": "Tarayıcı sonuçları okunamadı.", "detail": str(exc)[:200]})
             return
 
         if path == "/api/kreatif-parti":
@@ -3124,6 +3228,16 @@ class Handler(BaseHTTPRequestHandler):
             except tasarim.TasarimHatasi as hata:
                 self._send_json(400, {"error": str(hata)})
             return
+        if path == "/api/gorsel-onay":
+            try:
+                self._send_json(200, gorsel_onay.karar_ver(session.username, _read_json_body(self),
+                                                           TARAYICI_DIR, KREATIF_DIR))
+            except gorsel_onay.OnayHatasi as exc:
+                self._send_json(400, {"error": str(exc)})
+            except Exception as exc:  # noqa: BLE001 - kayıt yapılamadıysa açıkça söylenir
+                self._send_json(503, {"error": "Karar kaydedilemedi; yeniden deneyin.", "detail": str(exc)[:200]})
+            return
+
         if path in ("/api/kreatif-itiraz", "/api/kreatif-itiraz/muhatap"):
             from jarvis import kreatif_itiraz as kit
             body = _read_json_body(self)

@@ -131,6 +131,31 @@ def notify_whatsapp_failures(log: Path | None = None) -> None:
     save_seen(seen, seen_path)
 
 
+def notify_browser_failures(folder: Path | None = None) -> None:
+    """Başarısız tarayıcı işleri onay kuyruğuna girmez; sahibe buradan haber verilir."""
+    subscriptions = push_store.all_subscriptions()
+    folder = folder or ROOT / "state" / "tarayici"
+    if not subscriptions or not folder.exists():
+        return
+    events = {}
+    for path in sorted(folder.glob("tarayici-*.json")):
+        try:
+            record = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(record.get("bildirim"), dict):
+            events[record["slug"]] = record["bildirim"]
+    seen_path = push_store.STATE_DIR / "tarayici-bildirim-seen.json"
+    seen = json.loads(seen_path.read_text(encoding="utf-8")) if seen_path.exists() else {}
+    for identifier, subscription in subscriptions.items():
+        delivered = set(seen.get(identifier) or [])
+        for slug, event in events.items():
+            if slug not in delivered and send(subscription, event["baslik"], event["govde"], f"browser-{slug}"):
+                delivered.add(slug)
+        seen[identifier] = list(delivered & set(events))
+    save_seen(seen, seen_path)
+
+
 def notify_due_reminders() -> None:
     subscriptions = push_store.all_subscriptions()
     for reminder in mobile_features.due_reminders():
@@ -263,6 +288,7 @@ if __name__ == "__main__":
         notify_due_reminders()
         notify_new_approvals()
         notify_whatsapp_failures()
+        notify_browser_failures()
         notify_birthdays()
         notify_daily_digest()
         notify_ig_gunluk()

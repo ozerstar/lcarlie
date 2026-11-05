@@ -107,6 +107,7 @@
         <div class="nav-body">
           <button type="button" class="nav-item" data-view="uretilenler"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-sparkles"></use></svg><span class="nav-label">ÜRETİLENLER</span></button>
           <button type="button" class="nav-item" data-view="kreatifParti"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-palette"></use></svg><span class="nav-label">KREATİF</span></button>
+          <button type="button" class="nav-item" data-view="gorselOnay"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-image"></use></svg><span class="nav-label">GÖRSEL ONAY</span></button>
           <button type="button" class="nav-item" data-view="reklam"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-megaphone"></use></svg><span class="nav-label">REKLAM</span></button>
           <button type="button" class="nav-item" data-view="tasarim"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-pen-tool"></use></svg><span class="nav-label">TASARIM</span></button>
         </div>
@@ -1050,6 +1051,32 @@
   
 </main>
 
+      <main class="stage stage-single view-panel" id="viewGorselOnay" hidden aria-label="GÖRSEL ONAYLARI">
+        <section class="panel" aria-label="GÖRSEL ONAYLARI">
+          <div class="panel-head"><h2 class="panel-title">GÖRSEL ONAYLARI</h2></div>
+          <div class="panel-body sect-body">
+            <p class="fm-sub">Sağa kaydır: beğendim. Sola kaydır: beğenmedim, nedenini seç. Jarvis nedenleri hatırlar
+              ve yeni görselleri üretirken bunlardan kaçınır. Klavyede ← → tuşları da çalışır.</p>
+            <div id="goOzet" class="go-ozet" aria-live="polite"></div>
+            <div class="go-sahne">
+              <div id="goKart" class="go-kart-yuva"><p class="fm-empty">Yükleniyor…</p></div>
+              <div class="go-dugmeler">
+                <button type="button" id="goHayir" class="go-hayir" aria-label="Beğenmedim">✕ Beğenmedim</button>
+                <button type="button" id="goEvet" class="go-evet" aria-label="Beğendim">♥ Beğendim</button>
+              </div>
+              <form id="goNeden" class="go-neden" hidden>
+                <p class="go-neden-baslik">Neden beğenmedin? Jarvis bunu hatırlayacak.</p>
+                <div id="goSecenek" class="go-secenek"></div>
+                <textarea id="goYorum" maxlength="1000" rows="3" placeholder="İstersen kendi cümlenle yaz: ör. şişe beyaz değil krem renkte çıkmış"></textarea>
+                <div class="go-neden-dugme"><button type="button" id="goVazgec">Vazgeç</button><button type="submit" class="go-hayir">Kaydet ve sonraki</button></div>
+              </form>
+              <p id="goDurum" class="go-durum" role="status"></p>
+            </div>
+            <details class="go-ogrenilen" open><summary>Jarvis'in öğrendikleri</summary><div id="goOgrenilen"></div></details>
+          </div>
+        </section>
+      </main>
+
       <main class="stage stage-single view-panel" id="viewKreatifParti" hidden
             aria-label="KREATİF PARTİLERİ">
         <section class="panel" aria-label="KREATİF PARTİLERİ">
@@ -1062,6 +1089,15 @@
             <div id="kpListe" class="kp-liste">
               <p class="fm-empty">Yükleniyor…</p>
             </div>
+            <section class="ts-birim" aria-labelledby="tsBaslik">
+              <h3 id="tsBaslik" class="ts-baslik">TARAYICI SONUÇLARI</h3>
+              <p class="fm-sub">Jarvis'in ChatGPT ve Claude üzerinden yaptığı işler. Onay gerekmez;
+                görsele ya da dosyaya tıklayınca büyük açılır.</p>
+              <div id="tsFiltre" class="ts-filtre" role="group" aria-label="Duruma göre süz"></div>
+              <div id="tsListe" class="ts-liste">
+                <p class="fm-empty">Yükleniyor…</p>
+              </div>
+            </section>
           </div>
         </section>
       </main>

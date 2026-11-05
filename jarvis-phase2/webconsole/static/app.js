@@ -202,7 +202,8 @@ const VIEWS = {
   satislar: 'viewSatislar', kargo: 'viewKargo', musteri: 'viewMusteri',
   tasarim: 'viewTasarim',
   asistan: 'viewAsistan',
-  kreatifParti: 'viewKreatifParti', home: 'viewHome', analiz: 'viewAnaliz', gorevler: 'viewGorevler',
+  kreatifParti: 'viewKreatifParti',
+  gorselOnay: 'viewGorselOnay', home: 'viewHome', analiz: 'viewAnaliz', gorevler: 'viewGorevler',
                 veri: 'viewVeri', ajanlar: 'viewAjanlar', fiyat: 'viewFiyat',
                 raporlar: 'viewRaporlar', ayarlar: 'viewAyarlar',
                 eticaret: 'viewEticaret', reklam: 'viewReklam',
@@ -234,6 +235,7 @@ function setView(name) {
   if (name === 'uretilenler') loadUretilenler();
   if (name === 'gelenkutusu') loadGelenKutusu();
   if (name === 'kreatifParti') loadKreatifParti();
+  if (name === 'gorselOnay') loadGorselOnay();
   if (name === 'tasarim') tasarimYukle();
   if (name === 'asistan') asistanYukle();
   if (name === 'home') anaHaberYukle();
@@ -4295,10 +4297,141 @@ const KP_DURUM = {
 const KP_KARAR = { GECER: 'kp-ok', DUZELT: 'kp-orta', RED: 'kp-kotu' };
 
 async function loadKreatifParti() {
+  loadTarayiciSonuclari();
   const { body } = await api('/api/kreatif-parti');
   kpState.partiler = (body && body.partiler) || [];
   renderKreatifParti();
 }
+
+/* Görsel onayları (05.11.2026): Tinder gibi kaydırma; sola = neden yaz, Jarvis öğrenir. */
+const goState = { kuyruk: [], ozet: null, secenekler: [], secili: new Set(), mesgul: false };
+async function loadGorselOnay() {
+  const { ok, body } = await api('/api/gorsel-onay');
+  if (!ok) { document.getElementById('goKart').innerHTML = `<p class="fm-empty">${escapeHtml((body && body.error) || 'Görsel onayları okunamadı.')}</p>`; return; }
+  goState.kuyruk = body.kuyruk || []; goState.ozet = body.ozet; goState.secenekler = body.neden_secenekleri || [];
+  goState.bekleyen = body.bekleyen || 0;
+  goCiz();
+}
+function goCiz() {
+  const o = goState.ozet || {}, kalan = goState.bekleyen;
+  document.getElementById('goOzet').innerHTML = `<span><strong>${kalan}</strong> bekleyen</span><span><strong>${o.begendi || 0}</strong> beğenildi</span><span><strong>${o.begenmedi || 0}</strong> beğenilmedi</span>`;
+  const g = goState.kuyruk[0], yuva = document.getElementById('goKart');
+  document.getElementById('goEvet').disabled = document.getElementById('goHayir').disabled = !g;
+  yuva.innerHTML = g ? `<article class="go-kart" id="goAktif" tabindex="0" aria-label="${tsAttr(g.baslik)}">
+      <img src="${tsAttr(g.url)}" alt="${tsAttr(g.baslik)}" draggable="false">
+      <span class="go-etiket go-etiket-evet" aria-hidden="true">BEĞENDİM</span><span class="go-etiket go-etiket-hayir" aria-hidden="true">BEĞENMEDİM</span>
+      <div class="go-kart-alt"><strong>${escapeHtml(g.baslik)}</strong>${g.aciklama ? `<details><summary>İstenen</summary><p>${escapeHtml(g.aciklama)}</p></details>` : ''}<a href="${tsAttr(g.url)}" target="_blank" rel="noopener">Tam boy aç</a></div>
+    </article>` : '<p class="fm-empty go-bitti">Onay bekleyen görsel yok. Yeni görsel üretildiğinde burada belirir.</p>';
+  if (g) goSuruklemeBagla(document.getElementById('goAktif'));
+  const ogr = document.getElementById('goOgrenilen'), nedenler = o.nedenler || [], yorumlar = o.yorumlar || [];
+  ogr.innerHTML = !nedenler.length && !yorumlar.length ? '<p class="fm-empty">Henüz beğenilmeyen görsel yok. Sola kaydırdığın görsellerin nedenleri burada birikir.</p>'
+    : `<p class="fm-sub">Yeni görsel istemlerine “bunları tekrarlama” diye eklenen nedenler:</p><ol class="go-nedenler">${nedenler.map(n => `<li><span>${escapeHtml(n.metin)}</span><b>${n.adet} kez</b></li>`).join('')}</ol>`
+      + (yorumlar.length ? `<p class="fm-sub">Son yorumların:</p><ul class="go-yorumlar">${yorumlar.map(y => `<li>“${escapeHtml(y.yorum)}”<small>${escapeHtml(y.baslik)} · ${escapeHtml(y.zaman)}</small></li>`).join('')}</ul>` : '');
+}
+function goSuruklemeBagla(kart) {
+  let x0 = null, dx = 0;
+  kart.addEventListener('pointerdown', e => { if (e.target.closest('a,summary,details')) return; x0 = e.clientX; dx = 0; kart.setPointerCapture(e.pointerId); kart.classList.add('is-surukleniyor'); });
+  kart.addEventListener('pointermove', e => {
+    if (x0 === null) return; dx = e.clientX - x0;
+    kart.style.transform = `translateX(${dx}px) rotate(${dx / 18}deg)`;
+    kart.classList.toggle('is-evet', dx > 60); kart.classList.toggle('is-hayir', dx < -60);
+  });
+  const birak = () => {
+    if (x0 === null) return; x0 = null; kart.classList.remove('is-surukleniyor');
+    if (dx > 110) goKarar('BEGENDI'); else if (dx < -110) goNedenAc();
+    else { kart.style.transform = ''; kart.classList.remove('is-evet', 'is-hayir'); }
+  };
+  kart.addEventListener('pointerup', birak); kart.addEventListener('pointercancel', birak);
+}
+function goNedenAc() {
+  const kart = document.getElementById('goAktif'); if (!kart) return;
+  kart.style.transform = 'translateX(-24px) rotate(-2deg)'; kart.classList.add('is-hayir');
+  goState.secili.clear();
+  document.getElementById('goSecenek').innerHTML = goState.secenekler.map(s => `<button type="button" data-go-neden="${tsAttr(s)}" aria-pressed="false">${escapeHtml(s)}</button>`).join('');
+  document.getElementById('goYorum').value = '';
+  document.getElementById('goNeden').hidden = false;
+  document.querySelector('.go-dugmeler').hidden = true;
+  document.querySelector('#goSecenek button')?.focus();
+}
+function goNedenKapat() {
+  document.getElementById('goNeden').hidden = true; document.querySelector('.go-dugmeler').hidden = false;
+  const kart = document.getElementById('goAktif'); if (kart) { kart.style.transform = ''; kart.classList.remove('is-evet', 'is-hayir'); }
+}
+async function goKarar(karar) {
+  const g = goState.kuyruk[0]; if (!g || goState.mesgul) return;
+  const nedenler = [...goState.secili], yorum = document.getElementById('goYorum').value.trim();
+  if (karar === 'BEGENMEDI' && !nedenler.length && yorum.length < 3) { document.getElementById('goDurum').textContent = 'Bir neden seç ya da kısaca yaz; Jarvis bundan öğrenecek.'; return; }
+  goState.mesgul = true; document.getElementById('goDurum').textContent = '';
+  const kart = document.getElementById('goAktif');
+  if (kart) { kart.classList.add(karar === 'BEGENDI' ? 'is-gidiyor-sag' : 'is-gidiyor-sol'); }
+  const { ok, body } = await api('/api/gorsel-onay', { method: 'POST', body: JSON.stringify({ anahtar: g.anahtar, karar, nedenler, yorum }) });
+  goState.mesgul = false;
+  if (!ok) { goNedenKapat(); if (kart) kart.classList.remove('is-gidiyor-sag', 'is-gidiyor-sol'); document.getElementById('goDurum').textContent = (body && body.error) || 'Karar kaydedilemedi.'; return; }
+  goNedenKapat();
+  document.getElementById('goDurum').textContent = karar === 'BEGENDI' ? 'Beğenildi olarak kaydedildi.' : 'Kaydedildi. Jarvis bu nedeni yeni görsellerde dikkate alacak.';
+  await loadGorselOnay();
+}
+document.addEventListener('click', e => {
+  const n = e.target.closest && e.target.closest('[data-go-neden]');
+  if (n) { const v = n.dataset.goNeden; goState.secili.has(v) ? goState.secili.delete(v) : goState.secili.add(v); n.setAttribute('aria-pressed', String(goState.secili.has(v))); return; }
+  if (e.target.id === 'goEvet') goKarar('BEGENDI');
+  if (e.target.id === 'goHayir') goNedenAc();
+  if (e.target.id === 'goVazgec') goNedenKapat();
+});
+document.addEventListener('submit', e => { if (e.target.id === 'goNeden') { e.preventDefault(); goKarar('BEGENMEDI'); } });
+document.addEventListener('keydown', e => {
+  const gorunum = document.getElementById('viewGorselOnay');
+  if (!gorunum || gorunum.hidden || !document.getElementById('goNeden').hidden || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '')) return;
+  if (e.key === 'ArrowRight') { e.preventDefault(); goKarar('BEGENDI'); }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); goNedenAc(); }
+});
+
+/* Tarayıcı sonuçları (05.11.2026): onay kuyruğu yerine Kreatif'te toplu durur. */
+const tsState = { isler: [], filtre: 'Tümü', hata: '' };
+const tsAttr = s => escapeHtml(String(s ?? '')).replace(/"/g, '&quot;');
+async function loadTarayiciSonuclari() {
+  const { ok, body } = await api('/api/tarayici-sonuclari');
+  tsState.isler = ok && body && Array.isArray(body.isler) ? body.isler : [];
+  tsState.hata = ok ? '' : ((body && body.error) || 'Tarayıcı sonuçları okunamadı.');
+  renderTarayiciSonuclari();
+}
+function tsKart(is) {
+  const dosyalar = is.dosyalar || [];
+  const kapak = dosyalar.find(d => d.gorsel && !d.ekran) || dosyalar.find(d => d.gorsel);
+  const baslik = `${is.hedef} · iş #${is.is_id}`;
+  const linkler = dosyalar.map(d => `<a class="ts-dosya${d.gorsel ? ' is-gorsel' : ''}" href="${tsAttr(d.url)}" target="_blank" rel="noopener">${d.gorsel ? `<img src="${tsAttr(d.url)}" alt="" loading="lazy">` : ''}<span>${escapeHtml(d.ekran ? 'Ekran görüntüsü' : d.ad)}</span></a>`).join('');
+  return `<article class="ts-is ts-${tsAttr(is.sinif)}">
+    ${kapak ? `<a class="ts-kapak" href="${tsAttr(kapak.url)}" target="_blank" rel="noopener" aria-label="${tsAttr(baslik)} görselini büyüt"><img src="${tsAttr(kapak.url)}" alt="" loading="lazy"></a>` : '<div class="ts-kapak ts-bos" aria-hidden="true">Görsel yok</div>'}
+    <div class="ts-govde">
+      <div class="ts-ust"><span class="kp-rozet kp-${tsAttr(is.sinif)}">${escapeHtml(is.durum)}</span><span class="ts-tarih">${escapeHtml(is.tarih)}</span></div>
+      <strong class="ts-ad">${escapeHtml(baslik)}</strong>
+      <small class="ts-kim">İsteyen: ${escapeHtml(is.isteyen)}</small>
+      ${is.sebep ? `<p class="ts-sebep">${escapeHtml(is.sebep)}</p>` : ''}
+      ${linkler ? `<div class="ts-dosyalar">${linkler}</div>` : ''}
+      ${is.istem ? `<details class="kp-prompt"><summary>İstenen</summary><p class="kp-istem">${escapeHtml(is.istem)}</p></details>` : ''}
+      ${is.sonuc_metin ? `<details class="kp-prompt"><summary>Gelen metin</summary><p class="kp-istem">${escapeHtml(is.sonuc_metin)}</p></details>` : ''}
+    </div>
+  </article>`;
+}
+function renderTarayiciSonuclari() {
+  const liste = document.getElementById('tsListe'), filtre = document.getElementById('tsFiltre');
+  if (!liste || !filtre) return;
+  const sayilar = {};
+  tsState.isler.forEach(is => { sayilar[is.durum] = (sayilar[is.durum] || 0) + 1; });
+  const secenekler = ['Tümü', ...Object.keys(sayilar)];
+  if (!secenekler.includes(tsState.filtre)) tsState.filtre = 'Tümü';
+  filtre.innerHTML = secenekler.map(s => `<button type="button" data-ts-filtre="${tsAttr(s)}" aria-pressed="${s === tsState.filtre}">${escapeHtml(s)} <span>${s === 'Tümü' ? tsState.isler.length : sayilar[s]}</span></button>`).join('');
+  filtre.hidden = !tsState.isler.length;
+  const gorunen = tsState.isler.filter(is => tsState.filtre === 'Tümü' || is.durum === tsState.filtre);
+  liste.innerHTML = tsState.hata ? `<p class="fm-empty">${escapeHtml(tsState.hata)}</p>`
+    : gorunen.length ? gorunen.map(tsKart).join('') : '<p class="fm-empty">Henüz tarayıcı işi yok.</p>';
+}
+document.addEventListener('click', event => {
+  const dugme = event.target.closest && event.target.closest('[data-ts-filtre]');
+  if (!dugme) return;
+  tsState.filtre = dugme.dataset.tsFiltre;
+  renderTarayiciSonuclari();
+});
 
 /* Konu -> muhatap eşlemesi arayüzde TEKRARLANMAZ; uç `\/muhatap` ile
  * söyler. Burada iki yerde tutulsaydı biri güncellenir öteki unutulurdu

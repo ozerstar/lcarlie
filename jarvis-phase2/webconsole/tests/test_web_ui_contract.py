@@ -135,6 +135,7 @@ KNOWN_ROUTES = {
     "/api/iade", "/api/degisiklik",
     # Kreatif: itiraz akisi ve parti ekrani.
     "/api/kreatif-itiraz", "/api/kreatif-itiraz/muhatap", "/api/kreatif-parti",
+    "/api/tarayici-sonuclari", "/api/gorsel-onay",
     # Tasarim departmani.
     "/api/tasarim",
     # SISTEM sekmesi: uc makinenin kaynak kullanimi + kaynak politikasi.

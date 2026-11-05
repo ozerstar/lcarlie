@@ -165,6 +165,16 @@ def enqueue_browser_task(prompt: str, target: str,
     if inceleme.blocked:
         raise UyumEngelledi(inceleme.blocked)
 
+    # Sahibin beğenmediği görsellerin nedenleri (Görsel onayları ekranı) her yeni
+    # görsel istemine eklenir. Mevzuat kapısı sahibin yorumuna değil isteme bakar;
+    # blok sığmazsa kısaltılır, okunamazsa boş kalır ve üretim sürer.
+    if target == "chatgpt_image":
+        from .gorsel_tercih import kacinilacaklar_metni
+        blok = kacinilacaklar_metni()
+        yer = EN_COK_ISTEM - len(istem) - 2
+        if blok and yer > 200:
+            istem = istem + "\n\n" + (blok if len(blok) <= yer else blok[:yer].rsplit("\n", 1)[0])
+
     dosyalar = _girdi_dogrula(input_files)
 
     if idempotency_key is None:
@@ -190,6 +200,15 @@ def enqueue_browser_task(prompt: str, target: str,
                      "verify": [b.to_dict() for b in inceleme.verify]}}
 
 
+def enqueue_claude_task(prompt: str, input_files: list[str] | None = None,
+                        requested_by: str = "jarvis",
+                        idempotency_key: str | None = None) -> dict[str, Any]:
+    """Claude Web oturumuna is ekler; sunucu Anthropic API'si kullanmaz."""
+    return enqueue_browser_task(
+        prompt, "claude_chat", input_files=input_files,
+        requested_by=requested_by, idempotency_key=idempotency_key)
+
+
 def _girdi_dogrula(input_files: list[str] | None) -> list[str]:
     """Girdi dosyası yollarını doğrular.
 
@@ -205,7 +224,9 @@ def _girdi_dogrula(input_files: list[str] | None) -> list[str]:
                      Path("/opt/lcarlie/urun-ham"),
                      Path("/opt/lcarlie/cekim-arsivi"),
                      Path("/opt/lcarlie/gonderi-gorsel"),
-                     Path("/opt/lcarlie/katalog-gorsel")]
+                     Path("/opt/lcarlie/katalog-gorsel"),
+                     Path("/opt/lcarlie/urun-gorsel"),
+                     Path("/opt/lcarlie/jarvis-phase2/varliklar/logo")]
     temiz: list[str] = []
     for yol in input_files:
         p = Path(str(yol))
@@ -326,3 +347,11 @@ def sonuc_uyum(sonuc_metin: str | None) -> dict[str, Any]:
         "not": ("Kademe 1 mekanik taramadır. Bulgu çıkmaması yayın onayı "
                 "değildir; görsel yargı ve konumlandırma onayı insana aittir."),
     }
+
+
+def isi_sonucu(is_id: int) -> dict[str, Any] | None:
+    """Tek tarayici isi durumunu ve sonuc dosyalarini okur."""
+    satirlar = _psql(
+        "SELECT row_to_json(t)::text FROM core.tarayici_isi_durum(:'is_id'::bigint) t;",
+        "ai_reader", degiskenler={"is_id": str(int(is_id))})
+    return json.loads(satirlar[0]) if satirlar else None
