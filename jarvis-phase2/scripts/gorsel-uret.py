@@ -51,12 +51,13 @@ KOK = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KOK))
 os.environ.setdefault("JARVIS_MEMORY_TRANSPORT", "local-docker")
 
-from PIL import Image  # noqa: E402
+from PIL import Image, ImageOps  # noqa: E402
 
 from jarvis import providers  # noqa: E402
 
 VARLIK = KOK / "varliklar"
-GORSEL_MODEL = os.environ.get("KREATIF_GORSEL_MODELI", "gemini-3-pro-image")
+GORSEL_SAGLAYICI = os.environ.get("KREATIF_GORSEL_SAGLAYICI", "openai").lower()
+GORSEL_MODEL = os.environ.get("KREATIF_GORSEL_MODELI", "gpt-image-1.5")
 ORANLAR = ("1:1", "4:5", "9:16", "16:9")
 
 
@@ -149,11 +150,75 @@ GORSEL_BOYUT = os.environ.get("GORSEL_BOYUT", "2K")
 _URUN_ONEKI = ""
 
 
+def _multipart(fields: list[tuple[str, str]], files: list[tuple[str, Path]]) -> tuple[bytes, str]:
+    """Build a standards-compliant multipart body for the Images edits API."""
+    sinir = "jarvis-gpt-image-boundary-7f31"
+    parcalar: list[bytes] = []
+    for ad, deger in fields:
+        parcalar.extend([f"--{sinir}\r\n".encode(),
+                         f'Content-Disposition: form-data; name="{ad}"\r\n\r\n'.encode(),
+                         deger.encode("utf-8"), b"\r\n"])
+    for ad, yol in files:
+        mime = "image/png" if yol.suffix.lower() == ".png" else "image/jpeg"
+        parcalar.extend([f"--{sinir}\r\n".encode(),
+                         (f'Content-Disposition: form-data; name="{ad}"; '
+                          f'filename="{yol.name}"\r\n').encode(),
+                         f"Content-Type: {mime}\r\n\r\n".encode(),
+                         yol.read_bytes(), b"\r\n"])
+    parcalar.append(f"--{sinir}--\r\n".encode())
+    return b"".join(parcalar), sinir
+
+
+def _openai_montaj(istem: str, oran: str, urun_yolu: Path,
+                   logo_yolu: Path) -> Image.Image:
+    anahtar = providers.load_env().get("OPENAI_API_KEY")
+    if not anahtar:
+        raise RuntimeError("OPENAI_API_KEY yok; görsel üretimi durduruldu")
+    # GPT Image edit endpoint keeps the supplied product photo and brand mark
+    # as references. Composition still receives human review before release.
+    boyut = {"1:1": ("1024x1024", (1024, 1024)),
+             "4:5": ("1024x1536", (1024, 1280)),
+             "9:16": ("1024x1536", (1024, 1820)),
+             "16:9": ("1536x1024", (1820, 1024))}[oran]
+    govde, sinir = _multipart(
+        [("model", GORSEL_MODEL), ("prompt", istem), ("size", boyut[0]),
+         ("quality", "high"), ("input_fidelity", "high"), ("output_format", "png")],
+        [("image[]", urun_yolu), ("image[]", logo_yolu)])
+    istek = urllib.request.Request(
+        "https://api.openai.com/v1/images/edits", data=govde,
+        headers={"Authorization": f"Bearer {anahtar}",
+                 "Content-Type": f"multipart/form-data; boundary={sinir}"})
+    try:
+        with urllib.request.urlopen(istek, timeout=420) as cevap:
+            d = json.loads(cevap.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        # Never include auth data or raw request content in logs.
+        govde_hatasi = providers.mask(e.read().decode("utf-8", errors="replace"))
+        raise RuntimeError(f"OpenAI image edit HTTP {e.code}: {govde_hatasi[:500]}") from None
+    veri = ((d.get("data") or [{}])[0]).get("b64_json")
+    if not veri:
+        raise RuntimeError("OpenAI image edit boş görsel döndürdü")
+    kare = Image.open(io.BytesIO(base64.b64decode(veri))).convert("RGB")
+    kare = ImageOps.fit(kare, boyut[1], method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
+    try:
+        from jarvis import usage
+        u = d.get("usage") or {}
+        usage.record("openai", GORSEL_MODEL, True, is_anahtari="kreatif_gorsel",
+                     kademe="gorsel", prompt_tokens=u.get("input_tokens"),
+                     completion_tokens=u.get("output_tokens"), elapsed_s=None, ok=True)
+    except Exception:  # noqa: BLE001 - accounting metadata cannot block delivery
+        pass
+    return kare
+
+
 def montaj_uret(sahne: str, ust: str, alt: str, oran: str,
                 urun_yolu: Path, logo_yolu: Path, etiket: str) -> Image.Image:
-    anahtar = providers.load_env().get("GEMINI_API_KEY")
-    if not anahtar:
-        raise RuntimeError("GEMINI_API_KEY yok")
+    if GORSEL_SAGLAYICI == "openai":
+        anahtar = None
+    else:
+        anahtar = providers.load_env().get("GEMINI_API_KEY")
+        if not anahtar:
+            raise RuntimeError("GEMINI_API_KEY yok")
     # 🔴 Sahibin ACIK itirazlari uretimin ONUNE gecer. Okunamazsa uretim
     # durmaz -- itiraz kaydi erisilemez diye gorsel uretmemek, calisan
     # bir hatti calismayan bir hatta cevirirdi.
@@ -173,6 +238,8 @@ def montaj_uret(sahne: str, ust: str, alt: str, oran: str,
         alt=alt or "(alt satır yok)",
         itirazlar=itiraz_blok,
         muhur=URUN_MUHRU.format(etiket=etiket))
+    if GORSEL_SAGLAYICI == "openai":
+        return _openai_montaj(istem, oran, urun_yolu, logo_yolu)
     govde = {"generationConfig": {"imageConfig": {"aspectRatio": oran,
                                                  "imageSize": GORSEL_BOYUT}},
              "contents": [{"parts": [_resim_parcasi(urun_yolu),
@@ -306,6 +373,12 @@ def main() -> int:
         # de karede olacağı için mühürdeki yasak cümlesi kullanılmaz --
         # sahnenin yalnız ortam kısmı alınır.
         sahne = str(g.get("sahne_istemi") or "").split("NEGATIVE")[0].strip()
+        geri_bildirim = [str(x).strip() for x in (g.get("onceki_inceleme_notlari") or [])
+                         if str(x).strip()]
+        if geri_bildirim:
+            sahne += "\n\nMANDATORY REVISION NOTES FROM THE PREVIOUS DESIGN REVIEW:\n" + "\n".join(
+                "- " + x for x in geri_bildirim[:8])
+            sahne += "\nResolve every listed issue in this new composition."
         try:
             kare = montaj_uret(sahne, ust, alt, oran, urun_yolu, logo_yolu, etiket)
         except (urllib.error.URLError, OSError, RuntimeError, ValueError) as e:
@@ -320,15 +393,17 @@ def main() -> int:
         print(f"{n}. {g.get('ad','?')} · {oran} -> {ad.name} {kare.size}")
         teslim.append({"dosya": ad.name, "sahne": g.get("ad"), "oran": oran,
                        "ust_yazi": ust, "alt_yazi": alt,
-                       "hangi_aci": g.get("hangi_aci")})
+                       "hangi_aci": g.get("hangi_aci"),
+                       "onceki_inceleme_notlari": geri_bildirim,
+                       "inceleme_durumu": "DEPARTMAN_INCELEMESI_BEKLIYOR"})
         time.sleep(2)
 
     (cikti / "teslim.json").write_text(
         json.dumps({"urun": (brief.get("urun") or {}).get("urun_adi"),
                     "brief": bp.name, "gorseller": teslim,
-                    "yontem": "ürün fotoğrafı + logo görsel modeline verildi; "
-                              "kesim, montaj ve tasarım orada yapıldı",
-                    "kontrol": "🔴 YAYINDAN ÖNCE İNSAN GÖZÜYLE BAKILMALI: "
+                    "saglayici": GORSEL_SAGLAYICI, "model": GORSEL_MODEL,
+                    "yontem": "sunucuda GPT Image API ile üretilmiş taslak; insan ve departman incelemesi bekliyor",
+                    "kontrol": "🔴 YAYINDAN ÖNCE JARVIS TASARIM EKİBİ VE İNSAN GÖZÜYLE BAKILMALI: "
                                "etiket-kontrol/ içindeki yakın planlarda "
                                "ambalaj yazısı doğru mu, şişenin beyazı "
                                "kaymış mı? Otomatik denetim denendi ve "

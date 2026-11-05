@@ -70,10 +70,22 @@ def alt_metin(paket: dict) -> str:
 
 def main() -> int:
     t0 = time.time()
+    # Keep old files as an audit trail, but detach images from content that is
+    # not explicitly approved by the content director and compliance gate.
+    ayrilan = psql("""UPDATE core.ig_gonderi_plani
+       SET gorsel_rapor = coalesce(gorsel_rapor, '{}'::jsonb) || jsonb_build_object(\n           'detached_image', gorsel_dosya, 'detached_reason', 'content_not_approved'),\n           gorsel_dosya = NULL
+     WHERE gorsel_dosya IS NOT NULL
+       AND (uzman_karari IS DISTINCT FROM 'GECER' OR denetim IS DISTINCT FROM 'TEMIZ')
+     RETURNING json_build_object('plan_id', plan_id, 'uzman_karari', uzman_karari,
+                                 'denetim', denetim, 'dosya', gorsel_dosya);""")
+    if ayrilan:
+        print("detached %d image links from unapproved posts; files retained for audit"
+              % len(ayrilan))
     paketler = psql("""SELECT row_to_json(t) FROM (
       SELECT plan_id, urun_slug, amac, bicim, kanca, caption, gorsel_dosya
         FROM core.ig_gonderi_plani
-       WHERE durum IN ('ONERI', 'ONAYLANDI') AND gorsel_dosya IS NULL
+       WHERE durum IN ('ONERI', 'ONAYLANDI') AND uzman_karari = 'GECER'
+         AND denetim = 'TEMIZ' AND gorsel_dosya IS NULL
        ORDER BY plan_id) t;""")
     if not paketler:
         print("gorseli olmayan paket yok")
@@ -102,6 +114,8 @@ def main() -> int:
             continue
 
         rapor["kapak_mi"] = p["bicim"] == "REELS"
+        rapor["inceleme_durumu"] = "TASARIM_INCELEMESI_BEKLIYOR"
+        rapor["not"] = "Görsel taslaktır; yayın için insan ve tasarım incelemesi gerekir."
         psql("""UPDATE core.ig_gonderi_plani
                    SET gorsel_dosya = :'dosya', gorsel_rapor = :'rapor'::jsonb
                  WHERE plan_id = %d;""" % int(p["plan_id"]),

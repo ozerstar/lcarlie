@@ -372,10 +372,29 @@ def _hedef_blogu(agac: dict) -> str:
 
 
 def _gecmis_blogu(dep_agac: dict, n: int = 8) -> str:
+    """Yakın görevleri ve yönetici düzeltmelerini sonraki üretime taşır."""
     g = (dep_agac or {}).get("gorevler", [])[-n:]
     if not g:
         return "(bu birimin önceki görevi yok)"
-    return "\n".join(f"- {x.get('id')} [{x.get('durum')}] {x.get('baslik')}" for x in g)
+    satirlar = []
+    for x in g:
+        satir = f"- {x.get('id')} [{x.get('durum')}] {x.get('baslik')}"
+        t = x.get("teslim") or {}
+        yonetici_gecmisi = x.get("yonetici_gecmisi") or []
+        son = yonetici_gecmisi[-1] if yonetici_gecmisi else {}
+        geri = []
+        geri.extend(son.get("duzeltmeler") or [])
+        if son.get("gerekce"):
+            geri.append(son["gerekce"])
+        if x.get("red_sebebi"):
+            geri.append(x["red_sebebi"])
+        if geri:
+            satir += "\n  Önceki denetim dersi: " + "; ".join(
+                str(z).strip()[:220] for z in geri[:3] if str(z).strip())[:560]
+        elif t.get("yonetici") == yonetici.DUZELT:
+            satir += "\n  Önceki teslim yönetici düzeltmesi aldı; aynı kusuru tekrarlama."
+        satirlar.append(satir)
+    return "\n".join(satirlar)
 
 
 def istem_gunluk(dep: Departman, kanitlar: list[Kanit], agac: dict, tarih: str) -> list[dict]:
