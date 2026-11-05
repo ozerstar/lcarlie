@@ -293,9 +293,17 @@ def main() -> int:
             continue
         im = Image.open(yol).convert("RGB")
         olcum = olcumler(im, referans)
+        format_konteksti = str(g.get("hangi_aci", ""))
+        if g.get("instagram_format") == "2_KART_KARUSEL":
+            format_konteksti += (
+                f"\nInstagram iki kartlı carousel: seri {g.get('seri_kodu')}, "
+                f"kart {g.get('kart_no')}/2, rol {g.get('kart_rolu')}. "
+                "Kart 1 tek başına da mevzuata uygun olmalı; kart 2'de yalnız "
+                "dayanaklı ürün değeri ve tek CTA bulunmalı. Bu kartın seriyle "
+                "tipografi, palet ve mesaj uyumunu da değerlendir.")
         gorusler = [goz_incele(im, kod, ad, rubrik,
                                g.get("ust_yazi", ""), g.get("alt_yazi", ""),
-                               g.get("hangi_aci", ""))
+                               format_konteksti)
                     for kod, ad, rubrik in GOZLER]
         karar, gerekce = direktor(olcum, gorusler)
         print(f"\n{g['dosya']} -> {karar}")

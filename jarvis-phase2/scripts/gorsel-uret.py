@@ -2,44 +2,20 @@
 """GÖRSEL ÜRETİM — brief'ten teslim edilebilir reklam görseli.
 
 ZİNCİRİN İKİNCİ YARISI. `kreatif-brief.py` brief'i, sahne tarifini ve
-denetimden geçmiş Türkçe yazıları üretir. Bu betik ÜRÜN FOTOĞRAFINI + LOGOYU
-görsel modeline gönderir; KESİM, MONTAJ ve TASARIM orada yapılır.
-
-🔴 MİMARİ KARARI (sahip, 21.09.2026) — verbatim:
-   "kesme işini sen yapmıcan sen sadece resmi göndereceksin; kesim, montaj,
-    görsel işlerini gönderdiğin yer yapacak, tasarımla birlikte."
-
-Önceki sürüm ürünü Pillow ile kendisi kesip diziyordu. O yol ölçüldü ve
-zayıftı: şişe beyaz, çekim zemini açık gri, gövde-zemin farkı 11 birim,
-zeminin kendi gradyanı 24 birim -> güvenilir kesit çıkmıyor, tüylendirilmiş
-geçiş kullanmak zorunda kalınıyor ve koyu sahnede hale bırakıyordu.
-Görsel modeli aynı işi temiz kesim ve gerçek gölgeyle yapıyor.
-
-🔴 AMBALAJ HÂLÂ KORUNUR — ama artık İSTEMLE korunur, kodla değil.
-Ürün metinden yeniden çizdirilmez: gerçek fotoğraf GİRDİ olarak verilir ve
-"yeniden çizme, harflerine dokunma" şartı konur. Buna rağmen ölçülen şudur:
-
-   ETİKET METNİ İSTEMDE YAZILMAZSA MODEL UYDURUR.
-   İlk deneme: etikette "HYORAVIE" yazdı (doğrusu HYDRAVIE).
-   Etiket satırları isteme eklenince: HYDRAVIE ve L'CARLIÉ doğru çıktı.
-
-Bu yüzden `varliklar/urun/<urun>.etiket.txt` dosyası VARSA isteme aynen
-eklenir. Yoksa uyarı basılır -- sessizce geçilmez.
-
-🔴 KALAN KUSUR, ÖLÇÜLDÜ VE KAPANMADI: şişenin ince puntolu satırları
-("Herbal Moisturizing Cream", "1.69 fl oz") yakın planda bozuluyor;
-bir koşuda "1.69" -> "1.89" oldu. Teslim boyutunda (1080 px karede şişe
-~%30) bu satırlar ~8 piksel yüksekliğinde ve okunmuyor. Ambalajın YAKIN PLAN
-kullanılacağı bir işte bu yol kullanılmamalıdır.
-
+onaylı Türkçe metinleri üretir. ChatGPT Work yalnızca sahne arka planını
+oluşturur. Gerçek ürün fotoğrafı, logo ve yazılar Pillow katmanında
+birleştirilir; başlık Monument Extended, destek metni Metropolis font
+dosyalarıyla basılır. Böylece GPT ambalajı ya da marka yazılarını yeniden çizmez.
 Çıkış: 0=görseller üretildi · 1=hata · 2=brief yok · 3=kısmi
 """
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import sys
+import tempfile
 import time
 import uuid
 from pathlib import Path
@@ -50,6 +26,10 @@ os.environ.setdefault("JARVIS_MEMORY_TRANSPORT", "local-docker")
 
 from PIL import Image, ImageOps  # noqa: E402
 
+_sp = importlib.util.spec_from_file_location(
+    "gorsel_kompozit", str(KOK / "scripts" / "gorsel-kompozit.py"))
+gk = importlib.util.module_from_spec(_sp)
+_sp.loader.exec_module(gk)
 
 VARLIK = KOK / "varliklar"
 GORSEL_SAGLAYICI = "chatgpt_web_work"
@@ -82,41 +62,19 @@ For your verification, the packaging is printed with exactly these lines:
 {satirlar}
 """
 
-ISTEM = """IMAGE 1 = the real product photograph. IMAGE 2 = the brand logo.
-
-Create a FINISHED {oran} advertising image for this cosmetic product.
-You do the cut-out, the montage and the full design.
-{muhur}
+ARKA_PLAN_ISTEM = """Create only a premium {oran} editorial skincare BACKGROUND PLATE.
 SCENE: {sahne}
 
-SCENE LIGHTING — STRICT: soft, cool, neutral overcast daylight. No golden hour,
-no warm tungsten, no sunset, no amber glow, no strong colour cast of any kind.
-🔴 Measured: warm scene light tinted the white bottle cream AND scrambled the
-lettering on its label. Neutral light keeps both intact.
-
-DESIGN: place the logo from IMAGE 2 once, at the top. Build a distinctive,
-high-end editorial beauty campaign with a clear visual idea tied to the
-ingredient/story in the scene. Use tactile materials, considered depth,
-intentional light and a composed focal point. Avoid generic stock-ad layouts,
-plain gradients, floating-product clichés and familiar water-splash tropes.
-Keep the frame calm and art-directed, with purposeful negative space; no
-badges, starbursts, price tags, arrows or decorative clutter.
-
-TEXT to typeset on the image. Copy these characters EXACTLY, including Turkish
-letters (ı İ ğ ş ç ö ü). Do not translate, do not rephrase, do not add words:
-   headline: {ust}
-   subline:  {alt}
-TYPOGRAPHY IS A HARD REQUIREMENT: give the headline a refined, characterful
-editorial display face and pair it with a clean, premium grotesk for the
-supporting line. Do not use a default heavy geometric bold or template-style
-type. Set deliberate line breaks, precise kerning, optical alignment and a
-clear hierarchy; keep the support line comfortably readable on a phone with
-a confident medium weight and strong contrast. Make the typography feel
-custom art-directed for a premium skincare campaign, not pasted on. Keep every
-text line and the logo at least 8% inside every crop edge.
-Apart from the supplied logo and these two exact lines, there must be NO other
-text anywhere in the image.
-{itirazlar}"""
+This is a clean photographic environment for a real product to be composited later.
+Do NOT include any product, bottle, jar, package, logo, text, typography, lettering,
+watermark, badge, brush, hand, or cosmetic container. Do not invent a product.
+Reserve the top 8% as quiet space for the official logo. Leave the center-lower
+area visually clear for the real product photograph. Keep the bottom 27% calm,
+with no busy objects, so the exact brand headline and supporting copy can be set
+there with real font files. Create tactile depth, deliberate neutral lighting,
+and a concept specific to the ingredient/story; avoid generic gradients,
+stock-ad templates, water-splash clichés, floating objects, and clutter.
+Aspect ratio {oran}."""
 
 
 def etiket_satirlari(urun_yolu: Path) -> str:
@@ -177,13 +135,24 @@ def montaj_uret(sahne: str, ust: str, alt: str, oran: str,
         from jarvis.kreatif_itiraz import acik_itirazlar_metni
         ham = acik_itirazlar_metni(_URUN_ONEKI or "")
         if ham:
-            itiraz_blok = "\n\nOWNER'S OPEN OBJECTIONS: \n" + ham
+            itiraz_blok = "\n\nPREVIOUS ART-DIRECTION FEEDBACK: \n" + ham
     except Exception:  # noqa: BLE001 - feedback store failure must not block generation
         pass
-    istem = ISTEM.format(oran=oran, sahne=sahne.strip(), ust=ust or "(başlık yok)",
-        alt=alt or "(alt satır yok)", itirazlar=itiraz_blok,
-        muhur=URUN_MUHRU.format(etiket=etiket))
-    return chatgpt_web_gorsel(istem, oran, [urun_yolu, logo_yolu])
+    arka_plan_istem = ARKA_PLAN_ISTEM.format(
+        oran=oran, sahne=(sahne.strip() + itiraz_blok).strip())
+    arka_plan = chatgpt_web_gorsel(arka_plan_istem, oran, [])
+    bicim = {"1:1": "KARE", "4:5": "AKIS", "9:16": "REELS"}.get(oran)
+    if not bicim:
+        raise gk.GorselHatasi("marka fontlu kompozitte desteklenmeyen oran: %s" % oran)
+    with tempfile.TemporaryDirectory(prefix="jarvis-gpt-background-") as gecici:
+        gecici = Path(gecici)
+        sahne_dosyasi = gecici / "gpt-arka-plan.png"
+        arka_plan.save(sahne_dosyasi, format="PNG")
+        rapor = gk.uret(
+            _URUN_ONEKI or urun_yolu.stem, bicim=bicim, baslik=ust, alt=alt,
+            sahne=sahne_dosyasi, cikti_dizin=gecici,
+            urun_gorsel=urun_yolu, logo_yolu=logo_yolu)
+        return Image.open(gecici / rapor["dosya"]).convert("RGB").copy()
 
 # ══════════════════════════════════════════════════════════════════════════
 # 🔴 OTOMATİK AMBALAJ DENETİMİ DENENDİ VE ÇALIŞMIYOR — KALDIRILDI
@@ -270,7 +239,15 @@ def main() -> int:
 
     teslim, hata = [], 0
     for n, g in enumerate(gorseller, 1):
-        oran = g.get("oran") if g.get("oran") in ORANLAR else "1:1"
+        instagram_format = str(g.get("instagram_format") or "").upper()
+        seri_kodu = str(g.get("seri_kodu") or "").strip()
+        kart_no = str(g.get("kart_no") or "").strip()
+        kart_rolu = str(g.get("kart_rolu") or "").upper()
+        oran = g.get("oran") if g.get("oran") in ORANLAR else "4:5"
+        if instagram_format in ("2_KART_KARUSEL", "3_5_KART_KARUSEL"):
+            oran = "4:5"
+        elif instagram_format == "REELS_STORY_KAPAK":
+            oran = "9:16"
         yer = g.get("yerlesim") or {}
         tip = yer.get("katman_4_tipografi") or {}
         ust = g.get("ust_yazi") or tip.get("ust_yazi") or ""
@@ -279,6 +256,16 @@ def main() -> int:
         # de karede olacağı için mühürdeki yasak cümlesi kullanılmaz --
         # sahnenin yalnız ortam kısmı alınır.
         sahne = str(g.get("sahne_istemi") or "").split("NEGATIVE")[0].strip()
+        if instagram_format == "2_KART_KARUSEL":
+            rol = "first-frame hook" if kart_no == "1" else "substantiated product value and one CTA"
+            sahne += (f"\n\nINSTAGRAM TWO-CARD CAROUSEL — series {seri_kodu}, "
+                      f"card {kart_no}/2, role: {rol} ({kart_rolu}). "
+                      "Keep the paired card's palette, lighting and type system coherent. "
+                      "Card 1 must be compliant and clear by itself; card 2 may use only "
+                      "the approved, evidence-backed copy.")
+        elif instagram_format == "3_5_KART_KARUSEL":
+            sahne += (f"\n\nINSTAGRAM CAROUSEL — series {seri_kodu}, card {kart_no}, "
+                      f"role: {kart_rolu}. Keep art direction coherent across the set.")
         geri_bildirim = [str(x).strip() for x in (g.get("onceki_inceleme_notlari") or [])
                          if str(x).strip()]
         if geri_bildirim:
@@ -300,16 +287,22 @@ def main() -> int:
         teslim.append({"dosya": ad.name, "sahne": g.get("ad"), "oran": oran,
                        "ust_yazi": ust, "alt_yazi": alt,
                        "hangi_aci": g.get("hangi_aci"),
+                       "instagram_format": instagram_format,
+                       "seri_kodu": seri_kodu, "kart_no": kart_no, "kart_rolu": kart_rolu,
                        "onceki_inceleme_notlari": geri_bildirim,
                        "inceleme_durumu": "DEPARTMAN_INCELEMESI_BEKLIYOR",
-                       "gorsel_uretme_yontemi": "kullanici_gpt_work_chrome"})
+                       "gorsel_uretme_yontemi": "gpt_web_arka_plan_gercek_urun_ve_marka_fontlariyla_kompozit",
+                       "baslik_fontu": "Monument Extended Ultrabold",
+                       "destek_fontu": "Metropolis Semibold"})
         time.sleep(2)
 
     (cikti / "teslim.json").write_text(
         json.dumps({"urun": (brief.get("urun") or {}).get("urun_adi"),
                     "brief": bp.name, "gorseller": teslim,
                     "saglayici": GORSEL_SAGLAYICI, "model": GORSEL_MODEL,
-                    "yontem": "kullanıcının Chrome GPT Work oturumunda üretilmiş taslak; insan ve departman incelemesi bekliyor",
+                    "instagram_reklam_format_karari": brief.get("instagram_reklam_format_karari"),
+                    "yontem": "GPT Work ile üretilen arka plan; orijinal ürün, logo ve marka tipografisi gerçek dosyalardan Pillow ile kompozitlenmiş taslak; inceleme bekliyor",
+                    "tipografi": {"baslik": "Monument Extended Ultrabold", "destek": "Metropolis Semibold"},
                     "kontrol": "🔴 YAYINDAN ÖNCE JARVIS TASARIM EKİBİ VE İNSAN GÖZÜYLE BAKILMALI: "
                                "etiket-kontrol/ içindeki yakın planlarda "
                                "ambalaj yazısı doğru mu, şişenin beyazı "
@@ -324,4 +317,5 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
 
