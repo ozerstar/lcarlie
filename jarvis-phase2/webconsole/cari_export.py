@@ -8,6 +8,9 @@ import html,re,zipfile,threading
 from pathlib import Path
 import cari,cari_invoice,cari_reconciliation
 
+# Müşteriye giden belgede durum MÜŞTERİNİN gözünden yazılır; "Alacaklıyız" bizim dilimizdir.
+CUSTOMER_STATUS={'Alacaklıyız':'Ödemeniz bekleniyor','Borçluyuz':'Alacak bakiyeniz var','Hesap kapalı':'Hesap kapalı','KDV bekleniyor':'KDV oranı netleşecek'}
+def customer_status(status):return CUSTOMER_STATUS.get(status,status)
 LABELS={'sale':'Satış','purchase':'Alış','sale_return':'Müşteriden iade','purchase_return':'Tedarikçiye iade','collection':'Tahsilat','payment':'Ödeme','opening_receivable':'Açılış alacağı','opening_payable':'Açılış borcu','gift_out':'Bedelsiz verildi','gift_in':'Bedelsiz alındı'}
 FIRM_FILE=Path(__file__).resolve().parent/'cari_firma.json'
 FIRM_FIELDS=[('unvan','Unvan'),('vergi_dairesi','Vergi dairesi'),('vergi_no','VKN'),('mersis','MERSİS no'),('adres','Adres'),('telefon','Telefon'),('eposta','E-posta'),('banka','Banka'),('hesap_sahibi','Hesap sahibi'),('iban','IBAN')]
@@ -35,9 +38,9 @@ def sheets(owner,account_id,scope,as_of=None):
         return 'Cari hesaplar', [('Rapor bilgisi',[['Alan','Açıklama'],['Hazırlanma',stamp],['Rapor tarihi',report['as_of']],['Kapsam','Kesinleşmiş cari hareketleri. Mutabakat ön hesapları bakiyeye dahil değildir.']]),('Cari hesaplar',rows)]
     statement=cari.statement(owner,account_id)
     a=statement['account'];summary=statement['summary']
-    tables=[('Cari özeti',[['Alan','Bilgi'],['Cari',a['name']],['Vergi dairesi / no',' · '.join(x for x in (a.get('tax_office'),a.get('tax_id')) if x)],['Adres',a.get('address','')],['İletişim',' · '.join(x for x in (a.get('contact'),a.get('email'),a.get('phone')) if x)],['Hazırlanma',stamp],['Bakiye TL',amount(summary['balance_cents'])],['Durum',summary['status']],['KDV','Fiyatlar PSF üzerinden, KDV %20 dahil' if any(r.get('price_basis')=='psf_kdv_dahil' for r in statement['product_tables'].get('sale',{}).get('rows',[])) else 'Belgelerdeki KDV oranlarına göre'],['Kapsam','Bakiye kesinleşmiş cari hareketlerine göre hazırlanmıştır.']])]
+    tables=[('Cari özeti',[['Alan','Bilgi'],['Cari',a['name']],['Vergi dairesi / no',' · '.join(x for x in (a.get('tax_office'),a.get('tax_id')) if x)],['Adres',a.get('address','')],['İletişim',' · '.join(x for x in (a.get('contact'),a.get('email'),a.get('phone')) if x)],['Hazırlanma',stamp],['Bakiye TL',amount(summary['balance_cents'])],['Durum',customer_status(summary['status'])],['KDV','Fiyatlar PSF üzerinden, KDV %20 dahil' if any(r.get('price_basis')=='psf_kdv_dahil' for r in statement['product_tables'].get('sale',{}).get('rows',[])) else 'Belgelerdeki KDV oranlarına göre'],['Kapsam','Bakiye kesinleşmiş cari hareketlerine göre hazırlanmıştır.']])]
     if scope=='account':
-        for key,label in [('sale','Satılan ürünler'),('purchase','Alınan ürünler'),('gift','Bedelsiz ürünler')]:
+        for key,label in [('sale','Satın aldığınız ürünler'),('purchase','Bize sattığınız ürünler'),('gift','Bedelsiz ürünler')]:
             data=statement['product_tables'].get(key,{})
             if key=='gift':
                 rows=[['Ürün','Adet']]+[[p['name'],p['quantity']] for p in data.get('rows',[])]
@@ -100,7 +103,7 @@ def report_meta(title,tables):
     """PDF ve Excel'in ortak özeti. Her alan tablolardan okunur; yoksa boş kalır."""
     first=dict((r[0],r[1]) for r in tables[0][1][1:] if len(r)>1) if tables and tables[0][1][:1] in ([['Alan','Bilgi']],[['Alan','Açıklama']]) else {}
     stamp=first.get('Hazırlanma') or now()
-    sales=next((rows for name,rows in tables if rows and rows[0]==PRODUCT_HEAD and name=='Satılan ürünler'),None)
+    sales=next((rows for name,rows in tables if rows and rows[0]==PRODUCT_HEAD),None)
     total=sales[-1] if sales and is_total(sales[-1]) else None
     as_of=first.get('Rapor tarihi')
     if as_of and re.fullmatch(r'\d{4}-\d{2}-\d{2}',str(as_of)):as_of='.'.join(reversed(str(as_of).split('-')))
@@ -111,6 +114,8 @@ def report_meta(title,tables):
 
 # ------------------------------------------------------------------- Excel
 def xlsx(tables,title='',meta=None):
+    """Tek sayfalık Excel: telefonda alt sekmeler görünmediği için (sahip 05.11.2026)
+    PDF'teki sırayla her bölüm aynı sayfada alt alta durur. Toplamlar formüldür."""
     # Inline string cells keep names beginning with =, +, - or @ inert.
     meta=meta or report_meta(title,tables)
     out=BytesIO();ns='http://schemas.openxmlformats.org/spreadsheetml/2006/main'
@@ -118,154 +123,180 @@ def xlsx(tables,title='',meta=None):
     col=lambda i:chr(65+i) if i<26 else chr(64+i//26)+chr(65+i%26)
     tables=[t for t in tables if len(t[1])>1] or tables[:1]
     logo=LOGO.read_bytes() if LOGO.exists() else None
-    q=lambda name:"'"+name.replace("'","''")+"'"
-    # Stil sırası cellXfs dizinidir; aşağıdaki S sözlüğü adları dizine bağlar.
-    fonts=[('10',INK,''),('10',WHITE,'<b/>'),('20',GREEN,'<b/>'),('9',MUTED,'<i/>'),('10',INK,'<b/>'),('9',GREEN,'<b/>'),
-           ('20',GREEN,'<b/>'),('14',INK,'<b/>'),('9',GOLD,'<b/>'),('13',GREEN,'<b/>'),('12',CORAL,'<b/>'),('11',GREEN,'<b/>'),('10',GREEN,'<b/>')]
+    width=max(8,max(len(rows[0]) for _,rows in tables))
+    last_col=col(width-1)
+    fonts=[('10',INK,''),('10',GREEN,'<b/>'),('22',GREEN,'<b/>'),('9',MUTED,''),('10',INK,'<b/>'),('8',MUTED,'<b/>'),
+           ('20',GREEN,'<b/>'),('13',INK,'<b/>'),('8',GOLD,'<b/>'),('14',GREEN,'<b/>'),('10',CORAL,'<b/>'),('11',GREEN,'<b/>'),('13',GREEN,'<b/>')]
     font_xml=''.join(f'<font>{b}<sz val="{sz}"/><color rgb="FF{c}"/><name val="{"Consolas" if i==9 else "Calibri"}"/></font>' for i,(sz,c,b) in enumerate(fonts))
     fill=lambda c:f'<fill><patternFill patternType="solid"><fgColor rgb="FF{c}"/><bgColor indexed="64"/></patternFill></fill>'
     fills='<fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>'+''.join(fill(c) for c in (GREEN,PAPER,SAGE,GOLD,WHITE))
-    side=lambda kind,c:f'<{kind} style="thin"><color rgb="FF{c}"/></{kind}>'
+    side=lambda kind,c,w='thin':f'<{kind} style="{w}"><color rgb="FF{c}"/></{kind}>'
     borders=('<border/>'
              f'<border><left/><right/><top/>{side("bottom",LINE)}<diagonal/></border>'
-             f'<border><left/><right/><top style="medium"><color rgb="FF{GOLD}"/></top>{side("bottom",LINE)}<diagonal/></border>'
+             f'<border><left/><right/>{side("top",GOLD,"medium")}{side("bottom",LINE)}<diagonal/></border>'
              f'<border>{side("left",GOLD)}{side("right",GOLD)}{side("top",GOLD)}{side("bottom",GOLD)}<diagonal/></border>'
-             f'<border><left/><right/><top/>{side("bottom",GOLD)}<diagonal/></border>')
+             f'<border><left/><right/><top/>{side("bottom",GOLD)}<diagonal/></border>'
+             f'<border><left/><right/><top/>{side("bottom",GREEN)}<diagonal/></border>')
     S={};xfs=[]
-    def style(name,font=0,fill_=0,border=0,num=0,h='left',wrap=False):
+    def style(name,font=0,fill_=0,border=0,num=0,h='left',wrap=False,v='center'):
         S[name]=len(xfs)
         xfs.append(f'<xf numFmtId="{num}" fontId="{font}" fillId="{fill_}" borderId="{border}" xfId="0" applyFont="1" applyFill="1" applyBorder="1"'
-                   +(' applyNumberFormat="1"' if num else '')+f' applyAlignment="1"><alignment horizontal="{h}" vertical="center"'+(' wrapText="1"' if wrap else '')+'/></xf>')
+                   +(' applyNumberFormat="1"' if num else '')+f' applyAlignment="1"><alignment horizontal="{h}" vertical="{v}"'+(' wrapText="1"' if wrap else '')+'/></xf>')
     style('default')
-    style('head',12,4,4,0,'center',True);style('group',12,4,4,0,'center',True)
-    for zebra,f in (('w',0),('c',3)):
-        style('text_'+zebra,0,f,1,0,'left',True);style('money_'+zebra,0,f,1,164,'right')
-        style('int_'+zebra,0,f,1,3,'right');style('right_'+zebra,0,f,1,0,'right')
-    style('title',2);style('sub',3);style('bar',0,5)
-    style('total_text',4,4,2);style('total_money',4,4,2,164,'right');style('total_int',4,4,2,3,'right');style('total_blank',4,4,2)
-    style('green_text',11,0,2);style('green_money',11,0,2,164,'right');style('green_blank',11,0,2)
-    style('kpi_label',5,0,0);style('kpi_value',7,0,4);style('kpi_count',7,0,4,165)
-    style('kpi_label_g',8,0,0);style('kpi_money_g',6,0,4,164,'left');style('kpi_status',10,0,4)
-    style('key',4,3,1,0,'left',True);style('iban',9,3,3);style('iban_key',4,4,3)
+    style('head',1,4,5,0,'center',True);style('head_l',1,4,5,0,'left',True);style('head_r',1,4,5,0,'right',True);style('group',1,4,4,0,'center',True)
+    style('text',0,0,1,0,'left',True);style('money',0,0,1,164,'right');style('int',0,0,1,3,'right');style('center',0,0,1,0,'center')
+    style('money_strong',11,3,1,164,'right')
+    style('title',2);style('sub',3);style('bar',0,5);style('section',12,0,4)
+    style('total_text',4,0,2);style('total_money',4,0,2,164,'right');style('total_int',4,0,2,3,'right');style('total_blank',4,0,2)
+    style('total_strong',12,3,2,164,'right')
+    style('kpi_label',5,0,0);style('kpi_label_gold',8,0,0,0,'right');style('kpi_value',7,0,0);style('kpi_count',7,0,0,165);style('kpi_money_s',7,0,0,164,'left')
+    style('kpi_balance',6,0,0,164,'right');style('kpi_note',3,0,0,0,'left',True);style('kpi_note_r',3,0,0,0,'right');style('kpi_status',10,0,0,0,'right')
+    style('strip',0,0,1)
+    style('key',3,0,1,0,'left',True,'top');style('value',4,0,1,0,'left',True,'top')
+    style('iban',9,3,3,0,'left');style('iban_key',8,3,3);style('iban_small',3,3,3,0,'left')
+    style('official_key',3,0,0,0,'left',True,'top');style('official_value',0,0,0,0,'left',True,'top')
+    cells_by_row={};heights={};merges=[];breaks=[];autofilter=None
+    def put(r,ci,value,st,formula=None):
+        ref=f'{col(ci)}{r}';s_=S[st]
+        if formula is not None:
+            xml=f'<c r="{ref}" s="{s_}"><f>{xml_escape(formula)}</f>'+('' if value in (None,'') else f'<v>{value}</v>')+'</c>'
+        elif isinstance(value,(int,Decimal)) and not isinstance(value,bool):xml=f'<c r="{ref}" s="{s_}"><v>{value}</v></c>'
+        elif value in (None,''):xml=f'<c r="{ref}" s="{s_}"/>'
+        else:xml=f'<c r="{ref}" s="{s_}" t="inlineStr"><is><t xml:space="preserve">{xml_escape(text(value))}</t></is></c>'
+        cells_by_row.setdefault(r,{})[ci]=xml
+    def span(r,a,b,value,st,formula=None):
+        put(r,a,value,st,formula)
+        for ci in range(a+1,b+1):put(r,ci,None,st)
+        if b>a:merges.append(f'{col(a)}{r}:{col(b)}{r}')
+    # --- başlık
+    heights[1]=40
+    span(2,0,width-1,meta.get('title') or title or 'L’CARLIÉ','title');heights[2]=32
+    span(3,0,width-1,f"{'Cari hesap listesi' if title=='Cari hesaplar' else 'Cari hesap ekstresi'} · Rapor tarihi {meta['date']} · Hazırlanma {meta['stamp']}",'sub')
+    for ci in range(width):put(4,ci,None,'bar')
+    heights[4]=4;r=6
+    first=dict((x[0],x[1]) for x in tables[0][1][1:] if len(x)>1) if tables else {}
+    # Bölüm satır numaraları formül bağları için önceden bilinmeli: önce yerleşimi hesapla.
+    plan=[];cursor=r+(5 if meta.get('balance') is not None else 0)
+    for name,rows in tables:
+        kind='product' if rows[0]==PRODUCT_HEAD else 'ledger' if rows[0]==LEDGER_HEAD else 'pay' if name=='Ödeme bilgileri' else 'pairs' if rows[0] in (['Alan','Bilgi'],['Alan','Açıklama']) else 'grid'
+        if kind=='pairs' and name in ('Cari özeti','Rapor bilgisi'):
+            extra=[(a,b) for a,b in ((x[0],x[1]) for x in rows[1:]) if a in ('Vergi dairesi / no','Adres','İletişim') and text(b)] if meta.get('balance') is not None else [(x[0],x[1]) for x in rows[1:] if text(x[1])]
+            if not extra:continue
+            rows=[rows[0]]+[list(x) for x in extra]
+        start=cursor+2  # bölüm başlığı + boşluk
+        header=2 if kind=='product' else 1 if kind in ('ledger','grid') else 0
+        if kind=='pay':
+            keys=[x[0] for x in rows[1:] if text(x[1])]
+            body_rows=sum(k_ in keys for k_ in ('Banka','Hesap sahibi'))+(2 if 'IBAN' in keys else 0)+2+sum(k_ not in ('Banka','Hesap sahibi','IBAN') for k_ in keys)
+        else:
+            body_rows=len(rows)-1
+        plan.append((name,rows,kind,start,header))
+        cursor=start+header+body_rows+1
+    def total_cell(kind_,column):
+        for _name,rows,kind,start,header in plan:
+            if kind==kind_ and is_total(rows[-1]):return f'{column}{start+header+len(rows)-2}'
+        return None
+    # --- özet (PDF 1. sayfa ile aynı içerik)
+    if meta.get('balance') is not None:
+        sales=next((rows for _n,rows,k,_s,_h in plan if k=='product'),None)
+        sale_total=sales[-1] if sales and is_total(sales[-1]) else None
+        discounts={text(x[3]) for x in (sales or [])[1:] if not is_total(x)}
+        psf='PSF' in text(first.get('KDV'))
+        span(r,width-3,width-1,'GÜNCEL BAKİYE','kpi_label_gold')
+        span(r+1,width-3,width-1,meta['balance'],'kpi_balance',total_cell('ledger','F'));heights[r+1]=30
+        span(r+2,width-3,width-1,meta['status'],'kpi_status')
+        span(r,0,1,'TOPLAM ÜRÜN','kpi_label');span(r,2,3,'KDV HARİÇ TUTAR','kpi_label')
+        span(r+1,0,1,meta['products'] if meta['products'] is not None else '—','kpi_count' if meta['products'] is not None else 'kpi_value',total_cell('product','B') if meta['products'] is not None else None)
+        span(r+1,2,3,sale_total[6] if sale_total else '—','kpi_money_s' if sale_total else 'kpi_value',total_cell('product','G') if sale_total else None)
+        span(r+2,0,1,f"{meta['kinds']} çeşit ürün" if meta['kinds'] is not None else '','kpi_note')
+        span(r+2,2,3,('PSF' if psf else 'Belge fiyatı')+(f' · {next(iter(discounts))} iskonto' if len(discounts)==1 else '')+(' · KDV %20 dahil' if psf else ''),'kpi_note')
+        for ci in range(width):put(r+3,ci,None,'strip')
+        heights[r+3]=6
+    # --- bölümler
+    for name,rows,kind,start,header in plan:  # noqa: B007 - header yalnız bazı türlerde kullanılır
+        span(start-1,0,width-1,name,'section');heights[start-1]=24
+        if kind=='product':
+            g=[('Ürün',0,0),('Adet',1,1),('PSF (KDV dahil)',2,2),('İskonto',3,3),('İskontolu birim fiyat',4,5),('Tutar',6,7)]
+            for t,a,b in g:
+                put(start,a,t,'group' if a>=4 else ('head_l' if a==0 else 'head'))
+                if a==b:put(start+1,a,None,'head');merges.append(f'{col(a)}{start}:{col(a)}{start+1}')
+                else:put(start,b,None,'group');merges.append(f'{col(a)}{start}:{col(b)}{start}')
+            for i,t in enumerate(['KDV hariç','KDV dahil','KDV hariç','KDV dahil'],4):put(start+1,i,t,'head')
+            heights[start]=heights[start+1]=20
+            first_row=start+2;last_row=first_row+len(rows)-3
+            for i,x in enumerate(rows[1:]):
+                rn=first_row+i
+                if is_total(x):
+                    put(rn,0,x[0],'total_text');put(rn,1,x[1],'total_int',f'SUM(B{first_row}:B{last_row})')
+                    for ci in (2,3,4,5):put(rn,ci,None,'total_blank')
+                    put(rn,6,x[6],'total_money',f'SUM(G{first_row}:G{last_row})');put(rn,7,x[7],'total_strong',f'SUM(H{first_row}:H{last_row})')
+                    heights[rn]=24;continue
+                put(rn,0,x[0],'text');put(rn,1,x[1],'int');put(rn,2,x[2],'money' if isinstance(x[2],Decimal) else 'center');put(rn,3,x[3],'center')
+                for ci in (4,5,6):put(rn,ci,x[ci],'money')
+                put(rn,7,x[7],'money_strong');heights[rn]=20
+            autofilter=f'A{start+1}:H{last_row}'
+        elif kind in ('ledger','grid'):
+            numeric={j for x in rows[1:] for j,v in enumerate(x) if isinstance(v,(int,Decimal)) and not isinstance(v,bool)}
+            for j,t in enumerate(rows[0]):put(start,j,t.replace(' TL','') if kind=='ledger' else t,'head_r' if j in numeric else 'head_l')
+            heights[start]=22
+            if kind=='ledger':breaks.append(start-2)  # PDF gibi: ekstre ikinci sayfada başlar
+            for i,x in enumerate(rows[1:]):
+                rn=start+1+i;tot=is_total(x)
+                if kind=='ledger':
+                    if tot:
+                        put(rn,0,x[0],'total_text')
+                        for ci in (1,2,3,4):put(rn,ci,None,'total_blank')
+                        put(rn,5,x[5],'total_strong',f'F{rn-1}');heights[rn]=24;continue
+                    put(rn,0,x[0],'text');put(rn,1,x[1],'text');put(rn,2,x[2],'text');put(rn,3,x[3],'money');put(rn,4,x[4],'money')
+                    put(rn,5,x[5],'money',f'D{rn}-E{rn}' if i==0 else f'F{rn-1}+D{rn}-E{rn}');heights[rn]=20
+                else:
+                    for j,v in enumerate(x):
+                        st=('total_money' if isinstance(v,Decimal) else 'total_int' if isinstance(v,int) else 'total_text') if tot else ('money' if isinstance(v,Decimal) else 'int' if isinstance(v,int) else 'text')
+                        put(rn,j,v,st)
+        elif kind=='pay':
+            info=[(x[0],x[1]) for x in rows[1:]];rn=start
+            for k_ in ('Banka','Hesap sahibi'):
+                v=dict(info).get(k_)
+                if v:put(rn,0,k_,'key');span(rn,1,width-1,v,'value');heights[rn]=20;rn+=1
+            iban=text(dict(info).get('IBAN'))
+            if iban:
+                number_,currency=split_iban(iban)
+                put(rn,0,'IBAN'+(f' · {currency}' if currency else ''),'iban_key');span(rn,1,width-1,number_,'iban');heights[rn]=28;rn+=1
+                put(rn,0,'IBAN (boşluksuz)','iban_key');span(rn,1,width-1,re.sub(r'\s','',number_),'iban_small');heights[rn]=20;rn+=1
+            rn+=1;span(rn,0,width-1,'Resmî şirket bilgileri','kpi_label');rn+=1
+            for k_,v in info:
+                if k_ in ('Banka','Hesap sahibi','IBAN') or not text(v):continue
+                put(rn,0,k_,'official_key');span(rn,1,width-1,v,'official_value');heights[rn]=30 if len(text(v))>90 else 16;rn+=1
+        else:
+            for i,x in enumerate(rows[1:]):
+                rn=start+i;put(rn,0,x[0],'key');span(rn,1,width-1,x[1],'value' if not isinstance(x[1],Decimal) else 'money')
+                heights[rn]=30 if len(text(x[1]))>90 else 20
+    data=''.join(f'<row r="{rn}"'+(f' ht="{heights[rn]}" customHeight="1"' if rn in heights else '')+'>'+''.join(cells_by_row.get(rn,{})[ci] for ci in sorted(cells_by_row.get(rn,{})))+'</row>'
+                 for rn in sorted(set(cells_by_row)|set(heights)))
+    widths=[26,10,17,11,17,17,17,17]+[16]*(width-8)
+    columns=''.join(f'<col min="{i+1}" max="{i+1}" width="{w}" customWidth="1"/>' for i,w in enumerate(widths[:width]))
+    merge_xml=f'<mergeCells count="{len(merges)}">'+''.join(f'<mergeCell ref="{m}"/>' for m in merges)+'</mergeCells>' if merges else ''
+    break_xml=f'<rowBreaks count="{len(breaks)}" manualBreakCount="{len(breaks)}">'+''.join(f'<brk id="{b}" max="16383" man="1"/>' for b in breaks)+'</rowBreaks>' if breaks else ''
+    footer='<headerFooter><oddFooter>&amp;L&amp;8L’CARLIÉ · '+xml_escape(text(meta.get('title') or title))+'&amp;R&amp;8Sayfa &amp;P / &amp;N</oddFooter></headerFooter>'
+    sheet_name='Cari ekstre' if title!='Cari hesaplar' else 'Cari hesaplar'
     with zipfile.ZipFile(out,'w',zipfile.ZIP_DEFLATED) as z:
-        n=len(tables)
-        # Yerleşim: her sayfanın satır numaraları formül bağları için önce hesaplanır.
-        layout={}
-        for name,rows in tables:
-            kind='product' if rows[0]==PRODUCT_HEAD else 'ledger' if rows[0]==LEDGER_HEAD else 'pairs' if rows[0] in (['Alan','Bilgi'],['Alan','Açıklama']) else 'grid'
-            first=7 if kind=='product' else 6
-            if kind=='pairs' and name=='Cari özeti' and meta.get('balance') is not None:first=11
-            layout[name]=(kind,first)
-        def total_ref(name,column):
-            if name not in layout:return None
-            kind,first=layout[name];rows=dict(tables)[name]
-            return f"{q(name)}!${column}${first+len(rows)-2}" if is_total(rows[-1]) else None
-        overrides=''.join(f'<Override PartName="/xl/worksheets/sheet{i}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' for i in range(1,n+1))
-        if logo:overrides+=''.join(f'<Override PartName="/xl/drawings/drawing{i}.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>' for i in range(1,n+1))
-        z.writestr('[Content_Types].xml','<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'+overrides+'</Types>')
+        z.writestr('[Content_Types].xml','<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'+('<Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>' if logo else '')+'</Types>')
         z.writestr('_rels/.rels',f'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="{rel}/officeDocument" Target="xl/workbook.xml"/></Relationships>')
-        titles=''.join(f'<definedName name="_xlnm.Print_Titles" localSheetId="{i}">{q(name[:31])}!$5:${6 if layout[name][0]=="product" else 5}</definedName>'
-                       for i,(name,_) in enumerate(tables) if layout[name][0] in ('product','ledger','grid'))
-        z.writestr('xl/workbook.xml',f'<workbook xmlns="{ns}" xmlns:r="{rel}"><sheets>'+''.join(f'<sheet name="{xml_escape(name[:31])}" sheetId="{i}" r:id="rId{i}"/>' for i,(name,_) in enumerate(tables,1))+'</sheets>'+(f'<definedNames>{titles}</definedNames>' if titles else '')+'<calcPr calcId="191029" fullCalcOnLoad="1"/></workbook>')
-        z.writestr('xl/_rels/workbook.xml.rels','<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+''.join(f'<Relationship Id="rId{i}" Type="{rel}/worksheet" Target="worksheets/sheet{i}.xml"/>' for i in range(1,n+1))+f'<Relationship Id="rId{n+1}" Type="{rel}/styles" Target="styles.xml"/></Relationships>')
+        z.writestr('xl/workbook.xml',f'<workbook xmlns="{ns}" xmlns:r="{rel}"><sheets><sheet name="{sheet_name}" sheetId="1" r:id="rId1"/></sheets><calcPr calcId="191029" fullCalcOnLoad="1"/></workbook>')
+        z.writestr('xl/_rels/workbook.xml.rels',f'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="{rel}/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="{rel}/styles" Target="styles.xml"/></Relationships>')
         numfmts='<numFmts count="2"><numFmt numFmtId="164" formatCode="#,##0.00\\ &quot;TL&quot;"/><numFmt numFmtId="165" formatCode="#,##0\\ &quot;adet&quot;"/></numFmts>'
         assert len(fonts)==13
-        z.writestr('xl/styles.xml',f'<styleSheet xmlns="{ns}">{numfmts}<fonts count="{len(fonts)}">{font_xml}</fonts><fills count="7">{fills}</fills><borders count="5">{borders}</borders><cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="{len(xfs)}">{"".join(xfs)}</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>')
-        if logo:z.writestr('xl/media/logo.png',logo)
-        cx,cy=230*9525,32*9525
-        def c(ref,value,st,formula=None):
-            st=S[st]
-            if formula is not None:
-                cached='' if value is None else f'<v>{value}</v>'
-                return f'<c r="{ref}" s="{st}"><f>{xml_escape(formula)}</f>{cached}</c>'
-            if isinstance(value,(int,Decimal)) and not isinstance(value,bool):return f'<c r="{ref}" s="{st}"><v>{value}</v></c>'
-            if value in (None,''):return f'<c r="{ref}" s="{st}"/>'
-            return f'<c r="{ref}" s="{st}" t="inlineStr"><is><t xml:space="preserve">{xml_escape(text(value))}</t></is></c>'
-        def row(r,cells,height=None):return f'<row r="{r}"'+(f' ht="{height}" customHeight="1"' if height else '')+'>'+''.join(cells)+'</row>'
-        def zebra(i):return 'c' if i%2==0 else 'w'
-        for number,(name,rows) in enumerate(tables,1):
-            kind,first=layout[name];width={'product':8,'ledger':6,'pairs':4}.get(kind,len(rows[0]))
-            data=[row(1,[],40),row(2,[c('A2',meta.get('title') or title or 'L’CARLIÉ','title')],30),
-                  row(3,[c('A3',f"{'Cari hesap listesi' if title=='Cari hesaplar' else 'Cari hesap ekstresi'} · {name} · Hazırlanma: {meta['stamp']}",'sub')]),
-                  row(4,[c(f'{col(i)}4',None,'bar') for i in range(width)],4)]
-            merges=[];widths=[]
-            if kind=='product':
-                widths=[26,9,17,10,18,18,18,18]
-                g=[('Ürün',0,0),('Adet',1,1),('PSF (KDV dahil)',2,2),('İskonto',3,3),('İskontolu birim fiyat',4,5),('Tutar',6,7)]
-                data.append(row(5,[c(f'{col(i)}5',next((t for t,a,b in g if a==i),None),'group' if i>=4 else 'head') for i in range(8)],22))
-                data.append(row(6,[c(f'{col(i)}6',['','','','','KDV hariç','KDV dahil','KDV hariç','KDV dahil'][i],'head') for i in range(8)],22))
-                merges+=[f'{col(a)}5:{col(b)}5' if a!=b else f'{col(a)}5:{col(a)}6' for _t,a,b in g]
-                last=first+len(rows)-3
-                for i,r_ in enumerate(rows[1:]):
-                    rn=first+i
-                    if is_total(r_):
-                        data.append(row(rn,[c(f'A{rn}',r_[0],'total_text'),c(f'B{rn}',r_[1],'total_int',f'SUM(B{first}:B{last})'),
-                            *[c(f'{col(j)}{rn}',None,'total_blank') for j in (2,3,4,5)],
-                            c(f'G{rn}',r_[6],'total_money',f'SUM(G{first}:G{last})'),c(f'H{rn}',r_[7],'total_money',f'SUM(H{first}:H{last})')],24))
-                        continue
-                    z_=zebra(i)
-                    data.append(row(rn,[c(f'A{rn}',r_[0],'text_'+z_),c(f'B{rn}',r_[1],'int_'+z_)]+[
-                        c(f'{col(j)}{rn}',v,('money_' if isinstance(v,Decimal) else 'right_')+z_) for j,v in enumerate(r_[2:],2)],20))
-            elif kind=='ledger':
-                widths=[14,16,16,17,17,18]
-                data.append(row(5,[c(f'{col(i)}5',v.replace(' TL',''),'head') for i,v in enumerate(rows[0])],24))
-                for i,r_ in enumerate(rows[1:]):
-                    rn=first+i
-                    if is_total(r_):
-                        data.append(row(rn,[c(f'A{rn}',r_[0],'green_text')]+[c(f'{col(j)}{rn}',None,'green_blank') for j in (1,2,3,4)]
-                                        +[c(f'F{rn}',r_[5],'green_money',f'F{rn-1}')],24))
-                        continue
-                    z_=zebra(i)
-                    formula=f'D{rn}-E{rn}' if rn==first else f'F{rn-1}+D{rn}-E{rn}'
-                    data.append(row(rn,[c(f'A{rn}',r_[0],'text_'+z_),c(f'B{rn}',r_[1],'text_'+z_),c(f'C{rn}',r_[2],'text_'+z_),
-                        c(f'D{rn}',r_[3],'money_'+z_),c(f'E{rn}',r_[4],'money_'+z_),c(f'F{rn}',r_[5],'money_'+z_,formula)],20))
-            elif kind=='pairs':
-                widths=[24,22,22,22]
-                if first==11:
-                    labels=[('GÜNCEL BAKİYE','kpi_label_g'),('HESAP DURUMU','kpi_label'),('TOPLAM ÜRÜN','kpi_label'),('RAPOR TARİHİ','kpi_label')]
-                    data.append(row(6,[c(f'{col(i)}6',t,s) for i,(t,s) in enumerate(labels)],20))
-                    bal_ref=total_ref('Hesap ekstresi','F');cnt_ref=total_ref('Satılan ürünler','B')
-                    data.append(row(7,[c('A7',meta['balance'],'kpi_money_g',bal_ref),c('B7',meta['status'],'kpi_status'),
-                        c('C7',meta['products'],'kpi_count',cnt_ref) if meta['products'] is not None else c('C7','—','kpi_value'),
-                        c('D7',meta['date'],'kpi_value')],34))
-                    data.append(row(8,[c('A8','KDV dahil','kpi_label_g'),c('B8','Kesinleşmiş hareketlere göre','kpi_label'),
-                        c('C8',f"{meta['kinds']} çeşit ürün" if meta['kinds'] is not None else '','kpi_label'),c('D8','Hazırlanma '+str(meta['stamp'])[11:],'kpi_label')],18))
-                    data.append(row(10,[c('A10','Alan','head'),c('B10','Bilgi','head'),c('C10',None,'head'),c('D10',None,'head')],22))
-                    merges+=['B10:D10'];base=11
-                else:
-                    data.append(row(5,[c('A5',rows[0][0],'head'),c('B5',rows[0][1],'head'),c('C5',None,'head'),c('D5',None,'head')],22))
-                    merges+=['B5:D5'];base=6
-                    if name=='Ödeme bilgileri':widths=[22,30,30,30]
-                rn=base
-                for i,(k,v) in enumerate((r_[0],r_[1]) for r_ in rows[1:]):
-                    z_=zebra(i);is_iban=k=='IBAN'
-                    vstyle='iban' if is_iban else ('money_' if isinstance(v,Decimal) else 'text_')+z_
-                    data.append(row(rn,[c(f'A{rn}',k,'iban_key' if is_iban else 'key'),c(f'B{rn}',v,vstyle),c(f'C{rn}',None,vstyle),c(f'D{rn}',None,vstyle)],28 if is_iban else (32 if len(text(v))>60 else 20)))
-                    merges.append(f'B{rn}:D{rn}');rn+=1
-                    if is_iban:
-                        number_,currency=split_iban(text(v));compact=re.sub(r'\s','',number_)
-                        data.append(row(rn,[c(f'A{rn}','IBAN (boşluksuz)','iban_key'),c(f'B{rn}',compact+(f' · {currency}' if currency else ''),'iban'),c(f'C{rn}',None,'iban'),c(f'D{rn}',None,'iban')],28))
-                        merges.append(f'B{rn}:D{rn}');rn+=1
-            else:
-                widths=[min(60,max(14,max(len(text(r_[i])) if i<len(r_) else 0 for r_ in rows[:100])+3)) for i in range(width)]
-                data.append(row(5,[c(f'{col(i)}5',v,'head') for i,v in enumerate(rows[0])],24))
-                for i,r_ in enumerate(rows[1:]):
-                    rn=first+i;total=is_total(r_);z_=zebra(i)
-                    data.append(row(rn,[c(f'{col(j)}{rn}',v,(('total_money' if isinstance(v,Decimal) else 'total_int' if isinstance(v,int) else 'total_text') if total
-                        else ('money_' if isinstance(v,Decimal) else 'int_' if isinstance(v,int) else 'text_')+z_)) for j,v in enumerate(r_)],20))
-            columns=''.join(f'<col min="{i+1}" max="{i+1}" width="{w}" customWidth="1"/>' for i,w in enumerate(widths))
-            freeze=first if kind in ('product','ledger','grid') else 5
-            last_row=first+len(rows)-2
-            autofilter=f'<autoFilter ref="A{first-1}:{col(width-1)}{last_row-(1 if is_total(rows[-1]) else 0)}"/>' if kind in ('product','ledger','grid') else ''
-            merge_xml=f'<mergeCells count="{len(merges)}">'+''.join(f'<mergeCell ref="{m}"/>' for m in merges)+'</mergeCells>' if merges else ''
-            drawing='<drawing r:id="rId1"/>' if logo else ''
-            footer='<headerFooter><oddFooter>&amp;L&amp;8L’CARLIÉ · '+xml_escape(text(meta.get('title') or title))+'&amp;R&amp;8Sayfa &amp;P / &amp;N</oddFooter></headerFooter>'
-            z.writestr(f'xl/worksheets/sheet{number}.xml',f'<worksheet xmlns="{ns}" xmlns:r="{rel}"><sheetPr><tabColor rgb="FF{GREEN if number==1 else GOLD}"/><pageSetUpPr fitToPage="1"/></sheetPr><sheetViews><sheetView workbookViewId="0" showGridLines="0"'+(' tabSelected="1"' if number==1 else '')+f'><pane ySplit="{freeze-1}" topLeftCell="A{freeze}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="18"/><cols>{columns}</cols><sheetData>'+''.join(data)+f'</sheetData>{autofilter}{merge_xml}<printOptions horizontalCentered="1"/><pageMargins left="0.5" right="0.5" top="0.6" bottom="0.7" header="0.3" footer="0.3"/><pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/>{footer}{drawing}</worksheet>')
-            if logo:
-                z.writestr(f'xl/worksheets/_rels/sheet{number}.xml.rels',f'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="{rel}/drawing" Target="../drawings/drawing{number}.xml"/></Relationships>')
-                z.writestr(f'xl/drawings/_rels/drawing{number}.xml.rels',f'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="{rel}/image" Target="../media/logo.png"/></Relationships>')
-                z.writestr(f'xl/drawings/drawing{number}.xml',f'<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="{rel}"><xdr:oneCellAnchor><xdr:from><xdr:col>0</xdr:col><xdr:colOff>57150</xdr:colOff><xdr:row>0</xdr:row><xdr:rowOff>95250</xdr:rowOff></xdr:from><xdr:ext cx="{cx}" cy="{cy}"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="2" name="Logo"/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr><xdr:blipFill><a:blip r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor></xdr:wsDr>')
+        z.writestr('xl/styles.xml',f'<styleSheet xmlns="{ns}">{numfmts}<fonts count="{len(fonts)}">{font_xml}</fonts><fills count="7">{fills}</fills><borders count="6">{borders}</borders><cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="{len(xfs)}">{"".join(xfs)}</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>')
+        z.writestr('xl/worksheets/sheet1.xml',f'<worksheet xmlns="{ns}" xmlns:r="{rel}"><sheetPr><tabColor rgb="FF{GREEN}"/><pageSetUpPr fitToPage="1"/></sheetPr><dimension ref="A1:{last_col}{max(set(cells_by_row)|{1})}"/><sheetViews><sheetView workbookViewId="0" showGridLines="0" tabSelected="1" zoomScale="100"/></sheetViews><sheetFormatPr defaultRowHeight="18"/><cols>{columns}</cols><sheetData>{data}</sheetData>'
+                   +(f'<autoFilter ref="{autofilter}"/>' if autofilter else '')+f'{merge_xml}<printOptions horizontalCentered="1"/><pageMargins left="0.5" right="0.5" top="0.6" bottom="0.7" header="0.3" footer="0.3"/><pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/>{footer}{break_xml}'+('<drawing r:id="rId1"/>' if logo else '')+'</worksheet>')
+        if logo:
+            cx,cy=230*9525,32*9525
+            z.writestr('xl/media/logo.png',logo)
+            z.writestr('xl/worksheets/_rels/sheet1.xml.rels',f'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="{rel}/drawing" Target="../drawings/drawing1.xml"/></Relationships>')
+            z.writestr('xl/drawings/_rels/drawing1.xml.rels',f'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="{rel}/image" Target="../media/logo.png"/></Relationships>')
+            z.writestr('xl/drawings/drawing1.xml',f'<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="{rel}"><xdr:oneCellAnchor><xdr:from><xdr:col>0</xdr:col><xdr:colOff>57150</xdr:colOff><xdr:row>0</xdr:row><xdr:rowOff>95250</xdr:rowOff></xdr:from><xdr:ext cx="{cx}" cy="{cy}"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="2" name="Logo"/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr><xdr:blipFill><a:blip r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor></xdr:wsDr>')
     return out.getvalue()
+
 
 # --------------------------------------------------------------------- PDF
 _font_lock=threading.Lock()
@@ -322,12 +353,12 @@ def pdf(title,tables,meta=None):
         hero=Table([[left,balance]],colWidths=[available*.58,available*.42],hAlign='LEFT')
         hero.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'BOTTOM'),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),12),('LINEBELOW',(0,0),(-1,0),.8,k(GOLD))]))
         story.append(hero)
-        sales=next((r for n_,r in tables if n_=='Satılan ürünler' and r[0]==PRODUCT_HEAD),None)
+        sales=next((r for n_,r in tables if r[0]==PRODUCT_HEAD),None)
         sale_total=sales[-1] if sales and is_total(sales[-1]) else None
         discounts={text(r[3]) for r in (sales or [])[1:] if not is_total(r)}
         psf='PSF' in text(first.get('KDV'))
         stats=[('TOPLAM ÜRÜN',f"{meta['products']} adet" if meta['products'] is not None else '—',f"{meta['kinds']} çeşit ürün" if meta['kinds'] is not None else 'Satış kaydı yok'),
-               ('KDV HARİÇ TUTAR',tl(sale_total[6]) if sale_total and isinstance(sale_total[6],Decimal) else '—','Satılan ürünler, KDV hariç'),
+               ('KDV HARİÇ TUTAR',tl(sale_total[6]) if sale_total and isinstance(sale_total[6],Decimal) else '—','Ürün toplamı, KDV hariç'),
                ('FİYATLANDIRMA',('PSF' if psf else 'Belge fiyatı')+(f' · {next(iter(discounts))} iskonto' if len(discounts)==1 else ''),'KDV %20 dahil' if psf else text(first.get('KDV')) or '—')]
         strip=Table([[[Paragraph(a,P('sl',fontName='CariTRBold',fontSize=7,leading=9,textColor=k(MUTED))),Spacer(1,3),
                         Paragraph(esc(b),P('sv',fontName='CariTRBold',fontSize=12.5,leading=15,textColor=k(INK))),Spacer(1,1),

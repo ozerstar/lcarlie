@@ -12,8 +12,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import cari_export
 
 TABLES = [
-    ('Cari özeti', [['Alan', 'Bilgi'], ['Cari', 'Mcaris'], ['Adres', ''], ['Bakiye TL', Decimal('660.00')]]),
-    ('Satılan ürünler', [
+    ('Cari özeti', [['Alan', 'Bilgi'], ['Cari', 'Mcaris'], ['Adres', ''], ['Bakiye TL', Decimal('660.00')],
+                    ['Durum', 'Ödemeniz bekleniyor']]),
+    ('Satın aldığınız ürünler', [
         ['Ürün', 'Adet', 'PSF (KDV dahil) TL', 'İskonto', 'İskontolu birim KDV hariç TL',
          'İskontolu birim KDV dahil TL', 'Tutar KDV hariç TL', 'Tutar KDV dahil TL'],
         ['=OPTYWAVE', 2, Decimal('1100'), '%70', Decimal('275'), Decimal('330'), Decimal('550'), Decimal('660')],
@@ -32,16 +33,19 @@ class BrandedExportTests(unittest.TestCase):
                     parseString(z.read(name))
             self.assertIn('xl/media/logo.png', names)
             self.assertIn('xl/drawings/drawing1.xml', names)
-            self.assertNotIn('xl/worksheets/sheet3.xml', names)
-            sheet = z.read('xl/worksheets/sheet2.xml').decode()
+            # Telefonda alt sekmeler görünmez: her şey TEK sayfada.
+            self.assertNotIn('xl/worksheets/sheet2.xml', names)
+            sheet = z.read('xl/worksheets/sheet1.xml').decode()
             self.assertIn('Mcaris', sheet)
             # =OPTYWAVE düz metin kalır; formül yalnız bizim yazdığımız toplamlarda olur.
-            self.assertRegex(sheet, r'<c r="A7" s="\d+" t="inlineStr"><is><t xml:space="preserve">=OPTYWAVE</t>')
+            self.assertRegex(sheet, r'<c r="A\d+" s="\d+" t="inlineStr"><is><t xml:space="preserve">=OPTYWAVE</t>')
             self.assertEqual(sorted(set(re.findall(r'<f>([A-Z]+)\(', sheet))), ['SUM'])
-            self.assertIn('<f>SUM(H7:H7)</f><v>660</v>', sheet)
+            self.assertRegex(sheet, r'<f>SUM\(H(\d+):H\1\)</f><v>660</v>')
+            self.assertIn('Ödemeniz bekleniyor', sheet)
+            self.assertNotIn('Alacaklıyız', sheet)
             self.assertNotIn('i̇', sheet)  # büyük İ küçültülünce bozulan nokta
             self.assertIn('s="9"', sheet)  # total row style
-            self.assertIn('<autoFilter ref="A6:H7"/>', sheet)
+            self.assertRegex(sheet, r'<autoFilter ref="A\d+:H\d+"/>')
             self.assertIn('orientation="landscape"', sheet)
 
     def test_seller_block_only_from_owner_file(self):
@@ -53,6 +57,12 @@ class BrandedExportTests(unittest.TestCase):
                 self.assertEqual(cari_export.firm(), {})
                 path.write_text('{"unvan": "Örnek Ltd.", "iban": "TR00 0000", "banka": ""}', encoding='utf-8')
                 self.assertEqual(cari_export.firm(), {'unvan': 'Örnek Ltd.', 'iban': 'TR00 0000'})
+
+    def test_customer_status_is_written_from_customer_side(self):
+        self.assertEqual(cari_export.customer_status('Alacaklıyız'), 'Ödemeniz bekleniyor')
+        self.assertEqual(cari_export.customer_status('Borçluyuz'), 'Alacak bakiyeniz var')
+        pdf_text = cari_export.pdf('Mcaris', TABLES)
+        self.assertNotIn(b'Alacakl', pdf_text)
 
     def test_pdf_and_excel_share_one_preparation_time(self):
         meta = cari_export.report_meta('Mcaris', [('Cari özeti', [['Alan', 'Bilgi'], ['Hazırlanma', '01.02.2026 09:30']])])
