@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import os
 import random
+import tempfile
 import sys
 import time
 import traceback
@@ -175,7 +176,17 @@ def isi_yap(playwright, kapi: Kapi, is_: dict) -> str:
         tarayici = tarayiciya_baglan(playwright)
         baglam = tarayici.contexts[0]
         sayfa = baglam.new_page()
-        sonuc = modul.calistir(sayfa, is_)
+        # Girdi dosyalari kullanicinin Chrome oturumuna aktarilmak uzere
+        # yalnizca bu is boyunca gecici dosyalara yazilir.
+        with tempfile.TemporaryDirectory(prefix="jarvis-browser-job-") as gecici:
+            yerel_girdiler = []
+            for sira, _ in enumerate(is_.get("girdi_dosyalari") or []):
+                ad, ham = kapi.girdi(is_id, sira)
+                yol = Path(gecici) / Path(ad).name
+                yol.write_bytes(ham)
+                yerel_girdiler.append(str(yol))
+            is_["local_input_files"] = yerel_girdiler
+            sonuc = modul.calistir(sayfa, is_)
         goruntusu = ortak.ekran(sayfa)
         ekrani_sakla(is_id, goruntusu)
 

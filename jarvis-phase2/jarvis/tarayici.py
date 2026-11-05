@@ -205,7 +205,9 @@ def _girdi_dogrula(input_files: list[str] | None) -> list[str]:
                      Path("/opt/lcarlie/urun-ham"),
                      Path("/opt/lcarlie/cekim-arsivi"),
                      Path("/opt/lcarlie/gonderi-gorsel"),
-                     Path("/opt/lcarlie/katalog-gorsel")]
+                     Path("/opt/lcarlie/katalog-gorsel"),
+                     Path("/opt/lcarlie/urun-gorsel"),
+                     Path("/opt/lcarlie/jarvis-phase2/varliklar/logo")]
     temiz: list[str] = []
     for yol in input_files:
         p = Path(str(yol))
@@ -326,3 +328,11 @@ def sonuc_uyum(sonuc_metin: str | None) -> dict[str, Any]:
         "not": ("Kademe 1 mekanik taramadır. Bulgu çıkmaması yayın onayı "
                 "değildir; görsel yargı ve konumlandırma onayı insana aittir."),
     }
+
+
+def isi_sonucu(is_id: int) -> dict[str, Any] | None:
+    """Tek tarayici isi durumunu ve sonuc dosyalarini okur."""
+    satirlar = _psql(
+        "SELECT row_to_json(t)::text FROM core.tarayici_isi_durum(:'is_id'::bigint) t;",
+        "ai_reader", degiskenler={"is_id": str(int(is_id))})
+    return json.loads(satirlar[0]) if satirlar else None

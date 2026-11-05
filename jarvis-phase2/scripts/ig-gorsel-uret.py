@@ -16,8 +16,9 @@ diye raporlamak yanlış olurdu -- kapak, videonun kendisi değildir. Rapor
 alanına açıkça `KAPAK` yazılır.
 
 🔴 GÖRSEL ONAY YERİNE GEÇMEZ. Paket hâlâ ONERI durumunda kalır; görsel
-yalnız kararı kolaylaştırır. Üretilen her görselin yanında ürün
-pikselinin korunduğunu gösteren ölçüm (birebir oran + SSIM) saklanır.
+yalnız kararı kolaylaştırır. Görseller kullanıcının ChatGPT web oturumunda üretilir; GPT ürün fotoğrafını
+yeniden oluşturabileceği için piksel-birebirlik iddiası yapılmaz. Departman ve
+insan incelemesi tamamlanmadan yayınlanmaz.
 """
 from __future__ import annotations
 
@@ -27,7 +28,6 @@ import pathlib
 import subprocess
 import sys
 import time
-import urllib.error
 
 KOK = pathlib.Path(__file__).resolve().parents[1]
 KAP = "lcarlie-postgres"
@@ -106,32 +106,32 @@ def main() -> int:
         try:
             oran = {"REELS": "9:16", "AKIS": "4:5", "KARE": "1:1"}.get(bicim, "4:5")
             istem = (p.get("gorsel_brief") or "Premium, minimal, brand-safe editorial skincare studio.")
-            sahne = gpt_gorsel._openai_sahne(
-                str(istem) + "\\nBackground only: no product, packaging, logo, or text. "
-                "Leave a clean central area for Jarvis to compose the real product photo.",
-                oran)
-            sahne_dizin = CIKTI / ".jarvis-gpt-scenes"
+            urun_yolu, _kaynak = gk.urun_kaynagi(p["urun_slug"])
+            istem = (
+                f"Create a finished premium {oran} L'Carlie skincare social ad. "
+                "IMAGE 1 is the real product photo; IMAGE 2 is the official logo. "
+                "Use both as references, preserve the product's white color and visible package design. "
+                "Compose the full final image with the product and logo; do not add claims, prices, badges, "
+                "or extra copy. Use the exact headline and support line below, in Turkish, legibly and safely "
+                f"inside the crop. Headline: {baslik}. Support line: {alt_metin(p)}. "
+                f"Art direction: {istem}. Aspect ratio {oran}.")
+            kare = gpt_gorsel.chatgpt_web_gorsel(
+                istem, oran, [urun_yolu, gpt_gorsel.VARLIK / "logo" / "lcarlie-logo.png"])
+            sahne_dizin = CIKTI
             sahne_dizin.mkdir(parents=True, exist_ok=True)
-            sahne_yolu = sahne_dizin / ("ig-%s-%d.png" % (p["urun_slug"], int(time.time() * 1000)))
-            sahne.save(sahne_yolu, "PNG")
-            rapor = gk.uret(p["urun_slug"], bicim=bicim, baslik=baslik,
-                            alt=alt_metin(p), sahne=sahne_yolu, cikti_dizin=CIKTI)
-            rapor["gorsel_saglayici"] = "openai"
-            rapor["gorsel_modeli"] = gpt_gorsel.GORSEL_MODEL
-        except (gk.GorselHatasi, urllib.error.URLError, OSError, RuntimeError, ValueError) as hata:
+            ad = "jarvis-gpt-web-%s-%s.jpg" % (p["urun_slug"], str(p["plan_id"]))
+            cikti_yolu = CIKTI / ad
+            kare.save(cikti_yolu, "JPEG", quality=93)
+            rapor = {"dosya": ad, "saglayici": "chatgpt_web_work",
+                     "urun_kaynagi": str(urun_yolu), "urun_pikseli_birebir": False,
+                     "inceleme_durumu": "TASARIM_INCELEMESI_BEKLIYOR"}
+        except (gk.GorselHatasi, OSError, RuntimeError, ValueError) as hata:
             print("  HATA plan %s (%s): %s" % (p["plan_id"], p["urun_slug"], hata))
             hatali += 1
             continue
 
-        # 🔴 URUN PIKSELI KORUNMADIYSA KAYDEDILMEZ. Gorsel diskte kalir ama
-        # pakete baglanmaz: kullanilabilir sayilan bir sey degil, bakilacak
-        # bir kanittir.
-        if (rapor.get("birebir_oran") or 0) < 0.999:
-            print("  RED plan %s: urun pikseli degismis (birebir %s)"
-                  % (p["plan_id"], rapor.get("birebir_oran")))
-            hatali += 1
-            continue
-
+        # GPT referans urunu yeniden olusturabilir; piksel-birebirlik iddiasi yok.
+        # Taslak insan ve tasarim incelemesi olmadan yayina gecmez.
         rapor["kapak_mi"] = p["bicim"] == "REELS"
         rapor["inceleme_durumu"] = "TASARIM_INCELEMESI_BEKLIYOR"
         rapor["not"] = "Görsel taslaktır; yayın için insan ve tasarım incelemesi gerekir."
@@ -143,7 +143,7 @@ def main() -> int:
         uretilen += 1
         print("  + plan %-3s %-9s %-7s %-34s birebir %s%s"
               % (p["plan_id"], p["amac"], bicim, rapor["dosya"][:34],
-                 rapor["birebir_oran"],
+                 "GPT-referans",
                  "  (REELS KAPAGI -- video degil)" if p["bicim"] == "REELS" else ""))
 
     print("\n%d gorsel · %d hatali · %.1f sn · %s"
