@@ -123,10 +123,9 @@ def ilk_bulunan(page, seciciler: tuple[str, ...], zaman_asimi_ms: int = 20000):
 def istemi_yaz(page, kutu, istem: str) -> None:
     """İstemi yazar. Satir sonu GONDERMEZ (Enter mesaji yollar).
 
-    🔴 Cok satirli istemde `fill()`/`type()` ile ham satir sonu yazmak,
-       ChatGPT ve Claude'da mesaji YARIM gonderir: ilk Enter gonder
-       dugmesi gibi davranir. Satir sonlari bosluga cevrilir ve
-       paragraflar iki boslukla ayrilir.
+    🔴 Cok satirli istemde ham satir sonu Enter gibi davranabilir.
+       Satir sonlari bosluga cevrilir ve paragraf aralari korunur.
+       `type(delay)` uzun kreatif istemlerde zaman asimina ugrar; fill kullanilir.
     """
     tek_satir = re.sub(r"[\r\n]+", "  ", istem).strip()
     kutu.click()
@@ -135,7 +134,7 @@ def istemi_yaz(page, kutu, istem: str) -> None:
         kutu.fill("")
     except Exception:                                  # noqa: BLE001
         pass
-    kutu.type(tek_satir, delay=8)
+    kutu.fill(tek_satir, timeout=60000)
     page.wait_for_timeout(300)
 
 
