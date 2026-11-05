@@ -40,17 +40,28 @@ class CariCalculationTests(unittest.TestCase):
         self.assertEqual((result["net_cents"], result["tax_cents"], result["signed_cents"]), (37650, 7530, 45180))
 
     def test_unset_tax_is_not_zero_tax(self):
-        missing, zero = goods(), goods()
+        missing, zero = goods("purchase"), goods("purchase")
         missing["items"][0]["tax_rate"] = None
         zero["items"][0]["tax_rate"] = "0"
         self.assertTrue(cari.calculate(missing)["unknown_tax"])
         self.assertFalse(cari.calculate(zero)["unknown_tax"])
 
-    def test_unresolved_tax_never_shows_a_zero_account_as_closed(self):
+    def test_psf_sale_without_rate_is_vat_inclusive_not_unknown(self):
+        # Sahip kararı 05.11.2026: oranı boş satış satırı PSF'tir, KDV dahildir.
         document = goods()
         document["items"][0]["tax_rate"] = None
+        result = cari.calculate(document)
+        self.assertFalse(result["unknown_tax"])
+        old = dict(result, unknown_tax=True)  # kural öncesi kaydedilmiş satış
+        self.assertEqual(cari.summarize([{"payload": old}])["unknown_tax_documents"], 0)
+        self.assertFalse(cari._public_entry({"entry_id": "x", "payload": old, "reverses": None,
+                                             "created_at": "t"})["payload"]["unknown_tax"])
+
+    def test_unresolved_tax_never_shows_a_zero_account_as_closed(self):
+        document = goods("purchase")
+        document["items"][0]["tax_rate"] = None
         entries = [{"payload": cari.calculate(document)},
-                   {"payload": cari.calculate(cash(amount="376.50"))}]
+                   {"payload": cari.calculate(cash("payment", amount="376.50"))}]
         result = cari.summarize(entries)
         self.assertEqual(result["balance_cents"], 0)
         self.assertEqual(result["status"], "KDV bekleniyor")
@@ -367,6 +378,51 @@ class CariPostgresTests(unittest.TestCase):
             {"Deneme ürün": 2, "Yeni ürün": 1})
         self.assertEqual(next(row for row in result["entries"]
             if row["id"] == corrected["id"])["payload"]["items"][0]["discount"], "50")
+
+    def test_bulk_discount_corrects_every_sale_atomically_and_once(self):
+        psf = goods()
+        psf["items"][0].update(quantity=2, unit_price="1100", discount="70",
+                               tax_rate=None, recommended_price="1100")
+        cari.post_entry("alice", self.account, psf)
+        returned = goods("sale_return", request_id="test-request-000002")
+        returned["items"][0].update(quantity=1, unit_price="1100", discount="70",
+                                    tax_rate=None, recommended_price="1100")
+        cari.post_entry("alice", self.account, returned)
+        request = {"request_id": "bulk-discount-000001", "discount": "60"}
+        first = cari.apply_discount("alice", self.account, request)
+        self.assertEqual((first["changed"], first["skipped"]), (2, 0))
+        self.assertTrue(cari.apply_discount("alice", self.account, request)["reused"])
+        statement = cari.statement("alice", self.account)
+        self.assertEqual(len(statement["entries"]), 6)
+        self.assertEqual(statement["summary"]["balance_cents"], 44000)
+        row = statement["product_tables"]["sale"]["rows"][0]
+        self.assertEqual((row["discount"], row["quantity"], row["unit_incl_cents"]), ("60", 1, 44000))
+        again = cari.apply_discount("alice", self.account,
+                                    {"request_id": "bulk-discount-000002", "discount": "60"})
+        self.assertEqual((again["changed"], again["skipped"]), (0, 2))
+
+    def test_bulk_discount_refuses_when_a_payment_is_matched(self):
+        sale = cari.post_entry("alice", self.account, goods())
+        cari.post_entry("alice", self.account, cash(request_id="test-request-000003",
+                        payment_method="havale", applies_to=sale["id"]))
+        with self.assertRaises(cari.CariConflict):
+            cari.apply_discount("alice", self.account,
+                                {"request_id": "bulk-discount-000003", "discount": "10"})
+        self.assertEqual(len(cari.statement("alice", self.account)["entries"]), 2)
+
+    def test_undo_restores_previous_discount_and_keeps_history(self):
+        psf = goods()
+        psf["items"][0].update(quantity=1, unit_price="1100", discount="70", tax_rate=None)
+        cari.post_entry("alice", self.account, psf)
+        cari.apply_discount("alice", self.account, {"request_id": "bulk-discount-000010", "discount": "60"})
+        self.assertEqual(cari.statement("alice", self.account)["summary"]["balance_cents"], 44000)
+        undo = cari.undo_discount("alice", self.account, {"request_id": "bulk-undo-0000000001"})
+        self.assertEqual(undo["restored"], 1)
+        statement = cari.statement("alice", self.account)
+        self.assertEqual(statement["summary"]["balance_cents"], 33000)
+        self.assertEqual(len(statement["entries"]), 5)
+        with self.assertRaises(cari.CariNotFound):
+            cari.undo_discount("alice", self.account, {"request_id": "bulk-undo-0000000002"})
 
     def test_web_database_role_cannot_overwrite_or_delete_history(self):
         entry = cari.post_entry("alice", self.account, goods())

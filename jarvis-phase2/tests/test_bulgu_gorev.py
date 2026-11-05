@@ -188,6 +188,48 @@ class Sartname(unittest.TestCase):
         self.assertEqual(yol.name, "abc-def.json")
 
 
+class AcikYazim(unittest.TestCase):
+    """05.11.2026 sahip: "ne dedigi acikca anlatilmiyor". Sahibe giden metin
+    NE OLDU / NE ANLAMA GELIYOR / NE YAPILMALI der; kod ve sablon icermez."""
+
+    def setUp(self):
+        self.gecici = pathlib.Path(tempfile.mkdtemp())
+        self.eski = bg.SARTNAME_DIZIN
+        bg.SARTNAME_DIZIN = self.gecici
+
+    def tearDown(self):
+        bg.SARTNAME_DIZIN = self.eski
+        shutil.rmtree(self.gecici, ignore_errors=True)
+
+    def _metin(self, bulgular):
+        grup = bg._grupla(bulgular)[0]
+        yol = bg._sartname_yaz("acik-yazim", grup)
+        return grup, json.loads(yol.read_text(encoding="utf-8"))["payload"]["reason"]
+
+    def test_gruplu_bulgu_kodsuz_ve_uc_bolumlu(self):
+        bulgular = [_bulgu(f"/post/k{i} sayfası HTTP 404 hatası veriyor; müşteri bu sayfayı açamaz.",
+                           f"https://x/post/k{i}") for i in range(8)]
+        grup, metin = self._metin(bulgular)
+        for bolum in ("NE OLDU", "NE ANLAMA GELİYOR", "NE YAPILMALI"):
+            self.assertIn(bolum, metin)
+        for kirli in ("<yol>", "<n>", "site_erisim", "CRITICAL", "{", "+00:00", "Kanit", "Sinyal"):
+            self.assertNotIn(kirli, metin)
+            self.assertNotIn(kirli, grup["reason"])
+        self.assertIn("8 sayfada aynı sorun var", grup["reason"])
+        self.assertIn("Önem: Kritik", metin)
+        self.assertIn("22.09.2026 12:00", metin)
+
+    def test_bilinmeyen_sinyal_de_okunur_metin_uretir(self):
+        _grup, metin = self._metin([_bulgu("Bir şey oldu ve uzun bir açıklaması var burada.",
+                                           "https://x/a", kod="yeni_sinyal")])
+        self.assertNotIn("yeni_sinyal", metin)
+        self.assertIn("NE YAPILMALI", metin)
+
+    def test_olcum_hatasi_sahibe_is_acmaz(self):
+        """Sunucunun DNS'i coktugunde sahibe 'site coktu' isi gitmemeli."""
+        self.assertNotIn("site_olcum", bg.IZINLI_KODLAR)
+
+
 class IzinListesi(unittest.TestCase):
     def test_site_ve_panel_kodlari_izinli(self):
         for k in ("site_erisim", "site_seo", "site_gerileme",

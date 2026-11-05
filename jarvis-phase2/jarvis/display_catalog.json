@@ -246,5 +246,12 @@
   "failed": "Tamamlanamadı",
   "completed": "Tamamlandı",
   "source_missing": "Kaynak bağlantısı eksik",
-  "source_partial": "Kaynak bağlantısı kısmi"
+  "source_partial": "Kaynak bağlantısı kısmi",
+  "site_erisim": "Siteye erişim",
+  "site_seo": "Google görünürlüğü",
+  "site_gerileme": "Sitede beklenmeyen değişiklik",
+  "site_olcum": "Ölçüm yapılamadı",
+  "site_kapsam": "Site haritası",
+  "panel_erisim": "Jarvis paneline erişim",
+  "panel_butunluk": "Jarvis panelinin bütünlüğü"
 }

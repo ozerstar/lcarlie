@@ -75,12 +75,13 @@ class PortfolioTests(unittest.TestCase):
         self.assertEqual(t['payments_cents'], 4000)
 
     def test_unknown_tax_and_zero_balance_remain_explicit(self):
-        row = entry('a', 's', 'sale')
+        # Oranı boş SATIŞ PSF'tir (KDV dahil, 05.11.2026); belirsizlik alışta kalır.
+        row = entry('b', 'p', 'purchase')
         row['payload']['items'][0]['tax_rate'] = None
         row['payload']['unknown_tax'] = True
-        result = self.report([row, entry('a', 'c', 'collection')])
+        result = self.report([row, entry('b', 'c', 'payment')])
         self.assertEqual(result['totals']['unknown_tax_documents'], 1)
-        account = next(a for a in result['accounts'] if a['id'] == 'a')
+        account = next(a for a in result['accounts'] if a['id'] == 'b')
         self.assertEqual(account['status'], 'KDV bekleniyor')
 
     def test_unmapped_accounts_are_not_included_and_dates_are_validated(self):

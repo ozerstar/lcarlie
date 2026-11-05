@@ -79,12 +79,49 @@ AJAN = "LCARLIE-site-nobeti/1.0 (+izleme; yalniz okur)"
 BOYUT_DUSUS_ORANI = 0.40   # %40'tan fazla kuculme
 SURE_ARTIS_KATI = 2.5      # 2,5 kattan fazla yavaslama
 SERTIFIKA_UYARI_GUN = 21
+# Ag hatasinda (yanit hic gelmedi) bu kadar saniye bekleyip bir kez daha olculur.
+YENIDEN_DENE_SN = float(os.environ.get("SITE_NOBETI_YENIDEN_DENE_SN", "5"))
+
+# 🔴 05.11.2026: sunucunun kendi DNS'i 06:57'de birkac saniye coktu; 8 blog
+#    sayfasi "ULASILAMADI · KRITIK" diye sahibe gitti. Site acikti. Ad
+#    cozumleme hatasi OLCUMU YAPAN tarafin sorunudur, sitenin degil:
+#    ayri sinyal (site_olcum), sahibe is acmaz, temel cizgiyi bozmaz.
+DNS_HATASI = re.compile(r"name resolution|Name or service not known|nodename nor servname|"
+                        r"getaddrinfo|No address associated", re.I)
+
+
+def ag_hatasi_dns_mi(hata: str | None) -> bool:
+    return bool(hata) and bool(DNS_HATASI.search(hata))
+
+
+def _sade_hata(hata: str) -> str:
+    """Teknik hata metnini sahibin okuyacagi cumleye cevirir."""
+    if ag_hatasi_dns_mi(hata):
+        return "sunucumuz site adresini çözemedi (DNS)"
+    if re.search(r"timed? ?out|zaman", hata, re.I):
+        return "sayfa 25 saniye içinde yanıt vermedi"
+    if re.search(r"refused|reset|aborted", hata, re.I):
+        return "bağlantı karşı taraftan kesildi"
+    if re.search(r"SSL|certificate|sertifika", hata, re.I):
+        return "güvenli bağlantı (SSL) kurulamadı"
+    return "sayfaya bağlanılamadı"
 
 
 # --------------------------------------------------------------------------
 # olcum
 # --------------------------------------------------------------------------
 def _iste(url: str) -> dict:
+    """Yanit hic gelmediyse (DNS, baglanti) bir kez daha dener."""
+    sonuc = _iste_bir(url)
+    if sonuc.get("hata") and YENIDEN_DENE_SN >= 0:
+        time.sleep(YENIDEN_DENE_SN)
+        ikinci = _iste_bir(url)
+        ikinci["ilk_hata"] = sonuc["hata"]
+        return ikinci
+    return sonuc
+
+
+def _iste_bir(url: str) -> dict:
     """Tek bir adresi olcer. Yonlendirmeleri ELLE takip eder.
 
     urllib varsayilan olarak yonlendirmeyi sessizce izler; o zaman kac
@@ -235,55 +272,63 @@ def _bulgular(olcum: dict, taban: dict | None) -> list[tuple[str, str, str, dict
     kisa = url.replace(TABAN_URL, "").replace("https://", "") or "/"
 
     if olcum.get("hata"):
+        if ag_hatasi_dns_mi(olcum["hata"]):
+            b.append(("WARNING", "site_olcum",
+                      f"{kisa} sayfası ölçülemedi: {_sade_hata(olcum['hata'])}. "
+                      f"Bu, sitenin kapalı olduğunu göstermez; sorun ölçümü yapan sunucuda.",
+                      {"url": url, "hata": olcum["hata"]}))
+            return b
         b.append(("CRITICAL", "site_erisim",
-                  f"{kisa} adresine ULASILAMADI: {olcum['hata']}",
+                  f"{kisa} sayfası açılmadı: {_sade_hata(olcum['hata'])}. "
+                  f"İki deneme de başarısız oldu.",
                   {"url": url, "hata": olcum["hata"]}))
         return b
 
     durum = olcum.get("durum")
     if durum is None or durum >= 400:
         b.append(("CRITICAL", "site_erisim",
-                  f"{kisa} HTTP {durum} donuyor.",
+                  f"{kisa} sayfası HTTP {durum} hatası veriyor; müşteri bu sayfayı açamaz.",
                   {"url": url, "durum": durum}))
         return b
 
     if olcum.get("meta_refresh") is not None:
         b.append(("WARNING", "site_seo",
-                  f"{kisa} HTTP 200 donuyor ama sayfa bir meta-refresh "
-                  f"yonlendirmesi ({olcum['meta_refresh'][:80]}). Arama motorlari "
-                  f"bunu 301 gibi saymaz; bu adresin SEO degeri aktarilmiyor.",
+                  f"{kisa} açılıyor ama ziyaretçiyi sayfa içi bir yönlendirmeyle (meta-refresh) "
+                  f"başka adrese gönderiyor ({olcum['meta_refresh'][:80]}). Google bunu kalıcı "
+                  f"yönlendirme (301) saymaz; bu adresin arama değeri yeni adrese geçmiyor.",
                   {"url": url, "meta_refresh": olcum["meta_refresh"]}))
 
     if olcum.get("noindex"):
         b.append(("CRITICAL", "site_seo",
-                  f"{kisa} sayfasinda NOINDEX var - arama motorlarindan gizli.",
+                  f"{kisa} sayfası Google'a kapalı (noindex): arama sonuçlarında hiç çıkmaz.",
                   {"url": url}))
 
     if not (olcum.get("baslik") or "").strip():
-        b.append(("WARNING", "site_seo", f"{kisa} sayfasinin <title> etiketi bos.", {"url": url}))
+        b.append(("WARNING", "site_seo", f"{kisa} sayfasının başlığı (title) boş; Google'da başlıksız görünür.", {"url": url}))
     if not (olcum.get("aciklama") or "").strip():
-        b.append(("INFO", "site_seo", f"{kisa} sayfasinda meta description yok.", {"url": url}))
+        b.append(("INFO", "site_seo", f"{kisa} sayfasının açıklaması (meta description) yok.", {"url": url}))
 
     if taban:
-        if taban.get("durum") != durum:
+        # Onceki olcum yapilamadiysa (durum None) karsilastirilacak bir sey yoktur.
+        if taban.get("durum") is not None and taban.get("durum") != durum:
             b.append(("WARNING", "site_gerileme",
-                      f"{kisa} durum kodu {taban.get('durum')} -> {durum} degisti.",
+                      f"{kisa} sayfasının yanıt kodu değişti: önce {taban.get('durum')}, şimdi {durum}.",
                       {"url": url, "onceki": taban.get("durum"), "simdi": durum}))
         eski_boyut, yeni_boyut = taban.get("boyut") or 0, olcum.get("boyut") or 0
         if eski_boyut > 5000 and yeni_boyut < eski_boyut * (1 - BOYUT_DUSUS_ORANI):
             b.append(("WARNING", "site_gerileme",
-                      f"{kisa} icerigi %{round((1 - yeni_boyut / eski_boyut) * 100)} kuculdu "
-                      f"({eski_boyut} -> {yeni_boyut} bayt). Sayfa eksik yukleniyor olabilir.",
+                      f"{kisa} sayfası önceki ölçüme göre %{round((1 - yeni_boyut / eski_boyut) * 100)} küçüldü "
+                      f"({eski_boyut} → {yeni_boyut} bayt). Sayfa eksik yükleniyor olabilir.",
                       {"url": url, "onceki_boyut": eski_boyut, "boyut": yeni_boyut}))
         eski_sure, yeni_sure = taban.get("sure") or 0, olcum.get("sure") or 0
         if eski_sure > 0.2 and yeni_sure > eski_sure * SURE_ARTIS_KATI:
             b.append(("INFO", "site_gerileme",
-                      f"{kisa} {eski_sure}s -> {yeni_sure}s yavasladi.",
+                      f"{kisa} sayfası yavaşladı: {eski_sure} sn → {yeni_sure} sn.",
                       {"url": url, "onceki_sure": eski_sure, "sure": yeni_sure}))
         if taban.get("baslik") and olcum.get("baslik") and taban["baslik"] != olcum["baslik"]:
             b.append(("INFO", "site_gerileme",
-                      f"{kisa} sayfa basligi degisti: {taban['baslik'][:50]!r} -> "
-                      f"{olcum['baslik'][:50]!r}",
+                      f"{kisa} sayfasının başlığı değişti: “{taban['baslik'][:50]}” → "
+                      f"“{olcum['baslik'][:50]}”",
                       {"url": url, "onceki": taban["baslik"], "simdi": olcum["baslik"]}))
     return b
 
@@ -299,14 +344,21 @@ def _panel_bulgulari() -> list[tuple]:
         url = PANEL_TABAN + yol
         o = _iste(url)
         if o.get("hata"):
+            if ag_hatasi_dns_mi(o["hata"]):
+                b.append((url, "WARNING", "site_olcum",
+                          f"Jarvis paneli ({yol}) ölçülemedi: {_sade_hata(o['hata'])}. "
+                          f"Bu, panelin kapalı olduğunu göstermez.",
+                          {"url": url, "hata": o["hata"]}))
+                continue
             b.append((url, "CRITICAL", "panel_erisim",
-                      f"Panel {yol} adresine ULASILAMADI: {o['hata']}",
+                      f"Jarvis paneli ({yol}) açılmadı: {_sade_hata(o['hata'])}. "
+                      f"İki deneme de başarısız oldu.",
                       {"url": url, "hata": o["hata"]}))
             continue
         durum = o.get("durum")
         if durum is None or durum >= 400:
             b.append((url, "CRITICAL", "panel_erisim",
-                      f"Panel {yol} HTTP {durum} donuyor.",
+                      f"Jarvis paneli ({yol}) HTTP {durum} hatası veriyor.",
                       {"url": url, "durum": durum}))
             continue
         govde = o.get("govde") or ""
@@ -314,14 +366,13 @@ def _panel_bulgulari() -> list[tuple]:
         if isaret and isaret not in govde:
             # 🔴 Sunuluyor ama ICI BEKLENEN SEY DEGIL. 200 bunu gizler.
             b.append((url, "CRITICAL", "panel_butunluk",
-                      f"Panel {yol} sunuluyor ama beklenen icerik yok "
-                      f"(aranan: {isaret!r}). Dosya bos, kirpilmis ya da "
-                      f"yanlis surum olabilir.",
+                      f"Jarvis paneli ({yol}) açılıyor ama içinde beklenen bölüm yok "
+                      f"(aranan: {isaret}). Dosya boş, eksik ya da yanlış sürüm olabilir.",
                       {"url": url, "aranan": isaret, "boyut": boyut}))
         elif asgari and boyut < asgari:
             b.append((url, "WARNING", "panel_butunluk",
-                      f"Panel {yol} beklenenden kucuk: {boyut} bayt "
-                      f"(asgari {asgari}). Kirpilmis olabilir.",
+                      f"Jarvis paneli ({yol}) beklenenden küçük: {boyut} bayt "
+                      f"(en az {asgari} olmalı). Dosya eksik olabilir.",
                       {"url": url, "boyut": boyut, "asgari": asgari}))
     return b
 
@@ -353,9 +404,10 @@ def _acik_http_adresleri() -> list[str]:
     host = urllib.parse.urlsplit(TABAN_URL).netloc
     urls = []
     for signature, row in _son_bulgular().items():
-        if row.get("status") == "RESOLVED" or row.get("signal_code") != "site_erisim":
+        if row.get("status") == "RESOLVED" or row.get("signal_code") not in ("site_erisim", "site_olcum"):
             continue
-        if not re.search(r"HTTP [45]\d\d", str(row.get("reason", ""))):
+        if not (re.search(r"HTTP [45]\d\d", str(row.get("reason", "")))
+                or (row.get("evidence") or {}).get("hata")):
             continue
         url = (row.get("evidence") or {}).get("url") or signature.split(":", 1)[-1]
         parsed = urllib.parse.urlsplit(url)
@@ -371,15 +423,18 @@ def _kapanan_http_bulgulari(olcumler: dict, bulgular: list) -> list[dict]:
     for signature, row in _son_bulgular().items():
         if row.get("status") == "RESOLVED" or signature in active:
             continue
-        if row.get("signal_code") != "site_erisim" or not re.search(r"HTTP [45]\d\d", str(row.get("reason", ""))):
+        if row.get("signal_code") not in ("site_erisim", "site_olcum"):
+            continue
+        if not (re.search(r"HTTP [45]\d\d", str(row.get("reason", "")))
+                or (row.get("evidence") or {}).get("hata")):
             continue
         url = (row.get("evidence") or {}).get("url") or signature.split(":", 1)[-1]
         measurement = olcumler.get(url, {})
         code = measurement.get("durum")
         if isinstance(code, int) and 200 <= code < 300:
             closed.append({"observed_at": now, "signature": signature,
-                "signal_code": "site_erisim", "severity": "INFO", "status": "RESOLVED",
-                "reason": f"Önceki HTTP hatası kapandı: adres yeniden ölçüldü, HTTP {code}.",
+                "signal_code": row.get("signal_code"), "severity": "INFO", "status": "RESOLVED",
+                "reason": f"Önceki sorun kapandı: sayfa yeniden ölçüldü ve açılıyor (HTTP {code}).",
                 "evidence": {"url": url, "durum": code},
                 "note": "Yalnız başarılı yeniden ölçümle kapatıldı."})
     return closed
@@ -404,8 +459,8 @@ def main() -> int:
         # 🔴 Sitemap okunamadi. Bu SESSIZCE gecilmez: kapsam cokmus demektir.
         kayit = {"observed_at": dt.datetime.now(dt.timezone.utc).isoformat(),
                  "signature": "site_kapsam:sitemap_okunamadi",
-                 "reason": "Sitemap okunamadi; site nobeti yalniz ana sayfayi "
-                           "olcebildi. Kapsam cokmus durumda.",
+                 "reason": "Site haritası (sitemap) okunamadı; nöbet bu kez yalnız ana "
+                           "sayfayı ölçebildi. Diğer sayfalar kontrol edilmedi.",
                  "evidence": {"taban": TABAN_URL, "bulunan_adres": len(adresler)},
                  "signal_code": "site_erisim", "severity": "WARNING",
                  "note": "site-nobeti.py · yalniz okur"}
@@ -429,7 +484,7 @@ def main() -> int:
     gun = _sertifika_gun(host)
     if gun is not None and gun < SERTIFIKA_UYARI_GUN:
         tum_bulgular.append((TABAN_URL, "WARNING", "site_erisim",
-                             f"TLS sertifikasi {gun} gun sonra bitiyor.", {"host": host, "gun": gun}))
+                             f"Sitenin güvenlik sertifikası (SSL) {gun} gün sonra bitiyor.", {"host": host, "gun": gun}))
 
     # --- rapor ---------------------------------------------------------
     print(f"=== SITE NOBETI · {TABAN_URL} · {len(adresler)} adres "
@@ -460,7 +515,11 @@ def main() -> int:
         } for url, onem, kod, sebep, kanit in tum_bulgular])
 
     if not a.rapor or a.taban_sifirla:
-        TABAN_DOSYA.write_text(json.dumps(olcumler, ensure_ascii=False, indent=1),
+        # Olculemeyen sayfa (durum None) eski olcumunu korur; yoksa bir sonraki
+        # kosu "None -> 200 degisti" diye yeni bir yanlis alarm uretirdi.
+        yeni_taban = {url: (taban[url] if o.get("durum") is None and url in taban else o)
+                      for url, o in olcumler.items()}
+        TABAN_DOSYA.write_text(json.dumps(yeni_taban, ensure_ascii=False, indent=1),
                                encoding="utf-8")
 
     return 1 if kritik else 0

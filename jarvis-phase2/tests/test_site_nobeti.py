@@ -116,7 +116,7 @@ class SeoKontrolleri(unittest.TestCase):
     def test_noindex_kritik(self):
         b = sn._bulgular(_saglikli(noindex=True), None)
         self.assertIn("CRITICAL", _onemler(b))
-        self.assertTrue(any("NOINDEX" in s for _o, _k, s, _kn in b))
+        self.assertTrue(any("noindex" in s.lower() for _o, _k, s, _kn in b))
 
     def test_bos_baslik_uyari(self):
         b = sn._bulgular(_saglikli(baslik="   "), None)
@@ -162,6 +162,51 @@ class GerilemeKarsilastirmasi(unittest.TestCase):
         """Ilk kosuda karsilastirilacak bir sey yok; uydurulmamali."""
         b = sn._bulgular(_saglikli(boyut=1_000), None)
         self.assertNotIn("site_gerileme", _kodlar(b))
+
+
+class OlcumHatasiSiteArizasiDegil(unittest.TestCase):
+    """05.11.2026: sunucunun DNS'i coktu, 8 sayfa KRITIK diye sahibe gitti; site acikti."""
+    DNS = "URLError: <urlopen error [Errno -3] Temporary failure in name resolution>"
+
+    def test_dns_hatasi_kritik_degil_ve_site_erisim_degil(self):
+        b = sn._bulgular(_saglikli(hata=self.DNS), None)
+        self.assertEqual(_kodlar(b), {"site_olcum"})
+        self.assertNotIn("CRITICAL", _onemler(b))
+
+    def test_dns_metni_acik_turkce_ve_kod_icermez(self):
+        sebep = sn._bulgular(_saglikli(hata=self.DNS), None)[0][2]
+        self.assertIn("ölçülemedi", sebep)
+        self.assertIn("kapalı olduğunu göstermez", sebep)
+        for kirli in ("URLError", "Errno", "ULASILAMADI", "urlopen"):
+            self.assertNotIn(kirli, sebep)
+
+    def test_gercek_baglanti_hatasi_hala_kritik(self):
+        """TERS YON: her ag hatasini olcum hatasi sayan kod gercek cokusu gizlerdi."""
+        b = sn._bulgular(_saglikli(hata="ConnectionRefusedError: [Errno 111] Connection refused"), None)
+        self.assertEqual(_kodlar(b), {"site_erisim"})
+        self.assertIn("CRITICAL", _onemler(b))
+
+    def test_olculemeyen_taban_gerileme_uretmez(self):
+        """Taban None kaldiysa ertesi gun 'None -> 200 degisti' yanlis alarmi cikmamali."""
+        taban = {"durum": None, "boyut": None, "sure": None, "baslik": None}
+        self.assertNotIn("site_gerileme", _kodlar(sn._bulgular(_saglikli(), taban)))
+
+    def test_ag_hatasi_bir_kez_yeniden_denenir(self):
+        cagri = []
+
+        def sahte(url):
+            cagri.append(url)
+            return {"url": url, "hata": self.DNS} if len(cagri) == 1 else {"url": url, "durum": 200}
+
+        eski_bir, eski_sn = sn._iste_bir, sn.YENIDEN_DENE_SN
+        sn._iste_bir, sn.YENIDEN_DENE_SN = sahte, 0
+        try:
+            sonuc = sn._iste("https://www.lcarlie.shop/")
+        finally:
+            sn._iste_bir, sn.YENIDEN_DENE_SN = eski_bir, eski_sn
+        self.assertEqual(len(cagri), 2)
+        self.assertEqual(sonuc["durum"], 200)
+        self.assertNotIn("hata", sonuc)
 
 
 class UrlKodlamasi(unittest.TestCase):

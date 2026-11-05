@@ -65,6 +65,42 @@ IZINLI_KODLAR = {
 # INFO seviyesi is acmaz: bilgi notu icin insan mesaisi harcanmaz.
 IZINLI_ONEM = {"CRITICAL", "WARNING"}
 
+# 🔴 YAZIM KURALI (sahip 05.11.2026: "acikca yazmasini soylemistim ama hep
+#    karisik"). Sahibe giden metin uc soruyu bu sirayla cevaplar: NE OLDU,
+#    NE ANLAMA GELIYOR, NE YAPILMALI. Icinde sinyal kodu, sablon isareti
+#    (<yol>, <n>), ham JSON, Ingilizce hata metni ve UTC saati OLMAZ.
+#    tests/test_bulgu_gorev.py::AcikYazim bunu kilitler.
+SINYAL = {
+    "site_erisim": ("Siteye erişim",
+                    "Müşteri bu sayfayı açamıyor olabilir; reklamdan ya da Google'dan gelen ziyaretçi kaybolur.",
+                    "Sayfayı telefondan açıp dene. Açılmıyorsa Wix'te sayfanın yayında olduğunu kontrol et ya da Claude'a ilet."),
+    "site_seo": ("Google görünürlüğü",
+                 "Sayfa açılıyor ama Google'da eksik ya da hiç görünmeyebilir.",
+                 "Wix'te sayfanın SEO ayarlarına (başlık, açıklama, arama motorlarına açık mı) bak ya da Claude'a ilet."),
+    "site_gerileme": ("Sitede beklenmeyen değişiklik",
+                      "Sayfa önceki ölçüme göre değişti. Bilerek yapılmadıysa bir şey bozulmuş olabilir.",
+                      "Sayfayı aç ve içeriğin tam yüklendiğini kontrol et. Değişikliği sen yaptıysan bu kaydı reddetmen yeterli."),
+    "panel_erisim": ("Jarvis paneline erişim",
+                     "Jarvis paneli açılmıyor olabilir; onay ve raporlar görünmez.",
+                     "Claude'a ilet; panel bizim sunucumuzda, onarımı oradan yapılır."),
+    "panel_butunluk": ("Jarvis panelinin bütünlüğü",
+                       "Panel açılıyor ama bir dosyası eksik ya da yanlış sürüm olabilir.",
+                       "Claude'a ilet; son yayın kontrol edilmeli."),
+}
+ONEM_TR = {"CRITICAL": "Kritik", "WARNING": "Uyarı", "INFO": "Bilgi"}
+
+
+def _tr_saat(iso: str) -> str:
+    """UTC ISO zamani Turkiye saatine cevirir; okunamazsa oldugu gibi birakir."""
+    import datetime as dt
+    try:
+        an = dt.datetime.fromisoformat(str(iso))
+    except ValueError:
+        return str(iso or "bilinmiyor")
+    if an.tzinfo is None:
+        an = an.replace(tzinfo=dt.timezone.utc)
+    return an.astimezone(dt.timezone(dt.timedelta(hours=3))).strftime("%d.%m.%Y %H:%M")
+
 PSQL = ["docker", "exec", "-i", "lcarlie-postgres",
         "psql", "-U", "n8n", "-d", "n8n", "-v", "ON_ERROR_STOP=1", "-tAc"]
 
@@ -152,11 +188,13 @@ def _grupla(bulgular: list[dict]) -> list[dict]:
         ornek = "\n".join("  - " + a for a in sorted(adresler)[:12])
         if len(adresler) > 12:
             ornek += f"\n  - ... ve {len(adresler) - 12} adres daha"
+        # Sablon (<yol>, <n>) yalniz gruplama anahtari; sahibe GOSTERILMEZ.
+        ilk = sorted(grup, key=lambda g: str((g.get("evidence") or {}).get("url") or ""))[0]
         sonuc.append({
             # Imza grubun TAMAMINI temsil eder: ayni grup ikinci kez is acmaz.
             "signature": f"{kod}:grup:{_slug(sablon)}:{len(grup)}",
-            "reason": (f"{len(grup)} adres ayni sorunu gosteriyor: {sablon}\n\n"
-                       f"Etkilenen adresler:\n{ornek}"),
+            "reason": (f"{len(grup)} sayfada aynı sorun var. Örnek: {ilk.get('reason', '')}\n\n"
+                       f"Etkilenen sayfalar:\n{ornek}"),
             "evidence": {"grup_sayisi": len(grup), "sablon": sablon,
                          "adresler": sorted(adresler)[:40]},
             "signal_code": kod,
@@ -176,21 +214,22 @@ def _sartname_yaz(slug: str, bulgu: dict) -> Path:
     """
     SARTNAME_DIZIN.mkdir(parents=True, exist_ok=True)
     kanit = bulgu.get("evidence") or {}
-    satirlar = [
-        bulgu.get("reason", ""),
-        "",
-        f"Onem     : {bulgu.get('severity', '?')}",
-        f"Sinyal   : {bulgu.get('signal_code', '?')}",
-        f"Olculdu  : {bulgu.get('observed_at', '?')}",
-    ]
+    konu, anlam, yapilacak = SINYAL.get(bulgu.get("signal_code"),
+        ("Site nöbeti bulgusu", "Ölçümde beklenmeyen bir sonuç çıktı.", "Claude'a ilet."))
+    satirlar = ["NE OLDU", bulgu.get("reason", "")]
     if kanit.get("url"):
-        satirlar.append(f"Adres    : {kanit['url']}")
+        satirlar.append(f"Adres: {kanit['url']}")
     satirlar += [
         "",
-        "Kanit    : " + json.dumps(kanit, ensure_ascii=False)[:600],
+        "NE ANLAMA GELİYOR", anlam,
         "",
-        "Bu oneri site nobeti olcumunden otomatik acildi. Hicbir degisiklik "
-        "YAPILMADI; onaylanirsa ne yapilacagi ayrica kararlastirilir.",
+        "NE YAPILMALI", yapilacak,
+        "",
+        f"Konu: {konu} · Önem: {ONEM_TR.get(bulgu.get('severity'), 'Belirsiz')} · "
+        f"Ölçüm: {_tr_saat(bulgu.get('observed_at'))} (Türkiye saati)",
+        "",
+        "Bu kayıt site nöbetinin otomatik ölçümünden açıldı. Hiçbir şey değiştirilmedi; "
+        "onaylarsan ne yapılacağına ayrıca karar verilir.",
     ]
     spec = {
         "product": "Site nöbeti",

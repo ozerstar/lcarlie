@@ -3453,6 +3453,10 @@ class Handler(BaseHTTPRequestHandler):
                     result = cari.calculate(body)
                 elif path == "/api/cari/entries":
                     result = cari.post_entry(session.username, body.get("account_id"), body)
+                elif path == "/api/cari/discount/undo":
+                    result = cari.undo_discount(session.username, body.get("account_id"), body)
+                elif path == "/api/cari/discount":
+                    result = cari.apply_discount(session.username, body.get("account_id"), body)
                 elif path == "/api/cari/correct":
                     result = cari.correct_entry(session.username, body.get("account_id"), body)
                 elif path == "/api/cari/reverse":

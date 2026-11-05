@@ -30,6 +30,15 @@ KINDS = {
 }
 GOODS = frozenset(k for k, v in KINDS.items() if v[1])
 MAX_MONEY = 10**12  # per document, kuruş
+# Sahip kararı 05.11.2026: KDV oranı girilmemiş satırın birim fiyatı PSF'tir
+# ve PSF KDV DAHİLDİR (kozmetik %20). Oranı girilmiş satır KDV hariçtir.
+PSF_VAT = Decimal(20)
+PSF_KINDS = frozenset(("sale", "sale_return", "gift_out", "gift_in"))
+
+
+def _unknown_tax(payload):
+    """Oranı boş satış satırı PSF'tir, KDV'si bilinir; belirsizlik yalnız alışta kalır."""
+    return bool(payload["unknown_tax"]) and payload["kind"] not in PSF_KINDS
 ID = re.compile(r"^[0-9a-f]{32}$")
 KEY = re.compile(r"^[A-Za-z0-9_.:-]{16,120}$")
 
@@ -145,7 +154,7 @@ def calculate(body):
                     recommended, "Tavsiye edilen piyasa satış fiyatı")
             result["net_cents"] += net
             result["tax_cents"] += tax
-            result["unknown_tax"] |= rate is None
+            result["unknown_tax"] |= rate is None and kind not in PSF_KINDS
     else:
         result["net_cents"] = _money(body.get("amount"), "Tutar")
         if result["net_cents"] <= 0:
@@ -176,7 +185,8 @@ def _digest(payload):
 
 
 def _public_entry(row):
-    return {"id": row["entry_id"], "payload": row["payload"],
+    payload = dict(row["payload"], unknown_tax=_unknown_tax(row["payload"]))
+    return {"id": row["entry_id"], "payload": payload,
             "reverses": row["reverses"], "created_at": str(row["created_at"])}
 
 
@@ -191,7 +201,7 @@ def summarize(entries):
         amount = sign * payload["signed_cents"]
         debit += max(amount, 0)
         credit += max(-amount, 0)
-        unknown += sign * bool(payload["unknown_tax"])
+        unknown += sign * _unknown_tax(payload)
         goods_sign = KINDS[payload["kind"]][1] * sign
         for item in payload["items"]:
             key = item["name"].casefold()
@@ -235,20 +245,47 @@ def product_tables(entries):
                         (100 - Decimal(item["discount"])) / 100)
                        .quantize(Decimal(1), rounding=ROUND_HALF_UP))
             line = groups[family].setdefault(key, {
-                "name": item["name"], "quantity": 0, "net_cents": 0,
+                "name": item["name"], "quantity": 0, "net_cents": 0, "tax_cents": 0,
                 "discounted_unit_price_cents": unit,
                 "recommended_price_cents": recommended,
+                "discount": item["discount"],
                 "tax_rate": item["tax_rate"],
             })
             line["quantity"] += sign * item["quantity"]
             line["net_cents"] += sign * item["net_cents"]
+            line["tax_cents"] += sign * item["tax_cents"]
     result = {}
     for family, lines in groups.items():
         rows = [line for line in lines.values() if line["quantity"] or line["net_cents"]]
+        for line in rows:
+            line.update(_vat_columns(line))
         result[family] = {"rows": rows,
                           "quantity": sum(line["quantity"] for line in rows),
-                          "net_cents": sum(line["net_cents"] for line in rows)}
+                          "net_cents": sum(line["net_cents"] for line in rows),
+                          "net_excl_cents": sum(line["net_excl_cents"] for line in rows),
+                          "net_incl_cents": sum(line["net_incl_cents"] for line in rows)}
     return result
+
+
+def _half_up(value):
+    return int(Decimal(value).quantize(Decimal(1), rounding=ROUND_HALF_UP))
+
+
+def _vat_columns(line):
+    """KDV hariç/dahil birim ve satır tutarları; bakiye hesabına girmez."""
+    unit, net = line["discounted_unit_price_cents"], line["net_cents"]
+    if line["tax_rate"] is None:
+        return {"price_basis": "psf_kdv_dahil",
+                "unit_excl_cents": _half_up(Decimal(unit) * 100 / (100 + PSF_VAT)),
+                "unit_incl_cents": unit,
+                "net_excl_cents": _half_up(Decimal(net) * 100 / (100 + PSF_VAT)),
+                "net_incl_cents": net}
+    rate = Decimal(line["tax_rate"])
+    return {"price_basis": "kdv_haric",
+            "unit_excl_cents": unit,
+            "unit_incl_cents": _half_up(Decimal(unit) * (100 + rate) / 100),
+            "net_excl_cents": net,
+            "net_incl_cents": net + line["tax_cents"]}
 
 
 def create_account(owner, body):
@@ -335,7 +372,8 @@ def list_accounts(owner):
     with _connect() as conn, conn.cursor() as cur:
         cur.execute("""SELECT a.account_id AS id,a.name,a.role,a.contact,
             COALESCE(SUM(e.signed_cents),0) AS balance_cents,
-            COALESCE(SUM(CASE WHEN e.unknown_tax THEN
+            COALESCE(SUM(CASE WHEN e.unknown_tax AND e.payload->>'kind'
+                NOT IN ('sale','sale_return','gift_out','gift_in') THEN
                 CASE WHEN e.reverses IS NULL THEN 1 ELSE -1 END ELSE 0 END),0)
                 AS unknown_tax_documents
             FROM core.jarvis_cari_account a LEFT JOIN core.jarvis_cari_entry e
@@ -397,10 +435,10 @@ def portfolio_from_entries(accounts, rows, as_of):
                 totals["sales_net_cents"] += (1 if kind == "sale" else -1) * p["net_cents"]
             if kind in ("purchase", "purchase_return"):
                 totals["purchases_net_cents"] += (1 if kind == "purchase" else -1) * p["net_cents"]
-            if kind in ("sale", "purchase") and (p["unknown_tax"] or not p["reference"]):
+            if kind in ("sale", "purchase") and (_unknown_tax(p) or not p["reference"]):
                 missing_information.append({"account_id": account["id"],
                     "account_name": account["name"], "entry_id": row.get("entry_id", row.get("id")),
-                    "date": p["date"], "unknown_tax": p["unknown_tax"],
+                    "date": p["date"], "unknown_tax": _unknown_tax(p),
                     "missing_reference": not p["reference"]})
             allocation = allocations.get(row.get("entry_id", row.get("id")))
             if (p["due_date"] and kind in
@@ -413,7 +451,7 @@ def portfolio_from_entries(accounts, rows, as_of):
                     "kind": kind, "document_cents": abs(p["signed_cents"]),
                     "remaining_cents": allocation["remaining_cents"] if allocation else abs(p["signed_cents"]),
                     "overdue": p["due_date"] < when,
-                    "unknown_tax": p["unknown_tax"], "settlement_verified": bool(allocation and allocation["paid_cents"]),
+                    "unknown_tax": _unknown_tax(p), "settlement_verified": bool(allocation and allocation["paid_cents"]),
                     "has_account_adjustments": has_adjustments,
                     "review_reason": "Eşleşmemiş tahsilat veya iadeler ayrıca kontrol edilmeli."})
     balances.sort(key=lambda a: (-abs(a["balance_cents"]), a["name"]))
@@ -460,7 +498,7 @@ def settlements(entries):
         allocated = paid.get(row.get("id", row.get("entry_id")), 0)
         result[row.get("id", row.get("entry_id"))] = {"paid_cents": allocated, "remaining_cents": max(0, total - allocated),
             "status": "paid" if allocated >= total else "partial" if allocated else "unpaid",
-            "unknown_tax": p["unknown_tax"]}
+            "unknown_tax": _unknown_tax(p)}
     return result
 
 
@@ -657,3 +695,223 @@ def correct_entry(owner, account_id, body):
                      replacement["date"], Jsonb(replacement), replacement["signed_cents"],
                      replacement["unknown_tax"]))
     return {"id": new_id, "reused": False}
+
+
+
+def _price_text(cents):
+    return format(Decimal(cents) / 100, "f")
+
+
+# Açıklamadaki "%70 indirimli", "%70 iskonto" gibi ifadeler; oran değişince
+# açıklama eski oranda kalmasın (sahip 05.11.2026). Başka yüzdeler ("%20 KDV")
+# dokunulmaz: yalnız ardından indirim/iskonto gelen yüzde değişir.
+DISCOUNT_NOTE = re.compile(r"%\s?\d+(?:[.,]\d+)?(?=(?:['’]?\s*(?:lık|lik|luk|lük))?\s*(?:indirim|iskonto|İndirim|İskonto|İNDİRİM|İSKONTO))")
+
+
+def _percent_text(discount):
+    return format(Decimal(discount).normalize(), "f").replace(".", ",")
+
+
+def note_with_discount(note, discount):
+    return DISCOUNT_NOTE.sub("%" + _percent_text(discount), note or "")
+
+
+def _goods_body(payload, discount=None):
+    """Kayıtlı belgeyi calculate() girdisine çevirir; istenirse iskontoyu değiştirir."""
+    items = []
+    for item in payload["items"]:
+        line = {"name": item["name"], "quantity": item["quantity"],
+                "unit_price": _price_text(item["unit_price_cents"]),
+                "discount": item["discount"] if discount is None else str(discount),
+                "tax_rate": item["tax_rate"]}
+        if "recommended_price_cents" in item:
+            line["recommended_price"] = _price_text(item["recommended_price_cents"])
+        items.append(line)
+    note = payload["note"] if discount is None else note_with_discount(payload["note"], discount)
+    return {"kind": payload["kind"], "date": payload["date"], "due_date": payload["due_date"],
+            "reference": payload["reference"], "note": note, "items": items}
+
+
+def _replace_entry(cur, owner, account_id, entry_id, original, replacement, reason, entry_key, today):
+    """correct_entry ile aynı biçim: ters kayıt + yeni kayıt, çağıranın işleminde."""
+    from psycopg.types.json import Jsonb
+    when = max(today, original["date"])
+    reversal = dict(original, date=when, note=reason, due_date="")
+    cur.execute("""INSERT INTO core.jarvis_cari_entry
+        (entry_id,owner,account_id,request_id,payload_hash,document_date,
+         payload,signed_cents,unknown_tax,reverses)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                (uuid.uuid4().hex, owner, account_id, entry_key,
+                 _digest({"entry_id": entry_id, "reason": reason,
+                          "date": when, "replacement": replacement}),
+                 when, Jsonb(reversal), -reversal["signed_cents"],
+                 reversal["unknown_tax"], entry_id))
+    cur.execute("""INSERT INTO core.jarvis_cari_entry
+        (entry_id,owner,account_id,request_id,payload_hash,document_date,
+         payload,signed_cents,unknown_tax)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                (uuid.uuid4().hex, owner, account_id,
+                 _digest({"correction_request": entry_key}), _digest(replacement),
+                 replacement["date"], Jsonb(replacement), replacement["signed_cents"],
+                 replacement["unknown_tax"]))
+
+
+def _bulk_start(cur, owner, account_id, key):
+    """Kilitler, cariyi doğrular; istek daha önce işlendiyse True döner."""
+    cur.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))',
+                (owner + ':' + account_id,))
+    cur.execute("""SELECT account_id FROM core.jarvis_cari_account
+        WHERE owner=%s AND account_id=%s""", (owner, account_id))
+    if cur.fetchone() is None:
+        raise CariNotFound("Cari kayıt bulunamadı.")
+    cur.execute("""SELECT count(*) AS n FROM core.jarvis_cari_entry
+        WHERE owner=%s AND account_id=%s AND left(request_id,%s)=%s""",
+                (owner, account_id, len(key) + 1, key + ":"))
+    return bool(cur.fetchone()["n"])
+
+
+def _account_rows(cur, owner, account_id):
+    cur.execute("""SELECT entry_id,request_id,payload,reverses,created_at
+        FROM core.jarvis_cari_entry WHERE owner=%s AND account_id=%s
+        ORDER BY document_date,created_at,entry_id""", (owner, account_id))
+    rows = cur.fetchall()
+    reversed_ids = {row["reverses"] for row in rows if row["reverses"]}
+    effective = [row for row in rows if not row["reverses"] and row["entry_id"] not in reversed_ids]
+    linked = {row["payload"].get("applies_to") for row in effective
+              if row["payload"]["kind"] in ("collection", "payment")}
+    return rows, effective, linked
+
+
+BULK_REASON = "Toplu iskonto %"
+UNDO_REASON = "Toplu iskonto geri alındı"
+
+
+def apply_discount(owner, account_id, body):
+    """Bir firmanın tüm satış/iade kayıtlarına, taslaklarına ve açık
+    mutabakatına aynı iskontoyu uygular; hepsi TEK işlemde yazılır ya da
+    hiçbiri yazılmaz. Ödeme eşleştirilmiş satış varsa işlem durur: ödeme eski
+    belgede asılı kalırdı.
+    """
+    account_id = _id(account_id)
+    if not isinstance(body, dict):
+        raise CariError("İskonto isteği geçersiz.")
+    key = _key(body.get("request_id"))
+    discount = _number(body.get("discount"), "İskonto", 100)
+    today = datetime.now(ZoneInfo("Europe/Istanbul")).date().isoformat()
+    reason = f"{BULK_REASON}{discount} uygulandı"
+    from psycopg.types.json import Jsonb
+    import cari_reconciliation
+    with _connect() as conn, conn.cursor() as cur:
+        if _bulk_start(cur, owner, account_id, key):
+            return {"changed": 0, "skipped": 0, "drafts": 0, "reconciliations": 0, "reused": True}
+        _, effective, linked = _account_rows(cur, owner, account_id)
+        targets, skipped = [], 0
+        for row in effective:
+            p = row["payload"]
+            if p["kind"] not in ("sale", "sale_return"):
+                continue
+            if all(Decimal(item["discount"]) == discount for item in p["items"]) \
+                    and note_with_discount(p["note"], discount) == p["note"]:
+                skipped += 1
+            else:
+                targets.append(row)
+        blocked = [row for row in targets if row["entry_id"] in linked]
+        if blocked:
+            raise CariConflict(f"{len(blocked)} satış belgesine ödeme eşleştirilmiş. "
+                               "Önce o ödemeleri iptal edin, sonra iskontoyu uygulayın.")
+        for row in targets:
+            replacement = calculate(_goods_body(row["payload"], discount))
+            _replace_entry(cur, owner, account_id, row["entry_id"], row["payload"],
+                           replacement, reason, f"{key}:{row['entry_id']}", today)
+        # Carinin genel notu da aynı orana çekilir.
+        cur.execute("""SELECT note FROM core.jarvis_cari_account WHERE owner=%s AND account_id=%s""",
+                    (owner, account_id))
+        account_note = cur.fetchone()["note"] or ""
+        if note_with_discount(account_note, discount) != account_note:
+            cur.execute("""UPDATE core.jarvis_cari_account SET note=%s WHERE owner=%s AND account_id=%s""",
+                        (note_with_discount(account_note, discount), owner, account_id))
+        # Onay bekleyen taslaklar da aynı orana çekilir; ödeme taslaklarına dokunulmaz.
+        cur.execute("""SELECT draft_id,body FROM core.jarvis_cari_draft
+            WHERE owner=%s AND account_id=%s AND status='draft'""", (owner, account_id))
+        drafts = 0
+        for draft in cur.fetchall():
+            draft_body = draft["body"]
+            if draft_body.get("kind") not in ("sale", "sale_return") or not draft_body.get("items"):
+                continue
+            draft_body = dict(draft_body, note=note_with_discount(draft_body.get("note", ""), discount),
+                              items=[dict(item, discount=str(discount)) for item in draft_body["items"]])
+            calculate(draft_body)
+            cur.execute("""UPDATE core.jarvis_cari_draft SET body=%s,updated_at=clock_timestamp()
+                WHERE owner=%s AND account_id=%s AND draft_id=%s AND status='draft'""",
+                        (Jsonb(draft_body), owner, account_id, draft["draft_id"]))
+            drafts += 1
+        # Açık mutabakatın ürün iskontosu; ek iskonto ayrı bir karardır, korunur.
+        cur.execute("""SELECT document_id,extracted FROM core.jarvis_cari_document
+            WHERE owner=%s AND account_id=%s AND source='attachment'""", (owner, account_id))
+        reconciliations = 0
+        bps = int(discount * 100)
+        for doc in cur.fetchall():
+            extracted = doc["extracted"] if isinstance(doc["extracted"], dict) else {}
+            record = extracted.get("cari_reconciliation") or {}
+            if record.get("version") != 1 or record.get("status") != "pending":
+                continue
+            if all(product.get("discount_bps", 4000) == bps for product in record.get("products", [])):
+                continue
+            updated = dict(record, products=[dict(product, discount_bps=bps)
+                                             for product in record["products"]])
+            updated = cari_reconciliation.recalculate(updated)
+            updated["revision"] = record.get("revision", 0) + 1
+            updated["updated_at"] = datetime.now(ZoneInfo("UTC")).isoformat()
+            audit = list(extracted.get("reconciliation_audit", []))
+            audit.append({"request_id": key, "digest": _digest({"discount": str(discount)}),
+                          "actor": owner, "at": updated["updated_at"],
+                          "before": record, "after": updated})
+            extracted = dict(extracted, cari_reconciliation=updated, reconciliation_audit=audit)
+            cur.execute("""UPDATE core.jarvis_cari_document SET extracted=%s,updated_at=clock_timestamp()
+                WHERE owner=%s AND account_id=%s AND document_id=%s""",
+                        (Jsonb(extracted), owner, account_id, doc["document_id"]))
+            reconciliations += 1
+    return {"changed": len(targets), "skipped": skipped, "drafts": drafts,
+            "reconciliations": reconciliations, "reused": False}
+
+
+def undo_discount(owner, account_id, body):
+    """Son toplu iskontoyu geri alır: o işlemin yazdığı her yeni kayıt, eski
+    iskontolu hâliyle yeniden yazılır. Geçmiş silinmez; ters kayıtla korunur.
+    Taslak ve mutabakat değişiklikleri geri alınmaz, ekranda yeniden seçilir.
+    """
+    account_id = _id(account_id)
+    if not isinstance(body, dict):
+        raise CariError("Geri alma isteği geçersiz.")
+    key = _key(body.get("request_id"))
+    today = datetime.now(ZoneInfo("Europe/Istanbul")).date().isoformat()
+    with _connect() as conn, conn.cursor() as cur:
+        if _bulk_start(cur, owner, account_id, key):
+            return {"restored": 0, "reused": True}
+        rows, effective, linked = _account_rows(cur, owner, account_id)
+        by_id = {row["entry_id"]: row for row in rows}
+        by_request = {row["request_id"]: row for row in rows}
+        live = {row["entry_id"] for row in effective}
+        batches = {}
+        for row in rows:
+            if row["reverses"] and str(row["payload"].get("note", "")).startswith(BULK_REASON) \
+                    and ":" in row["request_id"]:
+                batches.setdefault(row["request_id"].split(":")[0], []).append(row)
+        for batch in sorted(batches.values(), key=lambda b: max(r["created_at"] for r in b), reverse=True):
+            pairs = []
+            for reversal in batch:
+                replacement = by_request.get(_digest({"correction_request": reversal["request_id"]}))
+                if replacement and replacement["entry_id"] in live:
+                    pairs.append((by_id[reversal["reverses"]], replacement))
+            if not pairs:
+                continue
+            blocked = [new for _, new in pairs if new["entry_id"] in linked]
+            if blocked:
+                raise CariConflict(f"{len(blocked)} satış belgesine ödeme eşleştirilmiş. "
+                                   "Önce o ödemeleri iptal edin, sonra geri alın.")
+            for old, new in pairs:
+                restored = calculate(_goods_body(old["payload"]))
+                _replace_entry(cur, owner, account_id, new["entry_id"], new["payload"],
+                               restored, UNDO_REASON, f"{key}:{new['entry_id']}", today)
+            return {"restored": len(pairs), "reused": False}
+    raise CariNotFound("Geri alınacak toplu iskonto bulunamadı.")
