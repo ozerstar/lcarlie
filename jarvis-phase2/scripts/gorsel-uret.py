@@ -62,10 +62,12 @@ For your verification, the packaging is printed with exactly these lines:
 """
 
 TAM_GORSEL_ISTEM = """Design a premium editorial skincare ad for L'CARLIÉ {urun}. GPT creates the full
-image and one short Turkish headline. Keep the headline bold, phone-legible and safely
-inside the frame. Use Monument Extended / Metropolis brand typography style, an aqua
-moisture atmosphere, and a distinct editorial idea. Preserve the package. No dark band,
-duplicate logo, unsupported claim or extra copy. {referans_talimati} Aspect ratio {oran}.{revizyon}"""
+image and Turkish headline from this campaign angle: {odak}. Keep the headline short,
+bold but refined, phone-legible and safely inside the frame. Add one restrained
+ingredient line only if it clarifies the brief; state ingredients without promising
+results. Use Monument Extended / Metropolis brand typography, aqua moisture atmosphere
+and distinct editorial direction. Preserve the package. No dark band, duplicate logo
+or unsupported claim. {referans_talimati} Aspect ratio {oran}.{revizyon}"""
 
 
 def etiket_satirlari(urun_yolu: Path) -> str:
@@ -137,7 +139,7 @@ def montaj_uret(sahne: str, ust: str, alt: str, oran: str,
         "Use the supplied product photo and logo as faithful references.")
     istem = TAM_GORSEL_ISTEM.format(
         urun=urun_adi, oran=oran, revizyon=revizyon,
-        referans_talimati=referans_talimati)
+        referans_talimati=referans_talimati, odak=" ".join(sahne.split())[:220])
     dosyalar = [urun_yolu]
     if stil_referansi is not None:
         dosyalar.append(Path(stil_referansi))

@@ -44,7 +44,7 @@ OUT="state/kreatif-brief/$PARTI-gorseller"
 RAPOR="$OUT/inceleme.json"
 
 # İlk inceleme düzeltme istiyorsa Jarvis kısa ekip notlarını GPT Work'e aktarır,
-# önceki kareyi referans verir ve en fazla üç kez üretip yeniden inceler.
+# önceki kareyi referans verir ve en fazla beş kez üretip yeniden inceler.
 DUZELTME_GEREKLI="$($PY -c 'import json,sys; d=json.load(open(sys.argv[1],encoding="utf-8")); print(int(any(str(x.get("direktor_karari","")).upper() in ("DUZELT","RED") for x in d.get("gorseller",[]))))' "$RAPOR")"
 if [ "$DUZELTME_GEREKLI" = "1" ]; then
   echo
@@ -52,12 +52,12 @@ if [ "$DUZELTME_GEREKLI" = "1" ]; then
   REV_LOG="state/kreatif-brief/$PARTI-otonom-revizyon.log"
   REV_KOD=0
   "$PY" scripts/kreatif-revizyon.py "$BRIEF" "$RAPOR" \
-    --urun-gorsel "$CEKIM" --azami-tur 3 2>&1 | tee "$REV_LOG" || REV_KOD=$?
+    --urun-gorsel "$CEKIM" --azami-tur 5 2>&1 | tee "$REV_LOG" || REV_KOD=$?
   SON_PARTI="$(sed -n 's/^FINAL_PARTI=//p' "$REV_LOG" | tail -n1)"
   SON_DURUM="$(sed -n 's/^FINAL_DURUM=//p' "$REV_LOG" | tail -n1)"
   [ -n "$SON_PARTI" ] || SON_PARTI="$PARTI"
   if [ "$REV_KOD" -ne 0 ] || [ "$SON_DURUM" != "GECER" ]; then
-    echo "Jarvis üç revizyon turundan sonra da departman onayı alamadı; kullanıcı incelemesine bırakılıyor."
+    echo "Jarvis beş revizyon turundan sonra da departman onayı alamadı; kullanıcı incelemesine bırakılıyor."
     "$KOK/bin/jarvis-operator" create-task KREATIF_INCELEME "$SON_PARTI"
     exit 3
   fi

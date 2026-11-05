@@ -32,19 +32,21 @@ def _revizyon_ozeti(x):
     if not out:
         g=str(x.get("direktor_gerekce") or "").strip()
         if g: out.append(g[:240])
-    return "Düzelt: " + " | ".join(out[:3]) + ". Başlık ve ürün görünürlüğünü koru; alt açıklama zorunlu değil."
+    return ("Düzelt: " + " | ".join(out[:3]) +
+            ". Brief'teki etken madde odağını kısa başlıkta veya tek küçük destek satırında belirt; "
+            "başlığı ve ürünü güvenli alanda koru.")
 
 def main():
     ap=argparse.ArgumentParser(description=__doc__)
     ap.add_argument("brief",type=pathlib.Path); ap.add_argument("inceleme",type=pathlib.Path)
     ap.add_argument("--urun-gorsel",required=True)
     ap.add_argument("--logo",default=str(KOK/"varliklar"/"logo"/"lcarlie-logo.png"))
-    ap.add_argument("--azami-tur",type=int,default=3); a=ap.parse_args()
+    ap.add_argument("--azami-tur",type=int,default=5); a=ap.parse_args()
     brief=json.loads(a.brief.read_text(encoding="utf-8"))
     guncel=json.loads(a.inceleme.read_text(encoding="utf-8"))
     parti=a.brief.stem; son_parti=a.inceleme.parent.name.removesuffix("-gorseller")
     son_rapor=a.inceleme
-    for tur in range(1,max(0,min(a.azami_tur,3))+1):
+    for tur in range(1,max(0,min(a.azami_tur,5))+1):
         rows=guncel.get("gorseller") or []
         redler=[x for x in rows if _karar(x) in ("DUZELT","RED")]
         if not redler: break
@@ -90,7 +92,7 @@ def main():
               if _karar(x) in ("DUZELT","RED"))
     durum="GECER" if not kalan else "DUZELT"
     guncel["otonom_revizyon_durumu"]={
-        "karar":durum,"tur_siniri":max(0,min(a.azami_tur,3)),
+        "karar":durum,"tur_siniri":max(0,min(a.azami_tur,5)),
         "not":"GECER, departman direktör kararının otomatik onayıdır; yayınlama eylemi değildir."}
     if son_rapor.exists():
         son_rapor.write_text(json.dumps(guncel,ensure_ascii=False,indent=1),encoding="utf-8")
