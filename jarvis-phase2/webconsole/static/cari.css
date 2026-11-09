@@ -370,3 +370,5 @@
 .cari-agreed .cari-fields{align-items:end}
 .cari-agreed-result{margin:8px 0 0;font-size:13px;color:#244f43;font-variant-numeric:tabular-nums}
 .cari-agreed-result:empty{display:none}
+.cari dialog.cari-confirm{width:min(440px,calc(100vw - 24px))}
+.cari dialog.cari-confirm p{margin:0 0 20px;line-height:1.5}

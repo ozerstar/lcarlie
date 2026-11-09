@@ -92,6 +92,25 @@
     root.querySelectorAll('[data-cari-panel]').forEach(panel => {panel.hidden = panel.dataset.cariPanel !== id;});
   }
 
+  // Tarayıcının confirm() kutusu ana ekrandan açılan uygulamada ve "ek iletişim
+  // kutularını engelle" seçildiğinde hiç görünmüyor; düğme sessizce takılıyordu.
+  function ask(message, okText = 'Devam et', noText = 'Vazgeç') {
+    return new Promise(resolve => {
+      const dialog = document.createElement('dialog');
+      dialog.className = 'cari-confirm';
+      dialog.innerHTML = '<p></p><div class="cari-form-actions"><button type="button" data-answer="no"></button><button type="button" class="cari-primary" data-answer="yes"></button></div>';
+      dialog.querySelector('p').textContent = message;
+      dialog.querySelector('[data-answer=no]').textContent = noText;
+      dialog.querySelector('[data-answer=yes]').textContent = okText;
+      // close olayı arka plandaki sekmede gecikebiliyor; sonuç olaya bırakılmaz.
+      const finish = yes => {if (!dialog.isConnected) return; if (dialog.open) dialog.close(); dialog.remove(); resolve(yes);};
+      dialog.querySelectorAll('[data-answer]').forEach(button => {button.onclick = () => finish(button.dataset.answer === 'yes');});
+      dialog.onclose = () => finish(false);
+      root.appendChild(dialog); dialog.showModal();
+      dialog.querySelector('[data-answer=yes]').focus();
+    });
+  }
+
   async function request(path, payload) {
     const response = await fetch(path, {
       credentials: 'same-origin', cache: 'no-store',
@@ -399,7 +418,7 @@
       <details><summary>Hediye alanlarının anlamı</summary><p><b>Liste içi hediye:</b> İlk listedeki adet içinde ücretsiz verilenler. <b>İlave hediye:</b> Bunların dışında ayrıca verilenler. İkisi de aynı ürünün ücretli iade adedinden düşülür. Aynı hediyeyi iki kez yazma.</p></details>
       </div><footer class="cari-drawer-foot"><div data-editor-totals aria-live="polite"></div><p data-editor-message role="status"></p><div class="cari-drawer-tools"><button type="button" data-drawer-close>Vazgeç</button><button type="button" class="cari-primary" data-save-editor>Değişiklikleri kaydet</button></div></footer>`;
     dialog.setAttribute('aria-labelledby','cariDrawerTitle');
-    const close=()=>{if(reconciliationEditor.saving)return;if(reconciliationEditor.dirty && !window.confirm('Kaydedilmeyen değişikliklerden vazgeçilsin mi?'))return;dialog.close();reconciliationEditor=null;};
+    const close=async()=>{if(reconciliationEditor.saving)return;if(reconciliationEditor.dirty && !(await ask('Kaydedilmeyen değişikliklerden vazgeçilsin mi?','Kaydetmeden kapat','Düzenlemeye dön')))return;dialog.close();reconciliationEditor=null;};
     dialog.querySelectorAll('[data-drawer-close]').forEach(b=>b.onclick=close);dialog.oncancel=e=>{e.preventDefault();close();};
     dialog.querySelector('[data-editor-search]').oninput=()=>renderEditorPicker();
     dialog.querySelector('[data-editor-picker]').onchange=e=>{if(!captureEditorProduct()){e.target.value=reconciliationEditor.active;return;}reconciliationEditor.active=e.target.value;renderEditorProduct();};
@@ -588,7 +607,7 @@
     const value = el('cariDiscountChoice').value;
     if (value === '') {error('Önce bir iskonto oranı seçin.'); return;}
     const name = state.statement.account.name;
-    if (!window.confirm(`${name}: tüm satış ve iade kayıtları %${value} iskontoya göre yeniden hesaplanacak. Bakiye değişecek. Devam edilsin mi?`)) return;
+    if (!(await ask(`${name}: tüm satış ve iade kayıtları %${value} iskontoya göre yeniden hesaplanacak. Bakiye değişecek. Devam edilsin mi?`))) return;
     const button = el('cariDiscountApply'); button.disabled = true;
     try {
       const result = await request('/api/cari/discount', {account_id: state.selected, discount: value, request_id: key()});
@@ -601,7 +620,7 @@
 
   async function undoDiscount() {
     const name = state.statement.account.name;
-    if (!window.confirm(`${name}: son toplu iskonto geri alınacak; satışlar önceki iskontolarına dönecek. Devam edilsin mi?`)) return;
+    if (!(await ask(`${name}: son toplu iskonto geri alınacak; satışlar önceki iskontolarına dönecek. Devam edilsin mi?`))) return;
     const button = el('cariDiscountUndo'); button.disabled = true;
     try {
       const result = await request('/api/cari/discount/undo', {account_id: state.selected, request_id: key()});
@@ -886,7 +905,7 @@
     try {
       const preview = await request('/api/cari/preview', draft.body);
       const question = `${state.statement.account.name}: ${money(Math.abs(preview.signed_cents))}${preview.unknown_tax ? ' + belirlenecek KDV' : ''} tutarlı taslak cari hareketine kaydedilecek. Ürün fiyatları ve iskontoları kontrol edildi mi?`;
-      if (!window.confirm(question)) return;
+      if (!(await ask(question))) return;
       await request('/api/cari/drafts/post', {account_id: state.selected, draft_id: draftId});
       await refresh();
     } catch (exc) {error(exc.message);}
