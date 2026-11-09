@@ -65,22 +65,23 @@ TAM_GORSEL_ISTEM = """Create a finished premium editorial Instagram skincare cam
 GPT must create the complete photograph, art direction, Turkish headline and any
 supporting copy inside the image. Campaign angle: {odak}.
 
-COMPOSITION: Treat the square as a mobile ad with a 12% clear safe margin on all four
+COMPOSITION: Treat the square as a mobile ad with a 14% clear safe margin on all four
 sides. Keep every letter fully inside that margin. Make the real product the unmistakable
-hero, near the visual center (never against an edge), occupying about 42–48% of frame
-height, sharp and readable. Place the headline in the upper third, visually connected
-to the product; keep it to two short lines maximum. Use generous breathing room and
-clear hierarchy. If using ingredient support, use one clean, medium-weight line reading
-“Niacinamide + Sodium Hyaluronate”; do not shrink it into fine print.
+hero, centered and occupying about 48–52% of frame height, sharp and readable. Place
+the short Turkish headline in the upper third with generous breathing room; use two
+balanced lines maximum. The headline must be prominent but refined, medium-bold rather
+than extra-black, with clean unbroken letterforms. Show the headline only: no subtitle,
+ingredient line, tagline, or other overlay text.
 
 ART DIRECTION: Follow the attached owner-approved visual reference when one is supplied:
 its pale Hydravie-aqua dewy surface, large centered product, clean negative space and
-bold editorial headline are the chosen direction. Refine that art direction instead of
-inventing unrelated props. Keep the aqua texture tactile and photographic, the bottle
-neutral white, and the product and background visually integrated. If there is no
-approved reference, create a cohesive premium editorial hydration scene from the brief.
-No detached accessories, duplicate logo, dark text band, beige cast, clutter, badges or
-unsupported claims. Preserve the exact package design.
+editorial headline are the chosen direction. Refine that art direction instead of
+inventing unrelated props. Keep the aqua texture tactile and photographic, with fine
+even condensation only: no flare, beam, prism, bright streak or artificial light effect.
+Keep the bottle neutral white and integrate product and background naturally. If there
+is no approved reference, create a cohesive premium editorial hydration scene from the
+brief. No detached accessories, duplicate logo, dark text band, beige cast, clutter,
+badges or unsupported claims. Preserve the exact package design.
 Typography should feel like Monument Extended headlines with Metropolis supporting
 text: confident, refined, editorial, never distorted or cramped. {referans_talimati}
 Aspect ratio {oran}.{revizyon}"""
