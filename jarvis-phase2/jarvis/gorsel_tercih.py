@@ -19,7 +19,8 @@ SORGU = (
     " UNION ALL "
     "SELECT row_to_json(y) FROM ("
     " SELECT 'yorum' AS tur, yorum AS metin, 1 AS adet FROM core.gorsel_onay"
-    " WHERE karar = 'BEGENMEDI' AND length(btrim(yorum)) >= 3 ORDER BY karar_zamani DESC LIMIT 6) y")
+    " WHERE karar = 'BEGENMEDI' AND length(btrim(yorum)) >= 3 AND yorum NOT LIKE 'kopya:%'"
+    " ORDER BY karar_zamani DESC LIMIT 6) y")
 
 
 def _oku() -> list[dict]:

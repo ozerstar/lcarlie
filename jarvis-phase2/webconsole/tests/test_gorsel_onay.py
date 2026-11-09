@@ -61,5 +61,56 @@ class Adaylar(unittest.TestCase):
         self.assertEqual(parametreler[5], "logo bulanık")
 
 
+class Kopyalar(unittest.TestCase):
+    """05.11.2026: 71 görselin 24'ü tekrardı. Aynı görsel tek kart olur, karar kopyalara da yazılır."""
+
+    def setUp(self):
+        from PIL import Image, ImageDraw
+        self.kok = Path(tempfile.mkdtemp())
+        self.tar, self.kre = self.kok / "tarayici", self.kok / "kreatif"
+        (self.tar / "tarayici-5-dosyalar").mkdir(parents=True)
+        (self.kre / "hydravie-1-gorseller").mkdir(parents=True)
+
+        def resim(renk, cizgi):
+            img = Image.new("RGB", (200, 200), renk)
+            ImageDraw.Draw(img).rectangle(cizgi, fill="white")
+            return img
+        resim("navy", (20, 20, 90, 180)).save(self.tar / "tarayici-5-dosyalar" / "gorsel-1.png")
+        resim("navy", (20, 20, 90, 180)).save(self.kre / "hydravie-1-gorseller" / "01-1x1.jpg", quality=80)
+        resim("darkgreen", (110, 20, 180, 180)).save(self.tar / "tarayici-5-dosyalar" / "gorsel-2.png")
+        (self.tar / "tarayici-5.json").write_text(json.dumps({"slug": "tarayici-5", "is_id": 5, "hedef": "chatgpt_image",
+            "dosyalar": ["gorsel-1.png", "gorsel-2.png"]}), encoding="utf-8")
+        self.yamalar = [mock.patch.object(gorsel_onay, "IG_DIR", self.kok / "yok"),
+                        mock.patch.object(gorsel_onay, "IZ_DOSYA", self.kok / "iz.json")]
+        for y in self.yamalar:
+            y.start()
+
+    def tearDown(self):
+        for y in self.yamalar:
+            y.stop()
+
+    def test_png_ve_jpg_kopyasi_tek_grup_farkli_gorsel_ayri(self):
+        gruplar = gorsel_onay._gruplar(gorsel_onay._adaylar(self.tar, self.kre))
+        self.assertEqual(sorted(len(g) for g in gruplar), [1, 2])
+        ikili = next(g for g in gruplar if len(g) == 2)
+        self.assertTrue(ikili[0].startswith("kreatif/"))       # kreatif kopya öne alınır
+        self.assertTrue((self.kok / "iz.json").is_file())       # izler saklandı
+
+    def test_karar_butun_kopyalara_yazilir_neden_yalniz_asilda(self):
+        cur = mock.MagicMock()
+        baglanti = mock.MagicMock()
+        baglanti.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
+        with mock.patch.object(gorsel_onay, "_connect", return_value=baglanti):
+            sonuc = gorsel_onay.karar_ver("ozer", {"anahtar": "kreatif/hydravie-1-gorseller/01-1x1.jpg", "karar": "BEGENMEDI",
+                                                   "nedenler": ["Renk ve ışık kötü"]}, self.tar, self.kre)
+        self.assertEqual(sonuc["kopya"], 1)
+        yazilan = {c[0][1][1]: c[0][1] for c in cur.execute.call_args_list}
+        self.assertEqual(set(yazilan), {"kreatif/hydravie-1-gorseller/01-1x1.jpg", "tarayici/tarayici-5-dosyalar/gorsel-1.png"})
+        self.assertEqual(yazilan["kreatif/hydravie-1-gorseller/01-1x1.jpg"][4], ["Renk ve ışık kötü"])
+        kopya = yazilan["tarayici/tarayici-5-dosyalar/gorsel-1.png"]
+        self.assertEqual(kopya[4], [])
+        self.assertTrue(kopya[5].startswith("kopya:"))
+
+
 if __name__ == "__main__":
     unittest.main()
