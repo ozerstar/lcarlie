@@ -91,7 +91,9 @@ def jarvis_yaratici_yonlendirme(sahne: str, baslik: str, destek: str,
         f"Optional support text: {destek or 'none; omit it'}. Team feedback: "
         f"{revizyon_notu or 'initial design; choose a premium editorial concept'}. "
         "Honor the owner's approved visual reference if attached. Keep product packaging "
-        "faithful, typography readable on mobile, and all copy in safe margins. No dark "
+        "faithful, typography readable on mobile, and all copy in safe margins. Include "
+        "a deliberate secondary mockup of the same product in the background; avoid a "
+        "plain one-product-only composition, and integrate both product views elegantly. No dark "
         "overlay or unsupported claims. Resolve every listed defect and choose the visual "
         "concept yourself; do not repeat a rejected prop or composition. Output only the "
         "final English image-generation prompt, 90 words maximum, no JSON or explanation.")
