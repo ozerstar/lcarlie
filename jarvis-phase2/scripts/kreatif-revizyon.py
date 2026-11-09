@@ -18,7 +18,7 @@ def _notlar(x):
     if director and director not in out: out.insert(0,"Jarvis art director decision: "+director[:260])
     return out[:10]
 def _revizyon_ozeti(x):
-    """Ekip notlarını en fazla üç uygulanabilir düzeltmeye indirger."""
+    """Başarısız her departmanın somut notunu prompt yazan kreatif direktöre taşır."""
     out=[]
     for gorus in x.get("inceleme") or []:
         if str(gorus.get("karar") or "").upper() not in ("DUZELT","RED"):
@@ -27,13 +27,13 @@ def _revizyon_ozeti(x):
             kusur=" ".join(str(kusur).split())
             if kusur and kusur not in out:
                 out.append(kusur[:160])
-            if len(out)>=3: break
-        if len(out)>=3: break
+            if len(out)>=6: break
+        if len(out)>=6: break
     if not out:
         g=str(x.get("direktor_gerekce") or "").strip()
         if g: out.append(g[:240])
     if out:
-        return "Jarvis departmanlarının düzeltme notları: " + " | ".join(out[:3])
+        return "Jarvis departmanlarının düzeltme notları: " + " | ".join(out[:6])
     g=str(x.get("direktor_gerekce") or "").strip()
     return "Jarvis departmanlarının gerekçesi: " + g[:320]
 
