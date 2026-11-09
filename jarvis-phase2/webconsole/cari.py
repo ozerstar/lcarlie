@@ -239,6 +239,10 @@ def product_tables(entries):
                 "discounted_unit_price_cents": unit,
                 "recommended_price_cents": recommended,
                 "tax_rate": item["tax_rate"],
+                # Fiyat anlık görüntüsü: ürün tablosundaki +/− düğmeleri aynı
+                # fiyat ve iskontoyla yeni hareket formunu doldurur.
+                "unit_price_cents": item["unit_price_cents"],
+                "discount": item["discount"],
             })
             line["quantity"] += sign * item["quantity"]
             line["net_cents"] += sign * item["net_cents"]

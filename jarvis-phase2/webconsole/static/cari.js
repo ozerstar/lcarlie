@@ -587,7 +587,37 @@
     const recommendedPriceSum = recommendedRows.reduce((total, item) => total + item.recommended_price_cents, 0);
     const missingRecommended = data.rows.length - recommendedRows.length;
     const recommendedFooter = recommendedRows.length ? `${money(recommendedPriceSum)}${missingRecommended ? '<small>Eksik fiyat var</small>' : ''}` : '—';
-    el('cariProductTable').innerHTML = `<p class="cari-scroll-hint">Fiyat ve tutarlar için tabloyu yana kaydırın →</p><div class="cari-table-wrap cari-reference-wrap" tabindex="0" role="region" aria-label="${heading} ürün tablosu, küçük ekranda yana kaydırılabilir"><table class="cari-reference-table"><caption class="cari-print-title">${heading} · Ürün toplamı, tahsilatlar düşülmeden</caption><thead><tr><th scope="col">ÜRÜN</th><th scope="col" class="cari-quantity">ADET</th><th scope="col" class="cari-money">TAVSİYE EDİLEN PİYASA SATIŞ FİYATI</th><th scope="col" class="cari-money">İSKONTOLU KDV HARİÇ FİYAT</th><th scope="col" class="cari-money">TUTAR (KDV HARİÇ)</th></tr></thead><tbody>${data.rows.map(item => `<tr><td>${productNameWithPhoto(item.name)}</td><td class="cari-quantity">${item.quantity}</td><td class="cari-money">${item.recommended_price_cents === null ? '<span class="cari-muted" title="Bu belgede tavsiye fiyatı girilmedi">—</span>' : money(item.recommended_price_cents)}</td><td class="cari-money">${money(item.discounted_unit_price_cents)}</td><td class="cari-money"><strong>${money(item.net_cents)}</strong></td></tr>`).join('') || '<tr><td colspan="5" class="cari-empty">Bu türde ürün hareketi yok.</td></tr>'}</tbody><tfoot><tr><th scope="row">GENEL TOPLAM (KDV HARİÇ)</th><td class="cari-quantity">${data.quantity}</td><td class="cari-money">${recommendedFooter}</td><td class="cari-money">${money(discountedPriceSum)}</td><td class="cari-money">${money(data.net_cents)}</td></tr></tfoot></table></div><p class="cari-table-note">Fiyat sütunlarının altındaki tutarlar görünen satırların birim fiyat toplamıdır; son sütun adet ve iadeler dikkate alınarak hesaplanır. ${missingRecommended ? `${missingRecommended} satırda tavsiye edilen fiyat eksik. ` : ''}Ürün toplamından tahsilatlar düşülmez. Farklı fiyatlı işlemler ayrı satırlarda gösterilir. Birim fiyat yuvarlaması satır tutarını değiştirmez. Kaydedilmiş ürünleri ve iskontoları değiştirmek için aşağıdaki hesap ekstresindeki ilgili hareketi düzenleyin.${family === 'gift' ? ' Eksi adet, bedelsiz ürün girişini gösterir.' : ''}</p>`;
+    el('cariProductTable').innerHTML = `<div class="cari-product-quick cari-no-print"><button type="button" class="cari-primary" data-product-step="add">+ Ürün ekle</button><button type="button" data-product-step="remove">− Ürün çıkar</button></div><p class="cari-scroll-hint">Fiyat ve tutarlar için tabloyu yana kaydırın →</p><div class="cari-table-wrap cari-reference-wrap" tabindex="0" role="region" aria-label="${heading} ürün tablosu, küçük ekranda yana kaydırılabilir"><table class="cari-reference-table"><caption class="cari-print-title">${heading} · Ürün toplamı, tahsilatlar düşülmeden</caption><thead><tr><th scope="col">ÜRÜN</th><th scope="col" class="cari-quantity">ADET</th><th scope="col" class="cari-money">TAVSİYE EDİLEN PİYASA SATIŞ FİYATI</th><th scope="col" class="cari-money">İSKONTOLU KDV HARİÇ FİYAT</th><th scope="col" class="cari-money">TUTAR (KDV HARİÇ)</th></tr></thead><tbody>${data.rows.map((item, index) => `<tr><td>${productNameWithPhoto(item.name)}</td><td class="cari-quantity"><span class="cari-qty-step"><button type="button" class="cari-no-print" data-product-step="remove" data-product-row="${index}" aria-label="${escape(item.name)} ürününden çıkar" title="Ürün çıkar">−</button><span>${item.quantity}</span><button type="button" class="cari-no-print" data-product-step="add" data-product-row="${index}" aria-label="${escape(item.name)} ürününden ekle" title="Ürün ekle">+</button></span></td><td class="cari-money">${item.recommended_price_cents === null ? '<span class="cari-muted" title="Bu belgede tavsiye fiyatı girilmedi">—</span>' : money(item.recommended_price_cents)}</td><td class="cari-money">${money(item.discounted_unit_price_cents)}</td><td class="cari-money"><strong>${money(item.net_cents)}</strong></td></tr>`).join('') || '<tr><td colspan="5" class="cari-empty">Bu türde ürün hareketi yok.</td></tr>'}</tbody><tfoot><tr><th scope="row">GENEL TOPLAM (KDV HARİÇ)</th><td class="cari-quantity">${data.quantity}</td><td class="cari-money">${recommendedFooter}</td><td class="cari-money">${money(discountedPriceSum)}</td><td class="cari-money">${money(data.net_cents)}</td></tr></tfoot></table></div><p class="cari-table-note">Fiyat sütunlarının altındaki tutarlar görünen satırların birim fiyat toplamıdır; son sütun adet ve iadeler dikkate alınarak hesaplanır. ${missingRecommended ? `${missingRecommended} satırda tavsiye edilen fiyat eksik. ` : ''}Ürün toplamından tahsilatlar düşülmez. Farklı fiyatlı işlemler ayrı satırlarda gösterilir. Birim fiyat yuvarlaması satır tutarını değiştirmez. Kaydedilmiş ürünleri ve iskontoları değiştirmek için aşağıdaki hesap ekstresindeki ilgili hareketi düzenleyin.${family === 'gift' ? ' Eksi adet, bedelsiz ürün girişini gösterir.' : ''}</p>`;
+    el('cariProductTable').querySelectorAll('[data-product-step]').forEach(button => {
+      button.onclick = () => openProductStep(button.dataset.productStep === 'add',
+        button.dataset.productRow === undefined ? null : data.rows[Number(button.dataset.productRow)]);
+    });
+  }
+
+  // Ürün tablosundan hızlı ekle/çıkar. Kayıt değiştirilmez: ekleme yeni bir
+  // satış/alış/bedelsiz teslim, çıkarma ise iade hareketi olarak aynı onaylı
+  // formdan (Hesapla ve kontrol et → Kaydet) geçer.
+  const productSteps = {sale: ['sale', 'sale_return'], purchase: ['purchase', 'purchase_return'], gift: ['gift_out', 'gift_in']};
+  function openProductStep(add, item) {
+    openEntry();
+    const form = el('cariEntryForm');
+    form.elements.kind.value = productSteps[state.productFamily][add ? 0 : 1];
+    if (item) {
+      const row = el('cariLines').lastElementChild;
+      const field = name => row.querySelector('[name=' + name + ']');
+      field('product').value = item.name;
+      field('quantity').value = 1;
+      if (item.unit_price_cents !== undefined) field('price').value = (item.unit_price_cents / 100).toFixed(2);
+      if (item.discount !== undefined) field('discount').value = item.discount;
+      if (item.tax_rate !== null && item.tax_rate !== undefined) {
+        if (['0', '1', '10', '20'].includes(String(item.tax_rate))) field('tax').value = String(item.tax_rate);
+        else {field('tax').value = 'custom'; field('customTax').hidden = false; field('customTax').required = true; field('customTax').value = item.tax_rate;}
+      }
+      if (item.recommended_price_cents !== null && item.recommended_price_cents !== undefined) field('recommendedPrice').value = (item.recommended_price_cents / 100).toFixed(2);
+    }
+    switchKind();
+    el('cariEntryTitle').textContent = add ? 'Ürün ekle' : 'Ürün çıkar (iade)';
+    if (item) el('cariLines').lastElementChild.querySelector('[name=quantity]').focus();
   }
 
   function renderAccountInfo() {
