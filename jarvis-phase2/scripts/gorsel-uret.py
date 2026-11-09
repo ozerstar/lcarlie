@@ -70,18 +70,19 @@ sides. Keep every letter fully inside that margin. Make the real product the unm
 hero, near the visual center (never against an edge), occupying about 42–48% of frame
 height, sharp and readable. Place the headline in the upper third, visually connected
 to the product; keep it to two short lines maximum. Use generous breathing room and
-clear hierarchy. Any ingredient support line is secondary, at least as legible as
-normal phone body text, and may read only “Niacinamide + Sodium Hyaluronate”.
+clear hierarchy. If using ingredient support, use one clean, medium-weight line reading
+“Niacinamide + Sodium Hyaluronate”; do not shrink it into fine print.
 
-ART DIRECTION: Invent one distinctive editorial metaphor for hydration that feels
-specific to Hydravie and its aqua label, not a familiar skincare stock image. Make one
-bold, sculptural visual gesture with a clear relationship to the product silhouette;
-the product and gesture must feel designed together. Use aqua as a confident focal
-color against restrained clean negative space, with tactile premium studio lighting.
-Do not use the rejected draft's concept. Avoid water waves, gel ribbons, floating
-droplets, stone slabs, glass prisms, floating glass objects, beige cast, stock
-cosmetics styling, clutter, dark text bands, extra logos, badges and unsupported
-claims. Keep the white bottle neutral white and preserve its exact package design.
+ART DIRECTION: Make an ownable luxury campaign through photography, light and framing,
+not through a decorative prop. Build a luminous Hydravie-aqua color field with a single
+precise liquid-light caustic shadow crossing a clean satin surface; add only a few tiny,
+realistic condensation beads to the surface. The unusual graphic is the light itself,
+echoing the aqua label and creating a memorable frame around the centered bottle. Keep
+the scene tactile, quiet, confident and editorial, with crisp premium studio lighting.
+Do not use the rejected draft's concept. No fabric, mesh, net, sponge, gel ribbon,
+floating droplet, water wave, stone slab, prism, glass prop, beige cast, stock cosmetics
+styling, clutter, dark text bands, extra logos, badges or unsupported claims. Keep the
+white bottle neutral white and preserve its exact package design.
 Typography should feel like Monument Extended headlines with Metropolis supporting
 text: confident, refined, editorial, never distorted or cramped. {referans_talimati}
 Aspect ratio {oran}.{revizyon}"""
