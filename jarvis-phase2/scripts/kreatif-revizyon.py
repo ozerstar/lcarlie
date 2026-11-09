@@ -68,13 +68,19 @@ def main():
         # arşivlenir, kullanıcının Chrome pencereleri etkilenmez.
         import shutil
         ilk_red=redler[0]
-        kaynak_ref=a.inceleme.parent/ilk_red.get("dosya","")
         ref_dir=pathlib.Path("/opt/lcarlie/gonderi-gorsel/kreatif-revizyon")
         ref_dir.mkdir(parents=True,exist_ok=True)
-        ref=ref_dir/(parti+f"-tur{tur}-referans"+kaynak_ref.suffix)
+        urun_adi=str((brief.get("urun") or {}).get("urun_adi") or "").split("|")[0].strip()
+        urun_kodu="-".join(urun_adi.lower().split())
+        onayli_ref=ref_dir/(urun_kodu+"-user-approved.png")
+        kaynak_ref=a.inceleme.parent/ilk_red.get("dosya","")
+        ref=(onayli_ref if onayli_ref.is_file() else
+             ref_dir/(parti+f"-tur{tur}-referans"+kaynak_ref.suffix))
         cmd=[sys.executable,str(KOK/"scripts"/"gorsel-uret.py"),str(bp),
              "--urun-gorsel",a.urun_gorsel,"--logo",a.logo,"--cikti",str(out)]
-        if kaynak_ref.is_file():
+        if onayli_ref.is_file():
+            cmd += ["--stil-referans",str(ref)]
+        elif kaynak_ref.is_file():
             shutil.copy2(kaynak_ref,ref)
             cmd += ["--stil-referans",str(ref)]
         run=subprocess.run(cmd,cwd=KOK,check=False)

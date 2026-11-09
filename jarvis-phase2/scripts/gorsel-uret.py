@@ -73,16 +73,14 @@ to the product; keep it to two short lines maximum. Use generous breathing room 
 clear hierarchy. If using ingredient support, use one clean, medium-weight line reading
 “Niacinamide + Sodium Hyaluronate”; do not shrink it into fine print.
 
-ART DIRECTION: Make an ownable luxury campaign through photography, light and framing,
-not through a decorative prop. Build a luminous Hydravie-aqua color field with a single
-precise liquid-light caustic shadow crossing a clean satin surface; add only a few tiny,
-realistic condensation beads to the surface. The unusual graphic is the light itself,
-echoing the aqua label and creating a memorable frame around the centered bottle. Keep
-the scene tactile, quiet, confident and editorial, with crisp premium studio lighting.
-Do not use the rejected draft's concept. No fabric, mesh, net, sponge, gel ribbon,
-floating droplet, water wave, stone slab, prism, glass prop, beige cast, stock cosmetics
-styling, clutter, dark text bands, extra logos, badges or unsupported claims. Keep the
-white bottle neutral white and preserve its exact package design.
+ART DIRECTION: Follow the attached owner-approved visual reference when one is supplied:
+its pale Hydravie-aqua dewy surface, large centered product, clean negative space and
+bold editorial headline are the chosen direction. Refine that art direction instead of
+inventing unrelated props. Keep the aqua texture tactile and photographic, the bottle
+neutral white, and the product and background visually integrated. If there is no
+approved reference, create a cohesive premium editorial hydration scene from the brief.
+No detached accessories, duplicate logo, dark text band, beige cast, clutter, badges or
+unsupported claims. Preserve the exact package design.
 Typography should feel like Monument Extended headlines with Metropolis supporting
 text: confident, refined, editorial, never distorted or cramped. {referans_talimati}
 Aspect ratio {oran}.{revizyon}"""
@@ -152,12 +150,20 @@ def montaj_uret(sahne: str, ust: str, alt: str, oran: str,
     if revizyon_notu.strip():
         revizyon = ("\n\nCREATIVE TEAM REVISION — make these concrete changes to the rejected draft; "
                     "do not merely polish it: " + " ".join(revizyon_notu.split())[:500])
-    referans_talimati = (
-        "IMAGE 1 is the exact product package. IMAGE 2 is a rejected draft; use it only to "
-        "identify prior defects, do not copy its layout, props, lighting, crop or typography. "
-        "The final image is the official logo; use it once, only if it fits the composition."
-        if stil_referansi is not None else
-        "Use the supplied product photo and logo as faithful references.")
+    if stil_referansi is not None and "user-approved" in Path(stil_referansi).name:
+        referans_talimati = (
+            "IMAGE 1 is the exact product package. IMAGE 2 is the owner's approved style "
+            "reference: follow its aqua dewy background, centered bottle, simple bold "
+            "headline and premium editorial mood. Improve safe margins and keep the "
+            "package crisp. Do not reproduce the reference's words or add a second logo. "
+            "The final image is the official logo; omit it if the package already carries it.")
+    elif stil_referansi is not None:
+        referans_talimati = (
+            "IMAGE 1 is the exact product package. IMAGE 2 is a rejected draft; use it "
+            "only to identify defects and do not repeat its failed choices. The final "
+            "image is the official logo; use it once only if it fits the composition.")
+    else:
+        referans_talimati = "Use the supplied product photo and logo as faithful references."
     istem = TAM_GORSEL_ISTEM.format(
         urun=urun_adi, oran=oran, revizyon=revizyon,
         referans_talimati=referans_talimati, odak=" ".join(sahne.split())[:220])
