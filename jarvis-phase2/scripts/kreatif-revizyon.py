@@ -33,8 +33,8 @@ def _revizyon_ozeti(x):
         g=str(x.get("direktor_gerekce") or "").strip()
         if g: out.append(g[:240])
     return ("Düzelt: " + " | ".join(out[:3]) +
-            ". Brief'teki etken madde odağını kısa başlıkta veya tek küçük destek satırında belirt; "
-            "başlığı ve ürünü güvenli alanda koru.")
+            ". Telefon ekranında başlığı tek satırda, orta ağırlıkta ve güvenli kenar boşluklarında tut; "
+            "yalnız brief'in zorunlu metnini göster, yeni alt yazı ekleme.")
 
 def main():
     ap=argparse.ArgumentParser(description=__doc__)

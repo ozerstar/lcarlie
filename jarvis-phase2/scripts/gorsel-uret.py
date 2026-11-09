@@ -65,18 +65,18 @@ TAM_GORSEL_ISTEM = """Create a finished premium editorial Instagram skincare cam
 GPT must create the complete photograph, art direction, Turkish headline and any
 supporting copy inside the image. Campaign angle: {odak}.
 
-COMPOSITION: Treat the square as a mobile ad with a 14% clear safe margin on all four
+COMPOSITION: Treat the square as a mobile ad with a 15% clear safe margin on all four
 sides. Keep every letter fully inside that margin. Make the real product the unmistakable
 hero, centered and occupying about 48–52% of frame height, sharp and readable. Place
-the short Turkish headline in the upper third with generous breathing room; use two
-balanced lines maximum. The headline must be prominent but refined, medium-bold rather
-than extra-black, with clean unbroken letterforms. Show the headline only: no subtitle,
-ingredient line, tagline, or other overlay text.
+the short Turkish headline on one line in the upper third, visually separate from the
+top edge and product, with generous breathing room. Set it at moderate scale and medium
+weight, never extra-black: headline width about 55% of frame, clean unbroken letterforms.
+Show the headline only: no subtitle, ingredient line, tagline, or other overlay text.
 
 ART DIRECTION: Follow the attached owner-approved visual reference when one is supplied:
-its pale Hydravie-aqua dewy surface, large centered product, clean negative space and
-editorial headline are the chosen direction. Refine that art direction instead of
-inventing unrelated props. Keep the aqua texture tactile and photographic, with fine
+its pale Hydravie-aqua palette and subtle dewy texture are the chosen direction. Use
+only those qualities; make a new, more balanced composition. Do not copy the reference's
+title size or placement. Keep the aqua texture tactile and photographic, with fine
 even condensation only: no flare, beam, prism, bright streak or artificial light effect.
 Keep the bottle neutral white and integrate product and background naturally. If there
 is no approved reference, create a cohesive premium editorial hydration scene from the
