@@ -64,27 +64,58 @@ For your verification, the packaging is printed with exactly these lines:
 TAM_GORSEL_ISTEM = """Create a finished premium editorial Instagram skincare campaign for L'CARLIÉ {urun}.
 GPT must create the complete photograph, art direction, Turkish headline and any
 supporting copy inside the image. Campaign angle: {odak}.
+Jarvis Creative Director's approved direction: {yaratici_yon}
 
-COMPOSITION: Treat the square as a mobile ad with a 15% clear safe margin on all four
-sides. Keep every letter fully inside that margin. Make the real product the unmistakable
-hero, centered and occupying about 48–52% of frame height, sharp and readable. Place
-the short Turkish headline on one line in the upper third, visually separate from the
-top edge and product, with generous breathing room. Set it at moderate scale and medium
-weight, never extra-black: headline width about 55% of frame, clean unbroken letterforms.
-Show the headline only: no subtitle, ingredient line, tagline, or other overlay text.
+COMPOSITION: Keep the product prominent, sharp and safely inside the frame. All text
+must stay within a generous mobile-safe margin and remain legible at phone size. Follow
+Jarvis Creative Director's composition and copy choices; add no unapproved copy.
 
-ART DIRECTION: Follow the attached owner-approved visual reference when one is supplied:
-its pale Hydravie-aqua palette and subtle dewy texture are the chosen direction. Use
-only those qualities; make a new, more balanced composition. Do not copy the reference's
-title size or placement. Keep the aqua texture tactile and photographic, with fine
-even condensation only: no flare, beam, prism, bright streak or artificial light effect.
-Keep the bottle neutral white and integrate product and background naturally. If there
-is no approved reference, create a cohesive premium editorial hydration scene from the
-brief. No detached accessories, duplicate logo, dark text band, beige cast, clutter,
-badges or unsupported claims. Preserve the exact package design.
-Typography should feel like Monument Extended headlines with Metropolis supporting
-text: confident, refined, editorial, never distorted or cramped. {referans_talimati}
+ART DIRECTION: Use the attached owner-approved image for brand taste when supplied, and
+follow the new concept and corrections from Jarvis Creative Director. Preserve a premium
+editorial feel, Hydravie aqua family and neutral-white bottle. No dark text band, duplicate
+logo, beige cast, clutter, badges or unsupported claims. Preserve the exact package.
+Typography should feel like Monument Extended / Metropolis, clean and readable.
+{referans_talimati}
 Aspect ratio {oran}.{revizyon}"""
+
+
+def jarvis_yaratici_yonlendirme(sahne: str, baslik: str, destek: str,
+                                 revizyon_notu: str, urun_adi: str,
+                                 stil_referansi: Path | None = None) -> str:
+    """Jarvis asks GPT Work's creative lead to turn team feedback into an image prompt."""
+    from jarvis import tarayici as browser_queue
+    istem = (
+        "You are Jarvis's Creative Director. Convert the brief and department review "
+        "into one original, concise image-generation prompt for GPT Image. Product: "
+        f"{urun_adi}. Campaign: {sahne}. Exact headline: {baslik or 'brief headline'}. "
+        f"Optional support text: {destek or 'none; omit it'}. Team feedback: "
+        f"{revizyon_notu or 'initial design; choose a premium editorial concept'}. "
+        "Honor the owner's approved visual reference if attached. Keep product packaging "
+        "faithful, typography readable on mobile, and all copy in safe margins. No dark "
+        "overlay or unsupported claims. Resolve every listed defect and choose the visual "
+        "concept yourself; do not repeat a rejected prop or composition. Output only the "
+        "final English image-generation prompt, 90 words maximum, no JSON or explanation.")
+    is_ = browser_queue.enqueue_browser_task(
+        istem, "chatgpt_chat",
+        input_files=[str(stil_referansi.resolve())] if stil_referansi is not None else None,
+        requested_by="kreatif-direktor",
+        idempotency_key="creative-direction:" + uuid.uuid4().hex)
+    print(f"Jarvis Kreatif Direktör istemi GPT Work kuyruğunda: iş {is_['is_id']}", flush=True)
+    bitis = time.monotonic() + 390
+    while time.monotonic() < bitis:
+        sonuc = browser_queue.isi_sonucu(is_["is_id"])
+        if sonuc:
+            durum = sonuc.get("durum")
+            if durum in ("BITTI", "SUNULDU"):
+                metin = (sonuc.get("sonuc_metin") or "").strip()
+                if not metin:
+                    raise RuntimeError("Jarvis Kreatif Direktör GPT istemi boş döndü")
+                return metin[:1200]
+            if durum in ("HATA", "INSAN_GEREKLI"):
+                raise RuntimeError("Jarvis Kreatif Direktör istemi tamamlanamadı: "
+                                   + str(sonuc.get("hata") or durum)[:250])
+        time.sleep(5)
+    raise RuntimeError("Jarvis Kreatif Direktör GPT istemi 390 sn içinde tamamlanmadı")
 
 
 def etiket_satirlari(urun_yolu: Path) -> str:
@@ -147,6 +178,8 @@ def montaj_uret(sahne: str, ust: str, alt: str, oran: str,
         raise gk.GorselHatasi("urun fotografi veya resmi logo bulunamadi")
     if stil_referansi is not None and not Path(stil_referansi).is_file():
         raise gk.GorselHatasi("onceki gorsel referansi bulunamadi")
+    yaratici_yon = jarvis_yaratici_yonlendirme(
+        sahne, ust, alt, revizyon_notu, urun_adi, stil_referansi)
     revizyon = ""
     if revizyon_notu.strip():
         revizyon = ("\n\nCREATIVE TEAM REVISION — make these concrete changes to the rejected draft; "
@@ -154,8 +187,8 @@ def montaj_uret(sahne: str, ust: str, alt: str, oran: str,
     if stil_referansi is not None and "user-approved" in Path(stil_referansi).name:
         referans_talimati = (
             "IMAGE 1 is the exact product package. IMAGE 2 is the owner's approved style "
-            "reference: follow its aqua dewy background, centered bottle, simple bold "
-            "headline and premium editorial mood. Improve safe margins and keep the "
+            "reference: use its aqua dewy mood, but choose a fresh composition and follow "
+            "Jarvis Creative Director's new instructions. Keep the "
             "package crisp. Do not reproduce the reference's words or add a second logo. "
             "The final image is the official logo; omit it if the package already carries it.")
     elif stil_referansi is not None:
@@ -167,7 +200,8 @@ def montaj_uret(sahne: str, ust: str, alt: str, oran: str,
         referans_talimati = "Use the supplied product photo and logo as faithful references."
     istem = TAM_GORSEL_ISTEM.format(
         urun=urun_adi, oran=oran, revizyon=revizyon,
-        referans_talimati=referans_talimati, odak=" ".join(sahne.split())[:220])
+        referans_talimati=referans_talimati, odak=" ".join(sahne.split())[:220],
+        yaratici_yon=" ".join(yaratici_yon.split()))
     dosyalar = [urun_yolu]
     if stil_referansi is not None:
         dosyalar.append(Path(stil_referansi))

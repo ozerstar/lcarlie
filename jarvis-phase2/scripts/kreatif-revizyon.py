@@ -32,9 +32,10 @@ def _revizyon_ozeti(x):
     if not out:
         g=str(x.get("direktor_gerekce") or "").strip()
         if g: out.append(g[:240])
-    return ("Düzelt: " + " | ".join(out[:3]) +
-            ". Telefon ekranında başlığı tek satırda, orta ağırlıkta ve güvenli kenar boşluklarında tut; "
-            "yalnız brief'in zorunlu metnini göster, yeni alt yazı ekleme.")
+    if out:
+        return "Jarvis departmanlarının düzeltme notları: " + " | ".join(out[:3])
+    g=str(x.get("direktor_gerekce") or "").strip()
+    return "Jarvis departmanlarının gerekçesi: " + g[:320]
 
 def main():
     ap=argparse.ArgumentParser(description=__doc__)
