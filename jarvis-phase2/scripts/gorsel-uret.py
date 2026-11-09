@@ -61,13 +61,29 @@ For your verification, the packaging is printed with exactly these lines:
 {satirlar}
 """
 
-TAM_GORSEL_ISTEM = """Design a premium editorial skincare ad for L'CARLIÉ {urun}. GPT creates the full
-image and Turkish headline from this campaign angle: {odak}. Keep the headline short,
-bold but refined, phone-legible and safely inside the frame. Add one restrained
-ingredient line only if it clarifies the brief; state ingredients without promising
-results. Use Monument Extended / Metropolis brand typography, aqua moisture atmosphere
-and distinct editorial direction. Preserve the package. No dark band, duplicate logo
-or unsupported claim. {referans_talimati} Aspect ratio {oran}.{revizyon}"""
+TAM_GORSEL_ISTEM = """Create a finished premium editorial Instagram skincare campaign for L'CARLIÉ {urun}.
+GPT must create the complete photograph, art direction, Turkish headline and any
+supporting copy inside the image. Campaign angle: {odak}.
+
+COMPOSITION: Treat the square as a mobile ad with a 12% clear safe margin on all four
+sides. Keep every letter fully inside that margin. Make the real product the unmistakable
+hero, near the visual center (never against an edge), occupying about 42–48% of frame
+height, sharp and readable. Place the headline in the upper third, visually connected
+to the product; keep it to two short lines maximum. Use generous breathing room and
+clear hierarchy. Any ingredient support line is secondary, at least as legible as
+normal phone body text, and may read only “Niacinamide + Sodium Hyaluronate”.
+
+ART DIRECTION: Build one memorable, ownable hydration image: a sculptural translucent
+Hydravie-aqua gel ribbon or suspended dewy membrane curves around the bottle, with
+macro water beads and soft ripples catching crisp studio light. Restrained warm-white
+negative space, vivid aqua focal color sampled from the product label, tactile and
+photographic. The object and water must form one coherent visual gesture, not unrelated
+props. Avoid generic stone slabs, glass prisms, floating glass objects, beige cast,
+stock cosmetics styling, clutter, dark text bands, extra logos, badges and unsupported
+claims. Keep the white bottle neutral white and preserve its exact package design.
+Typography should feel like Monument Extended headlines with Metropolis supporting
+text: confident, refined, editorial, never distorted or cramped. {referans_talimati}
+Aspect ratio {oran}.{revizyon}"""
 
 
 def etiket_satirlari(urun_yolu: Path) -> str:
@@ -132,9 +148,12 @@ def montaj_uret(sahne: str, ust: str, alt: str, oran: str,
         raise gk.GorselHatasi("onceki gorsel referansi bulunamadi")
     revizyon = ""
     if revizyon_notu.strip():
-        revizyon = "\n\nCREATIVE TEAM REVISION: " + " ".join(revizyon_notu.split())[:500]
+        revizyon = ("\n\nCREATIVE TEAM REVISION — make these concrete changes to the rejected draft; "
+                    "do not merely polish it: " + " ".join(revizyon_notu.split())[:500])
     referans_talimati = (
-        "IMAGE 1 is the product; IMAGE 2 is the previous draft; the final image is the logo."
+        "IMAGE 1 is the exact product package. IMAGE 2 is a rejected draft; use it only to "
+        "identify prior defects, do not copy its layout, props, lighting, crop or typography. "
+        "The final image is the official logo; use it once, only if it fits the composition."
         if stil_referansi is not None else
         "Use the supplied product photo and logo as faithful references.")
     istem = TAM_GORSEL_ISTEM.format(
