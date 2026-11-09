@@ -27,6 +27,7 @@ MESAJ = (
     "div.agent-turn",
     'article[data-testid^="conversation-turn"]',
 )
+ASISTAN_MESAJI = MESAJ[:2]
 
 ZAMAN_ASIMI_S = 360.0          # yaratıcı istem üretimi uzun sürebilir; 420 sn iş kirası içinde kalır
 
@@ -42,9 +43,42 @@ def calistir(page, is_: dict, zaman_asimi_s: float | None = None) -> dict:
 
     kutu = ortak.ilk_bulunan(page, KUTU)
     onceki = ortak.mesaj_adedi(page, MESAJ)
+    onceki_metin = _son_asistan_metin(page)
 
     ortak.istemi_yaz(page, kutu, is_["istem"])
     ortak.gonder(page, kutu, GONDER)
 
-    metin = ortak.yanit_bekle(page, MESAJ, onceki, tavan)
-    return {"metin": metin, "dosyalar": []}
+    # A conversation can virtualize/reuse assistant DOM nodes. Detect the new
+    # reply by both message count and last assistant text, then require it to settle.
+    import time
+    bitis = time.monotonic() + tavan
+    son_metin = ""
+    son_degisim = 0.0
+    while time.monotonic() < bitis:
+        sebep = ortak.insan_gerekli_mi(page)
+        if sebep:
+            from hatalar import InsanGerekli
+            raise InsanGerekli(sebep)
+        adet = ortak.mesaj_adedi(page, MESAJ)
+        metin = _son_asistan_metin(page)
+        yeni_yanit = metin and (adet > onceki or metin != onceki_metin)
+        if yeni_yanit and metin == son_metin and time.monotonic() - son_degisim >= 3:
+            return {"metin": metin, "dosyalar": []}
+        if yeni_yanit and metin != son_metin:
+            son_metin = metin
+            son_degisim = time.monotonic()
+        page.wait_for_timeout(700)
+    if son_metin:
+        raise TimeoutError("GPT yanıtı süre içinde durulmadı; kısmi yanıt teslim edilmedi")
+    raise TimeoutError("GPT Work yanıtı süre içinde alınamadı")
+
+
+def _son_asistan_metin(page) -> str:
+    for secici in ASISTAN_MESAJI:
+        try:
+            loc = page.locator(secici)
+            if loc.count():
+                return (loc.last.inner_text(timeout=5000) or "").strip()
+        except Exception:  # noqa: BLE001 - fall through to the next known message selector
+            continue
+    return ""

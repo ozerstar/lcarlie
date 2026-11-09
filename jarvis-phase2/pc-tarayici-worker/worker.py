@@ -30,6 +30,7 @@
 from __future__ import annotations
 
 import os
+import re
 import random
 import tempfile
 import sys
@@ -160,6 +161,51 @@ def ekrani_sakla(is_id: int, ham: bytes | None) -> None:
 # --------------------------------------------------------------------------
 # Bir is
 # --------------------------------------------------------------------------
+def _oturum_anahtari(hedef: str) -> str:
+    """Her sağlayıcı için tek sekme/sohbet tut; handler değişince sekme açma."""
+    if hedef.startswith("chatgpt_"):
+        return "chatgpt"
+    if hedef.startswith("claude_"):
+        return "claude"
+    return hedef
+
+
+def _mevcut_sohbeti_bul(baglam, anahtar: str):
+    alan = "chatgpt.com" if anahtar == "chatgpt" else "claude.ai" if anahtar == "claude" else None
+    if not alan:
+        return None
+    adaylar = [p for p in baglam.pages if not p.is_closed() and alan in (p.url or "")]
+    sohbetler = [p for p in adaylar if ("/c/" in p.url if anahtar == "chatgpt" else "/chat/" in p.url)]
+    if anahtar == "chatgpt":
+        # Same Work conversation across worker restarts; never guess by tab order.
+        kayit = KOK / "state" / "chatgpt-last-url.txt"
+        try:
+            url = kayit.read_text(encoding="utf-8").strip()
+        except OSError:
+            url = ""
+        if re.fullmatch(r"https://chatgpt\.com/c/[A-Za-z0-9-]+/?", url):
+            tam_eslesme = next((p for p in sohbetler if (p.url or "").rstrip("/") == url.rstrip("/")), None)
+            if tam_eslesme is not None:
+                return tam_eslesme
+    return (sohbetler or adaylar or [None])[-1]
+
+
+def _chatgpt_sohbet_kaydet(sayfa, anahtar: str) -> None:
+    """Son ChatGPT konuşmasını yeniden başlatmada sürdürebilmek için kaydet."""
+    if anahtar != "chatgpt" or sayfa is None or sayfa.is_closed():
+        return
+    url = sayfa.url or ""
+    if not re.fullmatch(r"https://chatgpt\.com/c/[A-Za-z0-9-]+/?", url):
+        return
+    hedef = KOK / "state" / "chatgpt-last-url.txt"
+    try:
+        hedef.parent.mkdir(parents=True, exist_ok=True)
+        gecici = hedef.with_suffix(".tmp")
+        gecici.write_text(url, encoding="utf-8")
+        gecici.replace(hedef)
+    except OSError as e:
+        say("ChatGPT sohbet adresi kaydedilemedi: %s" % e)
+
 def isi_yap(playwright, kapi: Kapi, is_: dict, sayfa_havuzu: dict | None = None) -> str:
     """Tek isi bastan sona yurutur. Sonuc durumunu dondurur."""
     from handlers import ortak
@@ -172,9 +218,10 @@ def isi_yap(playwright, kapi: Kapi, is_: dict, sayfa_havuzu: dict | None = None)
     sayfa = None
     goruntusu: bytes | None = None
     sayfa_havuzu = sayfa_havuzu if sayfa_havuzu is not None else {}
+    oturum = _oturum_anahtari(hedef)
     try:
         modul = handlers.getir(hedef)
-        onbellek = sayfa_havuzu.get(hedef)
+        onbellek = sayfa_havuzu.get(oturum)
         if onbellek:
             tarayici, sayfa = onbellek
             if sayfa.is_closed():
@@ -182,8 +229,10 @@ def isi_yap(playwright, kapi: Kapi, is_: dict, sayfa_havuzu: dict | None = None)
         if sayfa is None:
             tarayici = tarayiciya_baglan(playwright)
             baglam = tarayici.contexts[0]
-            sayfa = baglam.new_page()
-            sayfa_havuzu[hedef] = (tarayici, sayfa)
+            sayfa = _mevcut_sohbeti_bul(baglam, oturum)
+            if sayfa is None:
+                sayfa = baglam.new_page()
+            sayfa_havuzu[oturum] = (tarayici, sayfa)
         # Girdi dosyalari kullanicinin Chrome oturumuna aktarilmak uzere
         # yalnizca bu is boyunca gecici dosyalara yazilir.
         with tempfile.TemporaryDirectory(prefix="jarvis-browser-job-") as gecici:
@@ -235,9 +284,8 @@ def isi_yap(playwright, kapi: Kapi, is_: dict, sayfa_havuzu: dict | None = None)
         return "HATA"
 
     finally:
-        # Hedef sekmesi acik kalir; kullanici GPT/Claude cevabini gorebilir.
-        # Sonraki is ayni sekmeyi yeni bir istem icin kullanir.
-        pass
+        # Hedef sekmesi ve konuşma açık kalır; yeniden başlatmada GPT adresini sürdür.
+        _chatgpt_sohbet_kaydet(sayfa, oturum)
 
 
 # --------------------------------------------------------------------------
