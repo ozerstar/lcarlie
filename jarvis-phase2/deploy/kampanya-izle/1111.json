@@ -1,0 +1,25 @@
+{
+ "ad": "11.11 Trendyol LEMOS",
+ "kampanya_id": "120255692896620045",
+ "baslangic": "2026-11-11T14:00:00+03:00",
+ "bitis": "2026-11-17T23:00:00+03:00",
+ "urunler": {
+  "LUCIDERM": "8684869609295",
+  "DERMANOVA": "8684869609073",
+  "HYDRAVIE": "8684869609233",
+  "LIPVORA": "8684869609134",
+  "KINESIS+": "8684869609547",
+  "VIREON": "8684869609110",
+  "FEMISIA": "8684869609127"
+ },
+ "onceki_14_gun_siparis": 1,
+ "esikler": {
+  "inceleme_saat": 3,
+  "teslim_saat": 4,
+  "en_az_gosterim": 2000,
+  "ctr_alt": 0.8,
+  "tbm_ust": 6,
+  "frekans_ust": 2.5,
+  "satissiz_tik": 300
+ }
+}

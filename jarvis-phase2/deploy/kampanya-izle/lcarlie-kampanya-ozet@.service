@@ -1,0 +1,15 @@
+[Unit]
+Description=LCARLIE kampanya ozeti (%i) - tam raporu e-postayla gonderir
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+EnvironmentFile=/etc/lcarlie/jarvis-web.env
+EnvironmentFile=/etc/lcarlie/google-oauth.env
+EnvironmentFile=/etc/lcarlie/siparis-nobetci.env
+Environment=JARVIS_STATE_DIR=/opt/lcarlie/jarvis-phase2/state
+ExecStart=/usr/bin/flock -w 120 /run/lcarlie-kampanya-izle-%i.lock /opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/kampanya-izle.py %i --ozet
+TimeoutStartSec=300
+NoNewPrivileges=true
+UMask=0077

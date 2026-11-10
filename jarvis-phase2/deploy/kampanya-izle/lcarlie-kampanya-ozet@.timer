@@ -1,0 +1,10 @@
+[Unit]
+Description=LCARLIE kampanya ozeti (%i) - 09:30 ve 21:30
+
+[Timer]
+OnCalendar=*-*-* 09,21:30:00
+Persistent=false
+Unit=lcarlie-kampanya-ozet@%i.service
+
+[Install]
+WantedBy=timers.target
