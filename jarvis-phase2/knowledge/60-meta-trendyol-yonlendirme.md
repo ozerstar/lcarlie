@@ -17,8 +17,10 @@ gizlilik: serbest
 - Kendi reklamımız yeni insanı Trendyol'a getirir; Trendyol'un Meta reklamı o sayfaya gelip almadan çıkanı geri çağırır. [YARGI]
 
 ## Kendi hesaptan trafik kampanyası
-- Optimizasyon **Açılış Sayfası Görüntüleme** olmalı; Bağlantı Tıklaması çok ama kalitesiz tıklama getirir (Jon Loomer bölünmüş testi). Pikselsiz sayfada çalışıp çalışmadığı kaynaklarda çelişkili; Reklam Yöneticisinde denenir, yoksa Bağlantı Tıklaması kullanılır. [KAYNAK]
-- Sağlıklı oran: bağlantı tıklamalarının yaklaşık yüzde yetmiş ile doksanı sayfa görüntülemeye dönüşür; çok altıysa sayfa yavaş ya da tıklama kalitesiz. [KAYNAK]
+- Optimizasyon **Bağlantı Tıklaması** seçilir. Trendyol linkiyle Açılış Sayfası Görüntüleme seçilince düzenleyici hata göstermez ama yayında reklam "Unknown error (#1634013)" ile reddedilir; Bağlantı Tıklamasına çevrilince yayınlandı. [KAYNAK] şirket ölçümü, 10.11.2026
+- Bağlantı Tıklaması kalitesiz tıklama da getirebilir (Jon Loomer bölünmüş testi); bu yüzden raporda tıklama başına maliyetin yanında Trendyol tarafındaki ziyaret ve satış da izlenir. [KAYNAK]
+- Yaş ve cinsiyet kesin sınır olacaksa reklam setinde "Hedef kitlenizi daha fazla sınırlayın" açılır ve "Öneri olarak kullan" kapatılır; aksi halde Meta bunları yalnız öneri sayar. [KAYNAK] şirket ölçümü, 10.11.2026
+- Reklam Yöneticisi tek görselli reklamda bile Wix kataloğundan ürün kartları (Koleksiyon/Döngü biçimi), görsel rötuş, parlaklık ayarı, etkileşimli deneyim ve WhatsApp eklentisini açık getirir. Ürün kartları müşteriyi Trendyol yerine siteye götürür, rötuş ambalaj rengini değiştirebilir; her reklamda kapatılır. [KAYNAK] şirket ölçümü, 10.11.2026
 - Link biçimi mağaza kodunu taşımalı: `...-p-<ürün no>?boutiqueId=61&merchantId=1037432` = LEMOS Medikal Sağlık. Aynı ürünü başka satıcılar da satıyor; mağaza kodu olmadan müşteri başka satıcıya düşebilir. [KAYNAK] 7 link 10.11.2026'da doğrulandı.
 - Trendyol'a doğrudan soğuk trafik göndermenin dönüşümü düşüktür; ürün sayfası, fiyat ve yorum yükü taşır. [KAYNAK] uygulayıcı forumları
 
@@ -31,3 +33,7 @@ gizlilik: serbest
 - Kalıcı olmayan kozmetik kremler 18+ yaş kuralından muaftır; yine de kişisel bölge bakım ürünlerinde 18+ hedeflemek güvenlidir. [KAYNAK]
 - Yasak: cinsel uyarılma veya performans vaadi, genital büyütme, vücut bölgesi ya da hijyen hakkında aşağılayıcı ifade. [KAYNAK]
 - Meta'nın Advantage+ metin ve görsel üretimi her reklamda kapatılmalı; daha önce yasak iddia üretti. [KAYNAK] şirket kaydı 29.09.2026
+
+## 11.11 kurulumu (yayında, 10.11.2026)
+- Kendi hesap: "11.11 | Trendyol LEMOS | Trafik | 11-17 Kas", 11 Kasım 14:00 – 17 Kasım 23:00, Bağlantı Tıklaması, günlük toplam 1.000 TL: Genel Bakım 400 TL (LUCIDERM, DERMANOVA, HYDRAVIE, LIPVORA), KINESIS+ 300 TL, VIREON 150 TL yalnız erkek 18+, FEMISIA 150 TL yalnız kadın 18+. [KAYNAK] şirket kaydı
+- Trendyol panel: "11.11 Meta Yeniden Hedefleme", 11–17 Kasım, toplam 3.500 TL. [KAYNAK] şirket kaydı
