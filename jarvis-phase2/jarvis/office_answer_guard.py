@@ -54,6 +54,7 @@ Soruyla ilgili en fazla dört kaynak seç. Alıntıyı hiçbir biçimde yeniden 
 Öneriler ve eksikler yalnız yapılabilecek bir sonraki adımı veya gereken bilgiyi anlatsın; gerçekleşmiş olay iddiası veya kesin sonuç içermesin.
 Öneride sayı, yüzde veya tarih yalnız kaynaklarda ya da soruda birebir geçiyorsa kullanılabilir; yeni sayı türetme.
 ŞİRKET BİLGİSİ kaynakları insan onaylı yöntem bilgisidir: önerinin gerekçesini bunlara dayandır, somut ve uygulanabilir öneri ver.
+Kısa yaz: en fazla üç bulgu, alıntı en fazla bir cümle; en fazla dört öneri, her biri en fazla iki cümle. JSON dışında hiçbir şey yazma.
 Kaynağın okunması işin tamamlanması değildir. Dış araştırma şirket ölçümü değildir.
 Kanıt soruyu yanıtlamıyorsa bunu eksikler içinde açıkla. Boşlukları tahminle doldurma.'''
 
@@ -138,7 +139,7 @@ def answer(question, evidence, data, router, bounded):
     payload = [dict(ref=i['id'], summary=i['summary']) for i in prepared]
     verified = None
     try:
-        result = bounded(lambda: router.synthesize(question, payload, escalate=True, max_tokens=2500, system=SYSTEM))
+        result = bounded(lambda: router.synthesize(question, payload, escalate=True, max_tokens=1400, system=SYSTEM))
         verified = validate(result.answer, prepared, question)
     except Exception:  # noqa: BLE001
         pass
