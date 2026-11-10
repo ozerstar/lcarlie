@@ -111,11 +111,16 @@
     });
   }
 
+  // Yönetici başka bir kullanıcının defterini (ör. ofisin taslakları) seçebilir.
+  // Sunucu bu başlığı yalnız yöneticiden kabul eder; diğerlerinde yok sayar.
+  function defterBasligi() {return state.defter ? {'X-Cari-Defter': state.defter} : {};}
+  function defterSorgusu() {return state.defter ? '&defter=' + encodeURIComponent(state.defter) : '';}
+
   async function request(path, payload) {
     const response = await fetch(path, {
-      credentials: 'same-origin', cache: 'no-store',
+      credentials: 'same-origin', cache: 'no-store', headers: defterBasligi(),
       ...(payload === undefined ? {} : {
-        method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF-Token': state.csrf || ''},
+        method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF-Token': state.csrf || '', ...defterBasligi()},
         body: JSON.stringify(payload)
       })
     });
@@ -207,7 +212,7 @@
     if (state.selected) await select(state.selected, false);
     await loadOverview();
     await loadDocuments();
-    if (window.JarvisCariChannels) await window.JarvisCariChannels.load();
+    if (window.JarvisCariChannels && !state.ofis) await window.JarvisCariChannels.load();
     error('');
   }
 
@@ -225,7 +230,7 @@
     const previous = state.documents;
     state.documents = result.documents || [];
     const container = el('cariDocuments');
-    container.innerHTML = `<h3>Yüklenen faturalar ve ekler</h3><div class="cari-table-wrap"><table><thead><tr><th>Dosya</th><th>Durum</th><th>İşlem</th></tr></thead><tbody>${state.documents.map(doc => `<tr><td><a href="/api/cari/documents/content?id=${encodeURIComponent(doc.id)}" target="_blank" rel="noopener">${escape(doc.filename)}</a><small>${day(String(doc.created_at).slice(0, 10))}</small></td><td>${doc.status === 'posted' ? 'Cari ve hareket kaydedildi' : doc.status === 'review' ? 'İnceleme gerekli' : doc.source === 'invoice' ? 'Okunuyor' : 'Yüklendi'}</td><td>${doc.status === 'review' ? `<button type="button" data-review="${doc.id}">İncele ve kaydet</button>` : doc.status === 'uploaded' && doc.source === 'invoice' ? `<button type="button" data-reprocess="${doc.id}">Yeniden oku</button>` : doc.account_id ? `<button type="button" data-open-doc-account="${doc.account_id}">Cariyi aç</button>` : '—'}</td></tr>`).join('') || '<tr><td colspan="3">Henüz belge yüklenmedi.</td></tr>'}</tbody></table></div>`;
+    container.innerHTML = `<h3>Yüklenen faturalar ve ekler</h3><div class="cari-table-wrap"><table><thead><tr><th>Dosya</th><th>Durum</th><th>İşlem</th></tr></thead><tbody>${state.documents.map(doc => `<tr><td><a href="/api/cari/documents/content?id=${encodeURIComponent(doc.id)}${defterSorgusu()}" target="_blank" rel="noopener">${escape(doc.filename)}</a><small>${day(String(doc.created_at).slice(0, 10))}</small></td><td>${doc.status === 'posted' ? 'Cari ve hareket kaydedildi' : doc.status === 'review' ? 'İnceleme gerekli' : doc.source === 'invoice' ? 'Okunuyor' : 'Yüklendi'}</td><td>${doc.status === 'review' ? `<button type="button" data-review="${doc.id}">İncele ve kaydet</button>` : doc.status === 'uploaded' && doc.source === 'invoice' ? `<button type="button" data-reprocess="${doc.id}">Yeniden oku</button>` : doc.account_id ? `<button type="button" data-open-doc-account="${doc.account_id}">Cariyi aç</button>` : '—'}</td></tr>`).join('') || '<tr><td colspan="3">Henüz belge yüklenmedi.</td></tr>'}</tbody></table></div>`;
     container.querySelectorAll('[data-review]').forEach(button => {button.onclick = () => reviewInvoice(button.dataset.review);});
     container.querySelectorAll('[data-reprocess]').forEach(button => {button.onclick = async () => {try {await request('/api/cari/documents/process', {id: button.dataset.reprocess}); button.textContent = 'Okunuyor…';} catch (exc) {error(exc.message, 'cariInvoiceError');}};});
     container.querySelectorAll('[data-open-doc-account]').forEach(button => {button.onclick = () => select(button.dataset.openDocAccount).catch(exc => error(exc.message));});
@@ -239,7 +244,7 @@
   async function uploadFile(file, source, accountId, entryId) {
     if (!file || file.size > 8 * 1024 * 1024) throw new Error('Dosya 8 MB veya daha küçük olmalı.');
     const headers = {'X-CSRF-Token': state.csrf, 'X-File-Name': encodeURIComponent(file.name),
-      'X-Document-Source': source};
+      'X-Document-Source': source, ...defterBasligi()};
     if (accountId) headers['X-Account-Id'] = accountId;
     if (entryId) headers['X-Entry-Id'] = entryId;
     const response = await fetch('/api/cari/documents/upload', {method: 'POST', credentials: 'same-origin',
@@ -481,6 +486,7 @@
 
   async function downloadCari(format, scope='account') {
     const params=new URLSearchParams({format,scope});
+    if(state.defter)params.set('defter',state.defter);
     if(scope==='portfolio'){if(state.reportDate)params.set('as_of',state.reportDate);}else if(state.selected)params.set('account_id',state.selected);else return;
     try{
       const response=await fetch('/api/cari/export?'+params,{credentials:'same-origin',cache:'no-store'});
@@ -515,7 +521,7 @@
         <details open><summary>İadesi istenen ürünler · ${sum(returns, 'return_quantity')} adet</summary><p class="cari-alert">İade talebidir; ürünlerin geri alındığı veya para iadesi yapıldığı henüz doğrulanmadı.</p><div class="cari-table-wrap"><table><thead><tr><th>Ürün</th><th>İstenen adet</th><th>Hediye mahsubu</th><th>Ücret hesabına kalan adet</th><th>Tahmini birim tutarı</th><th>Tahmini satır tutarı</th><th>Ek %5 senaryosu</th><th class="cari-no-print">İşlem</th></tr></thead><tbody>${returns.map(p => `<tr><td>${productNameWithPhoto(p.name)}</td><td>${p.return_quantity}</td><td>${number(p.return_gift_offset_quantity) || 0}</td><td>${Math.max(0,p.return_quantity-(number(p.return_gift_offset_quantity) || 0))}</td><td>${price(p.return_unit_estimate_cents)}</td><td>${price(p.return_estimate_cents)}</td><td>${price(p.return_alternative_cents)}</td><td class="cari-no-print"><button type="button" data-edit-reconciliation="${escape(doc.id)}" data-edit-sku="${escape(p.sku)}" aria-label="${escape(p.name)} düzenle">Düzenle</button></td></tr>`).join('')}</tbody><tfoot><tr><th>TAHMİNİ TOPLAM</th><td>${sum(returns, 'return_quantity')}</td><td>${sum(returns, 'return_gift_offset_quantity')}</td><td>${returns.reduce((n,p)=>n+Math.max(0,p.return_quantity-(number(p.return_gift_offset_quantity)||0)),0)}</td><td></td><td>${price(estimate)}</td><td>${price(alternative)}</td><td class="cari-no-print"></td></tr></tfoot></table></div></details>
         <p class="cari-alert">${escape(r.estimate_note)}</p>
         <p>${escape(r.pending_note)}</p>
-        <a href="/api/cari/documents/content?id=${encodeURIComponent(doc.id)}" target="_blank" rel="noopener">İlk hesap raporunu aç — sonraki hediye değişikliklerini içermez</a>
+        <a href="/api/cari/documents/content?id=${encodeURIComponent(doc.id)}${defterSorgusu()}" target="_blank" rel="noopener">İlk hesap raporunu aç — sonraki hediye değişikliklerini içermez</a>
       </section>`;
     }).join('');
   }
@@ -535,7 +541,7 @@
       const items = p.items.length ? `<details class="cari-details"><summary>${p.items.length} ürün satırı</summary>${p.items.map(item => `<p>${escape(item.name)} · ${item.quantity} adet × ${money(item.unit_price_cents)} · iskonto %${escape(item.discount)} · KDV ${item.tax_rate === null ? 'belirlenmedi' : '%' + escape(item.tax_rate)}<br>Net: ${money(item.net_cents)} · KDV: ${item.tax_rate === null ? 'belirlenecek' : money(item.tax_cents)}</p>`).join('')}</details>` : '';
       const settlement = allocated?.[entry.id];
       const paymentText = settlement ? `<small>Ödeme: ${settlement.status === 'paid' ? 'Alındı / ödendi' : settlement.status === 'partial' ? 'Kısmi' : 'Alınmadı / ödenmedi'} · ${money(settlement.paid_cents)} / ${money(settlement.paid_cents + settlement.remaining_cents)}${settlement.unknown_tax ? ' + KDV belirsiz' : ''}</small>` : p.applies_to ? `<small>${{pos: 'POS', havale: 'Havale / EFT', elden: 'Elden', other: 'Diğer'}[p.payment_method] || 'Yöntem belirtilmedi'} · Belgeye eşleşti</small>` : '';
-      const docLinks = state.documents.filter(doc => doc.entry_id === entry.id).map(doc => `<a href="/api/cari/documents/content?id=${encodeURIComponent(doc.id)}" target="_blank" rel="noopener">${escape(doc.filename)}</a>`).join(' ');
+      const docLinks = state.documents.filter(doc => doc.entry_id === entry.id).map(doc => `<a href="/api/cari/documents/content?id=${encodeURIComponent(doc.id)}${defterSorgusu()}" target="_blank" rel="noopener">${escape(doc.filename)}</a>`).join(' ');
       return `<tr${reversed.has(entry.id) ? ' class="cari-reversed"' : ''}><td>${day(p.date)}${p.due_date ? '<small>Vade: ' + day(p.due_date) + '</small>' : ''}</td><td>${entry.reverses ? 'Ters kayıt · ' : ''}${labels[p.kind]}${reversed.has(entry.id) ? '<small>Ters kayıtla düzeltildi</small>' : ''}<small>${escape(p.reference)}${p.note ? ' · ' + escape(p.note) : ''}</small>${paymentText}${docLinks ? `<small>Ek: ${docLinks}</small>` : ''}${items}</td><td class="cari-money">${signed > 0 ? money(signed) : '—'}</td><td class="cari-money">${signed < 0 ? money(-signed) : '—'}</td><td class="cari-money">${money(balance)}${p.unknown_tax ? '<small>Bu belgede KDV belirsiz</small>' : ''}</td><td class="cari-no-print">${!entry.reverses && !reversed.has(entry.id) ? `${settlement && settlement.remaining_cents > 0 ? `<button type="button" data-pay="${entry.id}">${p.kind === 'sale' || p.kind === 'opening_receivable' ? 'Ödeme alındı' : 'Ödeme yapıldı'}</button> ` : ''}<button type="button" data-attach="${entry.id}">Belge ekle</button> <button type="button" data-edit="${entry.id}">${p.items.length ? 'Ürün / iskonto düzenle' : 'Düzenle'}</button> <button class="cari-danger" type="button" data-reverse="${entry.id}">İptal et</button>` : ''}</td></tr>`;
     }).join('');
     const unknown = summary.unknown_tax_documents > 0;
@@ -1021,7 +1027,10 @@
       if (JSON.stringify({data: current, correction: currentCorrection}) !== encoded) return;
       state.pending = correction || data;
       el('cariPreview').innerHTML = `<p>${escape(state.statement.account.name)} · ${labels[result.kind]}</p><strong>${money(result.net_cents + result.tax_cents)}${result.unknown_tax ? ' + belirlenecek KDV' : ''}</strong><p>Net: ${money(result.net_cents)} · KDV: ${result.unknown_tax ? 'Oran girilmedi' : money(result.tax_cents)}</p><small>${correction ? 'Eski kayıt terslenip bu tutarla değiştirilecek.' : result.signed_cents > 0 ? 'Alacağımız artacak / borcumuz azalacak.' : result.signed_cents < 0 ? 'Alacağımız azalacak / borcumuz artacak.' : 'Yalnız ürün adedi değişecek.'} Henüz kaydedilmedi.</small>`;
-      el('cariPreview').hidden = false; el('cariSaveEntry').hidden = false;
+      el('cariPreview').hidden = false;
+      // Ofis hareketi doğrudan işleyemez, yalnız taslak girer; taslağı düzenlerken
+      // "Kaydet" taslağı günceller, bu yüzden o durumda görünür kalır.
+      el('cariSaveEntry').hidden = Boolean(state.ofis && !state.editingDraft);
       el('cariSaveDraft').hidden = Boolean(state.editing || state.editingDraft);
     } catch (exc) {error(exc.message, 'cariEntryError');}
     finally {button.disabled = false;}
@@ -1093,6 +1102,33 @@
     link.href = url; link.download = 'lcarlie-cari-' + account.name.replace(/[^\p{L}\p{N} -]/gu, '') + '-' + today() + '.csv'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  function defterSeciciKur(defterler, kendisi) {
+    if (defterler.length < 2 || el('cariDefter')) return;
+    const kutu = document.createElement('label');
+    kutu.className = 'cari-defter cari-no-print';
+    kutu.textContent = 'Cari defteri ';
+    const secim = document.createElement('select');
+    secim.id = 'cariDefter';
+    defterler.forEach(ad => {
+      const o = document.createElement('option');
+      o.value = ad === kendisi ? '' : ad;
+      o.textContent = ad === kendisi ? 'Benim kayıtlarım' : ad + ' (ofis)';
+      secim.appendChild(o);
+    });
+    secim.onchange = async () => {
+      // Ekran baştan kurulur: önceki defterin seçili carisi, ekstresi ve
+      // belgeleri yeni defterde görünmeye devam etmesin.
+      const secilen = secim.value;
+      state.defter = secilen; state.selected = null; state.statement = null; state.documents = []; state.drafts = [];
+      shell();
+      defterSeciciKur(defterler, kendisi);
+      el('cariDefter').value = secilen;
+      try {await refresh();} catch (exc) {error(exc.message);}
+    };
+    kutu.appendChild(secim);
+    root.querySelector('.cari-heading').after(kutu);
+  }
+
   let loading = null;
   async function load() {
     if (loading) return loading;
@@ -1101,7 +1137,11 @@
       try {
         const session = await request('/api/session');
         if (!session.authenticated) throw new Error('Cari hesapları görmek için Jarvis’e giriş yapın.');
-        state.csrf = session.csrf_token; await refresh(); await loadCatalog();
+        state.csrf = session.csrf_token;
+        state.ofis = session.role === 'OFIS';
+        root.classList.toggle('cari-rol-ofis', state.ofis);
+        defterSeciciKur((session.gorunum || {}).cari_defterleri || [], session.username);
+        await refresh(); await loadCatalog();
       } catch (exc) {error(exc.message);}
     })();
     try {await loading;} finally {loading = null;}

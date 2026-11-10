@@ -19,6 +19,8 @@ with patch('jarvis.memory.CompanyMemory.__init__', return_value=None), \
 
 class Handler:
     _route_cari = app.Handler._route_cari
+    _cari_sahibi = app.Handler._cari_sahibi
+    headers = {}
 
     def __init__(self, *, authenticated=True, csrf=True):
         self.session = SimpleNamespace(username='test-operator') if authenticated else None

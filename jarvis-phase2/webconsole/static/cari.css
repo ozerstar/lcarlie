@@ -372,3 +372,14 @@
 .cari-agreed-result:empty{display:none}
 .cari dialog.cari-confirm{width:min(440px,calc(100vw - 24px))}
 .cari dialog.cari-confirm p{margin:0 0 20px;line-height:1.5}
+
+/* Ofis rolü: hareketi taslak olarak girer. Kesinleştirme, ödeme, düzeltme,
+   iptal, iskonto, belge onayı ve kanal takibi yöneticidedir. Sunucu bu uçları
+   zaten reddeder; düğmeyi göstermemek, basınca hata görmemek içindir. */
+.cari-rol-ofis [data-post-draft], .cari-rol-ofis [data-reverse], .cari-rol-ofis [data-edit],
+.cari-rol-ofis [data-pay], .cari-rol-ofis [data-review], .cari-rol-ofis [data-edit-reconciliation],
+.cari-rol-ofis #cariApplyDiscount, .cari-rol-ofis #cariBulkDiscount, .cari-rol-ofis #cariDiscountApply,
+.cari-rol-ofis #cariDiscountUndo, .cari-rol-ofis #cariDiscountChoice, .cari-rol-ofis #cariTabChannels,
+.cari-rol-ofis .cari-integrations { display: none !important; }
+.cari-defter { display: flex; gap: .5rem; align-items: center; margin: 0 0 1rem; font-weight: 600; }
+.cari-defter select { font: inherit; padding: .35rem .6rem; border-radius: 8px; }

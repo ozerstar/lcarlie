@@ -66,6 +66,7 @@ from jarvis.shadow import ShadowRunner  # noqa: E402
 from jarvis.transport import memory_host  # noqa: E402
 
 import auth  # noqa: E402
+import yetki  # noqa: E402
 import push_store  # noqa: E402
 import meta_webhook  # noqa: E402
 import isler  # noqa: E402
@@ -1031,7 +1032,42 @@ class Handler(BaseHTTPRequestHandler):
         sid = cookies.get(SESSION_COOKIE)
         if not sid:
             return None
-        return sessions.get(sid)
+        session = sessions.get(sid)
+        if session is None:
+            return None
+        # Rol her istekte hesap dosyasından okunur: kapatılan hesabın açık
+        # kalmış oturumu bir sonraki istekte düşer.
+        session.role = auth.role_of(session.username)
+        if session.role is None:
+            sessions.destroy(sid)
+            return None
+        session.admin = session.role == auth.ROLE_ADMIN
+        return session
+
+    def _yetki_kapisi(self, yontem: str, yol: str) -> bool:
+        """Rolün ulaşamadığı adrese 403. True = istek burada bitti.
+
+        401 değil 403: ön yüz her 401'de oturumu düşürüp giriş ekranına atar;
+        izinsiz bir adres oturumu kapatmamalı, yalnız reddedilmeli."""
+        session = self._current_session()
+        if session is None or yetki.izinli(session.role, yontem, yol):
+            return False
+        sys.stderr.write("[yetki] RED kullanici=%s rol=%s %s %s\n" % (session.username, session.role, yontem, yol))
+        if yol.startswith("/api/"):
+            self._send_json(403, {"error": "Bu bölüme erişim yetkiniz yok."})
+        else:
+            self.send_error(403)
+        return True
+
+    def _cari_sahibi(self, session, query: dict | None = None) -> str:
+        """Hangi cari defteri. Yönetici başka kullanıcının defterini seçebilir
+        (ofisin taslaklarını görmek ve onaylamak için); diğerleri yalnız kendi
+        defterini görür -- istekteki seçim yok sayılır."""
+        basliklar = getattr(self, "headers", None) or {}
+        istenen = basliklar.get("X-Cari-Defter") or ((query or {}).get("defter") or [""])[0]
+        if istenen and getattr(session, "admin", False) and auth.find_account(istenen):
+            return istenen
+        return session.username
 
     def _require_csrf(self, session: auth.Session) -> bool:
         provided = self.headers.get("X-CSRF-Token", "")
@@ -1102,6 +1138,8 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         try:
+            if self._yetki_kapisi("GET", path):
+                return
             # Meta webhook'u oturum AÇAMAZ; bu yol kimlik kapısından önce
             # gelir. Karşılığında kendi kapısı var: doğrulama anahtarı (GET)
             # ve HMAC imzası (POST). Başka hiçbir yol bu istisnayı almaz.
@@ -1146,6 +1184,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if parsed.path == meta_webhook.WEBHOOK_PATH:
                 self._meta_olay()
+            elif self._yetki_kapisi("POST", parsed.path):
+                return
             else:
                 self._route_api_post(parsed.path)
         except Exception:  # noqa: BLE001
@@ -1672,8 +1712,15 @@ class Handler(BaseHTTPRequestHandler):
             if session is None:
                 self._send_json(200, {"authenticated": False})
                 return
+            hesap = auth.find_account(session.username) or {}
+            gorunum = yetki.gorunum(session.role)
+            if session.admin:
+                gorunum["cari_defterleri"] = [session.username] + [
+                    u["username"] for u in auth.list_users() if not u["disabled"]]
             self._send_json(200, {"authenticated": True, "username": session.username,
-                                  "csrf_token": session.csrf_token})
+                                  "csrf_token": session.csrf_token, "role": session.role,
+                                  "must_change_password": bool(hesap.get("must_change")),
+                                  "gorunum": gorunum})
             return
 
         if session is None:
@@ -1732,7 +1779,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
         if path == "/api/cari/export":
             try:
-                mime, data, filename = cari_export.export(session.username, query)
+                mime, data, filename = cari_export.export(self._cari_sahibi(session, query), query)
                 self.send_response(200)
                 self.send_header("Content-Type", mime)
                 self.send_header("Content-Length", str(len(data)))
@@ -1751,7 +1798,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/api/cari/documents/content":
             try:
-                mime, data = cari_invoice.content(session.username, (query.get("id") or [""])[0])
+                mime, data = cari_invoice.content(self._cari_sahibi(session, query), (query.get("id") or [""])[0])
                 self.send_response(200)
                 self.send_header("Content-Type", mime)
                 self.send_header("Content-Length", str(len(data)))
@@ -2542,13 +2589,14 @@ class Handler(BaseHTTPRequestHandler):
                 length = int(self.headers.get("Content-Length", "0"))
                 if not 0 < length <= cari_invoice.MAX_BYTES:
                     raise cari.CariError("Dosya 8 MB veya daha küçük olmalı.")
-                result = cari_invoice.upload(session.username, self.rfile.read(length),
+                sahip = self._cari_sahibi(session)
+                result = cari_invoice.upload(sahip, self.rfile.read(length),
                     unquote(self.headers.get("X-File-Name", "fatura")),
                     self.headers.get("X-Document-Source", "invoice"),
                     self.headers.get("X-Account-Id") or None,
                     self.headers.get("X-Entry-Id") or None)
                 if self.headers.get("X-Document-Source", "invoice") == "invoice":
-                    cari_invoice.start_processing(session.username, result["id"])
+                    cari_invoice.start_processing(sahip, result["id"])
                 self._send_json(200, result)
             except cari.CariConflict as exc:
                 self._send_json(409, {"error": str(exc)})
@@ -2712,14 +2760,19 @@ class Handler(BaseHTTPRequestHandler):
             if len(new_password) < 6:
                 self._send_json(400, {"error": "password too short"})
                 return
-            account = auth.load_account()
-            if not account or account["username"] != session.username or not auth.verify_password(
+            account = auth.find_account(session.username)
+            if not account or not auth.verify_password(
                 current_password, account["password_hash"], account["salt"]
             ):
                 self._send_json(403, {"error": "current password incorrect"})
                 return
-            auth.set_password(session.username, new_password)
-            sessions.destroy_all()
+            if not session.admin and (len(new_password) < 10 or new_password == current_password):
+                self._send_json(400, {"error": "Yeni parola en az 10 karakter olmalı ve eskisinden farklı olmalı."})
+                return
+            auth.set_user_password(session.username, new_password)
+            # Yalnız bu kullanıcının oturumları kapanır; parolasını değiştiren
+            # ofis kullanıcısı yöneticiyi oturumdan atmamalı.
+            sessions.destroy_user(session.username)
             self._send_json(200, {"ok": True}, self._clear_session_cookies())
             return
 
@@ -3535,20 +3588,21 @@ class Handler(BaseHTTPRequestHandler):
 
     def _route_cari(self, path: str, session, *, query=None, body=None) -> None:
         """Called only behind the existing session + POST CSRF boundary."""
+        sahip = self._cari_sahibi(session, query)
         try:
             if query is not None:
                 if path == "/api/cari/channels":
-                    result = cari_channels.board(session.username)
+                    result = cari_channels.board(sahip)
                 elif path == "/api/cari/overview":
-                    result = cari.portfolio(session.username, (query.get("as_of") or [None])[0])
+                    result = cari.portfolio(sahip, (query.get("as_of") or [None])[0])
                 elif path == "/api/cari/accounts":
-                    result = cari.list_accounts(session.username)
+                    result = cari.list_accounts(sahip)
                 elif path == "/api/cari/statement":
-                    result = cari.statement(session.username, (query.get("id") or [""])[0])
+                    result = cari.statement(sahip, (query.get("id") or [""])[0])
                 elif path == "/api/cari/documents":
-                    result = cari_invoice.list_documents(session.username, (query.get("account_id") or [None])[0])
+                    result = cari_invoice.list_documents(sahip, (query.get("account_id") or [None])[0])
                 elif path == "/api/cari/drafts":
-                    result = cari_draft.list_drafts(session.username, (query.get("account_id") or [""])[0])
+                    result = cari_draft.list_drafts(sahip, (query.get("account_id") or [""])[0])
                 else:
                     self._send_json(404, {"error": "Cari yolu bulunamadı."})
                     return
@@ -3556,36 +3610,36 @@ class Handler(BaseHTTPRequestHandler):
                 if not isinstance(body, dict):
                     raise cari.CariError("İstek bir JSON nesnesi olmalı.")
                 if path == "/api/cari/channels/observe":
-                    result = cari_channels.observe(session.username, body)
+                    result = cari_channels.observe(sahip, body)
                 elif path == "/api/cari/accounts":
-                    result = cari.create_account(session.username, body)
+                    result = cari.create_account(sahip, body)
                 elif path == "/api/cari/reconciliation/update":
-                    result = cari_reconciliation.update(session.username, body)
+                    result = cari_reconciliation.update(sahip, body)
                 elif path == "/api/cari/accounts/update":
-                    result = cari.update_account(session.username, body.get("account_id"), body)
+                    result = cari.update_account(sahip, body.get("account_id"), body)
                 elif path == "/api/cari/preview":
                     result = cari.calculate(body)
                 elif path == "/api/cari/entries":
-                    result = cari.post_entry(session.username, body.get("account_id"), body)
+                    result = cari.post_entry(sahip, body.get("account_id"), body)
                 elif path == "/api/cari/discount/undo":
-                    result = cari.undo_discount(session.username, body.get("account_id"), body)
+                    result = cari.undo_discount(sahip, body.get("account_id"), body)
                 elif path == "/api/cari/discount":
-                    result = cari.apply_discount(session.username, body.get("account_id"), body)
+                    result = cari.apply_discount(sahip, body.get("account_id"), body)
                 elif path == "/api/cari/correct":
-                    result = cari.correct_entry(session.username, body.get("account_id"), body)
+                    result = cari.correct_entry(sahip, body.get("account_id"), body)
                 elif path == "/api/cari/reverse":
-                    result = cari.reverse_entry(session.username, body.get("account_id"), body)
+                    result = cari.reverse_entry(sahip, body.get("account_id"), body)
                 elif path == "/api/cari/documents/approve":
-                    result = cari_invoice.approve(session.username, body.get("id"), body.get("extracted"))
+                    result = cari_invoice.approve(sahip, body.get("id"), body.get("extracted"))
                 elif path == "/api/cari/documents/process":
-                    cari_invoice.start_processing(session.username, cari._id(body.get("id")))
+                    cari_invoice.start_processing(sahip, cari._id(body.get("id")))
                     result = {"id": body["id"], "status": "uploaded"}
                 elif path == "/api/cari/drafts/create":
-                    result = cari_draft.create(session.username, body.get("account_id"), body)
+                    result = cari_draft.create(sahip, body.get("account_id"), body)
                 elif path == "/api/cari/drafts/update":
-                    result = cari_draft.update(session.username, body.get("account_id"), body.get("draft_id"), body)
+                    result = cari_draft.update(sahip, body.get("account_id"), body.get("draft_id"), body)
                 elif path == "/api/cari/drafts/post":
-                    result = cari_draft.post(session.username, body.get("account_id"), body.get("draft_id"))
+                    result = cari_draft.post(sahip, body.get("account_id"), body.get("draft_id"))
                 else:
                     self._send_json(404, {"error": "Cari yolu bulunamadı."})
                     return
@@ -3609,9 +3663,9 @@ class Handler(BaseHTTPRequestHandler):
         body = _read_json_body(self)
         username = str(body.get("username", ""))
         password = str(body.get("password", ""))
-        account = auth.load_account()
+        account = auth.find_account(username)
         ok = False
-        if account and username == account["username"]:
+        if account:
             ok = auth.verify_password(password, account["password_hash"], account["salt"])
         if not ok:
             throttle.record_failure(source)

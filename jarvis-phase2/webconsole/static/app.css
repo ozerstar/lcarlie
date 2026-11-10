@@ -4562,3 +4562,22 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .go-nedenler { padding-left: 20px; } .go-nedenler li { display: flex; justify-content: space-between; gap: 12px; max-width: 520px; padding: 3px 0; }
 .go-nedenler b { color: #b04a3a; white-space: nowrap; }
 .go-yorumlar { padding-left: 18px; } .go-yorumlar li { margin: 6px 0; } .go-yorumlar small { display: block; color: var(--muted); }
+
+/* Ofis rolü: gizlenen menü öğeleri sınıf kurallarına rağmen görünmesin. */
+/* nav-pro.css menü öğesine `html[data-lcarlie-theme] #mainNav .nav-item`
+   ile display:flex !important veriyor; bu kural ondan daha özgül olmalı. */
+.rol-ofis .nav-item[hidden], .rol-ofis .nav-group[hidden],
+html[data-lcarlie-theme] body.rol-ofis #mainNav .nav-item[hidden],
+html[data-lcarlie-theme] body.rol-ofis #mainNav .nav-group[hidden],
+.rol-ofis #chatLauncher, .rol-ofis #cmdBar,
+/* Jarvis'e soru, onay kuyruğu ve canlı durum ofise kapalı uçlara bağlı. */
+.rol-ofis #quickChat, .rol-ofis #quickApprovals, .rol-ofis #tbLive,
+.rol-ofis .iv-ask { display: none !important; }
+.ilk-parola { max-width: 440px; margin: 0 auto 24px; padding: 20px 22px; border-radius: 14px;
+  border: 1px solid var(--line, #d9d4c7); background: var(--surface, #fffdf8); }
+.ilk-parola h2 { margin: 0 0 8px; font-size: 18px; }
+.ilk-parola p { margin: 0 0 14px; line-height: 1.5; }
+.ilk-parola form { display: grid; gap: 10px; }
+.ilk-parola label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; }
+.ilk-parola input { font: inherit; padding: 9px 11px; border-radius: 8px; border: 1px solid var(--line, #cfc9ba); }
+.ilk-parola button { font: inherit; font-weight: 600; padding: 10px 14px; border-radius: 9px; cursor: pointer; }

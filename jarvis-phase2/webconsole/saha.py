@@ -75,9 +75,18 @@ ZIYARET_ETIKET = {
     "YETKILI_YOK": "Yetkili yoktu", "ILGILENMEDI": "İlgilenmedi",
     "NUMUNE_BIRAKILDI": "Numune bırakıldı", "SIPARIS_SOZU": "Sipariş sözü",
     "TEKRAR_GEL": "Tekrar gelinecek",
+    # Telefon görüşmesi raporları. Ayrı tablo değil, aynı ziyaret kaydı:
+    # bir hedefle yapılan her temas tek zaman çizgisinde görünsün diye.
+    "TEL_RANDEVU": "Telefon: randevu alındı", "TEL_TEKRAR_ARA": "Telefon: tekrar aranacak",
+    "TEL_MAIL": "Telefon: e-posta istendi", "TEL_ULASILAMADI": "Telefon: ulaşılamadı",
+    "TEL_ILGILENMEDI": "Telefon: ilgilenmedi",
+    # Kişi aranmak istemiyor. Bu sonuçtan sonra hedef ARANMAZ.
+    "ARAMAYIN": "Aranmak istemiyor",
 }
 ZIYARET_SONUCLARI = ("GORUSULDU", "KAPALI", "YETKILI_YOK", "ILGILENMEDI",
-                     "NUMUNE_BIRAKILDI", "SIPARIS_SOZU", "TEKRAR_GEL")
+                     "NUMUNE_BIRAKILDI", "SIPARIS_SOZU", "TEKRAR_GEL",
+                     "TEL_RANDEVU", "TEL_TEKRAR_ARA", "TEL_MAIL", "TEL_ULASILAMADI",
+                     "TEL_ILGILENMEDI", "ARAMAYIN")
 KONUM_KAYNAKLARI = ("GPS", "HARITA", "ELLE")
 
 

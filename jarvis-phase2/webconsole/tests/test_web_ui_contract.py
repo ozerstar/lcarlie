@@ -58,6 +58,7 @@ def _fonksiyon_govdeleri(js: str, onek: str):
 
 # Every path the frontend may call, and the reason each one is legitimate.
 KNOWN_ROUTES = {
+    "/api/account/password",
     # Etkin sohbetin turlari (04.11.2026): panel acilinca konusma geri gelir.
     "/api/chat/aktif",
     "/api/session", "/api/login", "/api/logout", "/api/status",

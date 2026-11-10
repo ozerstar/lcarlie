@@ -133,6 +133,8 @@ async function checkSession() {
   if (body && body.authenticated) {
     state.csrfToken = body.csrf_token;
     state.username = body.username;
+    state.role = body.role || null;
+    state.mustChangePassword = Boolean(body.must_change_password);
     showApp();
   } else {
     showLogin();
@@ -145,12 +147,73 @@ function showLogin() {
   stopPolling();
 }
 
+/* Ofis rolü: yalnız SAHA sekmesi + cari ve 3D ofis sayfaları. Menüyü
+ * gizlemek kolaylık içindir; asıl kapı sunucuda (webconsole/yetki.py) --
+ * gizlenen ekranın verisi zaten 403 döner. */
+const OFIS_SEKMELER = new Set(['saha']);
+const OFIS_SAYFALAR = new Set(['/cari.html', '/office.html']);
+function ofisMi() { return state.role === 'OFIS'; }
+
+function rolUygula() {
+  const ofis = ofisMi();
+  document.body.classList.toggle('rol-ofis', ofis);
+  if (!ofis) return;
+  document.querySelectorAll('#mainNav .nav-item').forEach((n) => {
+    n.hidden = n.dataset.view ? !OFIS_SEKMELER.has(n.dataset.view) : !OFIS_SAYFALAR.has(n.getAttribute('href'));
+  });
+  document.querySelectorAll('#mainNav .nav-group').forEach((g) => {
+    g.hidden = !g.querySelector('.nav-item:not([hidden])');
+  });
+  ['chatLauncher', 'cmdBar'].forEach((id) => { const e = qs(id); if (e) e.hidden = true; });
+}
+
+/* İlk girişte verilen geçici parola değiştirilmeden çalışılmaz. */
+function parolaDegistirGoster() {
+  const sahne = qs('viewSaha');
+  if (!sahne || qs('ilkParolaKart')) return;
+  const kart = document.createElement('section');
+  kart.id = 'ilkParolaKart';
+  kart.className = 'ilk-parola';
+  kart.innerHTML = '<h2>Parolanızı değiştirin</h2>'
+    + '<p>Size verilen geçici parolayla ilk kez giriş yaptınız. Devam etmeden önce yalnız sizin bildiğiniz bir parola belirleyin (en az 10 karakter).</p>'
+    + '<form id="ilkParolaForm"><label>Geçici parola<input type="password" name="mevcut" autocomplete="current-password" required></label>'
+    + '<label>Yeni parola<input type="password" name="yeni" autocomplete="new-password" minlength="10" required></label>'
+    + '<label>Yeni parola (tekrar)<input type="password" name="tekrar" autocomplete="new-password" minlength="10" required></label>'
+    + '<button type="submit">Parolayı değiştir</button><p class="is-sonuc" id="ilkParolaSonuc"></p></form>';
+  sahne.prepend(kart);
+  qs('ilkParolaForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const sonuc = qs('ilkParolaSonuc');
+    if (f.yeni.value !== f.tekrar.value) { sonuc.textContent = 'Yeni parolalar aynı değil.'; return; }
+    const { ok, body } = await api('/api/account/password', { method: 'POST',
+      body: JSON.stringify({ current_password: f.mevcut.value, new_password: f.yeni.value }) });
+    if (!ok) {
+      sonuc.textContent = body && body.error === 'current password incorrect'
+        ? 'Geçici parola hatalı.' : ((body && body.error) || 'Parola değiştirilemedi.');
+      return;
+    }
+    kart.remove();
+    state.csrfToken = null;
+    showLogin();
+    qs('loginError').textContent = 'Parolanız değişti. Yeni parolanızla giriş yapın.';
+    qs('loginError').hidden = false;
+  });
+}
+
 function showApp() {
   qs('loginView').hidden = true;
   qs('appView').hidden = false;
   const name = state.username || '—';
   qs('opName').textContent = name;
   qs('opAvatar').textContent = name.slice(0, 2).toLocaleUpperCase('tr-TR');
+  rolUygula();
+  if (ofisMi()) {
+    setView('saha');
+    if (state.mustChangePassword) parolaDegistirGoster();
+    else if (qs('ilkParolaKart')) qs('ilkParolaKart').remove();
+    return;
+  }
   startPolling();
   refreshAll();
   sohbetiGeriYukle().catch(() => {});
@@ -174,10 +237,9 @@ qs('loginForm').addEventListener('submit', async (event) => {
   qs('loginError').hidden = true;
   const { ok, status, body } = await api('/api/login', { method: 'POST', body: JSON.stringify({ username, password }) });
   if (ok && body && body.ok) {
-    state.csrfToken = body.csrf_token;
-    state.username = body.username;
     qs('loginPass').value = '';
-    showApp();
+    // Rol ve "parola değişmeli" bilgisi oturumdan gelir; giriş cevabında yok.
+    await checkSession();
   } else {
     const msg = status === 429
       ? `Çok fazla deneme. ${body && body.retry_after_s ? body.retry_after_s + ' sn sonra tekrar deneyin.' : ''}`
@@ -215,6 +277,7 @@ const VIEWS = {
 
 function setView(name) {
   if (!VIEWS[name]) return;
+  if (ofisMi() && !OFIS_SEKMELER.has(name)) name = 'saha';
   state.view = name;
   Object.entries(VIEWS).forEach(([key, id]) => { qs(id).hidden = key !== name; });
   navAktifGrubuAc(name);
@@ -247,7 +310,7 @@ function renderViewSearch() {
   const query = qs('viewSearchInput').value.trim().toLocaleLowerCase('tr-TR');
   const results = qs('viewSearchResults');
   results.replaceChildren();
-  const matches = [...document.querySelectorAll('#mainNav .nav-item:not(:disabled)')]
+  const matches = [...document.querySelectorAll('#mainNav .nav-item:not(:disabled):not([hidden])')]
     .filter((button) => button.textContent.toLocaleLowerCase('tr-TR').includes(query));
   for (const navButton of matches) {
     const option = document.createElement('button');
@@ -326,6 +389,7 @@ qs('mainNav').addEventListener('click', (event) => {
 /* ---------------- polling ---------------- */
 function startPolling() {
   stopPolling();
+  if (ofisMi()) return;
   state.statusPollTimer = setInterval(refreshStatus, 12000);
   state.activityPollTimer = setInterval(() => { refreshActivity(); refreshProposals(); }, 15000);
 }
@@ -6694,6 +6758,9 @@ const SH_SONUC = [
   ['SIPARIS_SOZU', 'sipariş sözü'], ['TEKRAR_GEL', 'tekrar gel'],
   ['YETKILI_YOK', 'yetkili yok'], ['KAPALI', 'kapalı'],
   ['ILGILENMEDI', 'ilgilenmedi'],
+  ['TEL_RANDEVU', 'telefon: randevu alındı'], ['TEL_TEKRAR_ARA', 'telefon: tekrar aranacak'],
+  ['TEL_MAIL', 'telefon: e-posta istendi'], ['TEL_ULASILAMADI', 'telefon: ulaşılamadı'],
+  ['TEL_ILGILENMEDI', 'telefon: ilgilenmedi'], ['ARAMAYIN', 'aranmak istemiyor'],
 ];
 
 function shDurum(metin, kotu) {
@@ -7131,7 +7198,8 @@ document.addEventListener('submit', async function (e) {
  * durdurur; "bayat" kayıt kişinin durduğunu KANITLAMAZ ve panel de öyle
  * yazmaz (bkz. /api/saha/konum cevabındaki uyarı). */
 function shKonumBildir(k) {
-  if (!k) return;
+  // Ofis kullanıcısının konumu izlenmez (sunucu da bu ucu ofise kapatır).
+  if (!k || ofisMi()) return;
   api('/api/saha/konum', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ enlem: k.enlem, boylam: k.boylam,
@@ -7858,6 +7926,7 @@ function igKart(p) {
     + igGorsel(p)
     + igGunlukUst(p)
     + '<pre class="ig-caption">' + escapeHtml(p.caption) + '</pre>'
+    + igMetinKalitesi(p.metin_kalitesi)
     + '<p class="ig-etiket">' + escapeHtml(etiketler) + '</p>'
     + igSatir('EYLEM DÜĞMESİ', escapeHtml(JarvisMetin.label(p.cta, 'Belirtilmedi')) + ' — ' + escapeHtml(p.cta_gerekce || ''))
     + igSatir('GÖRSEL AÇIKLAMASI', escapeHtml(JarvisMetin.safeTitle(p.gorsel_brief, 'Görsel açıklaması hazırlanıyor.')))
@@ -7883,6 +7952,20 @@ function igKart(p) {
     +   '<span class="is-sonuc ig-sonuc" data-id="' + p.plan_id + '"></span>'
     + '</div>'
     + '</article>';
+}
+
+function igMetinKalitesi(k) {
+  if (!k) return '';
+  const notlar = k.notlar || [];
+  const onizleme = escapeHtml(k.gorunen_aciklama || '')
+    + (k.onizleme_kesiliyor ? '…' : '');
+  const sure = k.kanca_tahmini_saniye == null ? ''
+    : ' · kanca yaklaşık ' + escapeHtml(String(k.kanca_tahmini_saniye)) + ' sn';
+  const govde = '<strong>İlk görünen bölüm:</strong> ' + onizleme
+    + '<br><small>' + escapeHtml(String(k.karakter)) + ' karakter' + sure
+    + ' · tahmini önizleme ve süre</small>'
+    + (notlar.length ? '<br>' + notlar.map(escapeHtml).join('<br>') : '');
+  return igSatir('METİN KONTROLÜ', govde);
 }
 
 /* Gunluk paket (30.10.2026): kanca, ekran yazisi, saniye saniye senaryo

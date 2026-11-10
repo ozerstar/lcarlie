@@ -98,6 +98,98 @@ def set_password(username: str, password: str) -> None:
             os.unlink(temporary_path)
 
 
+# -- Ek kullanıcılar ----------------------------------------------------------
+# auth.json'daki operatör hesabı YÖNETİCİ'dir ve değişmez. Ek hesaplar ayrı
+# dosyada durur: operatör dosyasının biçimine dokunmamak, mevcut girişin hiçbir
+# koşulda kırılmaması demektir. Rol her istekte bu dosyadan OKUNUR, oturuma
+# yazılmaz -- rol değişikliği ya da hesabı kapatma bir sonraki istekte geçerli.
+USERS_FILE = AUTH_FILE.parent / "users.json"
+ROLE_ADMIN = "YONETICI"
+ROLE_OFIS = "OFIS"
+ROLES = (ROLE_ADMIN, ROLE_OFIS)
+
+
+def _load_users() -> dict[str, dict[str, Any]]:
+    if not USERS_FILE.exists():
+        return {}
+    return json.loads(USERS_FILE.read_text(encoding="utf-8"))
+
+
+def _write_users(users: dict[str, dict[str, Any]]) -> None:
+    USERS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_path = tempfile.mkstemp(prefix=".users-", dir=USERS_FILE.parent)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps(users, ensure_ascii=False, indent=1))
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.chmod(temporary_path, 0o600)
+        os.replace(temporary_path, USERS_FILE)
+    finally:
+        if os.path.exists(temporary_path):
+            os.unlink(temporary_path)
+
+
+def find_account(username: str) -> dict[str, Any] | None:
+    """Giriş yapabilecek hesabı rolüyle döndürür; kapatılmış hesap yok sayılır."""
+    operator = load_account()
+    if operator and username == operator["username"]:
+        return {**operator, "role": ROLE_ADMIN}
+    user = _load_users().get(username)
+    if not user or user.get("disabled"):
+        return None
+    return {**user, "username": username}
+
+
+def role_of(username: str) -> str | None:
+    account = find_account(username)
+    return account["role"] if account else None
+
+
+def add_user(username: str, role: str) -> str:
+    """Yeni hesap açar, rastgele parolayı YALNIZ BİR KEZ döndürür."""
+    if role not in ROLES or role == ROLE_ADMIN:
+        raise ValueError("ek hesap yalniz OFIS rolunde acilabilir")
+    if not username or not username.isascii() or not username.replace("_", "").replace("-", "").isalnum():
+        raise ValueError("kullanici adi yalniz harf, rakam, - ve _ icerebilir")
+    operator = load_account()
+    users = _load_users()
+    if username in users or (operator and operator["username"] == username):
+        raise ValueError("bu kullanici adi zaten var")
+    password = secrets.token_urlsafe(12)
+    password_hash, salt = hash_password(password)
+    users[username] = {"password_hash": password_hash, "salt": salt, "role": role,
+                       "must_change": True, "created_at": time.time()}
+    _write_users(users)
+    return password
+
+
+def set_user_password(username: str, password: str) -> None:
+    operator = load_account()
+    if operator and username == operator["username"]:
+        set_password(username, password)
+        return
+    users = _load_users()
+    if username not in users:
+        raise ValueError("kullanici yok")
+    password_hash, salt = hash_password(password)
+    users[username].update(password_hash=password_hash, salt=salt, must_change=False)
+    _write_users(users)
+
+
+def set_disabled(username: str, disabled: bool) -> None:
+    users = _load_users()
+    if username not in users:
+        raise ValueError("kullanici yok")
+    users[username]["disabled"] = bool(disabled)
+    _write_users(users)
+
+
+def list_users() -> list[dict[str, Any]]:
+    return [{"username": name, "role": user.get("role"), "disabled": bool(user.get("disabled")),
+             "must_change": bool(user.get("must_change"))} for name, user in sorted(_load_users().items())]
+
+
 @dataclass
 class Session:
     session_id: str
@@ -148,6 +240,11 @@ class SessionStore:
     def destroy_all(self) -> None:
         with self._lock:
             self._sessions.clear()
+
+    def destroy_user(self, username: str) -> None:
+        with self._lock:
+            for sid in [sid for sid, s in self._sessions.items() if s.username == username]:
+                del self._sessions[sid]
 
     def sweep(self) -> None:
         now = time.time()
@@ -284,3 +381,35 @@ class LoginThrottle:
         with self._lock:
             self._attempts.pop(source, None)
             self._lockout_until.pop(source, None)
+
+
+def reset_user_password(username: str) -> str:
+    """Ek hesabın parolasını rastgele yenisiyle değiştirir; ilk girişte değiştirilmesi istenir."""
+    users = _load_users()
+    if username not in users:
+        raise ValueError("kullanici yok")
+    password = secrets.token_urlsafe(12)
+    password_hash, salt = hash_password(password)
+    users[username].update(password_hash=password_hash, salt=salt, must_change=True)
+    _write_users(users)
+    return password
+
+
+if __name__ == "__main__":
+    # Hesap yönetimi yalnız sunucuda, root olarak yapılır; panelde bunun ucu YOK.
+    # Parola yalnız bir kez ekrana basılır, hiçbir dosyaya düz metin yazılmaz.
+    import sys
+    komut, *arg = sys.argv[1:] or ["liste"]
+    if komut == "ekle" and len(arg) == 2:
+        print(arg[0], add_user(arg[0], arg[1]))
+    elif komut == "sifirla" and len(arg) == 1:
+        print(arg[0], reset_user_password(arg[0]))
+    elif komut in ("kapat", "ac") and len(arg) == 1:
+        set_disabled(arg[0], komut == "kapat")
+        if komut == "kapat":
+            DurableSessionStore().destroy_user(arg[0])
+        print(arg[0], komut)
+    elif komut == "liste":
+        print(json.dumps(list_users(), ensure_ascii=False, indent=1))
+    else:
+        sys.exit("kullanim: auth.py ekle <ad> OFIS | sifirla <ad> | kapat <ad> | ac <ad> | liste")
