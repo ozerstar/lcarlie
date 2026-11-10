@@ -4441,6 +4441,29 @@ def _ekip_sor(kod: str, soru: str, extra_evidence: list[dict] | None = None) -> 
     #    O yuzden satir basina bir parca DEGIL, sorgu basina TEK YOGUN ozet
     #    uretilir ve uyelerin damitilmis bulgulari ONE konur.
     kanit: list[dict] = list(extra_evidence or [])
+    # 0) SIRKET BILGISI -- sohbetin okudugu insan onayli bilgi deposu.
+    # 🔴 10.11.2026: mudurler bu depoyu HIC okumuyordu. Meta ekibine 11.11
+    #    kampanyasi soruldu; depoda iki Meta raporu dururken ekip yalniz
+    #    soruyu geri yazdi ve "gorselleri Trendyol Meta reklamina yukleyin"
+    #    gibi mumkun olmayan bir oneri verdi. Bilgi, sirket olcumu degil
+    #    yontemdir; ref onegi bilgi: ile ayri tutulur.
+    try:
+        from jarvis.company_knowledge import shared as _sirket_bilgisi
+        for doc in _sirket_bilgisi().retrieve(soru, limit=2, internal_ok=False):
+            metin = doc.text(internal_ok=False)
+            parcalar, parca = [], ""
+            for satir in metin.splitlines(keepends=True):
+                if len(parca) + len(satir) > 1150 and parca:
+                    parcalar.append(parca)
+                    parca = ""
+                parca += satir
+            if parca:
+                parcalar.append(parca)
+            for p in parcalar[:2]:
+                kanit.append({"ref": f"bilgi:{doc.name}",
+                              "summary": "ŞİRKET BİLGİSİ (insan onaylı yöntem; şirket ölçümü değil): " + p.strip()})
+    except Exception:  # noqa: BLE001
+        pass
     office_report = latest_report()
     office_record = activity_evidence(
         kod, tuple(m.key for m in uyeler), office_report, active_members())

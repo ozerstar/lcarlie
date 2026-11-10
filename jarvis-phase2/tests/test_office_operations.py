@@ -89,6 +89,24 @@ class AnswerGuardTests(unittest.TestCase):
         valid=validate(json.dumps({'bulgular':[{'kaynak':'K1','alinti':'Kaynakta 20 ürün bulunuyor.'}],'oneriler':['30 gün bekleyin','Kaynağı yeniden kontrol etmeyi değerlendirin.']}),prepared)
         self.assertEqual(len(valid['oneriler']),1)
 
+    def test_numbers_allowed_only_when_in_evidence_or_question(self):
+        prepared=prepare([{"ref":"Brif","summary":"Trendyol indirimi yüzde 30, bitiş 17.11 saat 23:00.","at":"today"}],{})
+        raw=json.dumps({"bulgular":[{"kaynak":"K1","alinti":"Trendyol indirimi yüzde 30"}],"oneriler":["Reklamı 17.11 23:00 bitirin","Bütçeyi 5000 yapın","18+ hedefleyin"]})
+        valid=validate(raw,prepared,"VIREON 18+ için ne önerirsin?")
+        self.assertEqual(valid["oneriler"],["Reklamı 17.11 23:00 bitirin","18+ hedefleyin"])
+
+    def test_duplicate_citation_printed_once_and_trailing_text_tolerated(self):
+        prepared=prepare([{"ref":"Brif","summary":"Kampanya yedi ürünü kapsıyor ve Trendyol a gidiyor.","at":"today"}],{})
+        row={"kaynak":"K1","alinti":"Kampanya yedi ürünü kapsıyor"}
+        raw=json.dumps({"bulgular":[row,row],"oneriler":["Önce yeniden hedeflemeyi açın."]})+" Umarım yardımcı olur."
+        valid=validate(raw,prepared)
+        self.assertEqual(len(valid["citations"]),1)
+        router=SimpleNamespace(synthesize=lambda *a,**k:SimpleNamespace(answer=raw))
+        result=answer("Ne yapalım?",[{"ref":"Brif","summary":"Kampanya yedi ürünü kapsıyor ve Trendyol a gidiyor."}],{},router,lambda call:call())
+        self.assertTrue(result["model_kullanildi"])
+        self.assertEqual(result["cevap"].count("Kampanya yedi ürünü"),1)
+        self.assertTrue(result["cevap"].startswith("ÖNERİLER"))
+
     def test_unavailable_model_returns_evidence_not_fake_completion(self):
         router=SimpleNamespace(synthesize=lambda *a,**k:SimpleNamespace(answer='Invalid answer'))
         result=answer('Ne yaptın?',[{'ref':'Ekip kaydı','summary':'Son ekip döngüsü girdi bekliyor.'}],{},router,lambda call:call())
