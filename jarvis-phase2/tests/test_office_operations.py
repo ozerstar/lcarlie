@@ -107,6 +107,16 @@ class AnswerGuardTests(unittest.TestCase):
         self.assertEqual(result["cevap"].count("Kampanya yedi ürünü"),1)
         self.assertTrue(result["cevap"].startswith("ÖNERİLER"))
 
+    def test_truncated_answer_keeps_complete_items(self):
+        prepared=prepare([{"ref":"Brif","summary":"Kampanya yedi ürünü kapsıyor ve Trendyol a gidiyor.","at":"today"}],{})
+        full=json.dumps({"bulgular":[{"kaynak":"K1","alinti":"Kampanya yedi ürünü kapsıyor"}],"oneriler":["Önce yeniden hedeflemeyi açın."],"eksikler":["Bütçe dağılımı belirtilmeli.","Ürün önceliği belirtilmeli."]},ensure_ascii=False)
+        raw="```json\n"+full[:full.index("Ürün önceliği")+6]
+        valid=validate(raw,prepared)
+        self.assertEqual(len(valid["citations"]),1)
+        self.assertEqual(valid["oneriler"],["Önce yeniden hedeflemeyi açın."])
+        self.assertEqual(valid["eksikler"],["Bütçe dağılımı belirtilmeli."])
+        self.assertIsNone(validate('{"bulgular":[{"kaynak":"K1","alinti":"Kampanya yed',prepared))
+
     def test_unavailable_model_returns_evidence_not_fake_completion(self):
         router=SimpleNamespace(synthesize=lambda *a,**k:SimpleNamespace(answer='Invalid answer'))
         result=answer('Ne yaptın?',[{'ref':'Ekip kaydı','summary':'Son ekip döngüsü girdi bekliyor.'}],{},router,lambda call:call())

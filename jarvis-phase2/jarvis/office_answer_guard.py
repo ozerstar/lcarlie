@@ -54,7 +54,7 @@ Soruyla ilgili en fazla dört kaynak seç. Alıntıyı hiçbir biçimde yeniden 
 Öneriler ve eksikler yalnız yapılabilecek bir sonraki adımı veya gereken bilgiyi anlatsın; gerçekleşmiş olay iddiası veya kesin sonuç içermesin.
 Öneride sayı, yüzde veya tarih yalnız kaynaklarda ya da soruda birebir geçiyorsa kullanılabilir; yeni sayı türetme.
 ŞİRKET BİLGİSİ kaynakları insan onaylı yöntem bilgisidir: önerinin gerekçesini bunlara dayandır, somut ve uygulanabilir öneri ver.
-Kısa yaz: en fazla üç bulgu, alıntı en fazla bir cümle; en fazla dört öneri, her biri en fazla iki cümle. JSON dışında hiçbir şey yazma.
+Kısa yaz: en fazla üç bulgu, alıntı en fazla bir cümle; en fazla dört öneri, her biri en fazla iki cümle; en fazla üç eksik, her biri bir cümle. JSON dışında hiçbir şey yazma.
 Kaynağın okunması işin tamamlanması değildir. Dış araştırma şirket ölçümü değildir.
 Kanıt soruyu yanıtlamıyorsa bunu eksikler içinde açıkla. Boşlukları tahminle doldurma.'''
 
@@ -69,6 +69,11 @@ def validate(raw, prepared, question=''):
         #    tüm müdür yorumu atılıyordu. İlk dengeli nesneyi okumak kanıt
         #    bağını gevşetmez; alıntı denetimi aynen aşağıda uygulanır.
         parsed = _first_object(text)
+        if parsed is None:
+            # 🔴 10.11.2026 ölçüldü: 5 müdür cevabının 2'si max_tokens'ta
+            #    son "eksik" maddesinin ortasında kesildi ve tüm yorum atıldı.
+            #    Yarım kalan son öğe düşer; kalan alıntılar aşağıda aynen denetlenir.
+            parsed = _truncated_object(text)
         if parsed is None:
             return None
     if not isinstance(parsed, dict):
@@ -131,6 +136,36 @@ def _first_object(text):
             return parsed if isinstance(parsed, dict) else None
     return None
 
+def _truncated_object(text):
+    start = text.find('{')
+    if start < 0:
+        return None
+    closers, in_str, esc, cuts = [], False, False, []
+    for i, ch in enumerate(text[start:], start):
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == '\\':
+                esc = True
+            elif ch == '"':
+                in_str = False
+        elif ch == '"':
+            in_str = True
+        elif ch in '{[':
+            closers.append('}' if ch == '{' else ']')
+        elif ch in '}]':
+            if closers:
+                closers.pop()
+        elif ch == ',':
+            cuts.append((i, ''.join(reversed(closers))))
+    for i, closer in reversed(cuts):
+        try:
+            parsed = json.loads(text[start:i] + closer)
+        except (ValueError, TypeError):
+            continue
+        return parsed if isinstance(parsed, dict) else None
+    return None
+
 def _short(text, limit=320):
     return text if len(text) <= limit else text[:limit].rsplit(' ', 1)[0] + ' …'
 
@@ -139,7 +174,7 @@ def answer(question, evidence, data, router, bounded):
     payload = [dict(ref=i['id'], summary=i['summary']) for i in prepared]
     verified = None
     try:
-        result = bounded(lambda: router.synthesize(question, payload, escalate=True, max_tokens=1400, system=SYSTEM))
+        result = bounded(lambda: router.synthesize(question, payload, escalate=True, max_tokens=1800, system=SYSTEM))
         verified = validate(result.answer, prepared, question)
     except Exception:  # noqa: BLE001
         pass
