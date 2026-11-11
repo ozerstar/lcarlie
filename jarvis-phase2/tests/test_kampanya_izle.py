@@ -53,6 +53,19 @@ class KampanyaIzleTest(unittest.TestCase):
         self.assertIn("LUCIDERM 2", metin)
         self.assertIn("5.00", metin)
 
+    def test_ozet_veri_okunamayani_sifir_saymaz(self):
+        v = ki.ozet_veri(K, None, None)
+        self.assertIsNone(v["harcama"])
+        self.assertIsNone(v["satis"])
+        m = {"reklamlar": [reklam("1"), reklam("2")],
+             "toplam": {"1": {"spend": "10.5", "inline_link_clicks": "4"},
+                        "2": {"spend": "2", "inline_link_clicks": "1"}},
+             "bugun": {"1": {"spend": "3"}}}
+        v = ki.ozet_veri(K, m, [{"siparis": "9", "barkod": "111", "adet": 2, "tutar": 500.0}])
+        self.assertEqual((v["harcama"], v["tik"]), (12.5, 5))
+        self.assertEqual(v["setler"]["AS1"], {"butce": 400.0, "harcama": 12.5, "bugun": 3.0})
+        self.assertEqual(v["satis"], {"siparis": 1, "adet": 2, "ciro": 500.0, "urunler": {"LUCIDERM": 2}})
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -268,7 +268,7 @@ const VIEWS = {
   gorselOnay: 'viewGorselOnay', home: 'viewHome', analiz: 'viewAnaliz', gorevler: 'viewGorevler',
                 veri: 'viewVeri', ajanlar: 'viewAjanlar', fiyat: 'viewFiyat',
                 raporlar: 'viewRaporlar', ayarlar: 'viewAyarlar',
-                eticaret: 'viewEticaret', reklam: 'viewReklam',
+                eticaret: 'viewEticaret', reklam: 'viewReklam', kampanya: 'viewKampanya',
                 hafiza: 'viewHafiza', ekip: 'viewEkip',
                 sistem: 'viewSistem', isler: 'viewIsler',
                 saha: 'viewSaha', katalog: 'viewKatalog',
@@ -291,6 +291,7 @@ function setView(name) {
   if (name === 'kargo') loadKargo();
   if (name === 'musteri') loadMusteri();
   if (name === 'reklam') loadKreatif();
+  if (name === 'kampanya') loadKampanya();
   if (name === 'sistem') loadSistem();
   if (name === 'isler') loadIsler();
   if (name === 'saha') loadSaha();
@@ -2898,8 +2899,11 @@ document.addEventListener('click', async (ev) => {
   const btn = ev.target.closest('[data-ekip-sor]');
   if (!btn) return;
   const kod = btn.getAttribute('data-ekip-sor');
-  const input = qs('sor-' + kod);
-  const kutu = qs('cevap-' + kod);
+  // Ayni ekip birden cok sekmede sorulabilir (EKİP, KAMPANYA); kimlikler
+  // cakismasin diye sekme kendi onekini verir.
+  const onek = btn.getAttribute('data-onek') || '';
+  const input = qs(onek + 'sor-' + kod);
+  const kutu = qs(onek + 'cevap-' + kod);
   if (!input || !kutu) return;
   const soru = (input.value || '').trim();
   if (!soru) { input.focus(); return; }
@@ -6501,6 +6505,118 @@ function sistemCiz() {
     const taze = ['sunucu', 'pc1', 'pc2'].filter((k) => (m[k] || {}).durum === 'TAZE').length;
     say.textContent = `${taze}/3 makine taze`;
   }
+}
+
+/* ---- KAMPANYA ---------------------------------------------------------
+   scripts/kampanya-izle.py saatte bir Meta + Trendyol'u ölçer; bu sekme o
+   ölçümü OKUR, kendisi sorgulamaz. Ölçüm yaşı her zaman yazılır: bayat
+   rakam taze gibi gösterilmez. Okunamayan kaynak "—"/OKUNAMADI'dır, sıfır
+   değil.                                                                */
+const kampanyaState = { yukleniyor: false };
+const KM_EVRE = { BASLAMADI: 'BAŞLAMADI', SURUYOR: 'SÜRÜYOR', BITTI: 'BİTTİ' };
+const KM_DURUM = { ACTIVE: 'yayında', PAUSED: 'durduruldu', PENDING_REVIEW: 'incelemede',
+                   DISAPPROVED: 'REDDEDİLDİ', WITH_ISSUES: 'SORUNLU', ADSET_PAUSED: 'set durdu',
+                   CAMPAIGN_PAUSED: 'kampanya durdu' };
+
+function kmTl(n) {
+  return n == null ? '—'
+    : Number(n).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' TL';
+}
+function kmSayi(n) { return n == null ? '—' : Number(n).toLocaleString('tr-TR'); }
+function kmZaman(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+function kampanyaKart(k) {
+  const v = k.veri;
+  const ust = `<div class="km-ust">
+      <h3 class="rp-sub">${escapeHtml(k.ad)}</h3>
+      <span class="km-evre is-${escapeHtml(k.evre)}">${escapeHtml(KM_EVRE[k.evre] || k.evre)}</span>
+      <span class="km-olcum${k.yas_dk != null && k.yas_dk > 90 && k.evre === 'SURUYOR' ? ' is-bayat' : ''}">
+        ${escapeHtml(kmZaman(k.baslangic))} → ${escapeHtml(kmZaman(k.bitis))} · son ölçüm ${escapeHtml(kmZaman(k.olculdu))}${k.yas_dk != null ? ` (${k.yas_dk} dk önce)` : ''}
+      </span></div>`;
+  if (!v) {
+    // Yapısal veri sonraki saatlik ölçümle gelir; o zamana kadar rapor metni.
+    return ust + (k.rapor ? `<div class="ek-cevap-metin">${escapeHtml(k.rapor)}</div>`
+                          : '<p class="sect-empty">Henüz ölçüm yok.</p>');
+  }
+  const s = v.satis;
+  const roas = s && v.harcama ? (s.ciro / v.harcama).toFixed(2) : '—';
+  const urunler = s ? Object.entries(s.urunler || {}).map(([a, n]) => `${a} ${n}`).join(', ') : '';
+  const kartlar = [
+    { sinif: 'notr', deger: kmTl(v.harcama), ad: 'META HARCAMASI',
+      anlam: 'Başlangıçtan beri tüm reklam setleri.', yap: 'Set bazında bütçe kullanımı aşağıda.' },
+    { sinif: 'notr', deger: kmSayi(v.tik), ad: 'BAĞLANTI TIKLAMASI',
+      anlam: 'Trendyol ürün sayfasına giden tıklama.', yap: 'Tıklama gelip satış yoksa sorun Trendyol sayfasındadır (fiyat, stok, yorum).' },
+    { sinif: s == null ? 'uyari' : (s.siparis ? 'iyi' : 'notr'),
+      deger: s == null ? 'OKUNAMADI' : `${s.siparis} sipariş`, ad: 'TRENDYOL SATIŞI',
+      anlam: s == null ? 'Trendyol okunamadı; satış sıfır değil, bilinmiyor.'
+                       : `${s.adet} adet · ${kmTl(s.ciro)}${urunler ? ' · ' + urunler : ''}`,
+      yap: `Kampanya öncesi 14 günde bu ürünlerden ${k.onceki_14_gun_siparis ?? '?'} Trendyol siparişi vardı.` },
+    { sinif: 'notr', deger: roas, ad: 'ROAS',
+      anlam: 'Trendyol cirosu ÷ Meta harcaması.', yap: 'Komisyon ve ürün maliyeti düşülmeden; tek başına kâr göstermez.' },
+  ];
+  const kartHtml = `<div class="kr-kartlar">${kartlar.map((x) => `<div class="kr-kart kr-${x.sinif}">
+      <div class="kr-kart-deger">${escapeHtml(x.deger)}</div>
+      <div class="kr-kart-ad">${escapeHtml(x.ad)}</div>
+      <p class="kr-kart-anlam"><span class="kr-etiket">NE DEMEK</span>${escapeHtml(x.anlam)}</p>
+      <p class="kr-kart-yap"><span class="kr-etiket">NE YAPMALI</span>${escapeHtml(x.yap)}</p>
+    </div>`).join('')}</div>`;
+
+  const uyarilar = (k.uyarilar || []).length
+    ? `<ul class="km-uyarilar">${k.uyarilar.map((u) =>
+        `<li class="is-${escapeHtml(u.seviye)}"><strong>${escapeHtml(u.seviye)}</strong> · ${escapeHtml(u.metin)}</li>`).join('')}</ul>`
+    : '<p class="km-temiz">Uyarı yok.</p>';
+
+  const reklamlar = `<div class="km-tablo-sar"><table class="kg-tablo"><thead><tr>
+      <th>Reklam</th><th>Durum</th><th>Gösterim</th><th>Tık</th><th>CTR</th><th>TBM</th><th>Frekans</th><th>Bugün</th><th>Toplam</th>
+    </tr></thead><tbody>${(v.reklamlar || []).map((r) => `<tr>
+      <td>${escapeHtml(r.ad)}</td><td>${escapeHtml(KM_DURUM[r.durum] || r.durum)}</td>
+      <td>${kmSayi(r.gosterim)}</td><td>${kmSayi(r.tik)}</td><td>%${r.ctr.toFixed(2)}</td>
+      <td>${kmTl(r.tbm)}</td><td>${r.frekans.toFixed(1)}</td><td>${kmTl(r.bugun)}</td><td>${kmTl(r.harcama)}</td>
+    </tr>`).join('')}</tbody></table></div>`;
+
+  const setler = `<div class="km-tablo-sar"><table class="kg-tablo"><thead><tr>
+      <th>Reklam seti</th><th>Bugün</th><th>Günlük bütçe</th><th>Toplam</th>
+    </tr></thead><tbody>${Object.entries(v.setler || {}).map(([ad, x]) => `<tr>
+      <td>${escapeHtml(ad)}</td><td>${kmTl(x.bugun)}</td><td>${kmTl(x.butce)}</td><td>${kmTl(x.harcama)}</td>
+    </tr>`).join('')}</tbody></table></div>`;
+
+  const gecmisSatir = (k.gecmis || []).filter((g) => g.harcama != null).slice(-12).reverse();
+  const gecmis = gecmisSatir.length ? `<h3 class="rp-sub">SON ÖLÇÜMLER</h3>
+    <div class="km-tablo-sar"><table class="kg-tablo"><thead><tr>
+      <th>Zaman</th><th>Harcama</th><th>Tık</th><th>Sipariş</th><th>Ciro</th>
+    </tr></thead><tbody>${gecmisSatir.map((g) => `<tr>
+      <td>${escapeHtml(kmZaman(g.zaman))}</td><td>${kmTl(g.harcama)}</td><td>${kmSayi(g.tik)}</td>
+      <td>${g.siparis == null ? '—' : kmSayi(g.siparis)}</td><td>${kmTl(g.ciro)}</td>
+    </tr>`).join('')}</tbody></table></div>` : '';
+
+  return `${ust}${kartHtml}
+    <h3 class="rp-sub">UYARILAR</h3>${uyarilar}
+    <h3 class="rp-sub">REKLAMLAR <span class="rp-src">Meta, başlangıçtan beri</span></h3>${reklamlar}
+    <h3 class="rp-sub">BÜTÇE</h3>${setler}
+    ${gecmis}
+    <p class="kr-aciklama">Trendyol panelinden açılan Meta reklamının sonucu API&#39;de yok; Trendyol panelinde Reklam › Meta Reklamları&#39;ndan okunur.</p>`;
+}
+
+async function loadKampanya() {
+  const govde = qs('kampanyaGovde');
+  const sayac = qs('kampanyaCount');
+  if (!govde || kampanyaState.yukleniyor) return;
+  kampanyaState.yukleniyor = true;
+  const { ok, body } = await api('/api/kampanya');
+  kampanyaState.yukleniyor = false;
+  if (!ok) {
+    govde.innerHTML = '<p class="sect-empty is-bad">Kampanya ölçümü şu anda yüklenemedi.</p>';
+    if (sayac) sayac.textContent = 'hata';
+    return;
+  }
+  const liste = body.kampanyalar || [];
+  if (sayac) sayac.textContent = `${liste.filter((k) => k.evre === 'SURUYOR').length} süren · ${liste.length} kampanya`;
+  govde.innerHTML = liste.length ? liste.map(kampanyaKart).join('<hr class="km-ayrac">')
+    : '<p class="sect-empty">İzlenen kampanya yok. Kurulum: deploy/kampanya-izle/kampanya-izle-kur.sh</p>';
 }
 
 async function loadSistem() {

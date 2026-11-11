@@ -188,6 +188,37 @@ def degerlendir(k: dict, m: dict | None, satis: list[dict] | None,
     return uyari, satir
 
 
+def ozet_veri(k: dict, m: dict | None, satis: list[dict] | None) -> dict:
+    """Panel ve ekip icin yapisal ozet: rapordaki rakamlarin aynisi, sayi olarak.
+    Okunamayan kaynak None doner, sifir DEGIL."""
+    v: dict = {"reklamlar": [], "setler": {}, "harcama": None, "tik": None, "satis": None}
+    if m is not None:
+        for r in m["reklamlar"]:
+            t = m["toplam"].get(r["id"], {})
+            g = m["bugun"].get(r["id"], {})
+            v["reklamlar"].append(dict(
+                id=r["id"], ad=r["name"], durum=r["effective_status"], set=r["adset"]["name"],
+                gosterim=int(t.get("impressions") or 0), tik=int(t.get("inline_link_clicks") or 0),
+                ctr=float(t.get("inline_link_click_ctr") or 0),
+                tbm=float(t.get("cost_per_inline_link_click") or 0),
+                frekans=float(t.get("frequency") or 0),
+                harcama=float(t.get("spend") or 0), bugun=float(g.get("spend") or 0)))
+            s = v["setler"].setdefault(r["adset"]["name"], dict(
+                butce=int(r["adset"].get("daily_budget") or 0) / 100, harcama=0.0, bugun=0.0))
+            s["harcama"] += float(t.get("spend") or 0)
+            s["bugun"] += float(g.get("spend") or 0)
+        v["harcama"] = round(sum(x["harcama"] for x in v["reklamlar"]), 2)
+        v["tik"] = sum(x["tik"] for x in v["reklamlar"])
+    if satis is not None:
+        adlar = {b: a for a, b in k["urunler"].items()}
+        urun: dict[str, int] = {}
+        for x in satis:
+            urun[adlar[x["barkod"]]] = urun.get(adlar[x["barkod"]], 0) + x["adet"]
+        v["satis"] = dict(siparis=len({x["siparis"] for x in satis}), adet=sum(urun.values()),
+                          ciro=round(sum(x["tutar"] for x in satis), 2), urunler=urun)
+    return v
+
+
 def main() -> int:
     a = argparse.ArgumentParser()
     a.add_argument("kampanya")
@@ -220,6 +251,7 @@ def main() -> int:
         satis = None
 
     uyari, satir = degerlendir(k, m, satis, simdi)
+    veri = ozet_veri(k, m, satis)
     yeni = [u for u in uyari if u["anahtar"] not in durum["bildirilen"]]
     baslik = "%s · %s" % (k["ad"], simdi.strftime("%d.%m %H:%M"))
     rapor = "\n".join([baslik, ""] + satir + ["", "UYARILAR:" if uyari else "Uyarı yok."]
@@ -251,11 +283,15 @@ def main() -> int:
             print("özet gönderilemedi: %s" % str(h)[:120], file=sys.stderr)
 
     durum["son"] = dict(zaman=simdi.isoformat(), uyari=len(uyari), yeni=len(yeni),
-                        gonderildi=gonderildi, rapor=rapor)
+                        gonderildi=gonderildi, rapor=rapor, veri=veri, uyarilar=uyari)
     durum_yolu.write_text(json.dumps(durum, ensure_ascii=False, indent=1), encoding="utf-8")
     with (DIZIN / ("%s.gecmis.jsonl" % arg.kampanya)).open("a", encoding="utf-8") as f:
+        s = veri["satis"] or {}
         f.write(json.dumps(dict(zaman=simdi.isoformat(), satir=satir,
-                                uyari=[u["anahtar"] for u in uyari]), ensure_ascii=False) + "\n")
+                                uyari=[u["anahtar"] for u in uyari],
+                                toplam=dict(harcama=veri["harcama"], tik=veri["tik"],
+                                            siparis=s.get("siparis"), ciro=s.get("ciro"))),
+                           ensure_ascii=False) + "\n")
     return 0
 
 

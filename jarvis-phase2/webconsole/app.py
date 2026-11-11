@@ -2069,6 +2069,9 @@ class Handler(BaseHTTPRequestHandler):
                           "yaklasiktir."),
             })
             return
+        if path == "/api/kampanya":
+            self._send_json(200, _kampanya_gorunumu())
+            return
         if path == "/api/sistem":
             # Uc makinenin kaynak kullanimi + kaynak politikasi.
             # Sunucu OLCULUR (anlik), PC'ler state/hosts/*.json'dan
@@ -4442,6 +4445,54 @@ def _sayilari(metin: str) -> set:
     return out
 
 
+def _kampanya_gorunumu() -> dict:
+    """KAMPANYA sekmesi ve Meta ekibinin kaniti: scripts/kampanya-izle.py'nin
+    saatlik olcumu. Panel Meta'yi/Trendyol'u KENDISI sorgulamaz, betigin
+    yazdigini okur; olcum yasi da doner -- bayat rakam taze gibi gosterilmez."""
+    from datetime import datetime, timezone
+    dizin = STATE_DIR / "kampanya-izle"
+    simdi = datetime.now(timezone.utc)
+    kampanyalar = []
+    for ayar in sorted(dizin.glob("*.json")):
+        if ayar.name.endswith(".durum.json"):
+            continue
+        kod = ayar.stem
+        try:
+            k = json.loads(ayar.read_text(encoding="utf-8"))
+            bas = datetime.fromisoformat(k["baslangic"])
+            bit = datetime.fromisoformat(k["bitis"])
+        except (OSError, ValueError, KeyError):
+            continue
+        try:
+            son = json.loads((dizin / f"{kod}.durum.json").read_text(encoding="utf-8")).get("son") or {}
+        except (OSError, ValueError):
+            son = {}
+        gecmis = []
+        try:
+            for satir in (dizin / f"{kod}.gecmis.jsonl").read_text(encoding="utf-8").splitlines()[-24:]:
+                try:
+                    g = json.loads(satir)
+                except ValueError:
+                    continue
+                gecmis.append({"zaman": g.get("zaman"), **(g.get("toplam") or {})})
+        except OSError:
+            pass
+        yas = None
+        if son.get("zaman"):
+            yas = int((simdi - datetime.fromisoformat(son["zaman"])).total_seconds() // 60)
+        kampanyalar.append({
+            "kod": kod, "ad": k.get("ad") or kod,
+            "baslangic": k["baslangic"], "bitis": k["bitis"],
+            "evre": "BASLAMADI" if simdi < bas else ("BITTI" if simdi > bit else "SURUYOR"),
+            "onceki_14_gun_siparis": k.get("onceki_14_gun_siparis"),
+            "olculdu": son.get("zaman"), "yas_dk": yas,
+            "veri": son.get("veri"), "uyarilar": son.get("uyarilar") or [],
+            "rapor": son.get("rapor") or "", "gecmis": gecmis,
+        })
+    kampanyalar.sort(key=lambda x: x["baslangic"], reverse=True)
+    return {"kampanyalar": kampanyalar}
+
+
 def _ekip_sor(kod: str, soru: str, extra_evidence: list[dict] | None = None) -> dict:
     """Bir departmanin sorumlusuna soru sorar. Cevap KANITA baglidir.
 
@@ -4524,6 +4575,20 @@ def _ekip_sor(kod: str, soru: str, extra_evidence: list[dict] | None = None) -> 
     if office_record:
         office_record["at"] = office_report.get("generated_at", "")
         kanit.insert(0, office_record)
+    # 0b) CANLI KAMPANYA OLCUMU -- scripts/kampanya-izle.py saatte bir yazar.
+    #    Meta ve pazaryeri ekibi, yontemin (bilgi deposu) yaninda suren
+    #    kampanyanin olculmus rakamini da gorur. Ilk parcaya konur: 12
+    #    parcalik butcede kesilen bu olmamali.
+    if kod in ("META_MEDIA", "MARKETPLACE"):
+        try:
+            for kmp in _kampanya_gorunumu()["kampanyalar"]:
+                if kmp["evre"] != "BASLAMADI" and kmp["rapor"]:
+                    kanit.insert(0, {"ref": f"kampanya:{kmp['kod']}",
+                                     "summary": "CANLI KAMPANYA ÖLÇÜMÜ (saatlik betik, "
+                                                + str(kmp["olculdu"])[:16] + "): "
+                                                + " ".join(kmp["rapor"].split())[:1600]})
+        except Exception:  # noqa: BLE001
+            pass
     okunamayan: list[str] = []
     sorgular: list[str] = []
     source_data = {}

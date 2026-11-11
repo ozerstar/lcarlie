@@ -1807,6 +1807,21 @@ body.tab-hidden .core-svg *, body.tab-hidden .core-svg { animation-play-state: p
   opacity: .82;
 }
 .kr-kart-yap { margin-bottom: 0; opacity: .95; }
+
+/* KAMPANYA sekmesi -- kart/tablo/soru kutusu REKLAM, KARGO ve EKİP'ten */
+.km-ust { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: baseline; margin: 4px 0 12px; }
+.km-ust .rp-sub { margin: 0; }
+.km-evre { font-size: 0.80rem; letter-spacing: .1em; padding: 2px 9px; border-radius: 999px; border: 1px solid currentColor; }
+.km-evre.is-SURUYOR { color: #78be82; }
+.km-evre.is-BASLAMADI, .km-evre.is-BITTI { color: var(--ivory-2); }
+.km-olcum { font-size: 0.85rem; color: var(--ivory-2); }
+.km-olcum.is-bayat { color: #e0a84a; }
+.km-uyarilar { list-style: none; margin: 8px 0 16px; padding: 0; display: grid; gap: 6px; }
+.km-uyarilar li { padding: 8px 12px; border-left: 3px solid #e0a84a; background: rgba(224, 168, 74, .08); font-size: 0.95rem; line-height: 1.5; }
+.km-uyarilar li.is-KRITIK { border-left-color: #e06a5a; background: rgba(224, 106, 90, .10); }
+.km-temiz { font-size: 0.95rem; color: var(--ivory-2); }
+.km-tablo-sar { overflow-x: auto; margin-bottom: 14px; }
+.km-ayrac { border: 0; border-top: 1px solid rgba(255, 255, 255, .1); margin: 22px 0; }
 .kr-etiket {
   display: block;
   font-size: 11px;
