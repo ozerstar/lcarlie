@@ -79,3 +79,9 @@ six==1.17.0
 #   gpt-researcher -> 0.16.0 upstream kırık (NameError: name 'Any')
 #   pandasai       -> Python 3.12 desteklemiyor
 pillow-heif==1.8.1
+
+# ---------------------------------------------------------------- sohbet ajanı
+# webconsole/ajan.py: Claude araç kullanarak veriye bakar, araştırır, cevabı
+# akıtır. Paket yoksa ajan AjanKullanilamaz fırlatır ve sohbet eski
+# (anahtar kelime) yoluna düşer.
+anthropic==1.17.0

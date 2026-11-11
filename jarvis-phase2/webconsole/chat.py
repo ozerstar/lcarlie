@@ -29,10 +29,11 @@ import re
 from typing import Any, Iterator
 
 import intents
+import ajan
 import conversation
 import turkish_reply
 
-from jarvis import conversation_memory
+from jarvis import conversation_memory, gunluk
 
 ACTION_ID_RE = re.compile(r"\b(\d{1,10})\b")
 
@@ -245,6 +246,21 @@ def stream(message: str, runtime, operator) -> Iterator[dict[str, Any]]:
                         ("vireon", "durum", "sistem", "gündem", "gundem", "task", "proposal"))
         capability = "JUDGEMENT_GROUNDED" if has_topic else "JUDGEMENT_UNGROUNDED"
     decision = conversation.classify(text)
+    # 🔴 12.11.2026: sohbet artik arac kullanan ajanda (webconsole/ajan.py).
+    # Eylem istekleri (guvenlik duvari -> onay) ve ajans teslimleri eski
+    # yolda kalir; ajan baslayamazsa (SDK yok, API dusuk) eski yol cevaplar.
+    if text and ajan.ACIK and decision.intent not in (conversation.ACTION_REQUEST,
+                                                      conversation.AGENCY_REQUEST):
+        try:
+            for frame in ajan.stream(text, conversation._memory(runtime),
+                                     conversation_memory.history(turns=ajan.GECMIS_TUR)):
+                if frame.get("type") == "done":
+                    _remember(text, frame.get("result") or {})
+                yield frame
+            return
+        except ajan.AjanKullanilamaz as hata:
+            gunluk.yut("chat", "ajan", hata, neden="ajan baslayamadi, eski yol cevaplar",
+                       agirlik=gunluk.AGIRLIK_ARIZA)
     if decision.intent in (conversation.SIMPLE_CONVERSATION,
                            conversation.GENERAL_REASONING):
         # Inspect the opening passage before releasing tokens. Turkish answers
