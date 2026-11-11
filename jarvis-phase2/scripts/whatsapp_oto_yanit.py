@@ -15,6 +15,7 @@ sys.path.insert(0, str(KOK / "webconsole"))
 
 import gelen_kutusu  # noqa: E402
 from jarvis import whatsapp  # noqa: E402
+from jarvis.haberci import SAHIP_TELEFON  # noqa: E402
 
 DEVIR_YANITI = frozenset({"SAGLIK", "BELIRTI_ANLATIMI", "SIKAYET", "ANLASILMADI",
                           "KARGO_TAKIP"})
@@ -77,6 +78,8 @@ def adaylar(baslangic: str) -> list[dict]:
         AND m.zaman >= {gelen_kutusu._tirnak(baslangic)}::timestamptz
         AND m.zaman > now() - interval '23 hours'
         AND NOT (COALESCE(m.ek, '{{}}'::jsonb) ? 'auto_reply')
+        -- Sahibin numarası müşteri değildir; onay düğmeleri wa-onay.py'de işlenir.
+        AND k.harici_id <> {gelen_kutusu._tirnak(SAHIP_TELEFON)}
       ORDER BY m.zaman, m.id LIMIT 20
     ) x;
     """)

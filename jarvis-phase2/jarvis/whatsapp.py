@@ -204,10 +204,18 @@ def gonder(telefon: str, metin: str, *, onay_kaynagi: str,
             "metin": temiz, "bulgular": []}
 
 
+def dugme_bilesenleri(yukler: list[str]) -> list[dict[str, Any]]:
+    """Şablondaki hızlı yanıt düğmelerine sırayla gönderim anı yükü verir."""
+    return [{"type": "button", "sub_type": "quick_reply", "index": str(sira),
+             "parameters": [{"type": "payload", "payload": yuk}]}
+            for sira, yuk in enumerate(yukler)]
+
+
 def sablon_gonder(telefon: str, sablon: str, degerler: list[str], *,
                   onay_kaynagi: str, baslik_gorsel: str = "", dil: str = "tr",
                   onizleme: str = "", konusma_id: int | None = None,
-                  kuru: bool = False) -> dict[str, Any]:
+                  kuru: bool = False,
+                  dugme_yukleri: list[str] | None = None) -> dict[str, Any]:
     """Meta'da ONAYLI şablonla mesaj gönderir. 24 saat penceresi gerekmez.
 
     `gonder` serbest metin yazar ve ancak müşteri yazdıysa çıkar. Şablon ise
@@ -260,6 +268,10 @@ def sablon_gonder(telefon: str, sablon: str, degerler: list[str], *,
             reddet("sablon degeri %d %d bayti asiyor" % (sira, SABLON_DEGER_SINIRI))
     if baslik_gorsel and not baslik_gorsel.startswith("https://"):
         reddet("baslik gorseli https degil")
+    # Hızlı yanıt düğmesine basılınca webhook'a bu yük döner (ek.button_payload).
+    for sira, yuk in enumerate(dugme_yukleri or [], start=1):
+        if not yuk or "\n" in yuk or len(yuk.encode("utf-8")) > 256:
+            reddet("dugme yuku %d gecersiz" % sira)
 
     # 3. MEVZUAT -- insan onayiyla da asilmaz
     denetlenecek = (onizleme or " | ".join(str(d) for d in degerler or [])).strip()
@@ -296,6 +308,7 @@ def sablon_gonder(telefon: str, sablon: str, degerler: list[str], *,
     if degerler:
         bilesenler.append({"type": "body", "parameters": [
             {"type": "text", "text": str(d)} for d in degerler]})
+    bilesenler.extend(dugme_bilesenleri(dugme_yukleri or []))
 
     veri, sebep, ayrinti = _meta_cagir(telefon_id, jeton, {
         "messaging_product": "whatsapp",

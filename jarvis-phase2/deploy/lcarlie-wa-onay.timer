@@ -1,0 +1,10 @@
+[Unit]
+Description=Bekleyen onaylar ve WhatsApp onay dugmeleri - 30 saniyede bir
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=30s
+Persistent=true
+
+[Install]
+WantedBy=timers.target
