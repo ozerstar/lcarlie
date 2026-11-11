@@ -108,6 +108,23 @@ def push_gonder(baslik: str, metin: str, etiket: str) -> str:
 
 
 # ------------------------------------------------------------------ whatsapp
+def whatsapp_urun(urunler: str) -> str:
+    """WhatsApp icin urun ozetini kodlara indirir: "SUNACNEA, DERMAVASC (+2)".
+
+    🔴 11.11.2026: Trendyol basligi "SUNACNEA SPF 30+ Hassas ve Akne..." mevzuat
+    kapisinda SPF zorunlu uyarilarini aradi, bulamayinca sahibe giden siparis
+    haberini durdurdu (push + e-posta gitti, WhatsApp gitmedi). Kapi
+    gevsetilmez; WhatsApp'a iddia tasiyabilecek baslik metni hic girmez.
+    """
+    ek = ""
+    govde = (urunler or "").strip()
+    if govde.endswith(")") and " (+" in govde:
+        govde, ek = govde.rsplit(" (+", 1)
+        ek = " (+" + ek
+    kodlar = [k.strip().split()[0] for k in govde.split(",") if k.strip()]
+    return (", ".join(kodlar) + ek) if kodlar else (urunler or "-")
+
+
 def whatsapp_gonder(degerler: list[str]) -> str:
     from jarvis import whatsapp
     sonuc = whatsapp.sablon_gonder(SAHIP_TELEFON, SABLON, degerler,
@@ -196,7 +213,8 @@ def bildir(siparis_id: int, *, kanal: str, siparis_no: str, tutar: str,
             if yol == "push":
                 kimlik = push_gonder(baslik, ozet, "siparis-%d" % siparis_id)
             elif yol == "whatsapp":
-                kimlik = whatsapp_gonder([kanal, siparis_no, tutar, musteri, urunler])
+                kimlik = whatsapp_gonder([kanal, siparis_no, tutar, musteri,
+                                          whatsapp_urun(urunler)])
             elif yol == "eposta":
                 kimlik = eposta_gonder(baslik + " " + siparis_no, uzun)
             else:
