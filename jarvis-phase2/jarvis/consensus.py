@@ -45,6 +45,7 @@ _NUMBER = re.compile(
 
 # Sayi sayilmayacak baglamlar: tarih parcalari ve sira numaralari tek basina
 # celiski uretmez ("2026", "1.") ve gereksiz ayrismaya yol acar.
+_MADDE = re.compile(r"(?m)^\s*(?:[-*•]\s*)?\d{1,2}[.)](?=\s)")
 _IGNORED = {"2020", "2021", "2022", "2023", "2024", "2025", "2026", "2027"}
 
 
@@ -81,7 +82,10 @@ def numeric_claims(text: str) -> Counter:
     yanlis celiski uretirdi.
     """
     claims: Counter = Counter()
-    for match in _NUMBER.finditer(text or ""):
+    # Madde numaralari ("1. ", "2) ") iddia degildir. 12.11.2026: "1, 2, 3"
+    # cevabin altinda "tutarsiz rakam" uyarisi olarak gosteriliyordu.
+    text = _MADDE.sub(" ", text or "")
+    for match in _NUMBER.finditer(text):
         raw = match.group("num")
         if raw in _IGNORED:
             continue

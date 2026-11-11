@@ -253,5 +253,7 @@
   "site_olcum": "Ölçüm yapılamadı",
   "site_kapsam": "Site haritası",
   "panel_erisim": "Jarvis paneline erişim",
-  "panel_butunluk": "Jarvis panelinin bütünlüğü"
+  "panel_butunluk": "Jarvis panelinin bütünlüğü",
+  "operations_marketplace_orders": "Pazaryeri siparişleri",
+  "operations_channel_health": "Satış kanalı durumu"
 }

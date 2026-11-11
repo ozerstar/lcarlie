@@ -487,7 +487,11 @@ class CompanyMemory:
     # widening the read surface for no bounded gain. The profitability, price
     # and funnel queries already cover the same ground from granted sources.
     DOMAIN_QUERIES: dict[str, tuple[str, ...]] = {
-        "sales": ("sales_orders", "sales_items"),
+        # 🔴 12.11.2026: "trendyol siparişleri neden aktarılmıyor" sorusu
+        # satış alanına düşüyor ama satış yalnız Wix siparişlerini okuyordu;
+        # Jarvis kayıtlı Trendyol siparişi varken "Trendyol verisi yok" dedi.
+        "sales": ("sales_orders", "sales_items", "operations_marketplace_orders",
+                  "operations_channel_health"),
         "ecommerce": ("ecommerce_profitability", "ecommerce_price",
                       "ecommerce_funnel"),
         "advertising": ("advertising_performance", "advertising_spend"),

@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import hashlib
 import re
-from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor
+from datetime import date, datetime, timedelta, timezone
 import os
 from dataclasses import dataclass
 from time import perf_counter
@@ -313,6 +314,11 @@ def classify(message: str) -> RouteDecision:
     # "harcadik", "urunlerimiz" gibi bicimleri GORMEZ. OLCULDU: "Son 30
     # gunde kac adet urun sattik?" bu satira gelmeden GENERAL_REASONING'e
     # dusuyor ve veriye hic bakilmadan "erisimim yok" cevabi doniyordu.
+    # 🔴 12.11.2026: "onay bekleyen ne var" gundeme dusuyor ve 19 onay
+    # beklerken "0 madde sizi bekliyor" deniyordu.
+    if _has(text, ("onay bekle", "onayimi bekle", "onayımı bekle", "bekleyen onay",
+                   "onaylanacak", "onay listesi", "onaylarim", "onaylarım")):
+        return RouteDecision(COMPANY_QUERY, "onay")
     domains = _domains_of(raw)
     if domains:
         return RouteDecision(COMPANY_QUERY, domains[0])
@@ -348,6 +354,131 @@ _ADET_ROOTS = ("adet", "kac urun", "kac tane", "miktar")
 _CIRO_ROOTS = ("ciro", "gelir", "kazanc", "hasilat", "tl")
 
 
+def _donem(message: str, bugun: date | None = None) -> tuple[date, date, str] | None:
+    """Sorudaki dönem: (başlangıç, bitiş dahil, etiket). Dönem yoksa None.
+
+    🔴 12.11.2026: "bu ay kaç sipariş geldi" sorusuna tüm zamanların
+    toplamı (39 sipariş, 71.061 TL) dönüyordu; dönem hiç okunmuyordu.
+    """
+    if bugun is None:
+        bugun = datetime.now(timezone(timedelta(hours=3))).date()
+    metin = _ascii_fold(_normalize(turkish.deasciify(message)))
+    kelimeler = set(re.findall(r"\w+", metin))
+    son = re.search(r"son (\d{1,3}) gun", metin)
+    if son and int(son.group(1)) > 0:
+        n = int(son.group(1))
+        return bugun - timedelta(days=n - 1), bugun, f"son {n} gün"
+    if kelimeler & {"bugun", "bugunku", "bugune"}:
+        return bugun, bugun, "bugün"
+    if kelimeler & {"dun", "dunku"}:
+        dun = bugun - timedelta(days=1)
+        return dun, dun, "dün"
+    pazartesi = bugun - timedelta(days=bugun.weekday())
+    if "gecen hafta" in metin:
+        return pazartesi - timedelta(days=7), pazartesi - timedelta(days=1), "geçen hafta"
+    if "bu hafta" in metin:
+        return pazartesi, bugun, "bu hafta"
+    ay_basi = bugun.replace(day=1)
+    if "gecen ay" in metin:
+        onceki_son = ay_basi - timedelta(days=1)
+        return onceki_son.replace(day=1), onceki_son, "geçen ay"
+    if "bu ay" in metin or "ay basindan" in metin:
+        return ay_basi, bugun, "bu ay"
+    return None
+
+
+def _siparis_gunu(kayit: dict[str, Any]) -> date | None:
+    ham = str(kayit.get("siparis_zamani") or kayit.get("observed_at") or "")[:10]
+    try:
+        return date.fromisoformat(ham)
+    except ValueError:
+        return None
+
+
+def _donem_satis(message: str, memory: Any) -> str | None:
+    """Dönemli satış sorusu: tüm kanallar, nöbetçinin 2 dk'lık kaydından.
+
+    core.pazaryeri_siparis Wix dahil her kanalı tutar ve 2 dakikada bir
+    tazelenir; mart.siparis ise günde bir (08:30) yüklenir ve yalnız Wix'tir.
+    "Bugün kaç sipariş geldi" sorusu için taze olan kaynak budur.
+    """
+    donem = _donem(message)
+    if donem is None:
+        return None
+    try:
+        kayitlar = memory._fetch("operations_marketplace_orders").records
+    except Exception:  # noqa: BLE001 - okunamazsa eski cevap yoluna dusulur
+        return None
+    bas, son, etiket = donem
+    aralik = (bas.strftime("%d.%m") if bas == son
+              else f"{bas.strftime('%d.%m')}–{son.strftime('%d.%m')}")
+    secili = [k for k in kayitlar if (g := _siparis_gunu(k)) and bas <= g <= son]
+    if not secili:
+        return (f"{etiket.capitalize()} ({aralik}) hiçbir kanalda sipariş görünmüyor. "
+                "Kanallar 2 dakikada bir kontrol ediliyor.")
+    kanallar: dict[str, list[dict[str, Any]]] = {}
+    for kayit in secili:
+        kanallar.setdefault(str(kayit.get("kanal") or "?"), []).append(kayit)
+    toplam = sum(float(k.get("tutar") or 0) for k in secili)
+    dokum = "; ".join(f"{ad.capitalize()} {len(liste)} sipariş, "
+                      f"{_tl(sum(float(k.get('tutar') or 0) for k in liste))}"
+                      for ad, liste in sorted(kanallar.items()))
+    cevap = (f"{etiket.capitalize()} ({aralik}) {len(secili)} sipariş geldi, toplam "
+             f"{_tl(toplam)} (KDV dahil sipariş tutarı). {dokum}.")
+    odenmemis = sum(1 for k in secili if str(k.get("durum") or "").upper() == "NOT_PAID")
+    if odenmemis:
+        cevap += f" Bunların {odenmemis} tanesinin ödemesi henüz alınmamış."
+    return cevap
+
+
+_KANAL_ADLARI = {"trendyol": "Trendyol", "idefix": "Idefix", "hepsiburada": "Hepsiburada",
+                 "n11": "n11", "ciceksepeti": "Çiçeksepeti", "pazarama": "Pazarama"}
+
+
+def _kanal_satis(message: str, memory: Any) -> str | None:
+    """Adı geçen pazaryerinin bağlantı durumu + siparişleri.
+
+    🔴 12.11.2026: "hepsıburadadan sıparıs gelıyor mu" sorusu Wix'in tüm
+    zamanlar özetiyle cevaplanıyordu; Hepsiburada'nın bağlı olmadığı
+    hiç söylenmiyordu.
+    """
+    metin = _ascii_fold(_normalize(turkish.deasciify(message))).replace(" ", "")
+    istenen = [k for k in _KANAL_ADLARI if k in metin]
+    if not istenen:
+        return None
+    try:
+        siparisler = memory._fetch("operations_marketplace_orders").records
+        saglik = {str(r.get("entity_id")): r
+                  for r in memory._fetch("operations_channel_health").records}
+    except Exception:  # noqa: BLE001 - okunamazsa genel satis cevabina dusulur
+        return None
+    donem = _donem(message)
+    parcalar = []
+    for kanal in istenen:
+        durum = saglik.get(kanal) or {}
+        if not durum.get("etkin"):
+            baglanti = "bağlantı kurulmadı, siparişleri otomatik okunamıyor"
+        elif durum.get("ardisik_hata"):
+            baglanti = f"bağlantı son {durum.get('ardisik_hata')} denemede hata verdi"
+        else:
+            baglanti = "bağlantı çalışıyor (2 dakikada bir kontrol ediliyor)"
+        liste = [r for r in siparisler if str(r.get("kanal") or "").lower() == kanal]
+        kapsam = "kayıtlı"
+        if donem:
+            bas, son, kapsam = donem
+            liste = [r for r in liste if (g := _siparis_gunu(r)) and bas <= g <= son]
+        if liste:
+            en_yeni = max((g for r in liste if (g := _siparis_gunu(r))), default=None)
+            siparis = (f"{kapsam} {len(liste)} sipariş, toplam "
+                       f"{_tl(sum(float(r.get('tutar') or 0) for r in liste))}"
+                       + (f"; en yenisi {en_yeni.strftime('%d.%m')}" if en_yeni else ""))
+        else:
+            siparis = f"{kapsam} sipariş yok"
+        parcalar.append(f"{_KANAL_ADLARI[kanal]}: {baglanti}. "
+                        f"{siparis[0].upper() + siparis[1:]}.")
+    return " ".join(parcalar)
+
+
 def _sales_answer(message: str, orders: list[dict[str, Any]], memory: Any) -> str:
     """Satış sorusuna gerçek rakamla, ölçüm çekincesiyle cevap verir.
 
@@ -358,6 +489,12 @@ def _sales_answer(message: str, orders: list[dict[str, Any]], memory: Any) -> st
     Rakamı saklamak yerine cekincesiyle vermek dogru davranistir: sayi
     gercektir, "dogrulanmis ciro" sayilmamasinin sebebi ayrica soylenir.
     """
+    kanalli = _kanal_satis(message, memory)
+    if kanalli:
+        return kanalli
+    donemli = _donem_satis(message, memory)
+    if donemli:
+        return donemli
     try:
         items = memory._fetch("sales_items").records
     except Exception:  # noqa: BLE001 - kalem okunamazsa siparisle yetinilir
@@ -392,6 +529,15 @@ def _sales_answer(message: str, orders: list[dict[str, Any]], memory: Any) -> st
                         "rakamlar yine de gerçek satışlardır.")
     elif orders:
         parcalar.append(f"{olcumde} sipariş ölçüm penceresinde.")
+    # Bu rakamlar yalniz Wix'tir; pazaryeri siparisleri ayrica soylenir.
+    try:
+        pazar = [k for k in memory._fetch("operations_marketplace_orders").records
+                 if str(k.get("kanal") or "").lower() != "wix"]
+    except Exception:  # noqa: BLE001 - pazaryeri okunamazsa Wix cevabi yine doner
+        pazar = []
+    if pazar:
+        parcalar.append(f"Bu rakamlar Wix sitesidir; pazaryerlerinden ayrıca {len(pazar)} "
+                        f"sipariş var ({_tl(sum(float(k.get('tutar') or 0) for k in pazar))}).")
     return " ".join(parcalar)
 
 
@@ -453,6 +599,13 @@ def _company(message: str, domain: str, memory: Any, started: float) -> dict[str
         elif domain == "brief":
             evidence = memory._fetch("gunluk_brief")
             answer = _brief_answer(evidence.records)
+        elif domain == "onay":
+            evidence = memory.get_system_status()
+            satir = evidence.records[0] if evidence.records else {}
+            bekleyen = int(satir.get("pending_actions") or 0)
+            answer = (f"{bekleyen} öneri onayınızı bekliyor. Ayrıntısını ve karar "
+                      "düğmelerini panelde Onaylar ekranında görebilirsiniz."
+                      if bekleyen else "Şu an onayınızı bekleyen öneri yok.")
         elif domain == "gundem":
             evidence = memory._fetch("agenda")
             answer = _gundem_answer(evidence.records)
@@ -1174,6 +1327,23 @@ def _summarize(name: str, records: list[dict[str, Any]]) -> str:
         return f"{len(records)} gönderi, {alarms} alarmlı"
     if name == "open_work":
         return f"{len(records)} açık iş kaydı"
+    if name == "operations_marketplace_orders":
+        kanallar: dict[str, int] = {}
+        for r in records:
+            kanallar[str(r.get("kanal") or "?")] = kanallar.get(str(r.get("kanal") or "?"), 0) + 1
+        son = max((str(r.get("siparis_zamani") or "")[:10] for r in records), default="")
+        return (f"{len(records)} sipariş (tüm kanallar, 2 dk'da bir taranır): "
+                + ", ".join(f"{k} {n}" for k, n in sorted(kanallar.items()))
+                + (f"; en yeni {son}" if son else ""))
+    if name == "operations_channel_health":
+        return "; ".join(
+            f"{r.get('entity_id')}: "
+            # Kapali kanal (kimlik yok) hata degildir; once o ayrilir.
+            + (f"bağlı değil ({str(r.get('son_hata') or '')[:40]})" if not r.get("etkin")
+               else f"{r.get('ardisik_hata')} ardışık hata ({str(r.get('son_hata') or '')[:40]})"
+               if r.get("ardisik_hata") else "çalışıyor")
+            + f", son başarılı {str(r.get('son_basarili') or '-')[:16]}"
+            for r in records)
     return f"{len(records)} kayıt"
 
 
@@ -1233,6 +1403,16 @@ def _detail_rows(name: str, records: list[dict[str, Any]]) -> list[str]:
         elif name == "ecommerce_profitability":
             rows.append(_line(record.get("urun_adi"), f"ciro {record.get('ciro_net')}",
                               f"marj %{record.get('brut_marj_yuzde')}"))
+        elif name == "operations_marketplace_orders":
+            rows.append(_line(record.get("kanal"), record.get("source_record_id"),
+                              str(record.get("siparis_zamani") or "")[:16],
+                              record.get("durum"), f"{record.get('tutar')} TL"))
+        elif name == "operations_channel_health":
+            rows.append(_line(record.get("entity_id"),
+                              "etkin" if record.get("etkin") else "kapalı",
+                              f"ardışık hata {record.get('ardisik_hata')}",
+                              f"son başarılı {str(record.get('son_basarili') or '-')[:16]}",
+                              str(record.get("son_hata") or "")[:60]))
         else:
             first = {k: v for k, v in list(record.items())[:4]
                      if k not in ("source", "entity_id", "source_record_id")}
@@ -1357,11 +1537,21 @@ def _verify(message: str, first: str, evidence: list[dict[str, Any]],
                                       escalate=False)
         return result.answer
 
-    out = consensus.run(ask, first=first, samples=CONSENSUS_SAMPLES)
+    # Ornekler AYNI ANDA uretilir: sirayla ~2,5 sn ekliyordu.
+    eksik = max(0, CONSENSUS_SAMPLES - 1)
+    with ThreadPoolExecutor(max_workers=max(1, eksik)) as havuz:
+        hazir = iter([havuz.submit(ask) for _ in range(eksik)])
+    out = consensus.run(lambda: next(hazir).result(), first=first,
+                        samples=CONSENSUS_SAMPLES)
     if out.samples < 2:
         return {}
     payload = out.to_dict()
-    payload["selected_differs"] = out.answer.strip() != first.strip()
+    # 🔴 12.11.2026: ilk cevabi muhakeme kademesi (Claude) yaziyor, ornekleri
+    # hizli kademe (Gemini Flash-Lite). Secim esitlikte EN KISA cevabi aliyordu;
+    # yani iyi cevap atilip zayif modelinki gosterilebiliyordu. Dogrulama
+    # artik yalniz UYARIR, cevabi degistirmez.
+    payload["answer"] = first
+    payload["selected_differs"] = False
     return payload
 
 
