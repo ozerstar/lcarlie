@@ -89,6 +89,11 @@ def trendyol_oku(barkodlar: set[str], bas: datetime, son: datetime) -> list[dict
         for p in veri.get("content") or []:
             if str(p.get("status") or "").lower().startswith(("cancel", "unsupplied")):
                 continue
+            # Tarih filtresi paketin SON DEGISIKLIGINE bakar: dun verilip bugun
+            # kargolanan siparis de gelir. orderDate TR saatini UTC gibi yazar.
+            verildi = (int(p.get("orderDate") or 0) - 3 * 3600 * 1000) / 1000
+            if not bas.timestamp() <= verildi <= son.timestamp():
+                continue
             for s in p.get("lines") or []:
                 if str(s.get("barcode")) in barkodlar:
                     cikti.append(dict(siparis=str(p.get("orderNumber")),
