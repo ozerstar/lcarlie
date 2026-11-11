@@ -116,6 +116,16 @@ def calistir(page, is_: dict, zaman_asimi_s: float | None = None) -> dict:
     onceki = ortak.mesaj_adedi(page, MESAJ)
     onceki_gorsel = set(_gorsel_adresleri(page))
 
+    # ChatGPT web UI oturumu icinde gercek urun/logo gorsellerini ekle.
+    # API anahtari veya sunucu tarafli model cagrisina dusulmez.
+    girdi_dosyalari = [str(p) for p in (is_.get("local_input_files") or [])]
+    if girdi_dosyalari:
+        dosya_girdileri = page.locator('input[type="file"]')
+        if dosya_girdileri.count() == 0:
+            raise HandlerHatasi("ChatGPT ek dosya alani bulunamadi")
+        dosya_girdileri.last.set_input_files(girdi_dosyalari)
+        page.wait_for_timeout(2500)
+
     ortak.istemi_yaz(page, kutu, is_["istem"])
     ortak.gonder(page, kutu, GONDER)
 

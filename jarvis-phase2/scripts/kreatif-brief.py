@@ -1968,8 +1968,23 @@ ve stok-fotoğraf klişesi istemiyorum.
 
 SADECE geçerli JSON döndür."""
 
-GORSEL_ISTEK = """{urun} için {adet} farklı reklam görseli sahnesi tasarla.
-Her sahne aşağıdaki kreatif brief'teki FARKLI bir satış açısını görselleştirsin.
+GORSEL_ISTEK = """{urun} için Instagram reklamında kullanılacak {adet} görsel kartı tasarla.
+
+FORMAT KARARI — KREATİF BRIEF'E GÖRE SEÇ, GEREKÇEYİ JSON'DA YAZ:
+- Ürün/değer anlatımı veya yeni ürün tanıtımı: varsayılan 2 kartlı carousel.
+  Her seri tam iki karttır: 1) HOOK, 2) ÜRÜN_DEĞERİ_CTA.
+- Tek mesajlı duyuru veya yeniden hedefleme: TEK_GORSEL seçilebilir.
+- Kullanım adımı, set veya koleksiyon anlatımı: 3-5 kart seçilebilir.
+- Reels/Story: dikey tek görsel kapağı seç; bunu carousel diye adlandırma.
+
+Instagram feed için 2 kart seçildiyse {adet} toplam kartı ikili serilere ayır.
+Her seride aynı ürün, palet, ışık ve tipografik dil korunsun; kareler sırayla
+kaydırıldığında tek bir reklam gibi bağlansın.
+Kart 1 hook'u en fazla 6-8 kelime olsun; tek başına görüldüğünde de mevzuata
+uygun kalsın, ürün/marka ipucu içersin ve tedavi/sonuç vaadi kurmasın.
+Kart 2 yalnızca brief'te dayanağı bulunan ürün değerini ve tek bir CTA'yı
+anlatsın. Kanıtı olmayan iddia ekleme. Instagram feed carousel kartları 4:5
+oranında olsun; iki kartı da mobil güvenli alanda okunur tut.
 
 🔴 KAREYE YAZI YAZMIYORSUN, SEÇİYORSUN. Karede görünecek metin yalnızca
 aşağıdaki ONAYLI listelerden numarayla seçilir. Kendi cümleni yazarsan iş
@@ -1986,8 +2001,14 @@ KREATİF BRIEF:
 {brief}
 
 JSON şeması — birebir:
-{{"gorseller": [
+{{"format_karari": {{"secim": "TEK_GORSEL | 2_KART_KARUSEL | 3_5_KART_KARUSEL | REELS_STORY_KAPAK",
+                     "gerekce": "ürün ve kullanım amacına göre kısa gerekçe"}},
+ "gorseller": [
   {{"ad": "Sahne adı, Türkçe",
+    "instagram_format": "TEK_GORSEL | 2_KART_KARUSEL | 3_5_KART_KARUSEL | REELS_STORY_KAPAK",
+    "seri_kodu": "aynı carousel içindeki iki kartta aynı kısa kod; tek görselde boş",
+    "kart_no": "1 veya 2; carousel dışında 1",
+    "kart_rolu": "HOOK | URUN_DEGERI_CTA | TEK_GORSEL | ADIM",
     "hangi_aci": "Brief'teki hangi satış açısını karşılıyor",
     "sahne_istemi": "İNGİLİZCE image modeli istemi. SADECE arka plan, yüzey, ışık, renk, atmosfer, kompozisyon. Ürün/yazı/logo YOK. 60-90 kelime.",
     "urun_yerlesimi": "Gerçek ürün fotoğrafı karenin neresine konacak (ör: 'alt orta, yüzeyin üstünde, %38 yükseklik')",
@@ -2761,7 +2782,7 @@ def main() -> int:
     ap.add_argument("urun", help="Ürün adı ya da bir parçası (ör: HYDRAVIE)")
     ap.add_argument("--kategori", default=None,
                     help="Rakip taraması için kategori (boşsa ürün adından türetilir)")
-    ap.add_argument("--gorsel", type=int, default=5, help="Üretilecek sahne sayısı")
+    ap.add_argument("--gorsel", type=int, default=4, help="Instagram reklam kartı sayısı (4 = iki adet iki kartlı kreatif)")
     ap.add_argument("--guclu", action="store_true",
                     default=os.environ.get("KREATIF_GUCLU_MODEL") == "1",
                     help="Kreatif yazımı güçlü (dış) modele yönlendir. ÜCRET DOĞURUR; varsayılan kapalı.")
@@ -2893,6 +2914,7 @@ def main() -> int:
               f"dayanaksız sildi: {len(silinen) - mevzuat_adet}")
 
     gorseller: list[dict] = []
+    instagram_format_karari: dict | None = None
     gorsel_silinen: list[dict] = []
     if konum:
         onayli_ust = konum.get("baslik_onerileri") or []
@@ -2907,6 +2929,9 @@ def main() -> int:
                           brief=json.dumps(konum, ensure_ascii=False)),
                       3000)
         if isinstance(gr, dict):
+            karar = gr.get("format_karari")
+            if isinstance(karar, dict):
+                instagram_format_karari = karar
             gorseller = _istemi_muhurle(gr.get("gorseller") or [])
             gorseller, gorsel_silinen = gorsel_yazi_kapisi(
                 gorseller, urun_metni, izinli_sayilar, onayli_ust, onayli_alt)
@@ -2990,6 +3015,7 @@ def main() -> int:
         "kreatif_sayisi": len(kreatifler), "aktif_kreatif": aktif,
         "tutarlilik": tutarlilik, "rakip": rakip,
         "konumlandirma": konum, "mevzuat_silinen": silinen,
+        "instagram_reklam_format_karari": instagram_format_karari,
         "gorseller": gorseller, "red_team": red,
         "senaryolar": senaryolar, "senaryo_silinen": senaryo_silinen,
         "atanan_uzmanlar": atanan_gorus,
@@ -3016,4 +3042,5 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
 

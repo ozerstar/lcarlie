@@ -55,7 +55,7 @@ BICIMLER = {
 
 # Ürünün kare yüksekliğine oranı. Çok büyük olursa dizgiye yer kalmaz,
 # çok küçük olursa telefonda etiket okunmaz.
-URUN_YUKSEKLIK_ORANI = {"REELS": 0.46, "KARE": 0.58, "AKIS": 0.56}
+URUN_YUKSEKLIK_ORANI = {"REELS": 0.46, "KARE": 0.62, "AKIS": 0.60}
 
 # 🔴 BASLIK METROPOLIS DEGIL, MONUMENT EXTENDED. Ilk surumde basligi da
 # Metropolis ile dizdim; marka sistemi basliklar icin Monument Extended
@@ -348,11 +348,11 @@ def dizgi_yerlesim(tuval: Image.Image, baslik: str, alt: str, bicim: str) -> dic
     kenar = round(g * 0.075)
     genislik = g - 2 * kenar
 
-    b_punto = round(g * (0.062 if bicim == "REELS" else 0.070))
-    a_punto = round(g * 0.030)
+    b_punto = round(g * (0.062 if bicim == "REELS" else 0.062))
+    a_punto = round(g * 0.040)
     # Monument Extended cok genis bir yuzdur; ayni puntoda Metropolis'ten
     # belirgin daha genis yer kaplar, bu yuzden punto bir miktar kucultulur.
-    b_font, a_font = font("baslik", round(b_punto * 0.82)), font("light", a_punto)
+    b_font, a_font = font("baslik", round(b_punto * 0.82)), font("semibold", a_punto)
 
     # Eksik glifler BURADA temizlenir; asagisi artik cizilebilir metin.
     baslik = metin_guvenli(baslik, "baslik")
@@ -389,7 +389,7 @@ def kontrast(a, b) -> float:
 # Metin renkleri: acik zeminde koyu, koyu zeminde acik.
 ACIK_METIN = (242, 239, 233)
 KOYU_METIN = (18, 18, 20)
-ACIK_ALT = (201, 169, 97)
+ACIK_ALT = (242, 224, 177)
 KOYU_ALT = (120, 92, 30)
 EN_AZ_KONTRAST = 4.5          # WCAG AA (buyuk metin icin fazlasiyla yeterli)
 
@@ -637,19 +637,34 @@ def dogrula(cikti: Image.Image, urun: Image.Image, konum: tuple) -> dict:
 def uret(slug: str, bicim: str = "AKIS", baslik: str = "", alt: str = "",
          sahne: Path | None = None, zemin: str = "#e9e6e0",
          golge: bool = True, yerlesim_adi: str = "merkez",
-         isik: str = "olc", cikti_dizin: Path = CIKTI) -> dict:
+         isik: str = "olc", cikti_dizin: Path = CIKTI,
+         urun_gorsel: Path | None = None,
+         logo_yolu: Path | None = None) -> dict:
     if bicim not in BICIMLER:
         raise GorselHatasi("gecersiz bicim: %s" % bicim)
     if yerlesim_adi not in YERLESIMLER:
         raise GorselHatasi("gecersiz yerlesim: %s" % yerlesim_adi)
     if isik not in ISIK_YONLERI:
         raise GorselHatasi("gecersiz isik yonu: %s" % isik)
-    kaynak, kaynak_turu = urun_kaynagi(slug)
+    if urun_gorsel is not None:
+        kaynak = Path(urun_gorsel)
+        if not kaynak.is_file():
+            raise GorselHatasi("urun gorseli yok: %s" % kaynak)
+        kaynak_turu = "verilen_orijinal_fotograf"
+    else:
+        kaynak, kaynak_turu = urun_kaynagi(slug)
 
     t0 = time.time()
     urun = kirp(urun_kesimi(kaynak))
     tuval = sahne_kur(bicim, sahne, zemin).convert("RGB")
     g, y = tuval.size
+    if logo_yolu is not None:
+        logo_yolu = Path(logo_yolu)
+        if not logo_yolu.is_file():
+            raise GorselHatasi("marka logosu yok: %s" % logo_yolu)
+        logo = Image.open(logo_yolu).convert("RGBA")
+        logo.thumbnail((round(g * 0.30), round(y * 0.05)), Image.LANCZOS)
+        tuval.paste(logo, ((g - logo.width) // 2, round(y * 0.08)), logo)
 
     # 🔴 YAZI ONCE OLCULUR, URUN SONRA OLCEKLENIR.
     #
@@ -735,7 +750,7 @@ def uret(slug: str, bicim: str = "AKIS", baslik: str = "", alt: str = "",
         "sure_sn": round(time.time() - t0, 2),
         "katmanlar": ["urun=gercek fotograf pikselleri",
                       "sahne=" + ("AI/dosya" if sahne else "duz zemin"),
-                      "dizgi=Metropolis .otf (Pillow)"],
+                      "dizgi=Monument Extended + Metropolis .otf (Pillow)"],
     })
     (cikti_dizin / (ad + ".json")).write_text(
         json.dumps(rapor, ensure_ascii=False, indent=1), encoding="utf-8")

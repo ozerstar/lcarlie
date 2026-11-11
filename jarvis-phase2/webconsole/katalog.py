@@ -321,8 +321,10 @@ def ig_plan(durum: str = "", limit: int = 50) -> dict:
                 gun DESC NULLS LAST, sira NULLS LAST, uretim_at DESC
        LIMIT %d) t;""" % (kosul, limit)
     paketler = _yaz(sql, degiskenler) if degiskenler else _oku(sql)
+    import ig_kalite
     for p in paketler:
         p["amac_etiket"] = IG_AMAC_ETIKET.get(p.get("amac") or "", p.get("amac"))
+        p["metin_kalitesi"] = ig_kalite.incele(p)
 
     ozet = _oku("""SELECT row_to_json(t) FROM (
       SELECT count(*) AS toplam,

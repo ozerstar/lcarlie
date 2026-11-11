@@ -55,6 +55,15 @@ echo "== 8    EKIP INCELEMESI ================================"
       --urun-gorsel "$CEKIM"
 
 echo
+echo "== 8b   SINIRLI GPT REVIZYONU =========================="
+REVIZYON_CIKTI="$("$PY" scripts/kreatif-revizyon.py "$BRIEF" \
+      "state/kreatif-brief/${PARTI}-gorseller/inceleme.json" \
+      --urun-gorsel "$CEKIM" || true)"
+printf '%s\n' "$REVIZYON_CIKTI"
+SON_PARTI="$(printf '%s\n' "$REVIZYON_CIKTI" | sed -n 's/^FINAL_PARTI=//p' | tail -n1)"
+[ -z "$SON_PARTI" ] || PARTI="$SON_PARTI"
+
+echo
 echo "== 9    SAHIBIN ONAY KUYRUGU ==========================="
 # Gorev acilir; onerinin kendisini JARVIS DONGUSU yazar (loop.py ->
 # _build_kreatif_payload -> core.ai_propose_action). Bu betik onay

@@ -2,76 +2,38 @@
 """GÖRSEL ÜRETİM — brief'ten teslim edilebilir reklam görseli.
 
 ZİNCİRİN İKİNCİ YARISI. `kreatif-brief.py` brief'i, sahne tarifini ve
-denetimden geçmiş Türkçe yazıları üretir. Bu betik ÜRÜN FOTOĞRAFINI + LOGOYU
-görsel modeline gönderir; KESİM, MONTAJ ve TASARIM orada yapılır.
-
-🔴 MİMARİ KARARI (sahip, 21.09.2026) — verbatim:
-   "kesme işini sen yapmıcan sen sadece resmi göndereceksin; kesim, montaj,
-    görsel işlerini gönderdiğin yer yapacak, tasarımla birlikte."
-
-Önceki sürüm ürünü Pillow ile kendisi kesip diziyordu. O yol ölçüldü ve
-zayıftı: şişe beyaz, çekim zemini açık gri, gövde-zemin farkı 11 birim,
-zeminin kendi gradyanı 24 birim -> güvenilir kesit çıkmıyor, tüylendirilmiş
-geçiş kullanmak zorunda kalınıyor ve koyu sahnede hale bırakıyordu.
-Görsel modeli aynı işi temiz kesim ve gerçek gölgeyle yapıyor.
-
-🔴 AMBALAJ HÂLÂ KORUNUR — ama artık İSTEMLE korunur, kodla değil.
-Ürün metinden yeniden çizdirilmez: gerçek fotoğraf GİRDİ olarak verilir ve
-"yeniden çizme, harflerine dokunma" şartı konur. Buna rağmen ölçülen şudur:
-
-   ETİKET METNİ İSTEMDE YAZILMAZSA MODEL UYDURUR.
-   İlk deneme: etikette "HYORAVIE" yazdı (doğrusu HYDRAVIE).
-   Etiket satırları isteme eklenince: HYDRAVIE ve L'CARLIÉ doğru çıktı.
-
-Bu yüzden `varliklar/urun/<urun>.etiket.txt` dosyası VARSA isteme aynen
-eklenir. Yoksa uyarı basılır -- sessizce geçilmez.
-
-🔴 KALAN KUSUR, ÖLÇÜLDÜ VE KAPANMADI: şişenin ince puntolu satırları
-("Herbal Moisturizing Cream", "1.69 fl oz") yakın planda bozuluyor;
-bir koşuda "1.69" -> "1.89" oldu. Teslim boyutunda (1080 px karede şişe
-~%30) bu satırlar ~8 piksel yüksekliğinde ve okunmuyor. Ambalajın YAKIN PLAN
-kullanılacağı bir işte bu yol kullanılmamalıdır.
-
+onaylı Türkçe metinleri üretir. ChatGPT Work ürün fotoğrafı ve logoyu
+kullanarak sahnenin tamamını ve ürün yerleşimini tasarlar. Jarvis yalnızca
+başlık ve destek metnini Monument Extended ve Metropolis font dosyalarıyla
+ekler.
 Çıkış: 0=görseller üretildi · 1=hata · 2=brief yok · 3=kısmi
 """
 from __future__ import annotations
 
 import argparse
-import base64
-import io
+import importlib.util
 import json
 import os
 import sys
 import time
-import urllib.error
-import urllib.request
+import uuid
 from pathlib import Path
 
 KOK = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KOK))
 os.environ.setdefault("JARVIS_MEMORY_TRANSPORT", "local-docker")
 
-from PIL import Image  # noqa: E402
+from PIL import Image, ImageOps  # noqa: E402
 
-from jarvis import providers  # noqa: E402
+_sp = importlib.util.spec_from_file_location(
+    "gorsel_kompozit", str(KOK / "scripts" / "gorsel-kompozit.py"))
+gk = importlib.util.module_from_spec(_sp)
+_sp.loader.exec_module(gk)
 
 VARLIK = KOK / "varliklar"
-GORSEL_MODEL = os.environ.get("KREATIF_GORSEL_MODELI", "gemini-3-pro-image")
+GORSEL_SAGLAYICI = "chatgpt_web_work"
+GORSEL_MODEL = "Kullanıcının Chrome oturumundaki GPT"
 ORANLAR = ("1:1", "4:5", "9:16", "16:9")
-
-
-def _resim_parcasi(yol: Path, en: int = 1400) -> dict:
-    """Dosyayı modele gönderilecek parçaya çevirir.
-
-    Küçültme şart: ham PNG 1,8 MB ve base64'e çevrilince istek zaman aşımına
-    uğruyor (ölçüldü). 1400 px ürün etiketinin okunabilir kalmasına yetiyor.
-    """
-    im = Image.open(yol).convert("RGB")
-    im.thumbnail((en, en))
-    tampon = io.BytesIO()
-    im.save(tampon, "JPEG", quality=95)
-    return {"inline_data": {"mime_type": "image/jpeg",
-                            "data": base64.b64encode(tampon.getvalue()).decode()}}
 
 
 # 🔴 Bu şart KOD tarafından her isteme eklenir, modelden istenmez.
@@ -99,30 +61,63 @@ For your verification, the packaging is printed with exactly these lines:
 {satirlar}
 """
 
-ISTEM = """IMAGE 1 = the real product photograph. IMAGE 2 = the brand logo.
+TAM_GORSEL_ISTEM = """Create a finished premium editorial Instagram skincare campaign for L'CARLIÉ {urun}.
+GPT must create the complete photograph, art direction, Turkish headline and any
+supporting copy inside the image. Campaign angle: {odak}.
+Jarvis Creative Director's approved direction: {yaratici_yon}
 
-Create a FINISHED {oran} advertising image for this cosmetic product.
-You do the cut-out, the montage and the full design.
-{muhur}
-SCENE: {sahne}
+COMPOSITION: Keep the product prominent, sharp and safely inside the frame. All text
+must stay within a generous mobile-safe margin and remain legible at phone size. Follow
+Jarvis Creative Director's composition and copy choices; add no unapproved copy.
 
-SCENE LIGHTING — STRICT: soft, cool, neutral overcast daylight. No golden hour,
-no warm tungsten, no sunset, no amber glow, no strong colour cast of any kind.
-🔴 Measured: warm scene light tinted the white bottle cream AND scrambled the
-lettering on its label. Neutral light keeps both intact.
+ART DIRECTION: Use the attached owner-approved image for brand taste when supplied, and
+follow the new concept and corrections from Jarvis Creative Director. Preserve a premium
+editorial feel, Hydravie aqua family and neutral-white bottle. No dark text band, duplicate
+logo, beige cast, clutter, badges or unsupported claims. Preserve the exact package.
+Typography should feel like Monument Extended / Metropolis, clean and readable.
+{referans_talimati}
+Aspect ratio {oran}.{revizyon}"""
 
-DESIGN: place the logo from IMAGE 2 once, at the top. Leave clean, uncluttered
-space for the headline. Elegant, minimal, modern premium cosmetics advertising
-layout. Calm and quiet — not busy, not salesy, no badges, no starbursts, no
-price tags, no arrows.
 
-TEXT to typeset on the image. Copy these characters EXACTLY, including Turkish
-letters (ı İ ğ ş ç ö ü). Do not translate, do not rephrase, do not add words:
-   headline: {ust}
-   subline:  {alt}
-Use a clean geometric sans-serif. Apart from the logo and these two lines,
-there must be NO other text anywhere in the image.
-{itirazlar}"""
+def jarvis_yaratici_yonlendirme(sahne: str, baslik: str, destek: str,
+                                 revizyon_notu: str, urun_adi: str,
+                                 stil_referansi: Path | None = None) -> str:
+    """Jarvis asks GPT Work's creative lead to turn team feedback into an image prompt."""
+    from jarvis import tarayici as browser_queue
+    istem = (
+        "You are Jarvis's Creative Director. Convert the brief and department review "
+        "into one original, concise image-generation prompt for GPT Image. Product: "
+        f"{urun_adi}. Campaign: {sahne}. Exact headline: {baslik or 'brief headline'}. "
+        f"Optional support text: {destek or 'none; omit it'}. Team feedback: "
+        f"{revizyon_notu or 'initial design; choose a premium editorial concept'}. "
+        "Honor the owner's approved visual reference if attached. Keep product packaging "
+        "faithful, typography readable on mobile, and all copy in safe margins. Include "
+        "a deliberate secondary mockup of the same product in the background; avoid a "
+        "plain one-product-only composition, and integrate both product views elegantly. No dark "
+        "overlay or unsupported claims. Resolve every listed defect and choose the visual "
+        "concept yourself; do not repeat a rejected prop or composition. Output only the "
+        "final English image-generation prompt, 90 words maximum, no JSON or explanation.")
+    is_ = browser_queue.enqueue_browser_task(
+        istem, "chatgpt_chat",
+        input_files=[str(stil_referansi.resolve())] if stil_referansi is not None else None,
+        requested_by="kreatif-direktor",
+        idempotency_key="creative-direction:" + uuid.uuid4().hex)
+    print(f"Jarvis Kreatif Direktör istemi GPT Work kuyruğunda: iş {is_['is_id']}", flush=True)
+    bitis = time.monotonic() + 390
+    while time.monotonic() < bitis:
+        sonuc = browser_queue.isi_sonucu(is_["is_id"])
+        if sonuc:
+            durum = sonuc.get("durum")
+            if durum in ("BITTI", "SUNULDU"):
+                metin = (sonuc.get("sonuc_metin") or "").strip()
+                if not metin:
+                    raise RuntimeError("Jarvis Kreatif Direktör GPT istemi boş döndü")
+                return metin[:1200]
+            if durum in ("HATA", "INSAN_GEREKLI"):
+                raise RuntimeError("Jarvis Kreatif Direktör istemi tamamlanamadı: "
+                                   + str(sonuc.get("hata") or durum)[:250])
+        time.sleep(5)
+    raise RuntimeError("Jarvis Kreatif Direktör GPT istemi 390 sn içinde tamamlanmadı")
 
 
 def etiket_satirlari(urun_yolu: Path) -> str:
@@ -142,72 +137,78 @@ def etiket_satirlari(urun_yolu: Path) -> str:
         satirlar="\n".join(f"   {s}" for s in satirlar))
 
 
-# Uretim cozunurlugu. "1K" ile AYNI PARA oldugu icin varsayilan 2K.
-GORSEL_BOYUT = os.environ.get("GORSEL_BOYUT", "2K")
-
 # Hangi urunun itirazlari okunacak; main() parti adindan doldurur.
 _URUN_ONEKI = ""
 
 
+def chatgpt_web_gorsel(istem: str, oran: str, girdi_dosyalari: list[Path],
+                        zaman_asimi_s: int = 1800) -> Image.Image:
+    from jarvis import tarayici as browser_queue
+    is_ = browser_queue.enqueue_browser_task(
+        istem, "chatgpt_image", input_files=[str(p.resolve()) for p in girdi_dosyalari],
+        requested_by="tasarim-departmani",
+        idempotency_key="gptwork:" + uuid.uuid4().hex)
+    print(f"GPT Work Chrome kuyruğuna eklendi: iş {is_['is_id']}", flush=True)
+    bitis = time.monotonic() + zaman_asimi_s
+    while time.monotonic() < bitis:
+        sonuc = browser_queue.isi_sonucu(is_["is_id"])
+        if sonuc:
+            durum = sonuc.get("durum")
+            if durum in ("BITTI", "SUNULDU"):
+                dosyalar = sonuc.get("sonuc_dosyalari") or []
+                if not dosyalar:
+                    raise RuntimeError(f"ChatGPT web işi {is_['is_id']} bitti ama görsel dönmedi")
+                kok = browser_queue.CIKTI_KOK.resolve()
+                yol = (kok / str(dosyalar[0])).resolve()
+                if kok not in yol.parents or not yol.is_file():
+                    raise RuntimeError(f"ChatGPT web işi {is_['is_id']} sonucu sunucuda bulunamadı")
+                im = Image.open(yol).convert("RGB")
+                hedef = {"1:1": (1024, 1024), "4:5": (1024, 1280),
+                         "9:16": (1024, 1820), "16:9": (1820, 1024)}[oran]
+                return ImageOps.fit(im, hedef, method=Image.Resampling.LANCZOS)
+            if durum in ("HATA", "INSAN_GEREKLI"):
+                raise RuntimeError(f"ChatGPT web işi {is_['is_id']} {durum}: {sonuc.get('hata') or 'insan müdahalesi gerekli'}")
+        time.sleep(10)
+    raise RuntimeError(f"ChatGPT web işi {is_['is_id']} {zaman_asimi_s} sn içinde tamamlanmadı; Jarvis tarayıcı kuyruğunu kontrol edin")
+
 def montaj_uret(sahne: str, ust: str, alt: str, oran: str,
-                urun_yolu: Path, logo_yolu: Path, etiket: str) -> Image.Image:
-    anahtar = providers.load_env().get("GEMINI_API_KEY")
-    if not anahtar:
-        raise RuntimeError("GEMINI_API_KEY yok")
-    # 🔴 Sahibin ACIK itirazlari uretimin ONUNE gecer. Okunamazsa uretim
-    # durmaz -- itiraz kaydi erisilemez diye gorsel uretmemek, calisan
-    # bir hatti calismayan bir hatta cevirirdi.
-    itiraz_blok = ""
-    try:
-        from jarvis.kreatif_itiraz import acik_itirazlar_metni
-        ham = acik_itirazlar_metni(_URUN_ONEKI or "")
-        if ham:
-            itiraz_blok = ("\n\nOWNER'S OPEN OBJECTIONS on earlier images of "
-                           "this product. You MUST NOT repeat these mistakes:\n"
-                           + ham)
-    except Exception:  # noqa: BLE001 - itiraz okunamazsa uretim durmaz
-        itiraz_blok = ""
-
-    istem = ISTEM.format(
-        oran=oran, sahne=sahne.strip(), ust=ust or "(başlık yok)",
-        alt=alt or "(alt satır yok)",
-        itirazlar=itiraz_blok,
-        muhur=URUN_MUHRU.format(etiket=etiket))
-    govde = {"generationConfig": {"imageConfig": {"aspectRatio": oran,
-                                                 "imageSize": GORSEL_BOYUT}},
-             "contents": [{"parts": [_resim_parcasi(urun_yolu),
-                                     _resim_parcasi(logo_yolu, 512),
-                                     {"text": istem}]}]}
-    istek = urllib.request.Request(
-        f"https://generativelanguage.googleapis.com/v1beta/models/{GORSEL_MODEL}"
-        f":generateContent?key={anahtar}",
-        data=json.dumps(govde).encode("utf-8"),
-        headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(istek, timeout=420) as cevap:
-        d = json.loads(cevap.read().decode("utf-8"))
-    # 🔴 DEFTERE YAZ. Bu cagri `providers.generate()` yolundan gecmiyor,
-    # yani defteri besleyen kanca burada YOK. Yazilmazsa gorsel maliyeti
-    # panelde hic gorunmez -- nitekim gorunmuyordu.
-    try:
-        from jarvis import usage as _usage
-        _u = d.get("usageMetadata") or {}
-        _usage.record(
-            "gemini", GORSEL_MODEL, True,
-            is_anahtari="kreatif_gorsel", kademe="gorsel",
-            prompt_tokens=_u.get("promptTokenCount"),
-            completion_tokens=(_u.get("candidatesTokenCount")
-                               or _u.get("totalTokenCount")),
-            elapsed_s=None, ok=True)
-    except Exception:  # noqa: BLE001 - defter uretimi durduramaz
-        pass
-
-    aday = (d.get("candidates") or [{}])[0]
-    for p in ((aday.get("content") or {}).get("parts") or []):
-        veri = p.get("inlineData") or p.get("inline_data")
-        if veri and veri.get("data"):
-            return Image.open(io.BytesIO(base64.b64decode(veri["data"]))).convert("RGB")
-    raise RuntimeError(f"model görsel döndürmedi ({aday.get('finishReason')})")
-
+                urun_yolu: Path, logo_yolu: Path, etiket: str,
+                stil_referansi: Path | None = None,
+                revizyon_notu: str = "", urun_adi: str = "HYDRAVIE") -> Image.Image:
+    """GPT creates the whole ad and copy; review notes guide autonomous revisions."""
+    if not urun_yolu.is_file() or not logo_yolu.is_file():
+        raise gk.GorselHatasi("urun fotografi veya resmi logo bulunamadi")
+    if stil_referansi is not None and not Path(stil_referansi).is_file():
+        raise gk.GorselHatasi("onceki gorsel referansi bulunamadi")
+    yaratici_yon = jarvis_yaratici_yonlendirme(
+        sahne, ust, alt, revizyon_notu, urun_adi, stil_referansi)
+    revizyon = ""
+    if revizyon_notu.strip():
+        revizyon = ("\n\nCREATIVE TEAM REVISION — make these concrete changes to the rejected draft; "
+                    "do not merely polish it: " + " ".join(revizyon_notu.split())[:500])
+    if stil_referansi is not None and "user-approved" in Path(stil_referansi).name:
+        referans_talimati = (
+            "IMAGE 1 is the exact product package. IMAGE 2 is the owner's approved style "
+            "reference: use its aqua dewy mood, but choose a fresh composition and follow "
+            "Jarvis Creative Director's new instructions. Keep the "
+            "package crisp. Do not reproduce the reference's words or add a second logo. "
+            "The final image is the official logo; omit it if the package already carries it.")
+    elif stil_referansi is not None:
+        referans_talimati = (
+            "IMAGE 1 is the exact product package. IMAGE 2 is a rejected draft; use it "
+            "only to identify defects and do not repeat its failed choices. The final "
+            "image is the official logo; use it once only if it fits the composition.")
+    else:
+        referans_talimati = "Use the supplied product photo and logo as faithful references."
+    istem = TAM_GORSEL_ISTEM.format(
+        urun=urun_adi, oran=oran, revizyon=revizyon,
+        referans_talimati=referans_talimati, odak=" ".join(sahne.split())[:220],
+        yaratici_yon=" ".join(yaratici_yon.split()))
+    dosyalar = [urun_yolu]
+    if stil_referansi is not None:
+        dosyalar.append(Path(stil_referansi))
+    dosyalar.append(logo_yolu)
+    return chatgpt_web_gorsel(istem, oran, dosyalar)
 
 # ══════════════════════════════════════════════════════════════════════════
 # 🔴 OTOMATİK AMBALAJ DENETİMİ DENENDİ VE ÇALIŞMIYOR — KALDIRILDI
@@ -261,6 +262,8 @@ def main() -> int:
     ap.add_argument("brief", help="kreatif-brief.py'nin ürettiği .json")
     ap.add_argument("--urun-gorsel", required=True, help="gerçek ürün çekimi")
     ap.add_argument("--logo", default=str(VARLIK / "logo" / "lcarlie-logo.png"))
+    ap.add_argument("--stil-referans", type=Path, default=None,
+                    help="revizyon icin onceki GPT gorseli")
     ap.add_argument("--cikti", default=None)
     ap.add_argument("--adet", type=int, default=0, help="0 = brief'teki hepsi")
     a = ap.parse_args()
@@ -287,28 +290,40 @@ def main() -> int:
     if etiket:
         print(f"etiket metni verildi: {urun_yolu.with_suffix('.etiket.txt').name}")
     else:
-        print("🔴 UYARI: etiket metni dosyası yok "
-              f"({urun_yolu.with_suffix('.etiket.txt').name}). Model ambalaj "
-              "yazısını UYDURABİLİR — ilk ölçümde 'HYORAVIE' yazdı.",
-              file=sys.stderr)
+        print("GPT web üretimi kullanılır; ürün etiketi insan incelemesinden geçmelidir.")
 
     cikti = Path(a.cikti) if a.cikti else bp.parent / (bp.stem + "-gorseller")
     (cikti / "etiket-kontrol").mkdir(parents=True, exist_ok=True)
 
     teslim, hata = [], 0
     for n, g in enumerate(gorseller, 1):
-        oran = g.get("oran") if g.get("oran") in ORANLAR else "1:1"
+        instagram_format = str(g.get("instagram_format") or "").upper()
+        seri_kodu = str(g.get("seri_kodu") or "").strip()
+        kart_no = str(g.get("kart_no") or "").strip()
+        kart_rolu = str(g.get("kart_rolu") or "").upper()
+        oran = g.get("oran") if g.get("oran") in ORANLAR else "4:5"
+        if instagram_format in ("2_KART_KARUSEL", "3_5_KART_KARUSEL"):
+            oran = "4:5"
+        elif instagram_format == "REELS_STORY_KAPAK":
+            oran = "9:16"
         yer = g.get("yerlesim") or {}
         tip = yer.get("katman_4_tipografi") or {}
-        ust = tip.get("ust_yazi") or g.get("ust_yazi") or ""
-        alt = tip.get("alt_yazi") or g.get("alt_yazi") or ""
+        ust = g.get("ust_yazi") or tip.get("ust_yazi") or ""
+        alt = g.get("alt_yazi") or tip.get("alt_yazi") or ""
         # Sahne tarifi zaten "ürünsüz arka plan" diye yazılmıştı; artık ürün
         # de karede olacağı için mühürdeki yasak cümlesi kullanılmaz --
         # sahnenin yalnız ortam kısmı alınır.
-        sahne = str(g.get("sahne_istemi") or "").split("NEGATIVE")[0].strip()
+        sahne = str(g.get("ad") or "") + "; " + str(g.get("hangi_aci") or "")
+        # GPT'nin sanat yönetimini eski, birbiriyle çelişen revizyon notlarıyla
+        # boğmuyoruz; yalnız brief'teki kısa konsept ve ürün açısı gönderilir.
+        geri_bildirim = []
         try:
-            kare = montaj_uret(sahne, ust, alt, oran, urun_yolu, logo_yolu, etiket)
-        except (urllib.error.URLError, OSError, RuntimeError, ValueError) as e:
+            kare = montaj_uret(
+                sahne, ust, alt, oran, urun_yolu, logo_yolu, etiket,
+                stil_referansi=a.stil_referans,
+                revizyon_notu=str(g.get("revizyon_notu") or ""),
+                urun_adi=str((brief.get("urun") or {}).get("urun_adi") or "HYDRAVIE").split("|")[0].strip())
+        except (OSError, RuntimeError, ValueError) as e:
             print(f"{n}. HATA: {str(e)[:160]}", file=sys.stderr)
             hata += 1
             continue
@@ -319,16 +334,27 @@ def main() -> int:
                                      quality=93)
         print(f"{n}. {g.get('ad','?')} · {oran} -> {ad.name} {kare.size}")
         teslim.append({"dosya": ad.name, "sahne": g.get("ad"), "oran": oran,
-                       "ust_yazi": ust, "alt_yazi": alt,
-                       "hangi_aci": g.get("hangi_aci")})
+                       "ust_yazi": "GPT tarafından görsel içinde yazıldı",
+                       "alt_yazi": "GPT tarafından görsel içinde yazıldı",
+                       "yazi_modeli": "gpt_work",
+                       "revizyon_yonlendirmesi": str(g.get("revizyon_notu") or ""),
+                       "hangi_aci": g.get("hangi_aci"),
+                       "instagram_format": instagram_format,
+                       "seri_kodu": seri_kodu, "kart_no": kart_no, "kart_rolu": kart_rolu,
+                       "onceki_inceleme_notlari": geri_bildirim,
+                       "inceleme_durumu": "DEPARTMAN_INCELEMESI_BEKLIYOR",
+                       "gorsel_uretme_yontemi": "gpt_work_tam_gorsel_ve_yazi",
+                       "tipografi_tercihi": "Monument Extended + Metropolis stili GPT isteminde belirtildi"})
         time.sleep(2)
 
     (cikti / "teslim.json").write_text(
         json.dumps({"urun": (brief.get("urun") or {}).get("urun_adi"),
                     "brief": bp.name, "gorseller": teslim,
-                    "yontem": "ürün fotoğrafı + logo görsel modeline verildi; "
-                              "kesim, montaj ve tasarım orada yapıldı",
-                    "kontrol": "🔴 YAYINDAN ÖNCE İNSAN GÖZÜYLE BAKILMALI: "
+                    "saglayici": GORSEL_SAGLAYICI, "model": GORSEL_MODEL,
+                    "instagram_reklam_format_karari": brief.get("instagram_reklam_format_karari"),
+                    "yontem": "GPT Work görseli ve Türkçe yazıları birlikte üretir; Jarvis metne görsel katmanı eklemez; taslak inceleme bekliyor",
+                    "tipografi": "GPT görsel içinde oluşturdu; Monument Extended ve Metropolis görsel dili istendi",
+                    "kontrol": "🔴 YAYINDAN ÖNCE JARVIS TASARIM EKİBİ VE İNSAN GÖZÜYLE BAKILMALI: "
                                "etiket-kontrol/ içindeki yakın planlarda "
                                "ambalaj yazısı doğru mu, şişenin beyazı "
                                "kaymış mı? Otomatik denetim denendi ve "
@@ -342,4 +368,5 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
 
