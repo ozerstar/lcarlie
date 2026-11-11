@@ -124,5 +124,19 @@ class UzmanKadrosu(unittest.TestCase):
         self.assertIn("yok", s)
 
 
+class JsonOnarimTesti(unittest.TestCase):
+    """11.11.2026: sondaki virgül paketi hiç üretmeden düşürdü."""
+
+    def test_sondaki_virgul_onarilir(self):
+        self.assertEqual(_betik()._json_ayikla('{"a": [1, 2,],\n "b": {"c": 1,},\n}'),
+                         {"a": [1, 2], "b": {"c": 1}})
+
+    def test_metin_icindeki_virgul_bozulmaz(self):
+        self.assertEqual(_betik()._json_ayikla('{"x": "a,}"} ek açıklama'), {"x": "a,}"})
+
+    def test_kod_blogu_ve_sonraki_metin(self):
+        self.assertEqual(_betik()._json_ayikla('Tabii:\n```json\n{"x": 1}\n```\nbol şans'), {"x": 1})
+
+
 if __name__ == "__main__":
     unittest.main()

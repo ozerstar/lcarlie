@@ -137,11 +137,21 @@ def gunun_urunu(katalog: dict, olcum: dict, zorla: str = "") -> tuple:
 # MODEL ÇAĞRILARI
 # --------------------------------------------------------------------------
 def _json_ayikla(metin: str):
-    """Model cevabından ilk JSON nesnesini çıkarır."""
+    """Model cevabından ilk JSON nesnesini çıkarır.
+
+    🔴 11.11.2026: model `}` öncesine fazladan virgül koydu ve paket hiç
+    üretilmedi ("Expecting property name ... line 45"). Sondaki virgüller
+    onarılır; JSON'dan sonra gelen açıklama metni yok sayılır.
+    """
     m = re.search(r"```(?:json)?\s*(.+?)```", metin or "", re.S)
-    govde = m.group(1) if m else metin
+    govde = m.group(1) if m else (metin or "")
     bas = min([i for i in (govde.find("{"), govde.find("[")) if i >= 0] or [0])
-    return json.loads(govde[bas:])
+    govde = govde[bas:]
+    try:
+        return json.JSONDecoder().raw_decode(govde)[0]
+    except ValueError:
+        # Onarim yalniz ilk deneme dusunce: metin degerindeki ",}" bozulmasin.
+        return json.JSONDecoder().raw_decode(re.sub(r",(\s*[}\]])", r"\1", govde))[0]
 
 
 CAGRILAR: list[str] = []
@@ -169,7 +179,17 @@ def _cagir(sistem: str, istek: str, azami: int):
         print("  ! yedek model: %s (%s)" % (
             r["model"], "; ".join("%s=%s" % (x["provider"], x["result"][:60])
                                   for x in r["attempts"])))
-    return _json_ayikla(r["text"])
+    try:
+        return _json_ayikla(r["text"])
+    except ValueError as hata:
+        # Onarilamayan JSON: model bir kez duzeltmeye zorlanir, paket kaybolmaz.
+        print("  ! gecersiz JSON (%s), bir kez duzeltme isteniyor" % str(hata)[:80])
+        duzelt = mesaj + [{"role": "assistant", "content": str(r.get("text") or "")[:12000]},
+                          {"role": "user", "content": "Bu geçerli JSON değil. Aynı içeriği "
+                                                      "yalnız geçerli JSON olarak tekrar ver."}]
+        r = providers.generate(duzelt, max_tokens=azami, env=cfg, is_anahtari=IS_ANAHTARI)
+        CAGRILAR.append("%s/%s" % (r["provider"], r["model"]))
+        return _json_ayikla(r["text"])
 
 
 def _formul_metni() -> str:
