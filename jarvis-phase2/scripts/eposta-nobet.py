@@ -60,6 +60,23 @@ KANAL_DESENI: list[tuple[str, str, str]] = [
 #    gelir ve siparis bildirimi degildir. Olculerek cikarildi.
 SIPARIS_KELIMELERI = ("sipariş", "siparis", "order")
 
+# Siparis olmayan ama BEKLENEN cevaplar: pazaryeri destek kaydi ve entegrasyon
+# postalari. 11.11.2026: Hepsiburada canli API anahtari icin destek kaydi
+# acildi; cevap destek kaydi postasiyla ve/veya mpentegrasyon adresinden
+# gelir. 02.11'deki test hesabi postasi 9 gun kimse gormeden kutuda kaldi.
+# (gonderen icinde gecen, konu icinde gecenlerden biri, baslik)
+DESTEK_DESENI: list[tuple[str, tuple[str, ...], str]] = [
+    ("hepsiburada.com", ("destek kayd", "entegrasyon"), "Hepsiburada destek/entegrasyon"),
+]
+
+
+def destek_esle(gonderen: str, konu: str) -> str | None:
+    g, k = gonderen.casefold(), konu.casefold()
+    for alan, kelimeler, baslik in DESTEK_DESENI:
+        if alan in g and any(x in k for x in kelimeler):
+            return baslik
+    return None
+
 
 def kimlik() -> tuple[str, str]:
     if not MSMTPRC.exists():
@@ -140,6 +157,20 @@ def main() -> int:
         no = int(i)
         en_buyuk = max(en_buyuk, no)
         if no <= gorulen:
+            continue
+        destek = destek_esle(gonderen, konu)
+        if destek:
+            bulunan += 1
+            print("%-12s %-16s %s" % ("destek", "", konu[:60]))
+            if not a.kuru:
+                metin = "\n".join([destek, "Gönderen: " + gonderen[:80], "Konu: " + konu[:200], "",
+                                   "Cevap panelde: Destek merkezi > Destek Kayıtlarım."])
+                for islev, arg in ((haberci.push_gonder, (destek, konu[:120], "destek-%d" % no)),
+                                   (haberci.eposta_gonder, ("%s: %s" % (destek, konu[:80]), metin))):
+                    try:
+                        islev(*arg)
+                    except Exception as hata:  # noqa: BLE001 - biri dusse digeri gitsin
+                        print("    destek haberi gonderilemedi:", str(hata)[:120], file=sys.stderr)
             continue
         sonuc = esle(gonderen, konu)
         if not sonuc:
