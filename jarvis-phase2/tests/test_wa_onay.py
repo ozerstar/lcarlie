@@ -140,6 +140,18 @@ class GonderimTesti(unittest.TestCase):
                          [f"onay:7:{nonce}", f"red:7:{nonce}"])
         self.assertTrue(MODUL.YUK.match(f"onay:7:{nonce}"))
 
+    def test_sinira_takilan_sonraki_kosuda_gider(self):
+        op = MagicMock()
+        op.list_pending.return_value = self.bekleyen(*range(20, 27))
+        d = {"oneriler": {}}
+        with patch.object(MODUL.whatsapp, "sablon_gonder",
+                          return_value={"wamid": "wamid.z"}) as gonder:
+            MODUL.yenileri_gonder(op, d)
+            self.assertEqual(gonder.call_count, MODUL.EN_FAZLA_GONDERIM)
+            MODUL.yenileri_gonder(op, d)
+        self.assertEqual(gonder.call_count, 7)
+        self.assertEqual({k["durum"] for k in d["oneriler"].values()}, {"gonderildi"})
+
     def test_mevzuat_takilirsa_ozetsiz_gider(self):
         op = MagicMock()
         op.list_pending.return_value = self.bekleyen(8)

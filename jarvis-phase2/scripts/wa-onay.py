@@ -125,9 +125,10 @@ def yenileri_gonder(op: OperatorSession, durum: dict) -> None:
                      "konu_ref": str((oneri.get("payload") or {}).get("subject_ref") or ""),
                      "deneme": 0}
             oneriler[kimlik] = kayit
-        elif not (kayit.get("durum") == "hata"
-                  and kayit.get("deneme", 0) < EN_FAZLA_DENEME
-                  and simdi - kayit.get("son_deneme", 0) >= TEKRAR_ARALIGI):
+        elif not (kayit.get("durum") == "yeni"   # önceki koşuda sınıra takılan
+                  or (kayit.get("durum") == "hata"
+                      and kayit.get("deneme", 0) < EN_FAZLA_DENEME
+                      and simdi - kayit.get("son_deneme", 0) >= TEKRAR_ARALIGI)):
             continue
         if gonderilen >= EN_FAZLA_GONDERIM:
             break

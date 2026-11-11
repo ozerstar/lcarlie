@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import urllib.request
@@ -108,27 +109,54 @@ def push_gonder(baslik: str, metin: str, etiket: str) -> str:
 
 
 # ------------------------------------------------------------------ whatsapp
-def whatsapp_urun(urunler: str) -> str:
-    """WhatsApp icin urun ozetini kodlara indirir: "SUNACNEA, DERMAVASC (+2)".
+_AYRAC = re.compile(r"\s*[(|—·]|\s-\s")
 
-    🔴 11.11.2026: Trendyol basligi "SUNACNEA SPF 30+ Hassas ve Akne..." mevzuat
-    kapisinda SPF zorunlu uyarilarini aradi, bulamayinca sahibe giden siparis
-    haberini durdurdu (push + e-posta gitti, WhatsApp gitmedi). Kapi
-    gevsetilmez; WhatsApp'a iddia tasiyabilecek baslik metni hic girmez.
+
+def whatsapp_urun(urunler: str) -> str:
+    """Ürün özetini kodlara indirir: "SUNACNEA, HAIR NOURISHER (+2)".
+
+    Ad, ilk ayraca ("(", "|", "—", "·", " - ") kadar alınır; baştaki BÜYÜK
+    harfli kelimeler kod sayılır, "SPF"de durulur. Büyük harfli kelime yoksa
+    ilk kelime kalır ("Dermanova - Liftelle" -> "Dermanova").
     """
     ek = ""
     govde = (urunler or "").strip()
     if govde.endswith(")") and " (+" in govde:
         govde, ek = govde.rsplit(" (+", 1)
         ek = " (+" + ek
-    kodlar = [k.strip().split()[0] for k in govde.split(",") if k.strip()]
+    kodlar = []
+    for parca in govde.split(","):
+        ad = _AYRAC.split(parca.strip(), 1)[0]
+        kelimeler = []
+        for kelime in ad.split():
+            if (kelime.upper() != kelime or kelime.upper() == "SPF"
+                    or not (kelime == "+" or re.search(r"[^\W\d_]", kelime))):
+                break
+            kelimeler.append(kelime)
+        kod = " ".join(kelimeler) or (ad.split() or [""])[0]
+        if kod:
+            kodlar.append(kod)
     return (", ".join(kodlar) + ek) if kodlar else (urunler or "-")
 
 
 def whatsapp_gonder(degerler: list[str]) -> str:
+    """Önce tam ürün adıyla dener; mevzuat kapısına takılırsa yalnız kodla.
+
+    🔴 11.11.2026: Trendyol başlığı "SUNACNEA SPF 30+ Hassas ve Akne..."
+    kapıda SPF zorunlu uyarılarını aradı, bulamayınca sahibe giden sipariş
+    haberini durdurdu (push + e-posta gitti, WhatsApp gitmedi). Kapı
+    gevşetilmez; ikinci denemede iddia taşıyabilecek başlık metni girmez.
+    """
     from jarvis import whatsapp
-    sonuc = whatsapp.sablon_gonder(SAHIP_TELEFON, SABLON, degerler,
-                                   onay_kaynagi="jarvis-otomatik")
+    try:
+        sonuc = whatsapp.sablon_gonder(SAHIP_TELEFON, SABLON, degerler,
+                                       onay_kaynagi="jarvis-otomatik")
+    except whatsapp.GondermeReddedildi as hata:
+        if not str(hata).startswith("mevzuat kapisi"):
+            raise
+        kisa = list(degerler[:-1]) + [whatsapp_urun(degerler[-1])]
+        sonuc = whatsapp.sablon_gonder(SAHIP_TELEFON, SABLON, kisa,
+                                       onay_kaynagi="jarvis-otomatik")
     return str(sonuc.get("wamid") or "")
 
 
@@ -213,8 +241,7 @@ def bildir(siparis_id: int, *, kanal: str, siparis_no: str, tutar: str,
             if yol == "push":
                 kimlik = push_gonder(baslik, ozet, "siparis-%d" % siparis_id)
             elif yol == "whatsapp":
-                kimlik = whatsapp_gonder([kanal, siparis_no, tutar, musteri,
-                                          whatsapp_urun(urunler)])
+                kimlik = whatsapp_gonder([kanal, siparis_no, tutar, musteri, urunler])
             elif yol == "eposta":
                 kimlik = eposta_gonder(baslik + " " + siparis_no, uzun)
             else:
