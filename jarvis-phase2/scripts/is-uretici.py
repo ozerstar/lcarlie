@@ -56,8 +56,16 @@ def _oneri_ac(anahtar: str, metin: str, sebep: str) -> int | None:
         sinir = kes.rfind("\n\n")
         kes = kes[:sinir] if sinir > 1200 else kes
         metin = kes.rstrip() + f"\n\n… (devamı EKİP panosunda: {anahtar})"
-    sql = ("SELECT core.ai_sistem_onerisi('kurul', 'REQUEST_HUMAN_REVIEW', :'a', "
-           "jsonb_build_object('subject_ref', :'a', 'reason', :'m'), :'s');")
+    # Tekrar denemede fonksiyon NULL döndürür. Yalnız aynı içerikli, hâlâ
+    # geçerli veya sahipçe işleme alınmış öneriyi doğrula; iptal/reddi yeniden açma.
+    sql = ("SELECT COALESCE(core.ai_sistem_onerisi('kurul', 'REQUEST_HUMAN_REVIEW', :'a', "
+           "jsonb_build_object('subject_ref', :'a', 'reason', :'m'), :'s'), "
+           "(SELECT action_id FROM core.ai_action_proposal "
+           "WHERE idempotency_key='action:sistem:kurul:' || :'a' "
+           "AND action_type='REQUEST_HUMAN_REVIEW' "
+           "AND payload=jsonb_build_object('subject_ref', :'a', 'reason', :'m') "
+           "AND ((state='PROPOSED' AND expires_at > clock_timestamp()) "
+           "OR state IN ('APPROVED', 'EXECUTING', 'EXECUTED'))));")
     r = subprocess.run(["docker", "exec", "-i", "lcarlie-postgres", "psql", "-U", "n8n", "-d", "n8n",
                         "-v", "ON_ERROR_STOP=1", "-tA", "-v", f"a={anahtar}", "-v", f"m={metin}", "-v", f"s={sebep}"],
                        input=sql, capture_output=True, text=True, timeout=60, check=False)

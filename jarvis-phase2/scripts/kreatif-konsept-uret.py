@@ -148,6 +148,14 @@ def _govdeler(metin: str) -> set:
         if duzeltilmis and duzeltilmis != k:
             bulunan.add(duzeltilmis)
             bulunan |= {g.lower() for g in turkish.lemmas(duzeltilmis)}
+    # Optional morphology must not disable the established cliché gate.
+    # Accept only inflections of the closed noun vocabulary, never an
+    # arbitrary prefix (which would turn "tasarım" into "taş").
+    ek = r"(?:(?:lar|ler))?(?:[ıiuü]?[mn]|[ıiuü]n|n[ıiuü]n|[ıiuü]|s[ıiuü]|[dt][ae]|[dt][ae]n|y[ae]|y[ıiuü])?"
+    for kelime in turkish.words(metin):
+        for kok in KLISE:
+            if re.fullmatch(re.escape(kok) + ek, kelime.lower()):
+                bulunan.add(kok)
     return bulunan
 
 

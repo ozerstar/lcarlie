@@ -17,6 +17,7 @@ takılmamalı.** Önek eşleşmesi kullanılsaydı her sanat yönetimi metni
 "dekoratif taş" diye reddedilirdi.
 """
 import unittest
+from unittest.mock import patch
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
 
@@ -36,6 +37,14 @@ class TestKliseKapisi(unittest.TestCase):
                 ("Camda su sıçraması", "su sıçraması"),
                 ("Arkada yapraklar", "dekoratif yaprak")):
             self.assertIn(beklenen, _k.klise_bul(metin), metin)
+
+    def test_optional_morphology_absence_keeps_gate(self):
+        with patch.object(_k.turkish, "lemmas", side_effect=lambda word: {word}), \
+                patch.object(_k.turkish, "deasciify", side_effect=lambda word: word):
+            self.test_cekimli_hal_yakalanir()
+            self.test_tasarim_tasa_takilmaz()
+            for word in ("kaideli", "taşınabilir", "yapraklanma", "çiçekçi"):
+                self.assertEqual(_k.klise_bul(word), [], word)
 
     def test_tasarim_tasa_takilmaz(self):
         # 🔴 Ters tuzak: "tasarim" kelimesi "tas" klisesine EŞLEŞMEMELİ.
