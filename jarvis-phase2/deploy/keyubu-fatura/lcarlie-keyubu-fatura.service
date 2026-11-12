@@ -1,0 +1,19 @@
+[Unit]
+Description=LCARLIE sunucu faturasi nobeti (Keyubu odenmedi mi?)
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+Environment=JARVIS_DB_HOST=127.0.0.1
+Environment=JARVIS_DB_PORT=5433
+Environment=JARVIS_DB_PASSWORD_FILE=/etc/lcarlie/jarvis-web-db.pass
+Environment=JARVIS_STATE_DIR=/opt/lcarlie/jarvis-phase2/state
+Environment=JARVIS_WEB_STATE_DIR=/opt/lcarlie/jarvis-phase2/state/webconsole
+Environment=PYTHONUTF8=1
+EnvironmentFile=-/etc/lcarlie/jarvis-web.env
+EnvironmentFile=-/etc/lcarlie/google-oauth.env
+EnvironmentFile=-/etc/lcarlie/siparis-nobetci.env
+ExecStart=/opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/keyubu-fatura.py
+TimeoutStartSec=600

@@ -1,0 +1,10 @@
+[Unit]
+Description=Sunucu faturasi nobeti: her gun 10:00 ve 19:00
+
+[Timer]
+OnCalendar=*-*-* 10,19:00:00 Europe/Istanbul
+RandomizedDelaySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
