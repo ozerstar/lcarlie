@@ -48,10 +48,14 @@ SELECT k.id                                   AS konusma_id,
        left(md5(k.musteri_ref), 8)            AS musteri_takma
   FROM lcarlie.konusma k
  WHERE (SELECT m.yon FROM lcarlie.mesaj m
-         WHERE m.konusma_id = k.id ORDER BY m.zaman DESC LIMIT 1) = 'gelen';
+         WHERE m.konusma_id = k.id ORDER BY m.zaman DESC LIMIT 1) = 'gelen'
+   -- 12.11.2026: 529 kaydin 503'u 30 gunden eski ice aktarilmis gecmisti
+   -- (2017'ye kadar Instagram). Sayim ve "en eski bekleme" bunlarla
+   -- sisiyordu (83.076 saat). Eski konusmalar SILINMEDI; lcarlie.konusma'da.
+   AND k.son_mesaj > now() - interval '30 days';
 
 COMMENT ON VIEW mart.konusma_cevapsiz IS
-  'Son mesaji MUSTERIDEN gelen konusmalar - cevaplanmamis. PII tasinmaz.';
+  'Son 30 gunde son mesaji MUSTERIDEN gelen konusmalar - cevaplanmamis. PII tasinmaz.';
 
 -- --------------------------------------------------------------------------
 -- Gunluk konusma hacmi
