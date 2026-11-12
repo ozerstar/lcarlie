@@ -7,8 +7,10 @@ Sıra:
   2. Sunucunun kendi CPU modeli -- 127.0.0.1:8099 (yavaş ama ücretsiz).
   Hakem çağrıları (is_anahtari ...hakem) önce OpenRouter'ın ÜCRETSİZ 550B
   modeline gider: hem ücretsiz hem üreticiden farklı model ailesi.
-Ücretli sağlayıcı (Claude/OpenAI/Gemini) YALNIZ IS_URETICI_UCRETLI=true ise
-son çare olarak denenir; varsayılan kapalıdır.
+Ücretli sağlayıcı YALNIZ IS_URETICI_UCRETLI=true ise son çare olarak denenir;
+varsayılan kapalıdır. Sahip 12.11.2026'da açtı ve "API key kullanmasın" dedi:
+son çare her zaman "hizli" kademesidir (Gemini, sonra OpenRouter); Claude ve
+OpenAI'ye gitmez.
 
 8K BAĞLAM: llama-server -c 8192 ile çalışıyor. İstem sığmazsa <veri>...</veri>
 bloğu kısaltılır (talimat ve şema asla kısaltılmaz); çıktı bütçesi 2200 token.
@@ -106,6 +108,8 @@ def yonlendirici(providers):
                         "elapsed_s": round(time.perf_counter() - basla, 1)}
             denemeler.append(f"{url}: boş cevap")
         if ucretli:
-            return providers.generate(mesajlar, max_tokens=max_tokens, kademe=kademe, is_anahtari=is_anahtari)
+            # Sahip 12.11: ucretli yedek yalniz Gemini kademesi (hizli); Claude/OpenAI
+            # API anahtari is ureticide kullanilmaz.
+            return providers.generate(mesajlar, max_tokens=max_tokens, kademe="hizli", is_anahtari=is_anahtari)
         raise RuntimeError("ücretsiz model yanıt vermedi (PC kapalı ve sunucu modeli düştü?): " + "; ".join(denemeler))
     return uret
