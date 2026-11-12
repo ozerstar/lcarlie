@@ -1,0 +1,9 @@
+[Unit]
+Description=Her sabah 08:30 kargo listesi
+
+[Timer]
+OnCalendar=*-*-* 08:30:00 Europe/Istanbul
+Persistent=true
+
+[Install]
+WantedBy=timers.target

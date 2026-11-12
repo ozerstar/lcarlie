@@ -1,0 +1,10 @@
+[Unit]
+Description=L'CARLIE sabah kargo listesi (WhatsApp)
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+EnvironmentFile=/etc/lcarlie/jarvis-web.env
+EnvironmentFile=/etc/lcarlie/siparis-nobetci.env
+ExecStart=/opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/kargo-sabah.py
