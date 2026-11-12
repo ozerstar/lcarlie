@@ -2072,6 +2072,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/kampanya":
             self._send_json(200, _kampanya_gorunumu())
             return
+        if path == "/api/reklam-olcum":
+            self._send_json(200, _reklam_olcum_gorunumu())
+            return
         if path == "/api/sistem":
             # Uc makinenin kaynak kullanimi + kaynak politikasi.
             # Sunucu OLCULUR (anlik), PC'ler state/hosts/*.json'dan
@@ -4443,6 +4446,24 @@ def _sayilari(metin: str) -> set:
         if len(sade) >= 2:          # tek haneliler cok yanlis pozitif uretir
             out.add(sade)
     return out
+
+
+def _reklam_olcum_gorunumu() -> dict:
+    """KAMPANYA sekmesinin ust bolumu: scripts/reklam-olcum.py'nin 15 dakikalik
+    tum satis x tum reklam olcumu. Alici ADLARI donmez (PII yalniz
+    core.alici_siparis'te); panel toplu analizi gosterir."""
+    from datetime import datetime, timezone
+    try:
+        o = json.loads((STATE_DIR / "reklam-olcum" / "ozet.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"durum": "YOK"}
+    try:
+        o["yas_dk"] = int((datetime.now(timezone.utc)
+                           - datetime.fromisoformat(o["olculdu"])).total_seconds() // 60)
+    except (KeyError, ValueError):
+        o["yas_dk"] = None
+    o["durum"] = "OK"
+    return o
 
 
 def _kampanya_gorunumu() -> dict:

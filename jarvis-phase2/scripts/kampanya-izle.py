@@ -99,7 +99,11 @@ def trendyol_oku(barkodlar: set[str], bas: datetime, son: datetime) -> list[dict
                     cikti.append(dict(siparis=str(p.get("orderNumber")),
                                       barkod=str(s.get("barcode")),
                                       adet=int(s.get("quantity") or 0),
-                                      tutar=float(s.get("amount") or s.get("price") or 0)))
+                                      # amount = USTU CIZILI liste fiyati; odenen birim
+                                      # fiyat price. 12.11: amount ile ciro 5.126 TL
+                                      # sanildi, gercegi 2.491 TL.
+                                      tutar=float(s.get("price") or 0)
+                                      * int(s.get("quantity") or 0)))
         sayfa += 1
         if sayfa >= int(veri.get("totalPages") or 0):
             return cikti

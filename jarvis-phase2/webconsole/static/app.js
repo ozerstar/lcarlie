@@ -6601,7 +6601,92 @@ function kampanyaKart(k) {
     <p class="kr-aciklama">Trendyol panelinden açılan Meta reklamının sonucu API&#39;de yok; Trendyol panelinde Reklam › Meta Reklamları&#39;ndan okunur.</p>`;
 }
 
+/* Tüm satış × tüm reklam (scripts/reklam-olcum.py, 15 dk). Sahip 12.11:
+   "genel değerlendirme yanı sıra kampanya kampanya bölüm bölüm". */
+const KM_KANAL = { wix: 'Wix (site)', trendyol: 'Trendyol', idefix: 'İdefix', n11: 'n11', hepsiburada: 'Hepsiburada' };
+const KM_KANAL_DURUM = { OK: 'okundu', API_YOK: 'API bağlı değil', OKUNAMADI: 'OKUNAMADI', PANELDEN: 'panelden okunur', KAMPANYA_YOK: 'kampanya yok' };
+const KM_HEDEF = { OUTCOME_SALES: 'Satış', OUTCOME_ENGAGEMENT: 'Etkileşim', OUTCOME_TRAFFIC: 'Trafik', LINK_CLICKS: 'Trafik', OUTCOME_AWARENESS: 'Bilinirlik', OUTCOME_LEADS: 'Potansiyel müşteri' };
+
+function kmTablo(basliklar, satirlar) {
+  return `<div class="km-tablo-sar"><table class="kg-tablo"><thead><tr>${basliklar.map((b) => `<th>${b}</th>`).join('')}</tr></thead>
+    <tbody>${satirlar.join('')}</tbody></table></div>`;
+}
+
+function kmOlcumHtml(o) {
+  const t = o.toplam || {};
+  const oran = t.reklam ? t.ciro / t.reklam : null;
+  const yas = o.yas_dk == null ? '' : (o.yas_dk < 1 ? 'az önce' : `${o.yas_dk} dk önce`);
+  const genel = (o.degerlendirme || []).map((c) =>
+    `<li class="${c.startsWith('⚠️') ? 'is-uyari' : ''}">${escapeHtml(c)}</li>`).join('');
+  const kartlar = `<div class="km-kartlar">
+    <div class="km-kart"><span>Son ${o.gun} gün ciro</span><b>${kmTl(t.ciro)}</b></div>
+    <div class="km-kart"><span>Son ${o.gun} gün reklam</span><b>${kmTl(t.reklam)}</b></div>
+    <div class="km-kart ${oran == null ? '' : (oran >= 3 ? 'is-iyi' : 'is-kotu')}"><span>1 TL reklama satış</span><b>${oran == null ? '—' : oran.toFixed(2) + ' TL'}</b></div>
+    <div class="km-kart"><span>Sipariş · alıcı</span><b>${kmSayi(t.siparis)} · ${kmSayi((o.alicilar || {}).alici)}</b></div>
+    <div class="km-kart"><span>Son 7 gün</span><b>${kmSayi((o.son7 || {}).siparis)} sip. · ${kmTl((o.son7 || {}).ciro)}</b></div>
+  </div>`;
+  const kanallar = kmTablo(['Kanal', 'Durum', 'Sipariş', 'Ciro', 'Son sipariş'],
+    (o.kanallar || []).map((k) => `<tr><td>${escapeHtml(KM_KANAL[k.kanal] || k.kanal)}</td>
+      <td>${escapeHtml(KM_KANAL_DURUM[k.durum] || k.durum || '—')}</td>
+      <td>${k.durum === 'OK' ? kmSayi(k.siparis) : '—'}</td><td>${k.durum === 'OK' ? kmTl(k.ciro) : '—'}</td>
+      <td>${kmZaman(k.son)}</td></tr>`));
+  const platformlar = kmTablo(['Reklam platformu', 'Durum', 'Harcama', 'Not'],
+    (o.platformlar || []).map((p) => `<tr><td>${escapeHtml(p.platform)}</td>
+      <td>${escapeHtml(KM_KANAL_DURUM[p.durum] || p.durum)}</td>
+      <td>${p.harcama == null ? '—' : kmTl(p.harcama)}</td>
+      <td>${escapeHtml(p.not_ || (p.kampanya != null ? `${p.kampanya} kampanya · ${kmSayi(p.tiklama)} tıklama` : ''))}</td></tr>`));
+  const kmp = (o.kampanyalar || []).map((k) => {
+    const s = k.satis;
+    const satis = s
+      ? `<p><b>Satış:</b> ${kmSayi(s.siparis)} sipariş · ${kmTl(s.ciro)} · ROAS ${s.roas == null ? '—' : s.roas} <i>(${escapeHtml(s.yontem)})</i></p>`
+      : `<p><b>Satış:</b> ${k.hedef === 'OUTCOME_SALES' ? 'ölçülemedi (piksel satın alma yok)' : 'bu kampanyanın hedefi satış değil'}${k.mesaj ? ` · ${kmSayi(k.mesaj)} mesaj başlatıldı` : ''}</p>`;
+    return `<div class="km-kmp"><h4>${escapeHtml(k.ad)}<span class="km-rozet is-${escapeHtml(k.durum)}">${k.durum === 'ACTIVE' ? 'YAYINDA' : 'DURDU'}</span></h4>
+      <p>${escapeHtml(KM_HEDEF[k.hedef] || k.hedef || '')} · ${kmZaman(k.baslangic)} → ${k.bitis ? kmZaman(k.bitis) : 'süresiz'}</p>
+      <p><b>Harcama:</b> ${kmTl(k.harcama)} · ${kmSayi(k.gosterim)} gösterim · ${kmSayi(k.erisim)} kişi · ${kmSayi(k.tiklama)} tıklama · TBM ${kmTl(k.tbm)} · CTR %${(k.ctr || 0).toFixed(2)} · frekans ${(k.frekans || 0).toFixed(1)}</p>
+      ${satis}</div>`;
+  }).join('');
+  const gunluk = kmTablo(['Gün', 'Sipariş', 'Ciro', 'Reklam', 'Tıklama'],
+    (o.gunluk || []).slice(-14).reverse().map((g) => `<tr><td>${escapeHtml(g.gun)}</td><td>${kmSayi(g.siparis)}</td>
+      <td>${kmTl(g.ciro)}</td><td>${kmTl(g.reklam)}</td><td>${kmSayi(g.tiklama)}</td></tr>`));
+  const a = o.alicilar || {};
+  const alici = `<div class="km-kartlar">
+      <div class="km-kart"><span>Alıcı</span><b>${kmSayi(a.alici)}</b></div>
+      <div class="km-kart"><span>Tekrar alan</span><b>${kmSayi(a.tekrar_eden)}</b></div>
+      <div class="km-kart"><span>Ortalama sepet</span><b>${kmTl(a.ort_sepet)}</b></div>
+      <div class="km-kart"><span>Pazaryeri indirimi</span><b>${a.indirim_orani == null ? '—' : '%' + a.indirim_orani}</b></div>
+    </div><div class="km-iki">
+      ${kmTablo(['Şehir', 'Sipariş'], (a.sehir || []).map(([s, n]) => `<tr><td>${escapeHtml(s)}</td><td>${n}</td></tr>`))}
+      ${kmTablo(['Ürün', 'Adet'], (a.urun || []).map(([s, n]) => `<tr><td>${escapeHtml(s)}</td><td>${n}</td></tr>`))}
+    </div><p class="kr-aciklama">Alıcı ad ve adresleri yalnız kendi veritabanımızda (core.alici_siparis) tutulur; panelde toplu analiz gösterilir.</p>`;
+  return `<p class="km-olcum">Son ölçüm: ${kmZaman(o.olculdu)} · ${yas}</p>
+    <h3 class="km-baslik">Genel değerlendirme</h3><ul class="km-genel">${genel}</ul>${kartlar}
+    <h3 class="km-baslik">Satış kanalları · son ${o.gun} gün</h3>${kanallar}
+    <h3 class="km-baslik">Reklam platformları</h3>${platformlar}
+    <h3 class="km-baslik">Kampanya kampanya · son ${o.gun} gün</h3>${kmp || '<p class="sect-empty">Kampanya yok.</p>'}
+    <h3 class="km-baslik">Gün gün · son 14 gün</h3>${gunluk}
+    <h3 class="km-baslik">Satın alanlar</h3>${alici}`;
+}
+
+async function loadReklamOlcum() {
+  const kutu = qs('kmOlcum');
+  if (!kutu) return;
+  const { ok, body } = await api('/api/reklam-olcum');
+  if (!ok || !body || body.durum !== 'OK') {
+    kutu.innerHTML = '<p class="sect-empty is-bad">Satış × reklam ölçümü şu anda okunamadı.</p>';
+    return;
+  }
+  kutu.innerHTML = kmOlcumHtml(body);
+}
+
+// "Donmuş gibi" (sahip 12.11): sekme açıkken dakikada bir yeniden okunur.
+setInterval(() => {
+  const v = qs('viewKampanya');
+  if (v && !v.hidden && document.visibilityState === 'visible') loadKampanya();
+}, 60000);
+
+
 async function loadKampanya() {
+  loadReklamOlcum();
   const govde = qs('kampanyaGovde');
   const sayac = qs('kampanyaCount');
   if (!govde || kampanyaState.yukleniyor) return;

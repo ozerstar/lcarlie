@@ -4596,3 +4596,23 @@ html[data-lcarlie-theme] body.rol-ofis #mainNav .nav-group[hidden],
 .ilk-parola label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; }
 .ilk-parola input { font: inherit; padding: 9px 11px; border-radius: 8px; border: 1px solid var(--line, #cfc9ba); }
 .ilk-parola button { font: inherit; font-weight: 600; padding: 10px 14px; border-radius: 9px; cursor: pointer; }
+
+/* KAMPANYA · tüm satış × tüm reklam (12.11.2026) */
+.km-baslik { font-size: 1.05rem; letter-spacing: .06em; margin: 26px 0 10px; color: var(--ivory); }
+.km-genel { list-style: none; margin: 6px 0 18px; padding: 0; display: grid; gap: 6px; }
+.km-genel li { padding: 9px 13px; border-left: 3px solid #78be82; background: rgba(120, 190, 130, .07); font-size: 0.98rem; line-height: 1.55; }
+.km-genel li.is-uyari { border-left-color: #e0a84a; background: rgba(224, 168, 74, .08); }
+.km-kartlar { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 8px 0 16px; }
+.km-kart { border: 1px solid rgba(255, 255, 255, .12); border-radius: 10px; padding: 10px 12px; }
+.km-kart b { display: block; font-size: 1.25rem; margin-top: 2px; }
+.km-kart span { font-size: 0.85rem; color: var(--ivory-2); }
+.km-kart.is-iyi b { color: #78be82; }
+.km-kart.is-kotu b { color: #e06a5a; }
+.km-kmp { border: 1px solid rgba(255, 255, 255, .1); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+.km-kmp h4 { margin: 0 0 6px; font-size: 1rem; }
+.km-kmp p { margin: 4px 0; font-size: 0.92rem; color: var(--ivory-2); line-height: 1.5; }
+.km-kmp p i { font-style: normal; color: var(--ivory-2); }
+.km-rozet { font-size: 0.78rem; letter-spacing: .08em; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; margin-left: 8px; }
+.km-rozet.is-ACTIVE { color: #78be82; }
+.km-rozet.is-PAUSED { color: var(--ivory-2); }
+.km-iki { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }

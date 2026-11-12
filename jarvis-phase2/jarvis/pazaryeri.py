@@ -129,7 +129,9 @@ def trendyol(sayfa_boyu: int = 200) -> list[Siparis]:
             paket_no=str(p.get("id") or "") or None,
             durum=str(p.get("shipmentPackageStatus") or p.get("status") or "?"),
             zaman=_ms_zaman(p.get("orderDate")),
-            tutar=p.get("grossAmount"),
+            # grossAmount USTU CIZILI liste fiyatidir; musterinin odedigi
+            # totalPrice. 11.11 SUNACNEA bildirimi 2.560 dedi, odenen 1.361,92.
+            tutar=p.get("totalPrice") if p.get("totalPrice") is not None else p.get("grossAmount"),
             musteri_ad=ad.strip(),
             sehir=str((p.get("shipmentAddress") or {}).get("city") or ""),
             kalemler=[{"ad": s.get("productName"), "adet": s.get("quantity"),

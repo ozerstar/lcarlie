@@ -1,0 +1,9 @@
+[Unit]
+Description=Reklam x satis olcumu 15 dakikada bir
+
+[Timer]
+OnCalendar=*:02/15
+Persistent=false
+
+[Install]
+WantedBy=timers.target

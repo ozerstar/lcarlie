@@ -1,0 +1,9 @@
+[Unit]
+Description=L'CARLIE tum satis x tum reklam olcumu (KAMPANYA sekmesi)
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+EnvironmentFile=/etc/lcarlie/jarvis-web.env
+ExecStart=/usr/bin/flock -w 60 /run/lcarlie-reklam-olcum.lock /opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/reklam-olcum.py

@@ -1,8 +1,8 @@
 [Unit]
-Description=LCARLIE kampanya izleme (%i) - 08:05-23:05 saatte bir
+Description=LCARLIE kampanya izleme (%i) - 15 dakikada bir
 
 [Timer]
-OnCalendar=*-*-* 08..23:05:00
+OnCalendar=*:05/15
 Persistent=false
 Unit=lcarlie-kampanya-izle@%i.service
 
