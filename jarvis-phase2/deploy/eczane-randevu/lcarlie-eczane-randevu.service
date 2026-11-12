@@ -1,0 +1,16 @@
+[Unit]
+Description=L'CARLIE eczane ziyaret randevusu (n8n.lcarlie.shop/randevu)
+After=network-online.target docker.service
+
+[Service]
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+EnvironmentFile=/etc/lcarlie/jarvis-web.env
+EnvironmentFile=/etc/lcarlie/siparis-nobetci.env
+Environment=RANDEVU_BIND=172.18.0.1
+Environment=RANDEVU_PORT=8095
+ExecStart=/opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/eczane-randevu.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
