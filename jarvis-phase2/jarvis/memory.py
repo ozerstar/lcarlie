@@ -463,7 +463,7 @@ class CompanyMemory:
             "SELECT row_to_json(x) FROM (SELECT id AS entity_id,"
             "'core.pazaryeri_siparis' AS source,siparis_no AS source_record_id,"
             "ilk_gorulme AS observed_at,kanal,durum,siparis_zamani,tutar,"
-            "sehir,kalem_sayisi,kaynak FROM core.pazaryeri_siparis "
+            "sehir,kalem_sayisi,kalemler,kaynak FROM core.pazaryeri_siparis "
             "ORDER BY ilk_gorulme DESC LIMIT 100) x;"
         ),
 

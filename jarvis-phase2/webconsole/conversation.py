@@ -18,6 +18,7 @@ from jarvis.model_layer import (LOCAL_MODEL as LOCAL_MODEL_NAME, ModelRouter,
 from jarvis import conversation_memory, turkish
 from jarvis.company_knowledge import shared as company_knowledge
 from jarvis import answer_guard, consensus
+from jarvis.haberci import whatsapp_urun
 from jarvis.agency import AgencyCapability, catalogue as product_catalogue
 from jarvis.agency_proposal import screen as screen_agency
 from jarvis.specialist_pool import SpecialistPool
@@ -425,10 +426,31 @@ def _donem_satis(message: str, memory: Any) -> str | None:
                       for ad, liste in sorted(kanallar.items()))
     cevap = (f"{etiket.capitalize()} ({aralik}) {len(secili)} sipariş geldi, toplam "
              f"{_tl(toplam)} (KDV dahil sipariş tutarı). {dokum}.")
+    satilan = _satilan_urunler(secili)
+    if satilan:
+        cevap += f" Satılanlar: {satilan}."
     odenmemis = sum(1 for k in secili if str(k.get("durum") or "").upper() == "NOT_PAID")
     if odenmemis:
         cevap += f" Bunların {odenmemis} tanesinin ödemesi henüz alınmamış."
     return cevap
+
+
+def _satilan_urunler(siparisler: list[dict[str, Any]]) -> str:
+    """Siparişlerin kalemlerini ürün koduna göre toplar, en çok satan önce.
+
+    12.11.2026: "bu hafta en çok ne sattık" cevaplanamıyordu; kalemler
+    core.pazaryeri_siparis'te her kanal için duruyordu ama sorgu seçmiyordu.
+    """
+    adetler: dict[str, int] = {}
+    for siparis in siparisler:
+        for kalem in siparis.get("kalemler") or []:
+            if not isinstance(kalem, dict):
+                continue
+            kod = whatsapp_urun(str(kalem.get("ad") or "").split(",")[0]) or str(kalem.get("barkod") or "")
+            if kod:
+                adetler[kod] = adetler.get(kod, 0) + int(kalem.get("adet") or 1)
+    sirali = sorted(adetler.items(), key=lambda x: (-x[1], x[0]))
+    return ", ".join(f"{kod} ×{adet}" for kod, adet in sirali)
 
 
 _KANAL_ADLARI = {"trendyol": "Trendyol", "idefix": "Idefix", "hepsiburada": "Hepsiburada",

@@ -30,7 +30,9 @@ class Evidence:
 class Memory:
     PAZAR = [
         {"kanal": "wix", "siparis_zamani": "2026-11-11T10:49:09+03:00", "tutar": 1470, "durum": "PAID"},
-        {"kanal": "trendyol", "siparis_zamani": "2026-11-11T20:55:29+03:00", "tutar": 2560, "durum": "Picking"},
+        {"kanal": "trendyol", "siparis_zamani": "2026-11-11T20:55:29+03:00", "tutar": 2560, "durum": "Picking",
+         "kalemler": [{"ad": "SUNACNEA SPF 30+ Hassas ve Akne Eğilimli Ciltler İçin Güneş Kremi 50 ml, one size",
+                       "adet": 2, "barkod": "8684869609097"}]},
         {"kanal": "trendyol", "siparis_zamani": "2026-11-10T12:31:52+03:00", "tutar": 2685, "durum": "Shipped"},
         {"kanal": "wix", "siparis_zamani": "2026-10-22T23:05:55+03:00", "tutar": 2100, "durum": "PAID"},
     ]
@@ -75,6 +77,13 @@ class DonemliSatisTesti(unittest.TestCase):
         asil = conversation._donem
         with patch.object(conversation, "_donem", lambda m, b=None: asil(m, BUGUN)):
             return conversation._sales_answer(soru, [], Memory())
+
+    def test_satilan_urunler_yazilir(self):
+        cevap = self.cevap("bu hafta en cok ne sattık")
+        self.assertIn("Satılanlar: SUNACNEA ×2", cevap)
+
+    def test_kalemsiz_siparis_bozmaz(self):
+        self.assertEqual(conversation._satilan_urunler([{"kalemler": None}, {}]), "")
 
     def test_bu_ay_yalniz_bu_ayi_sayar(self):
         cevap = self.cevap("bu ay kac sıparıs geldı ve cıro ne kadar")
