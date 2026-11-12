@@ -7,14 +7,13 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 sys.path[:0] = [str(Path(__file__).resolve().parents[1]), str(Path(__file__).resolve().parents[2])]
-# Discovery imports app before some legacy tests configure their state directory.
-# Never let this new test initialize the shared modules against production paths.
-if not os.environ.get('JARVIS_STATE_DIR'):
-    _temporary_state = tempfile.TemporaryDirectory(prefix='jarvis-cari-api-')
-    os.environ['JARVIS_STATE_DIR'] = _temporary_state.name
-with patch('jarvis.memory.CompanyMemory.__init__', return_value=None), \
-     patch('jarvis.operator.OperatorSession.__init__', return_value=None):
-    import app
+from tests import isolated_webapp
+
+# Route tests use a private module instance, not the shared app import whose
+# cached authentication paths may point at production during discovery.
+with isolated_webapp("cari_api_test_app") as app:
+    pass
+
 
 
 class Handler:

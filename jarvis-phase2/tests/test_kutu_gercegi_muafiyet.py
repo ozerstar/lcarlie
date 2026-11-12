@@ -2,13 +2,23 @@
 from tests import betik_yolu
 import importlib.util
 import sys
+import json
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location("kb", betik_yolu("kreatif-brief.py"))
 kb = importlib.util.module_from_spec(spec)
 sys.argv = ["kb"]
 spec.loader.exec_module(kb)
 
-k = kb.kutu_gercegi("EASYCOMB")
+# This tests the source exemption contract, not a production-only catalog.
+# A representative approved usage fixture must be loaded through the real reader.
+with tempfile.TemporaryDirectory() as directory:
+    Path(directory, "EASYCOMB.json").write_text(
+        json.dumps({"dayanak_metni": "Durulama gerektirmez."}), encoding="utf-8")
+    with patch.object(kb, "KUTU_DIZINI", Path(directory)):
+        k = kb.kutu_gercegi("EASYCOMB")
 urun_metni = (k.get("dayanak_metni") or "") + " EASYCOMB saç bakım spreyi"
 
 vakalar = [

@@ -46,6 +46,20 @@ TEST_PASS = "correct horse battery staple 42"
 class WebConsoleIntegrationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        # push_store can be imported by earlier tests before TMP_STATE exists.
+        # Scope every captured path instead of relying on import order.
+        import push_store
+        for name, filename in (
+                ("STATE_DIR", None),
+                ("SUBSCRIPTIONS_FILE", "push-subscriptions.json"),
+                ("PUBLIC_KEY_FILE", "push-vapid-public.txt"),
+                ("PRIVATE_KEY_FILE", "push-vapid-private.pem"),
+                ("SEEN_FILE", "push-seen.json"),
+                ("LOCK_FILE", "push-subscriptions.lock")):
+            replacement = TMP_STATE / filename if filename else TMP_STATE
+            scoped = patch.object(push_store, name, replacement)
+            scoped.start()
+            cls.addClassCleanup(scoped.stop)
         auth.set_password(TEST_USER, TEST_PASS)
         app._memory = MagicMock()
         app._memory.get_system_status.return_value = MagicMock(records=[{"open_tasks": 0, "failed_executions": 0}])

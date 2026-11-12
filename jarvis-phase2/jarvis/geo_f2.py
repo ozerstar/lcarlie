@@ -16,8 +16,10 @@ from hashlib import sha256
 from urllib.parse import urlencode, urlsplit
 from urllib.request import urlopen
 
-import psycopg
-from psycopg.types.json import Jsonb
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import psycopg
 
 try:
     from jarvis.geo_url import normalize_url
@@ -80,6 +82,9 @@ def ingest_response(
     conn: psycopg.Connection, query_id: int, payload: dict,
     observed_at: datetime | None = None,
 ) -> dict:
+    # The DB driver is optional for pure URL/alias/search helpers.
+    from psycopg.types.json import Jsonb
+
     observed_at = observed_at or datetime.now(timezone.utc)
     if not isinstance(payload, dict) or not isinstance(payload.get("results"), list):
         raise ValueError("Unexpected SearXNG response")
@@ -162,6 +167,8 @@ def record_unavailable(conn: psycopg.Connection, query_id: int) -> int:
 
 
 def main() -> None:
+    import psycopg
+
     parser = argparse.ArgumentParser()
     parser.add_argument("query_id", type=int)
     parser.add_argument("--searx-url", default="http://127.0.0.1:8888")

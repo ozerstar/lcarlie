@@ -1063,14 +1063,24 @@ class IsUretici:
                     g["durum"] = "SURESI_DOLDU"
                     suresi_doldu += 1
                     continue
-                if any((tum.get(b) or {}).get("durum") == "ACIK" for b in g.get("bagimli") or []):
-                    continue   # önce bağlı olduğu ekip işleri bitsin (ör. ekip yorumları -> karar notu)
+                if any(not teslim_onayli(tum.get(b) or {}) for b in g.get("bagimli") or []):
+                    continue   # eksik, başarısız veya onaysız öncül bir teslim değildir
                 if g.get("tip") in YURUTULEBILIR and kod in deps:
                     adaylar.append((g.get("son_tarih", ""), kod, g))
         # Önce rutin, sonra yeni tarihli; aynı işte daha az denenen önce.
         adaylar.sort(key=lambda x: (0 if x[2].get("oncelik") == "ACIL" else 1 if x[2].get("duzeltme") else
                                     2 if x[2].get("rutin_id") else 3,
                                     x[2].get("deneme", 0), x[0]))
+        def checkpoint():
+            if not self.kuru:
+                self.agac_deposu.yaz(agac, self.o.saat())
+
+        checkpoint()  # Süresi dolan işler, model çağrısından önce kalıcı olsun.
+        # İç onay kuyruğuna aktarım başarısızsa teslimi yeniden üretmeden dene.
+        for task in tum.values():
+            if task.get("sahibe_gonderim") and teslim_onayli(task):
+                self._sahibe_aktar(task)
+                checkpoint()
         teslim = basarisiz = duzeltmede = reddedilen = 0
         for _, kod, g in adaylar[:sinir]:
             if bitis is not None and time.monotonic() >= bitis:
@@ -1123,6 +1133,7 @@ class IsUretici:
             if on:
                 kanitlar = [Kanit(f"K{i+1}", x.kaynak, x.metin) for i, x in enumerate(on + kanitlar)]
             g["deneme"] = int(g.get("deneme", 0)) + 1
+            checkpoint()  # Uzun çağrı sırasında süreç kesilirse deneme kaybolmasın.
             self._ofis(uye.key, "WORKING", g["baslik"])
             try:
                 v = self._model("yurut", istem_yurut(dep, g, uye, kanitlar),
@@ -1133,6 +1144,7 @@ class IsUretici:
                 self.kayit.append({"gorev": g["id"], "hata": str(e)[:300]})
                 if any(x in str(e) for x in _MODEL_KAPALI):
                     g["deneme"] = max(0, int(g["deneme"]) - 1)
+                checkpoint()
                 if "tavan" in str(e):
                     break
                 continue
@@ -1170,20 +1182,21 @@ class IsUretici:
                         duzeltmede += 1
                     else:
                         reddedilen += 1
+                    checkpoint()
                     continue
             self._ofis(uye.key, "COMPLETED" if gecti or kismi else "FAILED",
                        ("Teslim etti: " if gecti else "Kısmi teslim: " if kismi else "Kalite kapısından döndü: ") + g["baslik"])
             if gecti or kismi:
                 g["durum"] = "TESLIM_EDILDI"
-                if g.get("sahibe_gonder") and not self.kuru and self.o.oneri_ac and not g.get("sahibe_gonderildi"):
+                if g.get("sahibe_gonder") and not g.get("sahibe_gonderildi"):
                     metin = sahibe_metin(f"JARVIS · {dep.ad}\n{g['baslik']}\n\n{t['teslim_ozeti']}\n\n{t['icerik']}"
                                          + (f"\n\nEksik: {t['eksik']}" if t.get("eksik") else ""))
-                    try:
-                        g["sahibe_gonderildi"] = self.o.oneri_ac(
-                            f"teslim.{g['id']}"[:120], metin,
-                            f"Ekip teslimi sahibin okuması ve kararı için gönderildi: {g['baslik']}"[:400])
-                    except Exception as e:  # noqa: BLE001
-                        self.kayit.append({"gorev": g["id"], "uyari": f"sahibe gönderilemedi: {e}"[:200]})
+                    g["sahibe_gonderim"] = {
+                        "anahtar": f"teslim.{g['id']}"[:120], "metin": metin,
+                        "sebep": f"Ekip teslimi sahibin okuması ve kararı için gönderildi: {g['baslik']}"[:400]}
+                checkpoint()  # Teslim VE bekleyen aktarım, hook çağrısından önce kalıcıdır.
+                self._sahibe_aktar(g)
+                checkpoint()
                 teslim += 1
                 if not self.kuru and g.get("work_id"):
                     try:
@@ -1201,10 +1214,29 @@ class IsUretici:
                 else:
                     g["duzeltme"] = {"tur": g["deneme"], "liste": sebepler[:5], "onceki": t["icerik"][:5000],
                                      "tarih": self.o.saat().isoformat()}
+            checkpoint()
         self.agac_deposu.yaz(agac, self.o.saat()) if not self.kuru else None
         return {"mod": "yurut", "tarih": tarih, "aday": len(adaylar), "teslim": teslim,
                 "duzeltmede": duzeltmede, "reddedilen": reddedilen,
                 "kalite_gecemedi": basarisiz, "suresi_doldu": suresi_doldu, "kayit": self.kayit}
+
+    def _sahibe_aktar(self, g: dict) -> None:
+        """Kalıcı teslimi aynı anahtarla iç insan-onay kuyruğuna aktarır; dış eylem yok."""
+        payload = g.get("sahibe_gonderim")
+        if self.kuru or not payload or g.get("sahibe_gonderildi"):
+            return
+        if not self.o.oneri_ac:
+            self.kayit.append({"gorev": g["id"], "uyari": "sahibe aktarım bekliyor: onay kuyruğu bağlı değil"})
+            return
+        try:
+            proposal_id = self.o.oneri_ac(payload["anahtar"], payload["metin"], payload["sebep"])
+            if isinstance(proposal_id, bool) or not isinstance(proposal_id, int) or proposal_id <= 0:
+                raise RuntimeError("onay kuyruğunda geçerli öneri doğrulanamadı")
+        except Exception as exc:  # noqa: BLE001 - payload sonraki koşu için korunur
+            self.kayit.append({"gorev": g["id"], "uyari": f"sahibe gönderilemedi: {exc}"[:200]})
+            return
+        g["sahibe_gonderildi"] = proposal_id
+        del g["sahibe_gonderim"]
 
     def _yonetici(self, dep: Departman, g: dict, t: dict, kanitlar: list[Kanit]) -> dict:
         """Teslimi denetler: olgu denetimi (modelsiz) + yönetici modeli. Model düşerse modelsiz karar."""
