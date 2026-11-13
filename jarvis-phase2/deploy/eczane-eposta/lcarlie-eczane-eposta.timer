@@ -1,0 +1,10 @@
+[Unit]
+Description=Eczane e-posta kampanyasi: hafta ici 10:00-17:59 uc dakikada bir
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 10..17:00/3:30 Europe/Istanbul
+AccuracySec=5s
+Persistent=false
+
+[Install]
+WantedBy=timers.target
