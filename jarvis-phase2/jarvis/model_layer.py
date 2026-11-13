@@ -76,6 +76,9 @@ TIER_GPU = "LOCAL_GPU"
 TIER_LOCAL = "LOCAL_MODEL"
 TIER_EXTERNAL = "EXTERNAL_MODEL"
 
+FINANCIAL_UNCERTAINTY_POLICY = 'Finansal belirsizlik: KDV temeli, iadelerin cirodan düşülme durumu veya gider kapsamı bilinmiyorsa kalan tutarı katkı, marj veya net kâr diye etiketleme. Önce ilgili ölçünün hesaplanamadığını söyle. Aritmetik örnek gerekiyorsa varsayımları rakamdan önce belirt ve koşullu örnek, gerçekleşmiş katkı/kâr değil olarak açıkla. Yalnız KDV ve iade bilgisi net kâr için yeterli değildir; tüm ilgili gelir, maliyet, komisyon, genel gider ve vergi kapsamı doğrulanmalıdır. Atıf penceresi bilinmeyen ROAS yalnız verilen atıflı ciro/harcama oranıdır; nedensellik veya bütçe artırma sonucu çıkarma.'
+
+
 GROUNDING_SYSTEM = (
     "Sen L'CARLIÉ şirketinin analiz asistanısın. Kurallar:\n"
     "1. Şirketle ilgili HER sayı ve olgu yalnızca sana verilen KANIT bölümünden "
@@ -706,7 +709,7 @@ class ModelRouter:
         # Prior turns sit between the system prompt and the new question, so
         # "onu değil, diğerini" has something to refer back to.
         from .display_language import POLICY, foreign, display
-        messages = ([{"role": "system", "content": (system or GROUNDING_SYSTEM) + "\n\n" + POLICY}]
+        messages = ([{"role": "system", "content": (system or GROUNDING_SYSTEM) + "\n\n" + FINANCIAL_UNCERTAINTY_POLICY + "\n\n" + POLICY}]
                     + list(history or [])
                     + [{"role": "user", "content": user}])
         if system is None:
@@ -810,7 +813,7 @@ class ModelRouter:
         acilis = ""
         acildi = False
         tampon = ""
-        for parca in self._stream_text_raw(question, system + "\n\n" + POLICY,
+        for parca in self._stream_text_raw(question, system + "\n\n" + FINANCIAL_UNCERTAINTY_POLICY + "\n\n" + POLICY,
                                            max_tokens, history, escalate):
             if not acildi:
                 acilis += parca
