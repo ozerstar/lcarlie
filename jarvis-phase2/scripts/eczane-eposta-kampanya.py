@@ -83,6 +83,17 @@ def kimlik() -> tuple[str, str]:
     return alan.get("user", ""), alan.get("password", "")
 
 
+class IMAP4v4(imaplib.IMAP4_SSL):
+    """Yalnız IPv4. Sunucunun IPv6 yolu yok; create_connection bazen önce
+    IPv6 adresini deneyip [Errno 101] ile düşüyordu (13.11 ölçüldü)."""
+
+    def _create_socket(self, timeout):
+        import socket
+        adres = socket.getaddrinfo(self.host, self.port, socket.AF_INET, socket.SOCK_STREAM)[0][4]
+        ham = socket.create_connection(adres, timeout)
+        return self.ssl_context.wrap_socket(ham, server_hostname=self.host)
+
+
 def coz(b: str | None) -> str:
     try:
         return str(make_header(decode_header(b or "")))
@@ -108,7 +119,7 @@ def gelenleri_isle() -> None:
     except (OSError, ValueError):
         gorulen = set()
     kul, sif = kimlik()
-    m = imaplib.IMAP4_SSL("imap.yandex.com", 993, timeout=45)
+    m = IMAP4v4("imap.yandex.com", 993, timeout=45)
     try:
         m.login(kul, sif)
         m.select("INBOX", readonly=True)       # okundu işareti DEĞİŞMEZ
