@@ -190,5 +190,61 @@ class SohbetBaglantiTesti(unittest.TestCase):
         self.assertEqual(cerceveler[-1]["result"]["answer"], "eski yol")
 
 
+
+class AkisRegresyonTesti(unittest.TestCase):
+    def test_durum_istemci_kurulumundan_once_gelir(self):
+        with patch.object(ajan, "_istemci", side_effect=ajan.AjanKullanilamaz("offline")) as client:
+            stream = ajan.stream("sentetik", Memory())
+            self.assertEqual(next(stream)["type"], "stage")
+            client.assert_not_called()
+            with self.assertRaises(ajan.AjanKullanilamaz):
+                next(stream)
+
+    def test_metin_final_beklenmeden_yayimlanir(self):
+        final_called = []
+        class Stream(SahteAkis):
+            def get_final_message(self):
+                final_called.append(True)
+                return self.son
+        events, final = metin_turu("bir", " iki")
+        client = NS(beta=NS(messages=NS(stream=lambda **kw: Stream(events, final))))
+        with patch.object(ajan, "_istemci", return_value=(Hatalar, client)), patch.object(ajan, "_kaydet") as save:
+            stream = ajan.stream("sentetik", Memory())
+            self.assertEqual(next(stream)["type"], "stage")
+            self.assertEqual(next(stream)["delta"], "bir")
+            self.assertEqual(final_called, [])
+            self.assertEqual(next(stream)["delta"], " iki")
+            result = list(stream)[-1]["result"]
+        self.assertEqual(result["answer"], "bir iki")
+        metrics = save.call_args.args[0]
+        self.assertEqual(metrics["akis_olcumleri"][0]["metin_parcasi"], 2)
+        self.assertIsNotNone(metrics["ilk_metin_ms"])
+        self.assertNotIn("sentetik", str(metrics))
+        self.assertNotIn("bir iki", str(metrics))
+
+    def test_finansal_belirsizlik_kurali_gercek_istege_eklenir(self):
+        captured = []
+        events, final = metin_turu("Veri eksik.")
+        def request(**kw):
+            captured.append(kw)
+            return SahteAkis(events, final)
+        client = NS(beta=NS(messages=NS(stream=request)))
+        with patch.object(ajan, "_istemci", return_value=(Hatalar, client)), patch.object(ajan, "_kaydet"):
+            list(ajan.stream("sentetik VIREON", Memory()))
+        system = captured[0]["system"]
+        for required in ("KDV temeli", "iadelerin cirodan", "varsayımları rakamdan önce",
+                         "gerçekleşmiş katkı/kâr değildir", "nedensellik"):
+            self.assertIn(required, system)
+
+    def test_arac_turunda_metin_yok_olcumu_none(self):
+        client = istemci([arac_turu("bekleyen_onaylar", {}), metin_turu("tamam")])
+        with patch.object(ajan, "_istemci", return_value=(Hatalar, client)), patch.object(ajan, "_kaydet") as save:
+            list(ajan.stream("sentetik", Memory()))
+        metrics = save.call_args.args[0]["akis_olcumleri"]
+        self.assertEqual(len(metrics), 2)
+        self.assertIsNone(metrics[0]["ilk_metin_ms"])
+        self.assertEqual(metrics[0]["metin_parcasi"], 0)
+        self.assertEqual(metrics[1]["metin_parcasi"], 1)
+
 if __name__ == "__main__":
     unittest.main()

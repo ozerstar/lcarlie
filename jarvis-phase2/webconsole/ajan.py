@@ -155,6 +155,7 @@ Nasıl çalışırsın:
 - Gerekirse birden fazla araç kullan; birbirinden bağımsız sorguları aynı anda iste.
 - Şirket dışı ya da güncel bilgi (pazar, rakip, mevzuat, haber, genel bilgi) için web_arastir kullan ve kullandığın kaynakları cevabın sonunda kısaca yaz.
 - Hiçbir şeyi değiştiremezsin: fiyat, reklam, ürün, müşteriye mesaj. Böyle bir istek gelirse yapmadığını açıkça söyle, ne yapılabileceğini öner ve Jarvis panelinden onaya gönderilebileceğini belirt. Asla "yaptım", "gönderdim", "iletildi" deme.
+- Finansal hesaplarda KDV temeli, iadelerin cirodan düşülüp düşülmediği veya gider kapsamı belirsizse kalan tutarı katkı, marj ya da net kâr diye etiketleme. Önce bu ölçünün hesaplanamadığını söyle. İstenirse yalnız açık varsayımlarla “koşullu aritmetik örnek (gerçekleşmiş katkı/kâr değildir)” ver; varsayımları rakamdan önce belirt. ROAS hesabında atıf penceresi bilinmiyorsa oranı yalnız verilen atıflı ciro/harcama oranı olarak sun; nedensellik veya bütçe artırma sonucu çıkarma. Yalnız KDV/iade bilgisinin tamamlanmasının net kâr için yeterli olduğunu söyleme; tüm ilgili gelir, maliyet, komisyon, genel gider ve vergi kapsamı da doğrulanmalıdır.
 - Müşteriye gidecek bir metin yazarsan tıbbi iddia kullanma (tedavi eder, iyileştirir, hastalık adı); kozmetik dil kullan.
 
 Cevap biçimi:
@@ -313,9 +314,10 @@ def stream(soru: str, memory: Any, gecmis: list[dict[str, str]] | None = None) -
     eski yola doner. Uretim basladiktan sonraki hata cevabin sonuna yazilir.
     """
     baslangic = time.perf_counter()
+    # Durum cercevesi istemci kurulumu gecikse de hemen gorunur.
+    yield {"type": "stage", "label": "Düşünüyorum"}
     anthropic, istemci = _istemci()
     # Ekran ilk saniyede bos kalmasin: arac + dusunme turu 2-4 sn surer.
-    yield {"type": "stage", "label": "Düşünüyorum"}
     # Saat de verilir: 12.11 duman testinde ajan "son kontrol 02:11" kaydini
     # (saat 02:12'ydi) "tarama durmus olabilir" diye yanlis alarma cevirdi.
     simdi = datetime.now(timezone(timedelta(hours=3))).strftime("%d.%m.%Y %H:%M")
@@ -327,6 +329,8 @@ def stream(soru: str, memory: Any, gecmis: list[dict[str, str]] | None = None) -
     girdi_token = cikti_token = 0
     uretti = False
     hata_notu = ""
+    akis_olcumleri: list[dict[str, Any]] = []
+    ilk_metin_ms = None
     try:
         for _tur in range(EN_FAZLA_TUR):
             cagri += 1
@@ -335,12 +339,25 @@ def stream(soru: str, memory: Any, gecmis: list[dict[str, str]] | None = None) -
                 try:
                     yedek = ({"betas": ["server-side-fallback-2026-07-01"], "fallbacks": "default"}
                              if YEDEK_MODEL else {})
+                    akis_baslangic = time.perf_counter()
+                    olcum = {"tur": cagri, "deneme": json_denemesi + 1, "ilk_olay_ms": None,
+                             "ilk_metin_ms": None, "son_metin_ms": None, "metin_parcasi": 0}
+                    akis_olcumleri.append(olcum)
                     with istemci.beta.messages.stream(
                         model=MODEL, max_tokens=16000, system=sistem, tools=ARACLAR,
                         messages=mesajlar, output_config={"effort": EFOR}, **yedek,
                     ) as akis:
                         for olay in akis:
+                            olay_ms = round((time.perf_counter() - akis_baslangic) * 1000)
+                            if olcum["ilk_olay_ms"] is None:
+                                olcum["ilk_olay_ms"] = olay_ms
                             if olay.type == "text" and olay.text:
+                                if ilk_metin_ms is None:
+                                    ilk_metin_ms = round((time.perf_counter() - baslangic) * 1000)
+                                if olcum["ilk_metin_ms"] is None:
+                                    olcum["ilk_metin_ms"] = olay_ms
+                                olcum["son_metin_ms"] = olay_ms
+                                olcum["metin_parcasi"] += 1
                                 uretti = True
                                 metin.append(olay.text)
                                 yield {"type": "token", "delta": olay.text}
@@ -390,7 +407,8 @@ def stream(soru: str, memory: Any, gecmis: list[dict[str, str]] | None = None) -
     sure_ms = round((time.perf_counter() - baslangic) * 1000)
     _kaydet({"ts": datetime.now(timezone.utc).isoformat(), "sure_ms": sure_ms, "model": MODEL,
              "efor": EFOR, "cagri": cagri, "araclar": araclar, "girdi_token": girdi_token,
-             "cikti_token": cikti_token, "not": hata_notu})
+             "cikti_token": cikti_token, "not": hata_notu,
+             "ilk_metin_ms": ilk_metin_ms, "akis_olcumleri": akis_olcumleri})
     yield {"type": "done", "result": {
         "intent": "AJAN", "status": "ANSWERED", "kind": "ANSWER", "answer": cevap, "text": cevap,
         "model": MODEL, "model_calls": cagri, "araclar": araclar, "duration_ms": sure_ms,
