@@ -74,6 +74,7 @@ import katalog
 import uretilenler  # noqa: E402
 import gorsel_onay  # noqa: E402
 import gelen_kutusu  # noqa: E402
+import eczane_takip  # noqa: E402
 import harita  # noqa: E402
 import saha  # noqa: E402
 import sistem  # noqa: E402
@@ -2115,6 +2116,22 @@ class Handler(BaseHTTPRequestHandler):
                         limit=int((query.get("limit") or [60])[0])),
                 })
             except (gelen_kutusu.KutuHatasi, ValueError) as hata:
+                self._send_json(503, {"error": str(hata)})
+            return
+        if path == "/api/eczaneler":
+            # ECZANELER: eczane listesi + her eczaneyle ne yapildigi. YALNIZ OKUR.
+            try:
+                il = (query.get("il") or ["Ankara"])[0]
+                govde = eczane_takip.liste(
+                    il=il, ilce=(query.get("ilce") or [""])[0],
+                    suzgec=(query.get("suzgec") or ["hepsi"])[0],
+                    ara=(query.get("ara") or [""])[0],
+                    sirala=(query.get("sirala") or ["son"])[0],
+                    sayfa=int((query.get("sayfa") or [0])[0]))
+                if (query.get("ozet") or ["1"])[0] == "1":
+                    govde["ozet"] = eczane_takip.ozet(il)
+                self._send_json(200, govde)
+            except (eczane_takip.TakipHatasi, ValueError) as hata:
                 self._send_json(503, {"error": str(hata)})
             return
         if path == "/api/gelenkutusu/konusma":

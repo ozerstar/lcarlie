@@ -73,6 +73,8 @@ KNOWN_ROUTES = {
     "/api/gelenkutusu/cevap",
     # Jarvis taslagi uretir; gondermez.
     "/api/gelenkutusu/taslak",
+    # ECZANELER: eczane kampanyasi takibi (13.11.2026). YALNIZ OKUR.
+    "/api/eczaneler",
     # URETILENLER: uretilen her seyi tek yerde toplar (26.09.2026).
     "/api/uretilenler",
     "/api/activity", "/api/proposals", "/api/actions", "/api/chat", "/api/chat/stream",
@@ -164,6 +166,7 @@ BACKED_VIEWS = {
                 "katalog",    # /api/katalog
                 "asistan",   # /api/asistan
                 "uretilenler",  # /api/uretilenler
+                "eczaneler",  # /api/eczaneler
                 "sistem"}    # /api/sistem
 PANEL_VIEWS = {"veri", "ajanlar", "raporlar", "ayarlar"}
 

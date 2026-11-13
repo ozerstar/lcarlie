@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#f7f5ef">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
-  <link rel="stylesheet" href="/app.css?v=9">
+  <link rel="stylesheet" href="/app.css?v=10">
   <link rel="stylesheet" href="/experience.css?v=2">
   <link rel="stylesheet" href="/leadership.css?v=4">
   <link rel="stylesheet" href="/desktop-editorial.css?v=7">
@@ -97,6 +97,7 @@
           <button type="button" class="nav-item" data-view="satislar"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-shopping-cart"></use></svg><span class="nav-label">SATIŞLAR</span></button>
           <button type="button" class="nav-item" data-view="kargo"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-truck"></use></svg><span class="nav-label">KARGO</span></button>
           <button type="button" class="nav-item" data-view="gelenkutusu"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-inbox"></use></svg><span class="nav-label">GELEN KUTUSU</span></button>
+          <button type="button" class="nav-item" data-view="eczaneler"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-list-checks"></use></svg><span class="nav-label">ECZANELER</span></button>
           <button type="button" class="nav-item" data-view="musteri"><svg class="nav-ic" aria-hidden="true"><use href="/finans/icons.svg#i-users"></use></svg><span class="nav-label">MÜŞTERİLER</span></button>
         </div>
       </div>
@@ -1312,6 +1313,47 @@
         </section>
       </main>
 
+      <main class="stage stage-single view-panel" id="viewEczaneler" hidden
+            aria-label="ECZANELER">
+        <section class="panel" aria-label="ECZANELER">
+          <div class="panel-head">
+            <h2 class="panel-title">ECZANELER</h2>
+            <div class="ez-il" id="ezIlKutu"></div>
+          </div>
+          <div class="panel-body sect-body">
+            <p class="fm-sub">Eczane kampanyası takibi: her eczane bir satır, yapılan her iş
+            tarihiyle tikli. WhatsApp ve e-posta gönderimi, randevu sayfasını açma, cevap,
+            randevu ve ziyaret aynı yerde. Kişisel veri içerir; yalnız bu panelde görünür.</p>
+            <div class="ez-kartlar" id="ezKartlar"></div>
+            <div class="ez-araclar">
+              <input type="search" id="ezAra" class="ez-ara" placeholder="Eczane, eczacı ya da telefon ara" aria-label="Eczane ara">
+              <select id="ezIlce" class="ez-sec" aria-label="İlçe"><option value="">Tüm ilçeler</option></select>
+              <select id="ezSirala" class="ez-sec" aria-label="Sıralama">
+                <option value="son">Son işleme göre</option>
+                <option value="ad">Ada göre</option>
+                <option value="ilce">İlçeye göre</option>
+              </select>
+            </div>
+            <div class="ez-tablo-kutu"><table class="ez-tablo">
+              <thead><tr>
+                <th>Eczane</th><th>Eczacı</th><th>İletişim</th>
+                <th title="WhatsApp mesajı gönderildi">WhatsApp</th>
+                <th title="WhatsApp teslim edildi">Teslim</th>
+                <th title="WhatsApp okundu">Okundu</th>
+                <th title="E-posta gönderildi">E-posta</th>
+                <th title="Randevu sayfasını açtı">Sayfa</th>
+                <th title="Cevap yazdı">Cevap</th>
+                <th>Randevu</th>
+                <th title="Ziyaret edildi">Ziyaret</th>
+                <th>Durum</th>
+              </tr></thead>
+              <tbody id="ezGovde"><tr><td colspan="12" class="fm-empty">Yükleniyor…</td></tr></tbody>
+            </table></div>
+            <div class="ez-alt" id="ezAlt"></div>
+          </div>
+        </section>
+      </main>
+
 
   <!-- ----------------------- COMMAND BAR ------------------------- -->
   <button type="button" id="chatLauncher" class="chat-launcher" aria-controls="cmdBar" aria-expanded="false">✦ L’carlie’yi aç</button>
@@ -1356,7 +1398,7 @@
 
 <script src="/vendor/leaflet/leaflet.js"></script>
   <script src="/display-text.js?v=5"></script>
-<script src="/app.js?v=31"></script>
+<script src="/app.js?v=32"></script>
   <script src="/desktop-editorial.js?v=4"></script>
   <script src="/interior.js?v=2"></script>
   <script src="/workspace-refresh.js?v=1"></script>

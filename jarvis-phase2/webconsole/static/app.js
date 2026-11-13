@@ -277,7 +277,8 @@ const VIEWS = {
                 sistem: 'viewSistem', isler: 'viewIsler',
                 saha: 'viewSaha', katalog: 'viewKatalog',
                 uretilenler: 'viewUretilenler',
-                gelenkutusu: 'viewGelenKutusu' };
+                gelenkutusu: 'viewGelenKutusu',
+                eczaneler: 'viewEczaneler' };
 
 function setView(name) {
   if (!VIEWS[name]) return;
@@ -302,6 +303,7 @@ function setView(name) {
   if (name === 'katalog') { loadKatalog(); loadIgPlan(); }
   if (name === 'uretilenler') loadUretilenler();
   if (name === 'gelenkutusu') loadGelenKutusu();
+  if (name === 'eczaneler') loadEczaneler(true);
   if (name === 'kreatifParti') loadKreatifParti();
   if (name === 'gorselOnay') loadGorselOnay();
   if (name === 'tasarim') tasarimYukle();
@@ -8470,6 +8472,144 @@ function urTasarim(t) {
     + '<span class="ur-rozet">' + escapeHtml(t.durum) + '</span>'
     + '</article>';
 }
+
+
+/* ===================== ECZANELER ========================================
+ * Eczane kampanyasi takibi: her eczane bir satir, yapilan her is tikli ve
+ * tarihli. Sahip 13.11.2026: "bu eczanelerle ilgili neler yapildi tikli
+ * halde goturulsun". YALNIZ OKUR (/api/eczaneler -> mart.eczane_takip).
+ * Eczaci adi/telefonu kisisel veridir: her yerde escapeHtml()'den gecer.
+ */
+var ez = { il: 'Ankara', ilce: '', suzgec: 'hepsi', ara: '', sirala: 'son', sayfa: 0, satirlar: [] };
+var EZ_KART = [
+  ['hepsi', 'Hepsi'], ['sirada', 'Sırada'], ['wa', 'WhatsApp gitti'], ['teslim', 'Teslim'],
+  ['okudu', 'Okudu'], ['ulasmadi', 'Ulaşmadı'], ['sayfa', 'Sayfayı açtı'], ['cevap', 'Cevap verdi'],
+  ['randevu', 'Randevu'], ['ziyaret', 'Ziyaret'], ['istemiyor', 'İstemiyor'],
+  ['cepli', 'Cep no var'], ['epostali', 'E-posta var'], ['temsilci', 'Oda temsilcisi']
+];
+var EZ_DURUM = {
+  YENI: 'Sırada', GONDERILDI: 'Ulaşıldı', ILGILENDI: 'İlgilendi', RANDEVU: 'Randevu',
+  ZIYARET_EDILDI: 'Ziyaret edildi', MUSTERI: 'Müşteri', ILGISIZ: 'İlgisiz', CIKTI: 'İstemiyor'
+};
+var ezAraZaman = null;
+
+function ezTel(t) {
+  if (!t || t.length !== 10) return '';
+  return '0' + t.slice(0, 3) + ' ' + t.slice(3, 6) + ' ' + t.slice(6, 8) + ' ' + t.slice(8);
+}
+
+/* Tik hucresi: yapildiysa yesil ✓ + kisa tarih, yapilmadiysa soluk cizgi. */
+function ezTik(zaman, ek, baslik) {
+  if (!zaman) return '<td class="ez-h"><span class="ez-yok">—</span></td>';
+  return '<td class="ez-h"><span class="ez-tik" title="' + escapeHtml(baslik || gkZaman(zaman, true)) + '">✓</span>' +
+    '<small>' + escapeHtml(gkZaman(zaman, true)) + (ek ? ' · ' + escapeHtml(ek) : '') + '</small></td>';
+}
+
+function ezSatir(s) {
+  var teslim = '<td class="ez-h"><span class="ez-yok">—</span></td>';
+  if (s.wa_durum === 'DELIVERED' || s.wa_durum === 'READ') teslim = '<td class="ez-h"><span class="ez-tik">✓</span></td>';
+  else if (s.wa_durum === 'FAILED') teslim = '<td class="ez-h"><span class="ez-x" title="Numarada WhatsApp yok ya da ulaşmadı">✕</span><small>ulaşmadı</small></td>';
+  else if (s.wa_gonderildi) teslim = '<td class="ez-h"><span class="ez-bekle" title="Yolda">…</span></td>';
+  var okundu = s.wa_durum === 'READ'
+    ? '<td class="ez-h"><span class="ez-tik ez-tik-mavi">✓✓</span></td>'
+    : '<td class="ez-h"><span class="ez-yok">—</span></td>';
+  var randevu = s.randevu
+    ? '<td class="ez-h"><span class="ez-tik">✓</span><small>' + escapeHtml(gkZaman(s.randevu, true)) +
+      (s.randevu_durum ? ' · ' + escapeHtml(s.randevu_durum === 'TALEP' ? 'talep' : s.randevu_durum.toLowerCase()) : '') +
+      '</small></td>'
+    : '<td class="ez-h"><span class="ez-yok">—</span></td>';
+  var ziyaret = s.ziyaret_edildi
+    ? '<td class="ez-h"><span class="ez-tik">✓</span></td>' : '<td class="ez-h"><span class="ez-yok">—</span></td>';
+  var durum = s.cikis_zaman || s.durum === 'CIKTI'
+    ? '<span class="ez-durum ez-durum-red">İstemiyor</span>'
+    : '<span class="ez-durum ez-d-' + escapeHtml((s.durum || '').toLowerCase()) + '">' + escapeHtml(EZ_DURUM[s.durum] || s.durum || '') + '</span>';
+  var iletisim = [];
+  if (s.telefon) iletisim.push('<span>☎ ' + escapeHtml(ezTel(s.telefon)) + '</span>');
+  if (s.cep && s.cep !== s.telefon) iletisim.push('<span class="ez-cep">📱 ' + escapeHtml(ezTel(s.cep)) + '</span>');
+  if (s.eposta) iletisim.push('<span class="ez-ep">✉ ' + escapeHtml(s.eposta) + (s.eposta_dogrulama === 'GECERLI' ? ' ✓' : '') + '</span>');
+  return '<tr>' +
+    '<td class="ez-ad"><b>' + escapeHtml(s.eczane || '') + '</b>' +
+      '<small>' + escapeHtml(s.ilce || '') + (s.son_nobet ? ' · odada aktif' : '') + '</small>' +
+      (s.temsilci ? '<span class="ez-rozet">ODA TEMSİLCİSİ</span>' : '') + '</td>' +
+    '<td class="ez-eczaci">' + escapeHtml(s.eczaci || '') + '</td>' +
+    '<td class="ez-iletisim">' + (iletisim.join('') || '<span class="ez-yok">—</span>') + '</td>' +
+    ezTik(s.wa_gonderildi) + teslim + okundu +
+    ezTik(s.eposta_gonderildi) +
+    ezTik(s.sayfa_son, s.sayfa_sayisi > 1 ? s.sayfa_sayisi + ' kez' : '') +
+    ezTik(s.yanit_son, '', s.yanit_metin || '') +
+    randevu + ziyaret +
+    '<td>' + durum + '</td></tr>';
+}
+
+function ezKartlar(sayim) {
+  var k = qs('ezKartlar');
+  if (!k) return;
+  k.innerHTML = EZ_KART.map(function (x) {
+    return '<button type="button" class="ez-kart' + (ez.suzgec === x[0] ? ' is-active' : '') +
+      '" data-ezs="' + x[0] + '"><b>' + Number((sayim || {})[x[0]] || 0).toLocaleString('tr-TR') +
+      '</b><span>' + x[1] + '</span></button>';
+  }).join('');
+}
+
+async function loadEczaneler(bastan) {
+  if (bastan) { ez.sayfa = 0; ez.satirlar = []; }
+  var govde = qs('ezGovde');
+  if (govde && bastan) govde.innerHTML = '<tr><td colspan="12" class="fm-empty">Yükleniyor…</td></tr>';
+  var yol = '/api/eczaneler?il=' + encodeURIComponent(ez.il) + '&ilce=' + encodeURIComponent(ez.ilce) +
+    '&suzgec=' + encodeURIComponent(ez.suzgec) + '&ara=' + encodeURIComponent(ez.ara) +
+    '&sirala=' + encodeURIComponent(ez.sirala) + '&sayfa=' + ez.sayfa + '&ozet=' + (bastan ? '1' : '0');
+  var r = await api(yol);
+  if (!r.ok || !r.body) {
+    if (govde) govde.innerHTML = '<tr><td colspan="12" class="fm-empty">Eczane listesi okunamadı' +
+      (r.body && r.body.error ? ': ' + escapeHtml(r.body.error) : '') + '</td></tr>';
+    return;
+  }
+  var b = r.body;
+  if (b.ozet) {
+    ezKartlar(b.ozet.sayim);
+    var ilce = qs('ezIlce');
+    if (ilce) {
+      ilce.innerHTML = '<option value="">Tüm ilçeler</option>' + (b.ozet.ilceler || []).map(function (x) {
+        return '<option value="' + escapeHtml(x.ilce) + '"' + (x.ilce === ez.ilce ? ' selected' : '') + '>' +
+          escapeHtml(x.ilce) + ' (' + x.n + ')</option>';
+      }).join('');
+    }
+    var ilKutu = qs('ezIlKutu');
+    if (ilKutu) {
+      ilKutu.innerHTML = '<select id="ezIl" class="ez-sec" aria-label="İl">' + (b.ozet.iller || []).map(function (x) {
+        return '<option value="' + escapeHtml(x.il) + '"' + (x.il === ez.il ? ' selected' : '') + '>' +
+          escapeHtml(x.il) + ' (' + Number(x.n).toLocaleString('tr-TR') + ')</option>';
+      }).join('') + '</select>';
+    }
+  }
+  ez.satirlar = ez.satirlar.concat(b.satirlar || []);
+  if (govde) {
+    govde.innerHTML = ez.satirlar.length
+      ? ez.satirlar.map(ezSatir).join('')
+      : '<tr><td colspan="12" class="fm-empty">Bu süzgeçte eczane yok.</td></tr>';
+  }
+  var alt = qs('ezAlt');
+  if (alt) {
+    alt.innerHTML = '<span>' + ez.satirlar.length.toLocaleString('tr-TR') + ' eczane gösteriliyor</span>' +
+      (b.devami_var ? '<button type="button" class="gk-b" id="ezDaha">DAHA FAZLA GÖSTER</button>' : '');
+  }
+}
+
+document.addEventListener('click', function (ev) {
+  var kart = ev.target.closest ? ev.target.closest('.ez-kart') : null;
+  if (kart) { ez.suzgec = kart.dataset.ezs; loadEczaneler(true); return; }
+  if (ev.target.id === 'ezDaha') { ez.sayfa += 1; loadEczaneler(false); }
+});
+document.addEventListener('change', function (ev) {
+  if (ev.target.id === 'ezIlce') { ez.ilce = ev.target.value; loadEczaneler(true); }
+  if (ev.target.id === 'ezSirala') { ez.sirala = ev.target.value; loadEczaneler(true); }
+  if (ev.target.id === 'ezIl') { ez.il = ev.target.value; ez.ilce = ''; loadEczaneler(true); }
+});
+document.addEventListener('input', function (ev) {
+  if (ev.target.id !== 'ezAra') return;
+  clearTimeout(ezAraZaman);
+  ezAraZaman = setTimeout(function () { ez.ara = ev.target.value; loadEczaneler(true); }, 400);
+});
 
 
 /* ===================== GELEN KUTUSU =====================================
