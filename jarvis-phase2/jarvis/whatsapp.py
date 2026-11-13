@@ -14,8 +14,7 @@ BEŞ KAPI, HEPSİ GEÇİLMEDEN MESAJ ÇIKMAZ
   3. MEVZUAT       -- `compliance.review` BLOCKED verirse mesaj ÇIKMAZ.
                       Bu kapı insan onayıyla da aşılmaz: sahip yanlışlıkla
                       onaylarsa bile iddia içeren metin gitmemeli.
-  4. GÖNDERME ANAHTARI -- `EXTERNAL_ACTIONS=true` VE
-                      `JARVIS_WHATSAPP_GONDER=1` yoksa kapalı.
+  4. GÖNDERME ANAHTARI -- `JARVIS_WHATSAPP_GONDER=1` yoksa kapalı.
                       VARSAYILAN KAPALI; açmak bilinçli bir karardır.
   5. KİMLİK        -- anahtar ve telefon kimliği yoksa gönderilmez.
 
@@ -38,7 +37,6 @@ import os
 import time
 import urllib.error
 import urllib.request
-import uuid
 from pathlib import Path
 from typing import Any
 
@@ -76,34 +74,18 @@ def _env(anahtar: str) -> str:
 
 def gonderme_acik() -> bool:
     """4. kapı. Varsayılan KAPALI."""
-    return (os.environ.get("EXTERNAL_ACTIONS", "").strip().lower() == "true"
-            and os.environ.get("JARVIS_WHATSAPP_GONDER", "0") == "1")
+    return os.environ.get("JARVIS_WHATSAPP_GONDER", "0") == "1"
 
 
-def _defter_yaz(kayit: dict[str, Any]) -> bool:
-    """Persist the audit record; callers distinguish pre/post-send failure.
-
-    Never include exception text: it may contain a sensitive path or payload.
-    A post-send failure must not imply that delivery did not happen.
-    """
+def _defter_yaz(kayit: dict[str, Any]) -> None:
+    """Defter bozulsa bile çağrıyı durdurmaz; ama sessiz de kalmaz."""
     try:
         DEFTER.parent.mkdir(parents=True, exist_ok=True)
         with DEFTER.open("a", encoding="utf-8") as dosya:
             dosya.write(json.dumps(kayit, ensure_ascii=False) + "\n")
-            dosya.flush()
-            os.fsync(dosya.fileno())
-        return True
-    except OSError:
+    except OSError as hata:  # noqa: BLE001 - defter cagriyi durduramaz
         import sys
-        sys.stderr.write("[whatsapp] defter yazilamadi\n")
-        return False
-
-
-def _gonderim_niyeti_yaz(kayit: dict[str, Any]) -> None:
-    """No network call is permitted without a durable, correlated intent."""
-    kayit.update({"deneme_id": uuid.uuid4().hex, "sonuc": "GONDERIM_BASLADI"})
-    if not _defter_yaz(kayit):
-        raise GondermeReddedildi("gonderim defteri yazilamadi; aga cikilmadi")
+        sys.stderr.write("[whatsapp] defter yazilamadi: %s\n" % hata)
 
 
 def _telefon_sadele(numara: str) -> str:
@@ -132,8 +114,12 @@ def _meta_cagir(telefon_id: str, jeton: str,
         with urllib.request.urlopen(istek, timeout=ZAMAN_ASIMI) as yanit:
             return json.loads(yanit.read().decode("utf-8")), "", None
     except urllib.error.HTTPError as hata:
-        # Provider messages can echo tokens or request data. Record only status.
-        return {}, "Meta HTTP %d" % hata.code, None
+        try:
+            detay = json.loads(hata.read().decode("utf-8")).get("error", {})
+            ozet = str(detay.get("message", ""))[:160]
+        except Exception:  # noqa: BLE001 - hata govdesi okunamazsa kod yeter
+            ozet = ""
+        return {}, "Meta HTTP %d" % hata.code, ozet
     except (OSError, TimeoutError) as hata:
         return {}, "ag hatasi: %s" % type(hata).__name__, None
 
@@ -189,7 +175,7 @@ def gonder(telefon: str, metin: str, *, onay_kaynagi: str,
 
     # 4. GONDERME ANAHTARI
     if not gonderme_acik():
-        reddet("gonderme KAPALI (EXTERNAL_ACTIONS=true ve JARVIS_WHATSAPP_GONDER=1 gerekli)")
+        reddet("gonderme KAPALI (JARVIS_WHATSAPP_GONDER=1 degil)")
 
     # 5. KIMLIK
     jeton = _env("META_WHATSAPP_TOKEN")
@@ -197,7 +183,6 @@ def gonder(telefon: str, metin: str, *, onay_kaynagi: str,
     if not jeton or not telefon_id:
         reddet("anahtar veya telefon kimligi yok")
 
-    _gonderim_niyeti_yaz(kayit)
     veri, sebep, ayrinti = _meta_cagir(telefon_id, jeton, {
         "messaging_product": "whatsapp",
         "recipient_type": "individual",
@@ -214,9 +199,8 @@ def gonder(telefon: str, metin: str, *, onay_kaynagi: str,
         wamid = str(mesajlar[0].get("id") or "")
     kayit.update({"sonuc": "GONDERILDI", "wamid": wamid,
                   "gecikme_ms": round((time.time() - baslangic) * 1000, 1)})
-    defter_kaydedildi = _defter_yaz(kayit)
-    return {"gonderildi": True, "defter_kaydedildi": defter_kaydedildi,
-            "wamid": wamid, "telefon": numara,
+    _defter_yaz(kayit)
+    return {"gonderildi": True, "wamid": wamid, "telefon": numara,
             "metin": temiz, "bulgular": []}
 
 
@@ -309,7 +293,7 @@ def sablon_gonder(telefon: str, sablon: str, degerler: list[str], *,
 
     # 4. GONDERME ANAHTARI
     if not gonderme_acik():
-        reddet("gonderme KAPALI (EXTERNAL_ACTIONS=true ve JARVIS_WHATSAPP_GONDER=1 gerekli)")
+        reddet("gonderme KAPALI (JARVIS_WHATSAPP_GONDER=1 degil)")
 
     # 5. KIMLIK
     jeton = _env("META_WHATSAPP_TOKEN")
@@ -326,7 +310,6 @@ def sablon_gonder(telefon: str, sablon: str, degerler: list[str], *,
             {"type": "text", "text": str(d)} for d in degerler]})
     bilesenler.extend(dugme_bilesenleri(dugme_yukleri or []))
 
-    _gonderim_niyeti_yaz(kayit)
     veri, sebep, ayrinti = _meta_cagir(telefon_id, jeton, {
         "messaging_product": "whatsapp",
         "recipient_type": "individual",
@@ -344,8 +327,7 @@ def sablon_gonder(telefon: str, sablon: str, degerler: list[str], *,
         wamid = str(mesajlar[0].get("id") or "")
     kayit.update({"sonuc": "GONDERILDI", "wamid": wamid,
                   "gecikme_ms": round((time.time() - baslangic) * 1000, 1)})
-    defter_kaydedildi = _defter_yaz(kayit)
-    return {"gonderildi": True, "defter_kaydedildi": defter_kaydedildi,
-            "wamid": wamid, "telefon": numara,
+    _defter_yaz(kayit)
+    return {"gonderildi": True, "wamid": wamid, "telefon": numara,
             "sablon": sablon, "degerler": list(degerler or []),
             "onizleme": onizleme, "bulgular": []}

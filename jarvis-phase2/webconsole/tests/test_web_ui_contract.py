@@ -58,6 +58,8 @@ def _fonksiyon_govdeleri(js: str, onek: str):
 
 # Every path the frontend may call, and the reason each one is legitimate.
 KNOWN_ROUTES = {
+    # Existing read-only GET handlers in app.py, backed by live campaign views.
+    "/api/kampanya", "/api/reklam-olcum",
     "/api/account/password",
     # Etkin sohbetin turlari (04.11.2026): panel acilinca konusma geri gelir.
     "/api/chat/aktif",
@@ -146,6 +148,8 @@ KNOWN_ROUTES = {
 # Arka ucu olan bolumler. Bu kume, navigasyonun neyi sunabilecegini belirler:
 # bir sekme ancak buraya girdikten sonra etkinlestirilebilir.
 BACKED_VIEWS = {
+    "kampanya",  # /api/kampanya and /api/reklam-olcum, both served by app.py
+
     "gelenkutusu","home", "analiz", "gorevler", "veri", "ajanlar", "raporlar",
                 "ayarlar", "fiyat", "eticaret", "reklam", "hafiza", "ekip",
                 # 🔴 22.09.2026: bu besinin de arka ucu var ve app.py'de

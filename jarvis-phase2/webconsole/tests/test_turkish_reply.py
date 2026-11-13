@@ -44,7 +44,7 @@ class TurkishReplyTests(unittest.TestCase):
         draft = "Here is your plan for today and this is what you should do next."
         frames = iter([{"type": "token", "delta": draft},
                        {"type": "done", "result": {"text": draft, "kind": "ANSWER"}}])
-        with patch.object(chat.conversation, "classify", return_value=type("Decision", (), {"intent": chat.conversation.SIMPLE_CONVERSATION})()), \
+        with patch.object(chat.ajan, "ACIK", False), patch.object(chat.conversation, "classify", return_value=type("Decision", (), {"intent": chat.conversation.SIMPLE_CONVERSATION})()), \
              patch.object(chat.conversation, "stream_chat", return_value=frames), \
              patch.object(chat, "_turkish_result", return_value={"text": "Bugün planınızı yazın.", "kind": "ANSWER"}), \
              patch.object(chat, "_remember"):
@@ -93,12 +93,13 @@ class PozitifTurkceKanitiTests(unittest.TestCase):
 
 
 class KisaCevapAkisiTests(unittest.TestCase):
+    # Legacy conversation path only; test_ajan tests the enabled agent route.
     def _akit(self, parcalar, sonuc_metni):
         frames = [{"type": "token", "delta": p} for p in parcalar]
         frames.append({"type": "done",
                        "result": {"text": "".join(parcalar), "kind": "ANSWER"}})
         karar = type("Decision", (), {"intent": chat.conversation.SIMPLE_CONVERSATION})()
-        with patch.object(chat.conversation, "classify", return_value=karar),              patch.object(chat.conversation, "stream_chat", return_value=iter(frames)),              patch.object(chat, "_turkish_result",
+        with patch.object(chat.ajan, "ACIK", False), patch.object(chat.conversation, "classify", return_value=karar),              patch.object(chat.conversation, "stream_chat", return_value=iter(frames)),              patch.object(chat, "_turkish_result",
                           return_value={"text": sonuc_metni, "kind": "ANSWER"}),              patch.object(chat, "_remember"):
             olaylar = list(chat.stream("Merhaba", None, None))
         return [o["delta"] for o in olaylar if o["type"] == "token"]
