@@ -34,9 +34,13 @@ KOK = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(KOK))
 
 TR = timezone(timedelta(hours=3))
+# "Ankara" ya da "*" (tüm iller, il önceliğiyle: Ankara -> büyükşehirler -> diğer).
+# Diğer iller sahip onayıyla açılır: /etc/lcarlie/eczane-eposta.env -> ECZANE_EPOSTA_IL=*
 IL = os.environ.get("ECZANE_EPOSTA_IL", "Ankara")
 SABLON = Path(os.environ.get("ECZANE_EPOSTA_SABLON", str(Path(__file__).with_name("eczane-mail-ankara.html"))))
+SABLON_GENEL = Path(__file__).with_name("eczane-mail-genel.html")
 KONU = "Doğal ve bitkisel içerikli dermokozmetik: L’CARLIÉ ile 15 dakikalık bir tanışma"
+KONU_GENEL = "Sizi ziyaret etmemizi ister misiniz? L’CARLIÉ doğal ve bitkisel dermokozmetik"
 GONDEREN = "info@lcarlie.com.tr"
 PENCERE = (10, 18)
 GUNLUK_TAVAN = int(os.environ.get("ECZANE_EPOSTA_GUNLUK", "150"))
@@ -198,10 +202,10 @@ def frenler() -> bool:
 # ------------------------------------------------------------------ 3. gönderim
 SIRADAKI = """
 SELECT row_to_json(x) FROM (
-  SELECT DISTINCT ON (h.oncelik, h.id) h.id, h.eczane, h.eczaci, h.anahtar, lower(e.eposta) AS eposta
+  SELECT DISTINCT ON (h.oncelik, h.id) h.id, h.il, h.eczane, h.eczaci, h.anahtar, lower(e.eposta) AS eposta
   FROM core.eczane_hedef h
   JOIN core.eczane_eposta e ON e.hedef_id = h.id AND e.dogrulama IN ('GECERLI','BELIRSIZ')
-  WHERE h.il = :'il' AND h.durum NOT IN ('GECERSIZ','CIKTI','ILGISIZ')
+  WHERE (:'il' = '*' OR h.il = :'il') AND h.durum NOT IN ('GECERSIZ','CIKTI','ILGISIZ')
     AND NOT ('TEST' = ANY (h.etiketler))
     AND NOT EXISTS (SELECT 1 FROM core.eczane_etkilesim x
                     WHERE x.tur = 'GONDERILDI' AND x.ayrinti->>'kanal' = 'eposta'
@@ -214,9 +218,65 @@ SELECT row_to_json(x) FROM (
 def baslik_hali(ad: str) -> str:
     s = re.sub(r"\s+", " ", ad or "").strip()
     s = " ".join(k[:1] + k[1:].replace("I", "ı").replace("İ", "i").lower() for k in s.split(" "))
-    if "eczane" not in s.lower():
+    if s.lower().endswith(" eczane"):
+        s += "si"                                   # "1923 Eczane" -> "1923 Eczanesi"
+    elif "eczane" not in s.lower():
         s += " Eczanesi"
     return s
+
+
+def yonelme(il: str) -> str:
+    """İl adına yönelme eki: İstanbul’a, İzmir’e, Bursa’ya, Rize’ye."""
+    unluler = [h for h in il.lower() if h in "aeıioöuü"]
+    son = unluler[-1] if unluler else "e"
+    ek = "a" if son in "aıou" else "e"
+    return il + "’" + ("y" + ek if il[-1].lower() in "aeıioöuü" else ek)
+
+
+def buyuk(s: str) -> str:
+    return s.replace("i", "İ").replace("ı", "I").upper()
+
+
+def mailto(konu: str, govde: str) -> str:
+    from urllib.parse import quote
+    return "mailto:%s?subject=%s&body=%s" % (GONDEREN, quote(konu), quote(govde))
+
+
+def icerik(a: dict) -> tuple[str, str, str]:
+    """(konu, html, düz metin). Ankara: saat seçimli randevu; diğer iller: ortak gün + beni arayın."""
+    eczane = baslik_hali(a["eczane"])
+    hitap = ("Ecz. " + baslik_hali(a["eczaci"]).replace(" Eczanesi", "")) if a.get("eczaci") else "Eczacımız"
+    cikis = "https://n8n.lcarlie.shop/randevu/cikis?t=" + a["anahtar"]
+    ortak = ("L’CARLIÉ, doğal ve bitkisel içeriklerle formüle edilmiş bir dermokozmetik markasıdır. "
+             "Serimiz sekiz bakım grubunda 36 üründen oluşur: yüz bakımı, bebek ve çocuk bakımı, vücut bakımı, "
+             "masaj ve spor, ağız bakımı, ayak bakımı, kadın ve erkek bakımı, saç ve ev bakımı.\n\n")
+    alt = ("Katalog: %s\n\nSaygılarımızla,\nL’CARLIÉ Eczane İlişkileri · 0544 544 21 15\n\n"
+           "Bu e-postayı almak istemiyorsanız: %s" % (KATALOG, cikis))
+    if a["il"] == "Ankara":
+        sablon, konu = SABLON, KONU
+        randevu = "https://n8n.lcarlie.shop/randevu?t=" + a["anahtar"]
+        duz = ("Sayın %s,\n\n%sSerimizi %s’nde 15 dakikalık bir ziyaretle tanıtmak isteriz. "
+               "Size uygun gün ve saati seçin:\n%s\n\n%s" % (hitap, ortak, eczane, randevu, alt))
+        degis = {}
+    else:
+        sablon, konu = SABLON_GENEL, KONU_GENEL
+        ziyaret = mailto("Ziyaret talebi – %s (%s)" % (eczane, a["il"]),
+                         "Merhaba,\n\n%s olarak L’CARLIÉ ürünlerini tanımak için ziyaretinizi isteriz.\n"
+                         "Bizim için uygun gün(ler): \nYetkili ve telefon: \n" % eczane)
+        ara = mailto("Beni arayın – %s (%s)" % (eczane, a["il"]),
+                     "Merhaba,\n\nL’CARLIÉ hakkında detaylı bilgi almak istiyoruz.\n"
+                     "Telefon: \nUygun arama saati: \n")
+        degis = {"{{il_buyuk}}": buyuk(a["il"]), "{{il_e}}": yonelme(a["il"]), "{{il}}": a["il"],
+                 "{{mailto_ziyaret}}": ziyaret.replace("&", "&amp;"), "{{mailto_ara}}": ara.replace("&", "&amp;")}
+        duz = ("Sayın %s,\n\nSizi ziyaret etmemizi ister misiniz?\n\n%s"
+               "Serimizi %s’nde tanıtmak için %s gelmek isteriz; sizinle ortak bir gün belirleyelim. "
+               "Detaylı bilgi için bu e-postayı yanıtlamanız yeterli: uygun gününüzü ya da telefon numaranızı "
+               "yazın, sizi arayalım.\n\n%s" % (hitap, ortak, eczane, yonelme(a["il"]), alt))
+    html = re.sub(r"<!--.*?-->", "", sablon.read_text(encoding="utf-8"), flags=re.S)
+    for anahtar, deger in {"{{eczaci_hitap}}": hitap, "{{eczane_adi}}": eczane,
+                           "{{anahtar}}": a["anahtar"], **degis}.items():
+        html = html.replace(anahtar, deger)
+    return konu, html, duz
 
 
 def gonder_bir() -> None:
@@ -226,24 +286,14 @@ def gonder_bir() -> None:
         return
     a = adaylar[0]
     eczane = baslik_hali(a["eczane"])
-    hitap = ("Ecz. " + baslik_hali(a["eczaci"]).replace(" Eczanesi", "")) if a.get("eczaci") else "Eczacımız"
-    html = re.sub(r"<!--.*?-->", "", SABLON.read_text(encoding="utf-8"), flags=re.S)
-    html = (html.replace("{{eczaci_hitap}}", hitap).replace("{{eczane_adi}}", eczane)
-            .replace("{{anahtar}}", a["anahtar"]))
-    randevu = "https://n8n.lcarlie.shop/randevu?t=" + a["anahtar"]
+    konu, html, duz = icerik(a)
     cikis = "https://n8n.lcarlie.shop/randevu/cikis?t=" + a["anahtar"]
-    duz = ("Sayın %s,\n\nL’CARLIÉ, doğal ve bitkisel içeriklerle formüle edilmiş bir dermokozmetik markasıdır. "
-           "Serimiz sekiz bakım grubunda 36 üründen oluşur: yüz bakımı, bebek ve çocuk bakımı, vücut bakımı, "
-           "masaj ve spor, ağız bakımı, ayak bakımı, kadın ve erkek bakımı, saç ve ev bakımı.\n\n"
-           "Serimizi %s'nde 15 dakikalık bir ziyaretle tanıtmak isteriz. Size uygun gün ve saati seçin:\n%s\n\n"
-           "Katalog: %s\n\nSaygılarımızla,\nL’CARLIÉ Eczane İlişkileri · 0544 544 21 15\n\n"
-           "Bu e-postayı almak istemiyorsanız: %s" % (hitap, eczane, randevu, KATALOG, cikis))
     mid = make_msgid(domain="lcarlie.com.tr")
     m = EmailMessage()
     m["From"] = "L’CARLIÉ Eczane İlişkileri <%s>" % GONDEREN
     m["To"] = a["eposta"]
     m["Reply-To"] = GONDEREN
-    m["Subject"] = KONU
+    m["Subject"] = konu
     m["Date"] = formatdate(localtime=True)
     m["Message-ID"] = mid
     m["List-Unsubscribe"] = "<%s>, <mailto:%s?subject=Listeden%%20cikar>" % (cikis, GONDEREN)
@@ -261,7 +311,7 @@ def gonder_bir() -> None:
     psql("INSERT INTO core.eczane_etkilesim (hedef_id, tur, ayrinti) VALUES (:'h', 'GONDERILDI',"
          " jsonb_build_object('kanal','eposta','eposta', :'e','message_id', :'i','konu', :'k'));"
          " UPDATE core.eczane_hedef SET durum = 'GONDERILDI', guncellendi = now() WHERE id = :'h' AND durum = 'YENI';",
-         h=str(a["id"]), e=a["eposta"], i=mid, k=KONU)
+         h=str(a["id"]), e=a["eposta"], i=mid, k=konu)
     print("GONDERILDI", a["id"], eczane, a["eposta"])
 
 
