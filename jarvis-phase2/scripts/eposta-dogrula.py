@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Eczane e-postalarını göndermeden doğrular: sözdizimi -> MX -> SMTP RCPT.
 
-Sonuç core.eczane_hedef.eposta_dogrulama'ya yazılır:
+Sonuç core.eczane_eposta.dogrulama'ya yazılır:
   GECERLI   sunucu alıcıyı kabul etti (250)
   GECERSIZ  sözdizimi bozuk, MX yok ya da sunucu 550/551/553 dedi
   BELIRSIZ  hepsini kabul eden sunucu, gri liste, zaman aşımı
@@ -74,14 +74,17 @@ def dogrula(adres):
 
 
 def main():
-    satirlar = psql("SELECT id, lower(trim(eposta)) FROM core.eczane_hedef "
-                    "WHERE eposta <> '' AND eposta_dogrulama IS NULL ORDER BY id;").split("\n")
+    # Öncelik sırası: Ankara -> büyükşehirler -> diğer iller (sahip sırası)
+    satirlar = psql("SELECT e.id, lower(trim(e.eposta)) FROM core.eczane_eposta e "
+                    "JOIN core.eczane_hedef h ON h.id = e.hedef_id "
+                    "WHERE e.dogrulama IS NULL AND h.durum <> 'GECERSIZ' "
+                    "ORDER BY h.oncelik NULLS LAST, e.id;").split("\n")
     sayac = {}
     for satir in filter(None, satirlar):
         hedef_id, adres = satir.split("|", 1)
         sonuc, ayrinti = dogrula(adres)
         sayac[sonuc] = sayac.get(sonuc, 0) + 1
-        psql("UPDATE core.eczane_hedef SET eposta_dogrulama = :'s', guncellendi = now() WHERE id = :'i';",
+        psql("UPDATE core.eczane_eposta SET dogrulama = :'s', dogrulandi = now() WHERE id = :'i';",
              s=sonuc, i=hedef_id)
         print(f"{sonuc:9} {adres} ({ayrinti})", flush=True)
         time.sleep(1.5)
