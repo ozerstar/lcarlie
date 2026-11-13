@@ -73,6 +73,10 @@ async function sohbetiGeriYukle() {
 qs('newChatBtn').addEventListener('click', () => {
   if (activeStreamController) return;
   bellekSohbetId = crypto.randomUUID();
+  lastUserMessage = null;
+  lastChatTurn = null;
+  qs('retryBtn').hidden = true;
+  qs('chatDockStatus').textContent = 'Yeni sohbet';
   depoYaz(SOHBET_ANAHTARI, bellekSohbetId);
   qs('chatLog').replaceChildren();
   qs('chatLog').hidden = true;
@@ -1398,6 +1402,18 @@ function renderAnswerBody(body) {
  * the exact same function with transcribed text, with no other UI change. */
 let activeStreamController = null;
 let lastUserMessage = null;
+let lastChatTurn = null;
+
+function addChatCopyButton(div) {
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'copy-btn';
+    copyBtn.type = 'button';
+    copyBtn.textContent = 'KOPYALA';
+    copyBtn.addEventListener('click', () => {
+      navigator.clipboard?.writeText(Array.from(div.childNodes).filter(node => node !== copyBtn).map(node => node.textContent).join('\n')).catch(() => {});
+    });
+    div.appendChild(copyBtn);
+}
 
 function addChatMessage(role, html, cls) {
   const log = qs('chatLog');
@@ -1408,14 +1424,7 @@ function addChatMessage(role, html, cls) {
   if (role === 'jarvis') {
     // Ekip kararı: 7 satırı geçen cevap kısaltılır (bkz. devaminiGor).
     requestAnimationFrame(() => devaminiGor(div));
-    const copyBtn = document.createElement('button');
-    copyBtn.className = 'copy-btn';
-    copyBtn.type = 'button';
-    copyBtn.textContent = 'KOPYALA';
-    copyBtn.addEventListener('click', () => {
-      navigator.clipboard?.writeText(div.innerText).catch(() => {});
-    });
-    div.appendChild(copyBtn);
+    addChatCopyButton(div);
   }
   log.appendChild(div);
   log.scrollTop = log.scrollHeight;
@@ -1426,16 +1435,24 @@ function addChatMessage(role, html, cls) {
  * Ayrı bir "sesli cevap" yolu açılmadı bilerek: sesli ve yazılı akış aynı
  * /api/chat/stream turundan çıkıyor, yani kullanıcının duyduğu şey ekranda
  * yazanın aynısı. */
-async function sendMessage(message) {
+async function sendMessage(message, previous = null) {
   let spoken = '';
   message = (message || '').trim();
-  if (!message) return spoken;
+  if (!message || activeStreamController) return spoken;
+  const turn = previous || {id: crypto.randomUUID(), chatId: chatId()};
+  lastChatTurn = turn;
   lastUserMessage = message;
-  addChatMessage('user', escapeHtml(message));
+  if (!previous) addChatMessage('user', escapeHtml(message));
 
   const stageDiv = addChatMessage('jarvis', '…', 'stage');
   qs('stopBtn').hidden = false;
   qs('sendBtn').disabled = true;
+  qs('retryBtn').hidden = true;
+  qs('chatDockStatus').textContent = 'Yanıt hazırlanıyor…';
+  stageDiv.setAttribute('aria-busy', 'true');
+  let terminal = false;
+  let streamed = '';
+  let reader = null;
 
   const controller = new AbortController();
   activeStreamController = controller;
@@ -1444,21 +1461,20 @@ async function sendMessage(message) {
     const res = await fetch('/api/chat/stream', {
       method: 'POST', credentials: 'same-origin', signal: controller.signal,
       headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': state.csrfToken || '' },
-      body: JSON.stringify({ message, chat_id: chatId() }),
+      body: JSON.stringify({ message, chat_id: turn.chatId, turn_id: turn.id, after: 0 }),
     });
     if (!res.ok || !res.body) {
       stageDiv.innerHTML = 'Bağlantı hatası.';
       spoken = 'Bağlantı hatası.';
       return spoken;
     }
-    const reader = res.body.getReader();
+    reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
-    let streamed = '';
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
+      buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
+      if (done && buffer.trim()) buffer += '\n';
       let newlineIndex;
       while ((newlineIndex = buffer.indexOf('\n')) >= 0) {
         const line = buffer.slice(0, newlineIndex);
@@ -1470,9 +1486,10 @@ async function sendMessage(message) {
           stageDiv.className = 'chat-msg jarvis';
           stageDiv.innerHTML = renderMarkdownLite(streamed);
           log_scroll();
-        } else if (event.type === 'stage') {
+        } else if (event.type === 'stage' && !streamed) {
           stageDiv.innerHTML = `<span class="stage-dot"></span> ${escapeHtml(event.label)}…`;
         } else if (event.type === 'done') {
+          terminal = true;
           const result = event.result;
           if (result.kind === 'REQUIRES_REASONING_CAPABILITY') {
             stageDiv.className = 'chat-msg jarvis reasoning';
@@ -1488,24 +1505,36 @@ async function sendMessage(message) {
             spoken = JarvisDil.text(result.text || streamed || '');
           }
         } else if (event.type === 'error') {
+          terminal = true;
           stageDiv.innerHTML = 'Hata: ' + escapeHtml(JarvisDil.error(event.message));
           spoken = 'Hata. ' + JarvisDil.error(event.message);
         }
       }
       log_scroll();
+      if (terminal || done) break;
     }
+    if (!terminal) throw new Error('Incomplete stream');
   } catch (err) {
     if (err.name !== 'AbortError') {
-      stageDiv.innerHTML = 'Bağlantı kesildi.';
-      spoken = 'Bağlantı kesildi.';
+      stageDiv.innerHTML = renderMarkdownLite(streamed) + '<p class="chat-stream-notice">Yanıt tamamlanmadı. Yanıtı kontrol et düğmesi aynı isteğe yeniden bağlanır.</p>';
+      spoken = 'Yanıt tamamlanmadı.';
     } else {
-      stageDiv.innerHTML = 'Yanıt sizin isteğinizle durduruldu.';
+      stageDiv.innerHTML = renderMarkdownLite(streamed) + '<p class="chat-stream-notice">Yanıtın gösterimi durduruldu. Sunucudaki işlem devam ediyor olabilir.</p>';
       spoken = '';
     }
   } finally {
+    if (reader) {
+      try { await reader.cancel(); } catch (_) { /* disconnected */ }
+      reader.releaseLock();
+    }
+    if (!stageDiv.querySelector('.copy-btn')) addChatCopyButton(stageDiv);
+    stageDiv.setAttribute('aria-busy', 'false');
+    stageDiv.classList.remove('stage');
+    qs('chatDockStatus').textContent = terminal ? 'Yanıt alındı' : 'Yanıt tamamlanmadı';
     qs('stopBtn').hidden = true;
     qs('sendBtn').disabled = false;
-    qs('retryBtn').hidden = false;
+    qs('retryBtn').hidden = terminal;
+    qs('retryBtn').textContent = 'YANITI KONTROL ET';
     activeStreamController = null;
     refreshActivity();
   }
@@ -1515,6 +1544,7 @@ function log_scroll() { const log = qs('chatLog'); log.scrollTop = log.scrollHei
 
 qs('chatForm').addEventListener('submit', (event) => {
   event.preventDefault();
+  if (activeStreamController) return;
   const input = qs('chatInput');
   const message = input.value;
   input.value = '';
@@ -1525,7 +1555,7 @@ qs('stopBtn').addEventListener('click', () => {
   if (activeStreamController) activeStreamController.abort();
 });
 
-qs('retryBtn').addEventListener('click', () => { if (lastUserMessage) sendMessage(lastUserMessage); });
+qs('retryBtn').addEventListener('click', () => { if (lastUserMessage && lastChatTurn) sendMessage(lastUserMessage, lastChatTurn); });
 
 /* ---------------- quick actions ----------------
  * Every entry here maps onto an endpoint that already exists: a refresh of
