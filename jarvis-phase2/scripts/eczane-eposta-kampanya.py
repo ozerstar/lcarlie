@@ -122,76 +122,110 @@ def gelenleri_isle() -> None:
         gorulen = set(json.loads(gorulen_dosya.read_text()))
     except (OSError, ValueError):
         gorulen = set()
+    # 🔴 Yandex IMAP komut ortasında bağlantıyı kesiyor ("FETCH/UID => problems
+    # with connection", 13.11, defalarca). Kural: (1) yalnız YENİ UID'ler,
+    # (2) başlıklar 20'lik gruplar halinde tek komutla, (3) gövde yalnız bizim
+    # adresimizden gelen cevapta ya da geri dönen postada, (4) kopunca yeniden
+    # bağlanıp KALDIĞI YERDEN sürer (en çok 4 kez). Görülen UID her adımda
+    # kaydedilir; kopma bir sonraki çalışmada işi baştan yaptırmaz.
     kul, sif = kimlik()
-    m = IMAP4v4("imap.yandex.com", 993, timeout=45)
+    tarih = (datetime.now(TR) - timedelta(days=7)).strftime("%d-%b-%Y")
+    m = None
     try:
-        m.login(kul, sif)
-        m.select("INBOX", readonly=True)       # okundu işareti DEĞİŞMEZ
-        tarih = (datetime.now(TR) - timedelta(days=14)).strftime("%d-%b-%Y")
-        # 🔴 Yandex büyük FETCH'te bağlantıyı kesiyor ("FETCH => problems with
-        # connection", 13.11). Her çalışmada tüm gövdeleri çekmek yerine: UID ile
-        # yalnız YENİ mesajlar, önce yalnız başlık; gövde yalnız bizim adresimizden
-        # gelen cevapta ya da geri dönen postada çekilir.
-        _, veri = m.uid("search", None, "SINCE", tarih)
-        for uid in (veri[0] or b"").split()[-400:]:
-            anahtar = "uid:" + uid.decode()
-            if anahtar in gorulen:
-                continue
-            _, parca = m.uid("fetch", uid, "(BODY.PEEK[HEADER.FIELDS (FROM SUBJECT MESSAGE-ID)])")
-            bas = parca[0][1] if parca and isinstance(parca[0], tuple) else b""
-            baslik = email.message_from_bytes(bas)
-            gorulen.add(anahtar)
-            mid = (baslik.get("Message-ID") or anahtar).strip()
-            kimden = parseaddr(baslik.get("From") or "")[1].lower()
-            konu = coz(baslik.get("Subject"))
-            geri_olabilir = ("mailer-daemon" in kimden or "postmaster" in kimden
-                             or re.search(r"undeliver|delivery status|teslim edilemedi|returned mail|failure", konu, re.I))
-            if kimden not in gonderilen and not geri_olabilir:
-                continue
-            _, parca = m.uid("fetch", uid, "(BODY.PEEK[])")
-            ham = parca[0][1] if parca and isinstance(parca[0], tuple) else b""
-            msj = email.message_from_bytes(ham)
-            govde = ""
-            for p in msj.walk():
-                if p.get_content_type() == "text/plain":
-                    try:
-                        govde = p.get_payload(decode=True).decode(p.get_content_charset() or "utf-8", "replace")
-                    except (AttributeError, LookupError):
-                        govde = ""
-                    break
-            geri = ("mailer-daemon" in kimden or "postmaster" in kimden
-                    or re.search(r"undeliver|delivery status|teslim edilemedi|returned mail|failure", konu, re.I))
-            if geri:
-                for adres, r in gonderilen.items():
-                    if adres in govde.lower() or adres in ham.decode("utf-8", "replace").lower():
-                        psql("UPDATE core.eczane_eposta SET dogrulama = 'GECERSIZ', dogrulandi = now()"
-                             " WHERE lower(eposta) = :'e';"
-                             " INSERT INTO core.eczane_etkilesim (hedef_id, tur, ayrinti)"
-                             " VALUES (:'h', 'NOT', jsonb_build_object('kanal','eposta','olay','geri_dondu','eposta', :'e'));",
-                             e=adres, h=str(r["hedef_id"]))
-                        print("GERI DONDU", adres)
-                continue
-            r = gonderilen.get(kimden)
-            if not r:
-                continue
-            ozet = re.split(r"\n\s*(>|On .+wrote:|.+ tarihinde .+ yazdı:)", govde.strip(), maxsplit=1)[0].strip()[:1000]
-            red = bool(re.search(r"\b(istemiyorum|listeden çıkar|göndermeyin|abonelikten)\b", ozet, re.I))
-            psql("INSERT INTO core.eczane_etkilesim (hedef_id, tur, ayrinti) VALUES (:'h', :'t',"
-                 " jsonb_build_object('kanal','eposta','eposta', :'e','konu', :'k','metin', :'m','message_id', :'i'));"
-                 + (" UPDATE core.eczane_hedef SET durum='CIKTI', guncellendi=now() WHERE id = :'h';" if red else
-                    " UPDATE core.eczane_hedef SET durum='ILGILENDI', guncellendi=now()"
-                    " WHERE id = :'h' AND durum IN ('YENI','GONDERILDI');"),
-                 h=str(r["hedef_id"]), t="CIKIS" if red else "YANIT", e=kimden, k=konu[:200], m=ozet, i=mid)
-            push("📧 Eczane e-postaya cevap verdi" if not red else "Eczane e-posta listesinden çıktı",
-                 "%s%s: %s" % (r["eczane"], " (" + r["ilce"] + ")" if r.get("ilce") else "", ozet[:180]))
-            print("YANIT" if not red else "CIKIS", kimden)
+        bekleyen: list[bytes] | None = None
+        for deneme in range(5):
+            try:
+                if m is None:
+                    m = IMAP4v4("imap.yandex.com", 993, timeout=45)
+                    m.login(kul, sif)
+                    m.select("INBOX", readonly=True)       # okundu işareti DEĞİŞMEZ
+                if bekleyen is None:
+                    _, veri = m.uid("search", None, "SINCE", tarih)
+                    bekleyen = [u for u in (veri[0] or b"").split()[-400:]
+                                if "uid:" + u.decode() not in gorulen]
+                while bekleyen:
+                    grup, kalan = bekleyen[:20], bekleyen[20:]
+                    _, parcalar = m.uid("fetch", b",".join(grup),
+                                        "(BODY.PEEK[HEADER.FIELDS (FROM SUBJECT MESSAGE-ID)])")
+                    for parca in parcalar or []:
+                        if not isinstance(parca, tuple):
+                            continue
+                        u = re.search(rb"UID (\d+)", parca[0])
+                        if not u:
+                            continue
+                        _mesaj_isle(m, u.group(1), email.message_from_bytes(parca[1]), gonderilen)
+                    gorulen.update("uid:" + x.decode() for x in grup)
+                    bekleyen = kalan
+                break
+            except (imaplib.IMAP4.abort, imaplib.IMAP4.error, OSError) as hata:
+                print("gelen kutusu bağlantısı koptu (%d. deneme, %d mesaj kaldı): %s"
+                      % (deneme + 1, len(bekleyen or []), str(hata)[:80]))
+                try:
+                    if m is not None:
+                        m.shutdown()
+                except (OSError, imaplib.IMAP4.error):
+                    pass
+                m = None
     finally:
         try:
-            m.logout()
+            if m is not None:
+                m.logout()
         except (imaplib.IMAP4.error, OSError):
             pass
         DURUM.mkdir(parents=True, exist_ok=True)
         gorulen_dosya.write_text(json.dumps(sorted(gorulen)[-5000:]))
+
+
+def _mesaj_isle(m, uid: bytes, baslik, gonderilen: dict) -> None:
+    """Tek mesaj: bizim gönderdiğimiz adresten cevap ya da geri dönen posta mı?
+
+    Aynı cevap iki kez işlenmez: message_id etkileşim kaydında aranır (UID
+    kaydı kopmadan önce yazılamamış olsa bile).
+    """
+    mid = (baslik.get("Message-ID") or "uid:" + uid.decode()).strip()
+    kimden = parseaddr(baslik.get("From") or "")[1].lower()
+    konu = coz(baslik.get("Subject"))
+    geri = bool("mailer-daemon" in kimden or "postmaster" in kimden
+                or re.search(r"undeliver|delivery status|teslim edilemedi|returned mail|failure", konu, re.I))
+    if kimden not in gonderilen and not geri:
+        return
+    if psql("SELECT row_to_json(x) FROM (SELECT 1 AS var FROM core.eczane_etkilesim"
+            " WHERE ayrinti->>'message_id' = :'i' LIMIT 1) x;", i=mid):
+        return
+    _, parca = m.uid("fetch", uid, "(BODY.PEEK[])")
+    ham = parca[0][1] if parca and isinstance(parca[0], tuple) else b""
+    msj = email.message_from_bytes(ham)
+    govde = ""
+    for p in msj.walk():
+        if p.get_content_type() == "text/plain":
+            try:
+                govde = p.get_payload(decode=True).decode(p.get_content_charset() or "utf-8", "replace")
+            except (AttributeError, LookupError):
+                govde = ""
+            break
+    if geri:
+        tum = ham.decode("utf-8", "replace").lower()
+        for adres, r in gonderilen.items():
+            if adres in govde.lower() or adres in tum:
+                psql("UPDATE core.eczane_eposta SET dogrulama = 'GECERSIZ', dogrulandi = now()"
+                     " WHERE lower(eposta) = :'e';"
+                     " INSERT INTO core.eczane_etkilesim (hedef_id, tur, ayrinti) VALUES (:'h', 'NOT',"
+                     " jsonb_build_object('kanal','eposta','olay','geri_dondu','eposta', :'e','message_id', :'i'));",
+                     e=adres, h=str(r["hedef_id"]), i=mid)
+                print("GERI DONDU", adres)
+        return
+    r = gonderilen[kimden]
+    ozet = re.split(r"\n\s*(>|On .+wrote:|.+ tarihinde .+ yazdı:)", govde.strip(), maxsplit=1)[0].strip()[:1000]
+    red = bool(re.search(r"\b(istemiyorum|listeden çıkar|göndermeyin|abonelikten)\b", ozet, re.I))
+    psql("INSERT INTO core.eczane_etkilesim (hedef_id, tur, ayrinti) VALUES (:'h', :'t',"
+         " jsonb_build_object('kanal','eposta','eposta', :'e','konu', :'k','metin', :'m','message_id', :'i'));"
+         + (" UPDATE core.eczane_hedef SET durum='CIKTI', guncellendi=now() WHERE id = :'h';" if red else
+            " UPDATE core.eczane_hedef SET durum='ILGILENDI', guncellendi=now()"
+            " WHERE id = :'h' AND durum IN ('YENI','GONDERILDI');"),
+         h=str(r["hedef_id"]), t="CIKIS" if red else "YANIT", e=kimden, k=konu[:200], m=ozet, i=mid)
+    push("📧 Eczane e-postaya cevap verdi" if not red else "Eczane e-posta listesinden çıktı",
+         "%s%s: %s" % (r["eczane"], " (" + r["ilce"] + ")" if r.get("ilce") else "", ozet[:180]))
+    print("YANIT" if not red else "CIKIS", kimden)
 
 
 # ------------------------------------------------------------------ 2. frenler
