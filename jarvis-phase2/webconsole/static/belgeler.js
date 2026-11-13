@@ -128,9 +128,12 @@
   async function googleStatus() {
     const data = await request('/api/expenses/google');
     const ready = data.connected && data.gmail_read;
-    $('mailStatus').textContent = ready ? 'Gmail fatura okuma bağlantısı hazır. Gelen ekler günlük taranır.' :
-      'Gmail fatura okuma bağlantısı henüz hazır değil. E-postalardaki faturaları otomatik almak için bağlantıyı yenileyin.';
-    $('connectGoogle').hidden = ready || !data.configured;
+    const profile = data.profile === 'gmail_read' ? 'Yalnız Gmail okuma profili kayıtlı.' :
+      data.profile === 'legacy_general' ? 'Eski, geniş kapsamlı Google bağlantısı kullanılıyor.' : 'Gmail okuma bağlantısı eksik veya geçersiz.';
+    $('mailStatus').textContent = profile + (ready ? ' Canlı erişim henüz doğrulanmadı; tarama hatasında yeniden bağlayın.' : ' Gmail okuma iznini yeniden bağlayın.');
+    $('connectGoogle').href = '/google/start?profile=gmail_read';
+    $('connectGoogle').textContent = ready ? 'Gmail okuma bağlantısını yeniden kur ↗' : 'Yalnız Gmail okuma iznini bağla ↗';
+    $('connectGoogle').hidden = !data.configured;
   }
   function edit(id) {
     const doc = state.documents.find(item => item.id === id);

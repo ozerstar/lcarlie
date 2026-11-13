@@ -1612,7 +1612,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(401, {"error": "Oturum gerekli."})
                 return
             try:
-                destination = google_workspace.start(session.username)
+                destination = google_workspace.start(session.username, (query.get("profile") or ["general"])[0])
             except google_workspace.GoogleError as exc:
                 self._send_json(400, {"error": str(exc)})
                 return
@@ -1911,7 +1911,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(400, {"error": str(exc)})
             return
         if path == "/api/expenses/google":
-            self._send_json(200, google_workspace.status(session.username))
+            self._send_json(200, google_workspace.gmail_read_status(session.username))
             return
         if path.startswith("/api/cari/"):
             self._route_cari(path, session, query=query)

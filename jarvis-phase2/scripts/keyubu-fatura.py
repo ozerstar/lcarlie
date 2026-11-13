@@ -110,7 +110,7 @@ def gmail_oku(gun: int = 60) -> tuple[dict, set]:
     import expense_vault
     import google_workspace
 
-    jeton = google_workspace._access_token("operator")
+    jeton = google_workspace.gmail_read_access_token("operator")
     faturalar, odenen = {}, set()
     sorgu = urllib.parse.urlencode({"q": "from:keyubu newer_than:%dd" % gun, "maxResults": 100})
     for kayit in expense_vault._gmail_json("messages?" + sorgu, jeton).get("messages") or []:

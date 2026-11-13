@@ -534,10 +534,9 @@ def sync_gmail_statements(owner, *, days=120, pages=10):
 
     import expense_vault
     import google_workspace
-    token_info = google_workspace._read(google_workspace._path(owner), {})
-    if "https://www.googleapis.com/auth/gmail.readonly" not in token_info.get("scope", []):
+    if not google_workspace.gmail_read_status(owner)["gmail_read"]:
         raise ExpenseError("Gmail okuma izni gerekli.")
-    token = google_workspace._access_token(owner)
+    token = google_workspace.gmail_read_access_token(owner)
     after = (datetime.now(ZONE).date() - timedelta(days=days)).strftime("%Y/%m/%d")
     query = (f'after:{after} has:attachment filename:pdf '
              '{ekstre ekstreniz "hesap hareketleri" "hesap özeti" "hesap hareketleriniz"} -in:spam -in:trash')

@@ -29,6 +29,10 @@ SCOPES = (
     "https://www.googleapis.com/auth/drive.readonly",
     "https://www.googleapis.com/auth/drive.file",
 )
+GMAIL_READ_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
+PROFILES = {"general": SCOPES, "gmail_read": (GMAIL_READ_SCOPE,)}
+
+
 DRIVE_WRITE_SCOPE = "https://www.googleapis.com/auth/drive.file"
 CREATIVE_ROOT = Path(os.environ.get("JARVIS_STATE_DIR", "/opt/lcarlie/jarvis-phase2/state")) / "kreatif-brief"
 _LOCK = threading.RLock()
@@ -42,8 +46,15 @@ def _user(username: str) -> str:
     return re.sub(r"[^A-Za-z0-9_-]", "_", username)[:60] or "operator"
 
 
-def _path(username: str) -> Path:
-    return STATE / ("token-" + _user(username) + ".json")
+def _profile(profile: str) -> str:
+    if profile not in PROFILES:
+        raise GoogleError("Bilinmeyen Google bağlantı profili.")
+    return profile
+
+
+def _path(username: str, profile: str = "general") -> Path:
+    directory = STATE if _profile(profile) == "general" else STATE / "gmail_read"
+    return directory / ("token-" + _user(username) + ".json")
 
 
 def _read(path: Path, default):
@@ -56,6 +67,8 @@ def _read(path: Path, default):
 def _write(path: Path, value) -> None:
     STATE.mkdir(parents=True, exist_ok=True)
     os.chmod(STATE, 0o700)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    os.chmod(path.parent, 0o700)
     temp = path.with_name("." + path.name + "." + uuid.uuid4().hex)
     try:
         temp.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
@@ -78,18 +91,42 @@ def status(username: str) -> dict:
             "services": ["Takvim", "E-posta", "Drive"] if connected else []}
 
 
-def start(username: str) -> str:
+def gmail_read_status(username: str) -> dict:
+    narrow = _read(_path(username, "gmail_read"), {})
+    legacy = _read(_path(username), {})
+    if _path(username, "gmail_read").exists():
+        valid = bool(narrow.get("refresh_token")) and set(narrow.get("scope", [])) == {GMAIL_READ_SCOPE}
+        profile = "gmail_read" if valid else "invalid_gmail_read"
+    else:
+        valid = bool(legacy.get("refresh_token")) and GMAIL_READ_SCOPE in legacy.get("scope", [])
+        profile = "legacy_general" if valid else "none"
+    return {"configured": configured(), "connected": configured() and valid,
+            "gmail_read": configured() and valid, "profile": profile,
+            "verified_live": False, "reconnect_url": "/google/start?profile=gmail_read"}
+
+
+def gmail_read_access_token(username: str) -> str:
+    connection = gmail_read_status(username)
+    if not connection["gmail_read"]:
+        raise GoogleError("Gmail okuma bağlantısını yeniden kurun.")
+    if connection["profile"] == "gmail_read":
+        return _access_token(username, "gmail_read")
+    return _access_token(username)
+
+
+def start(username: str, profile: str = "general") -> str:
+    _profile(profile)
     if not configured():
         raise GoogleError("Google bağlantısı henüz kurulmadı.")
     nonce = secrets.token_urlsafe(32)
     with _LOCK:
         pending = _read(STATE / "oauth-pending.json", {})
         pending = {k: v for k, v in pending.items() if v.get("expires", 0) > time.time()}
-        pending[nonce] = {"user": _user(username), "expires": time.time() + 900}
+        pending[nonce] = {"user": _user(username), "profile": profile, "expires": time.time() + 900}
         _write(STATE / "oauth-pending.json", pending)
     params = {"client_id": os.environ["GOOGLE_OAUTH_CLIENT_ID"], "redirect_uri": REDIRECT,
-              "response_type": "code", "scope": " ".join(SCOPES), "access_type": "offline",
-              "prompt": "consent", "state": nonce}
+              "response_type": "code", "scope": " ".join(PROFILES[profile]), "access_type": "offline",
+              "prompt": "consent", "state": nonce, "include_granted_scopes": "false"}
     return "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
 
 
@@ -130,15 +167,17 @@ def callback(code: str, state: str) -> str:
         _write(STATE / "oauth-pending.json", pending)
     if not row or row.get("expires", 0) < time.time():
         raise GoogleError("Bağlantı süresi doldu. Tekrar başlayın.")
+    profile = _profile(row.get("profile", "general"))
     token = _token_request({"code": code, "client_id": os.environ["GOOGLE_OAUTH_CLIENT_ID"],
                             "client_secret": os.environ["GOOGLE_OAUTH_CLIENT_SECRET"],
                             "redirect_uri": REDIRECT, "grant_type": "authorization_code"})
-    old = _read(_path(row["user"]), {})
-    refresh = token.get("refresh_token") or old.get("refresh_token")
+    old = _read(_path(row["user"], profile), {})
+    refresh = token.get("refresh_token") or (old.get("refresh_token") if profile == "general" else None)
     granted = set((token.get("scope") or "").split())
-    if not refresh or not set(SCOPES).issubset(granted):
+    valid = granted == {GMAIL_READ_SCOPE} if profile == "gmail_read" else set(SCOPES).issubset(granted)
+    if not refresh or not token.get("access_token") or not valid:
         raise GoogleError("Gerekli izinler verilmedi. Bağlantıyı yeniden başlatın.")
-    _write(_path(row["user"]), {"refresh_token": refresh, "access_token": token["access_token"],
+    _write(_path(row["user"], profile), {"refresh_token": refresh, "access_token": token["access_token"],
                                 "expires": time.time() + int(token.get("expires_in", 3600)) - 60,
                                 "scope": list(granted)})
     return row["user"]
@@ -159,11 +198,12 @@ def disconnect(username: str) -> None:
             pass  # Local use is cut off; Google account settings can revoke the grant.
 
 
-def _access_token(username: str) -> str:
+def _access_token(username: str, profile: str = "general") -> str:
+    _profile(profile)
     with _LOCK:
         if not configured():
             raise GoogleError("Google bağlantısı şu anda kullanılamıyor.")
-        row = _read(_path(username), {})
+        row = _read(_path(username, profile), {})
         if not row.get("refresh_token"):
             raise GoogleError("Önce Google hesabınızı bağlayın.")
         if row.get("access_token") and row.get("expires", 0) > time.time():
@@ -172,9 +212,12 @@ def _access_token(username: str) -> str:
                                 "client_id": os.environ["GOOGLE_OAUTH_CLIENT_ID"],
                                 "client_secret": os.environ["GOOGLE_OAUTH_CLIENT_SECRET"],
                                 "grant_type": "refresh_token"})
+        if profile == "gmail_read" and token.get("scope") is not None:
+            if set(token["scope"].split()) != {GMAIL_READ_SCOPE}:
+                raise GoogleError("Gmail salt okuma kapsamı doğrulanamadı. Yeniden bağlayın.")
         row["access_token"] = token["access_token"]
         row["expires"] = time.time() + int(token.get("expires_in", 3600)) - 60
-        _write(_path(username), row)
+        _write(_path(username, profile), row)
         return row["access_token"]
 
 

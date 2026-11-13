@@ -801,10 +801,9 @@ def _mail_kind(filename, subject, *, size=0, disposition=""):
 def sync_gmail(owner, *, days=90):
     """Read invoice attachments only. Requires the owner's Gmail read scope."""
     import google_workspace
-    token_info = google_workspace._read(google_workspace._path(owner), {})
-    if "https://www.googleapis.com/auth/gmail.readonly" not in token_info.get("scope", []):
+    if not google_workspace.gmail_read_status(owner)["gmail_read"]:
         raise ExpenseError("Gmail fatura okuma izni gerekli. Jarvis'te Google bağlantısını yenileyin.")
-    token = google_workspace._access_token(owner)
+    token = google_workspace.gmail_read_access_token(owner)
     after = (datetime.now(ZONE).date() - timedelta(days=days)).strftime("%Y/%m/%d")
     query = f"after:{after} has:attachment {{fatura invoice receipt fiş fis makbuz e-arşiv e-fatura}} -in:spam -in:trash"
     page = ""
