@@ -1058,9 +1058,20 @@ class IsUretici:
         return {'mod': 'replan', 'aday': len(candidates), 'yeniden_acildi': reopened,
                 'arac_gerekli': capability, 'gecersiz': obsolete, 'hata': failed, 'kayit': self.kayit}
 
-    def yurut(self, sinir: int = 8, sure_sn: int | None = None) -> dict:
+    def yurut(self, sinir: int = 8, sure_sn: int | None = None, *,
+              durdur: Callable[[], bool] | None = None) -> dict:
         """Açık iç görevleri sırayla ilgili üyeye yaptırır. sure_sn verilirse o süre dolunca yeni işe başlamaz."""
         bitis = time.monotonic() + sure_sn if sure_sn is not None else None
+        durma_sebebi = None
+
+        def durmali():
+            nonlocal durma_sebebi
+            if durdur is not None and durdur():
+                durma_sebebi = "STOP_REQUESTED"
+            elif bitis is not None and time.monotonic() >= bitis:
+                durma_sebebi = "TIME_BUDGET"
+            return durma_sebebi is not None
+
         tarih = self._gun()
         agac = self.agac_deposu.oku()
         deps = {d.kod: d for d in self.o.departmanlar()}
@@ -1102,29 +1113,37 @@ class IsUretici:
         checkpoint()  # Süresi dolan işler, model çağrısından önce kalıcı olsun.
         # İç onay kuyruğuna aktarım başarısızsa teslimi yeniden üretmeden dene.
         for task in tum.values():
+            if durmali():
+                break
             if task.get("sahibe_gonderim") and teslim_onayli(task):
                 self._sahibe_aktar(task)
                 checkpoint()
         teslim = basarisiz = duzeltmede = reddedilen = 0
         for _, kod, g in adaylar[:sinir]:
-            if bitis is not None and time.monotonic() >= bitis:
+            if durmali():
                 break
             dep = deps[kod]
             uye = next((u for u in dep.uyeler if u.key == g.get("sorumlu")), dep.uyeler[0] if dep.uyeler else None)
             if uye is None:
                 continue
             kanitlar = self._kanitlar(dep)
+            if durmali():
+                break
             if self.o.ham_veri:
                 try:
                     ham = self.o.ham_veri(uye)
                     kanitlar += [Kanit(f"K{len(kanitlar)+i+1}", k.kaynak, k.metin) for i, k in enumerate(ham)]
                 except Exception as e:  # noqa: BLE001
                     self.kayit.append({"gorev": g["id"], "uyari": f"ham veri okunamadı: {e}"[:200]})
+            if durmali():
+                break
             if g.get("urun") and self.o.urunler:
                 # Ürün senaryosu/brief'i ürünün KENDİ bilgisinden yazılır; yoksa içerik uydurulur.
                 bilgi = next((m for a, m in self.o.urunler() if a == g["urun"]), "")
                 if bilgi:
                     kanitlar.append(Kanit(f"K{len(kanitlar)+1}", f"ürün bilgisi: {g['urun']}", bilgi[:5000]))
+            if durmali():
+                break
             if g["tip"] == "ARASTIRMA" and (self.o.arastir or self.o.grounded):
                 canli = []
                 if self.o.arastir:
@@ -1132,7 +1151,7 @@ class IsUretici:
                         canli = list(self.o.arastir(g["baslik"]))
                     except Exception as e:  # noqa: BLE001
                         self.kayit.append({"gorev": g["id"], "uyari": f"canlı araştırma yapılamadı: {e}"[:200]})
-                if not canli and self.o.grounded:
+                if not canli and self.o.grounded and not durmali():
                     # SearXNG motorları CAPTCHA'ya düşüyor; kaynaklı (Google destekli) arama yedektir.
                     try:
                         metin, kaynaklar = self.o.grounded(g["baslik"])
@@ -1161,6 +1180,8 @@ class IsUretici:
                 on = self._bilgi(g["bilgi"], min(6000, int(g.get("bilgi_sinir") or 2500))) + on
             if on:
                 kanitlar = [Kanit(f"K{i+1}", x.kaynak, x.metin) for i, x in enumerate(on + kanitlar)]
+            if durmali():
+                break
             g["deneme"] = int(g.get("deneme", 0)) + 1
             checkpoint()  # Uzun çağrı sırasında süreç kesilirse deneme kaybolmasın.
             self._ofis(uye.key, "WORKING", g["baslik"])
@@ -1224,7 +1245,8 @@ class IsUretici:
                         "anahtar": f"teslim.{g['id']}"[:120], "metin": metin,
                         "sebep": f"Ekip teslimi sahibin okuması ve kararı için gönderildi: {g['baslik']}"[:400]}
                 checkpoint()  # Teslim VE bekleyen aktarım, hook çağrısından önce kalıcıdır.
-                self._sahibe_aktar(g)
+                if not durmali():
+                    self._sahibe_aktar(g)
                 checkpoint()
                 teslim += 1
                 if not self.kuru and g.get("work_id"):
@@ -1245,10 +1267,11 @@ class IsUretici:
                                      "tarih": self.o.saat().isoformat()}
             checkpoint()
         self.agac_deposu.yaz(agac, self.o.saat()) if not self.kuru else None
+        durmali()  # Last in-flight task may have completed after a stop request.
         return {"mod": "yurut", "tarih": tarih, "aday": len(adaylar), "teslim": teslim,
                 "duzeltmede": duzeltmede, "reddedilen": reddedilen,
                 "kalite_gecemedi": basarisiz, "suresi_doldu": suresi_doldu,
-                "yeniden_deneme_bekliyor": bekleyen, "kayit": self.kayit}
+                "yeniden_deneme_bekliyor": bekleyen, "durma_sebebi": durma_sebebi, "kayit": self.kayit}
 
     def _yurut_hatasi(self, gorev: dict, hata: Exception) -> None:
         """Persist bounded retries; neither failure nor a timeout is completion."""

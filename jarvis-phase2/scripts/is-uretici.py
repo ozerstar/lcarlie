@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import signal
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -35,13 +36,17 @@ def _ofis_yazici():
         return None
 
 
-def _kilit():
+def _kilit(*, nonblocking=False):
     """Aynı anda iki iş üretici koşusu görev ağacını birbirinin üstüne yazmasın."""
     import fcntl
     yol = DURUM / "is-uretici" / ".kilit"
     yol.parent.mkdir(parents=True, exist_ok=True)
     f = open(yol, "w")  # noqa: SIM115 - kilit süreç boyunca açık kalmalı
-    fcntl.flock(f, fcntl.LOCK_EX)   # bekler; systemd TimeoutStartSec üst sınırdır
+    try:
+        fcntl.flock(f, fcntl.LOCK_EX | (fcntl.LOCK_NB if nonblocking else 0))
+    except BlockingIOError:
+        f.close()
+        return None  # Other worker owns the tree; defer without doing any work.
     return f
 
 
@@ -207,19 +212,40 @@ def _ortam(canli_arastirma: bool):
                  odak_bilgi=tuple(x for x in os.environ.get("IS_URETICI_ODAK", "kasim-2026-plani").split(",") if x))
 
 
+def _yurut_guvenli(iu, sinir, sure):
+    """SIGTERM is cooperative: finish/checkpoint in-flight work, never kill/retry it.
+
+    This is not a hard timeout; a blocked call can outlive systemd's stop grace.
+    """
+    stop = False
+
+    def request_stop(_signum, _frame):
+        nonlocal stop
+        stop = True
+
+    previous = signal.signal(signal.SIGTERM, request_stop)
+    try:
+        return iu.yurut(sinir, sure_sn=sure, durdur=lambda: stop)
+    finally:
+        signal.signal(signal.SIGTERM, previous)
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--mod", required=True,
                    choices=("gunluk", "haftalik", "aylik", "yurut", "replan", "rakip", "kreatif", "b2b", "retro", "kurul"))
     p.add_argument("--sinir", type=int, default=None)
     p.add_argument("--kuru", action="store_true", help="deftere/ağaca yazmadan dene")
-    p.add_argument("--sure", type=int, default=None, help="yurut: bu kadar saniye sonra yeni işe başlama")
+    p.add_argument("--sure", type=int, default=1200, help="yurut: yeni iş/üretim başlangıcı bütçesi (varsayılan 1200 sn; devam eden çağrı kesilmez)")
     a = p.parse_args()
     if os.environ.get("IS_URETICI_ENABLED", "true").lower() in ("0", "false", "no", "hayir"):
         print("İş üretici kapalı (IS_URETICI_ENABLED=false).")
         return 78
     from jarvis.is_uretici import IsUretici
-    kilit = _kilit() if not a.kuru else None  # noqa: F841 - süreç boyunca tutulur
+    kilit = _kilit(nonblocking=(a.mod == "yurut")) if not a.kuru else None  # noqa: F841 - süreç boyunca tutulur
+    if not a.kuru and kilit is None:
+        print(json.dumps({"mod": a.mod, "durma_sebebi": "LOCK_BUSY"}))
+        return 0
     if not a.kuru:
         _suresi_dolanlari_kapat()
     try:
@@ -245,7 +271,7 @@ def main() -> int:
             pr = Programlar(iu)
             sonuc = pr.calistir(a.mod, a.sinir)
         else:
-            sonuc = iu.yurut(a.sinir or 12, sure_sn=a.sure)
+            sonuc = _yurut_guvenli(iu, a.sinir or 12, a.sure)
         if not a.kuru:
             sonuc['recovered_evidence'] = iu.o.defter.reconcile_team_deliveries()
             sonuc['recovered_tasks'] = recovered_tasks
