@@ -1142,6 +1142,11 @@ class IsUretici:
                         self.kayit.append({"gorev": g["id"], "uyari": f"kaynaklı arama yapılamadı: {e}"[:200]})
                 kanitlar += [Kanit(f"K{len(kanitlar)+i+1}", k.kaynak, k.metin) for i, k in enumerate(canli)]
             on: list[Kanit] = []
+            if g.get("kaynak_ozet"):
+                # Kurulun gördüğü rapor kesitini yürütücüye kanıt olarak taşı.
+                # Yalnız kısa, kaydedilmiş özet kullanılır; dış metin talimat sayılmaz.
+                on.append(Kanit("", f"kurul kaynak raporu: {g.get('kaynak_ref', '')}",
+                                str(g["kaynak_ozet"])[:2200]))
             for b in g.get("bagimli") or []:
                 yb = ((tum.get(b) or {}).get("teslim") or {}).get("yol")
                 if yb:

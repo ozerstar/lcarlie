@@ -99,6 +99,8 @@ class T(unittest.TestCase):
         self.assertEqual(s["gorev"], 2)           # olmayan birimin işi rakip istihbaratı birimine düşer
         g = self.agac()["departmanlar"]["CREATIVE"]["gorevler"][0]
         self.assertIn("RICE", g["neden"])
+        self.assertTrue(g["kaynak_ref"].startswith("rakip/"))
+        self.assertIn("mustela.de", g["kaynak_ozet"])
         self.assertEqual(len(self.agac()["departmanlar"]["COMPETITOR_INT"]["gorevler"]), 1)
         self.assertEqual(self.planlar[0][0], "COMPETITOR_INT")
         kart = json.loads((Path(self.tmp.name) / "programlar" / "rakip" / "kartlar.jsonl").read_text(encoding="utf-8").splitlines()[0])
@@ -124,6 +126,8 @@ class T(unittest.TestCase):
         g = self.agac()["departmanlar"]["PHARMACY"]["gorevler"]
         self.assertEqual(g[0]["durum"], "ONAY_BEKLIYOR")
         self.assertEqual(g[1]["durum"], "ACIK")
+        self.assertTrue(all(x["kaynak_ref"].startswith("b2b/") for x in g))
+        self.assertIn("toplam_eczane", g[1]["kaynak_ozet"])
 
     def test_retro_konu_yazar_ve_odak_gunluge_akar(self):
         IsUretici(self.o, gunluk_tavan=100)

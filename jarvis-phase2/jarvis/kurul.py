@@ -42,6 +42,7 @@ TOKEN = {"kurul_denetim": 2200, "kurul_redteam": 2400, "kurul_karar": 2600}
 GOREV_TAVAN = 8
 ONAY_TAVAN = 3
 SONUC_TAVAN = 18          # koşu başına denetlenen sonuç
+ONERI_INCELEME_TAVANI = 6  # kısa istemler; kalan öneriler sonraki koşuya kalır
 ESKI_ONAY_TAVAN = 10      # koşu başına ele alınan birikmiş ONAY_BEKLIYOR işi
 IC_TIPLER = ("ARASTIRMA", "ANALIZ", "TASLAK")
 
@@ -91,7 +92,7 @@ class Kurul:
 
     # ------------------------------------------------------------ girdiler
     def sonuclar(self, agac: dict, simdi: datetime) -> list[dict]:
-        """Denetlenmemiş sonuçlar: son 36 saatin teslimleri + bugünün rakip raporları + Radar özeti."""
+        """Denetlenmemiş teslimler ve son haftanın program raporları."""
         out: list[dict] = []
         sinir = simdi - timedelta(hours=36)
         for kod, d in agac["departmanlar"].items():
@@ -116,24 +117,50 @@ class Kurul:
                             "metin": metin, "gorev": g})
         gun = _simdi_tr(simdi).date().isoformat()
         islenen = set(agac.setdefault("kurul", {}).get("islenen", []))
-        for yol in sorted((self.programlar / "rakip").glob(f"{gun}-*.md")):
-            if yol.name in islenen:
-                continue
-            out.append({"tur": "rakip", "ref": yol.name, "dep": "_RAKIP", "baslik": f"Rakip istihbaratı {yol.stem}",
-                        "metin": sinirlar.teslim_ozu(yol.read_text(encoding="utf-8"), 6000,
-                                                     ne="kurul.rakip", isaret=str(yol))})
+        raporlar = []
+        for tur, klasor, dep in (("rakip", "rakip", "_RAKIP"), ("b2b", "b2b", "BIZDEV")):
+            for yol in sorted((self.programlar / klasor).glob("*.md")):
+                try:
+                    tarih = datetime.fromisoformat(yol.name[:10]).date()
+                except ValueError:
+                    continue
+                if not 0 <= (datetime.fromisoformat(gun).date() - tarih).days <= 7:
+                    continue
+                ref = f"{tur}/{yol.name}"
+                if ref in islenen or yol.name in islenen:
+                    continue
+                try:
+                    metin = sinirlar.teslim_ozu(yol.read_text(encoding="utf-8"), 6000,
+                                                 ne=f"kurul.{tur}", isaret=str(yol))
+                except OSError as e:
+                    self.iu.kayit.append({"kurul": ref, "uyari": str(e)[:200]})
+                    continue
+                raporlar.append({"tur": tur, "ref": ref, "dep": dep,
+                                 "baslik": f"{tur.upper()} raporu {yol.stem}", "metin": metin})
         if self.radar_panel and self.radar_panel.exists():
             try:
                 p = json.loads(self.radar_panel.read_text(encoding="utf-8"))
                 oz = p.get("sabah_ozeti") or {}
                 ref = f"radar-{oz.get('tarih') or gun}"
                 if oz and ref not in islenen:
-                    out.append({"tur": "radar", "ref": ref, "dep": "_RADAR", "baslik": "Radar sabah özeti",
-                                "metin": sinirlar.kisalt(json.dumps(oz, ensure_ascii=False, indent=1), 6000,
-                                                         ne="kurul.radar")})
+                    raporlar.append({"tur": "radar", "ref": ref, "dep": "_RADAR", "baslik": "Radar sabah özeti",
+                                     "metin": sinirlar.kisalt(json.dumps(oz, ensure_ascii=False, indent=1), 6000,
+                                                              ne="kurul.radar")})
             except Exception as e:  # noqa: BLE001
                 self.iu.kayit.append({"kurul": "radar", "uyari": f"radar özeti okunamadı: {e}"[:200]})
-        return out[:SONUC_TAVAN]
+        # Rakip raporu yoğunluğu B2B ve Radar girdilerini süresiz ertelemesin.
+        secilen_raporlar = []
+        for tur, pay in (("b2b", 1), ("rakip", 2), ("radar", 1)):
+            secilen_raporlar.extend([r for r in raporlar if r["tur"] == tur][:pay])
+        for r in raporlar:
+            if len(secilen_raporlar) >= 4:
+                break
+            if r not in secilen_raporlar:
+                secilen_raporlar.append(r)
+        raporlar = secilen_raporlar
+        if len(out) + len(raporlar) <= SONUC_TAVAN:
+            return out + raporlar
+        return raporlar + out[:SONUC_TAVAN - len(raporlar)]
 
     # ------------------------------------------------------------ adımlar
     def denetle(self, dep: Departman, kalemler: list[dict], deps: dict[str, Departman]) -> list[dict]:
@@ -153,6 +180,7 @@ JSON: {{"denetimler": [{{"kimlik": "S1", "guven": "YUKSEK|ORTA|DUSUK", "sorun": 
   "departman": "KOD", "neden": "hangi bulgudan"}}]}}]}}
 Her sonuç için en çok 2 öneri; gereksizse boş liste.""", "kurul-denetim")
         out = []
+        gorulen = set()
         for d in _liste(v.get("denetimler")):
             if not isinstance(d, dict):
                 continue
@@ -162,6 +190,9 @@ Her sonuç için en çok 2 öneri; gereksizse boş liste.""", "kurul-denetim")
                 continue
             if not 0 <= i < len(kalemler):
                 continue
+            if i in gorulen:
+                continue
+            gorulen.add(i)
             oneriler = []
             for o in _liste(d.get("oneriler"))[:2]:
                 if not isinstance(o, dict):
@@ -245,7 +276,11 @@ JSON: {{"kararlar": [{{"id": "O1", "karar": "YAP|BEKLET|IPTAL", "oncelik": 1, "g
         bekleyen = state.setdefault("bekleyen_denetimler", [])
         pending_refs = {(d["kalem"]["tur"], d["kalem"]["ref"]) for d in bekleyen}
         sonuclar = [s for s in self.sonuclar(agac, simdi)
-                    if (s["tur"], s["ref"]) not in pending_refs][:max(0, SONUC_TAVAN - len(bekleyen))]
+                    if (s["tur"], s["ref"]) not in pending_refs]
+        kapasite = max(0, SONUC_TAVAN - len(bekleyen))
+        if len(sonuclar) > kapasite:
+            sonuclar.sort(key=lambda s: s["tur"] == "teslim")
+        sonuclar = sonuclar[:kapasite]
 
         def kaydet():
             if not self.iu.kuru:
@@ -287,6 +322,7 @@ JSON: {{"kararlar": [{{"id": "O1", "karar": "YAP|BEKLET|IPTAL", "oncelik": 1, "g
             for o in d["oneriler"]:
                 kimlik(o, [d["kalem"]["tur"], d["kalem"]["ref"]])
                 o.setdefault("kaynak_ref", d["kalem"]["ref"])
+                o.setdefault("kaynak_ozet", d["kalem"]["metin"][:2200])
                 o.setdefault("dayanak", f"{d['kalem']['baslik']} — denetçi {d['denetci']}: {d['anlam']}"[:500])
                 if not o.get("tamamlandi"):
                     oneriler.append(o)
@@ -303,20 +339,28 @@ JSON: {{"kararlar": [{{"id": "O1", "karar": "YAP|BEKLET|IPTAL", "oncelik": 1, "g
                 oneriler.append(o)
         for i, o in enumerate(oneriler, 1):
             o["id"] = f"O{i}"
+        # Bir model çağrısına onlarca öneri koymak yanıtı kesiyor. Eski öneriler
+        # beklemede kalır ve bir sonraki koşuda önce seçilir.
+        model_adaylari = sorted((o for o in oneriler if not o.get("onay_payload")),
+                               key=lambda o: o.get("son_inceleme", ""))[:ONERI_INCELEME_TAVANI]
+        secilen = model_adaylari + [o for o in oneriler if o.get("onay_payload")]
+        for o in model_adaylari:
+            o["son_inceleme"] = simdi.isoformat()
         kaydet()
 
         # 2) red team
         try:
-            rt = self.sorgula([o for o in oneriler if not o.get("onay_payload")])
+            rt = self.sorgula(model_adaylari)
         except Exception as e:  # noqa: BLE001
             rt = {}
             self.iu.kayit.append({"kurul": "redteam", "hata": str(e)[:200]})
         for o in oneriler:
-            if not o.get("onay_payload"):
+            if o in model_adaylari:
                 o["rt"] = rt.get(o["id"], {"karar": "SORGULA", "itiraz": "red team cevap vermedi"})
-            if o["rt"]["karar"] == "RED":
+            o.setdefault("rt", {"karar": "SORGULA", "itiraz": "inceleme sırası bekleniyor"})
+            if o in secilen and o["rt"]["karar"] == "RED":
                 o["tamamlandi"] = "RED"
-        aday = [o for o in oneriler if o["rt"]["karar"] == "KABUL"]
+        aday = [o for o in secilen if o["rt"]["karar"] == "KABUL"]
 
         # 3) ana karar
         hedefler = "\n".join(f"- {h.get('id')}: {h.get('baslik')} ({h.get('olcut')})" for h in agac.get("hedefler", [])) or "-"
@@ -353,7 +397,8 @@ JSON: {{"kararlar": [{{"id": "O1", "karar": "YAP|BEKLET|IPTAL", "oncelik": 1, "g
                 g = {"baslik": o["baslik"], "tip": o["tip"], "sorumlu": dep.uyeler[0].key,
                      "cikti": "kurul kararı teslimi: bulgu + tablo/madde + öneri",
                      "kabul_olcutu": "dayanaktaki bulguyla ilişkisi gösterilmiş, en az 3 madde/tablo satırı",
-                     "sure_gun": 3, "hedef_id": "", "neden": f"kurul: {o['dayanak']}"[:300]}
+                     "sure_gun": 3, "hedef_id": "", "neden": f"kurul: {o['dayanak']}"[:300],
+                     "kaynak_ref": o.get("kaynak_ref", ""), "kaynak_ozet": o.get("kaynak_ozet", "")}
                 gid = o["anahtar"]
                 x = next((t for t in agac["departmanlar"].get(dep.kod, {}).get("gorevler", [])
                           if t.get("id") == gid and t.get("kurul_oneri_anahtari") == gid), None)
@@ -381,7 +426,7 @@ JSON: {{"kararlar": [{{"id": "O1", "karar": "YAP|BEKLET|IPTAL", "oncelik": 1, "g
                                               "guven": d["guven"], "oneriler": d["oneriler"]}
                 else:
                     state.setdefault("islenen", []).append(kal["ref"])
-            state["islenen"] = state.get("islenen", [])[-200:]
+            state["islenen"] = list(dict.fromkeys(state.get("islenen", [])))[-200:]
             state["bekleyen_denetimler"] = [d for d in denetimler if d not in tamam]
             for g in eski_map.values():
                 o = g["kurul_oneri"]

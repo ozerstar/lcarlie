@@ -73,7 +73,7 @@ class TestKurul(unittest.TestCase):
         rk = kok / "programlar" / "rakip"
         rk.mkdir(parents=True)
         (rk / "2026-11-03-TR-1.md").write_text("Rakip X Kasım'da %30 indirim", encoding="utf-8")
-        (rk / "2026-11-02-TR-1.md").write_text("dünkü", encoding="utf-8")
+        (rk / "2026-10-20-TR-1.md").write_text("eski", encoding="utf-8")
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -83,7 +83,7 @@ class TestKurul(unittest.TestCase):
 
     def test_uctan_uca(self):
         s = Kurul(self.iu).calistir()
-        self.assertEqual(s["sonuc"], 2)          # eski teslim ve dünkü rakip raporu girmez
+        self.assertEqual(s["sonuc"], 2)          # eski teslim ve 7 günü aşan rapor girmez
         self.assertEqual(s["oneri"], 3)          # uydurma birim/kimlik atıldı + 1 birikmiş onay işi
         self.assertEqual(s["red"], 1)
         self.assertEqual(s["gorev"], 1)
@@ -95,6 +95,8 @@ class TestKurul(unittest.TestCase):
         yeni = [g for g in a["departmanlar"]["SEO"]["gorevler"] if g.get("kaynak") == "kurul"]
         self.assertEqual(len(yeni), 1)
         self.assertEqual(yeni[0]["baslik"], "Meta açıklama taslaklarını yaz")
+        self.assertEqual(yeni[0]["kaynak_ref"], "g1")
+        self.assertIn("24'ünde meta açıklama yok", yeni[0]["kaynak_ozet"])
         self.assertEqual(len(self.onaylar), 1)
         self.assertIn("Kasım kampanya fiyatını", self.onaylar[0][1])
         self.assertIn("hiçbir platforma otomatik yazılmaz", self.onaylar[0][1])
@@ -112,6 +114,62 @@ class TestKurul(unittest.TestCase):
         s = Kurul(IsUretici(self.o, gunluk_tavan=50)).calistir()
         self.assertEqual(s["sonuc"], 0)
         self.assertEqual(len(self.model.cagri), n)   # denetlenecek bir şey yok -> model çağrısı yok
+
+    def test_yedi_gunluk_program_raporlari_kurula_girer(self):
+        kok = Path(self.tmp.name)
+        (kok / "programlar" / "rakip" / "2026-11-02-TR-1.md").write_text("Dünkü rakip bulgusu", encoding="utf-8")
+        b2b = kok / "programlar" / "b2b"
+        b2b.mkdir()
+        (b2b / "2026-11-01-plan.md").write_text("Eczane satış planı", encoding="utf-8")
+        refs = {x["ref"] for x in Kurul(self.iu).sonuclar(self.agac(), SAAT)}
+        self.assertIn("rakip/2026-11-02-TR-1.md", refs)
+        self.assertIn("b2b/2026-11-01-plan.md", refs)
+        self.assertNotIn("rakip/2026-10-20-TR-1.md", refs)
+
+    def test_program_raporu_teslim_yogunlugunda_oncelikli(self):
+        a = self.agac()
+        a["departmanlar"]["SEO"]["gorevler"] += [
+            {"id": f"g{i}", "baslik": f"Teslim {i}", "durum": "TESLIM_EDILDI",
+             "teslim": {"kalite": "GECTI", "tarih": "2026-11-03T07:00:00+00:00",
+                        "ozet": "Özet"}} for i in range(2, 25)]
+        refs = [x["ref"] for x in Kurul(self.iu).sonuclar(a, SAAT)]
+        self.assertLessEqual(len(refs), 18)
+        self.assertIn("rakip/2026-11-03-TR-1.md", refs)
+
+    def test_b2b_raporu_rakip_yogunlugunda_kaybolmaz(self):
+        kok = Path(self.tmp.name)
+        rk = kok / "programlar" / "rakip"
+        for i in range(2, 9):
+            (rk / f"2026-11-0{i}-TR-1.md").write_text("Rakip", encoding="utf-8")
+        b2b = kok / "programlar" / "b2b"
+        b2b.mkdir()
+        (b2b / "2026-11-01-plan.md").write_text("Satış kanalı planı", encoding="utf-8")
+        gun = datetime(2026, 11, 8, 9, tzinfo=timezone.utc)
+        refs = [x["ref"] for x in Kurul(self.iu).sonuclar(self.agac(), gun)]
+        self.assertIn("b2b/2026-11-01-plan.md", refs)
+        self.assertLessEqual(sum(r.startswith("rakip/") for r in refs), 3)
+
+    def test_tekrarlanan_denetim_tek_kayit_olur(self):
+        k = Kurul(self.iu)
+        k._model = lambda *args: {"denetimler": [
+            {"kimlik": "S1", "oneriler": []}, {"kimlik": "S1", "oneriler": []}]}
+        kalem = {"tur": "rakip", "ref": "r1", "dep": "_RAKIP", "baslik": "Rapor", "metin": "Bulgu"}
+        result = k.denetle(deps()[3], [kalem], {d.kod: d for d in deps()})
+        self.assertEqual(len(result), 1)
+
+    def test_red_team_kuyrugu_altisar_oneri_isler(self):
+        k = Kurul(self.iu)
+        kalem = {"tur": "rakip", "ref": "r1", "dep": "_RAKIP", "baslik": "Rapor", "metin": "Kaynaklı bulgu"}
+        k.sonuclar = lambda *args: [kalem]
+        k.denetle = lambda dep, items, all_deps: [{"kalem": kalem, "denetci": dep.kod,
+            "guven": "ORTA", "sorun": "", "anlam": "İncele", "oneriler": [
+                {"baslik": f"Öneri {i} için kontrol yap", "tip": "ANALIZ", "departman": "SEO", "neden": "bulgu"}
+                for i in range(8)]}]
+        incelenen = []
+        k.sorgula = lambda proposals: incelenen.extend(x["id"] for x in proposals) or {}
+        k.calistir()
+        self.assertEqual(len(incelenen), 6)
+        self.assertEqual(len(self.agac()["kurul"]["bekleyen_denetimler"]), 1)
 
     def test_kuru_calisma_yazmaz(self):
         s = Kurul(IsUretici(self.o, gunluk_tavan=50, kuru=True)).calistir()
@@ -170,7 +228,7 @@ class TestKurul(unittest.TestCase):
 
     def test_handoff_replay_preserves_exact_payload_across_days(self):
         for result in (None, False, True, 0, -1):
-            self.o.oneri_ac = lambda a, m, s: self.onaylar.append((a, m, s)) or result
+            self.o.oneri_ac = lambda a, m, s, result=result: self.onaylar.append((a, m, s)) or result
             r = Kurul(IsUretici(self.o, gunluk_tavan=50)).calistir()
             self.assertEqual(r["onaya"], 0)
         self.assertEqual(len(set(self.onaylar)), 1)

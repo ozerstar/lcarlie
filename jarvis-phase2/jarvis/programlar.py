@@ -208,6 +208,10 @@ En çok 6 kart, 5 eksik, 4 fırsat, 2 soru."""}], "rakip-sentez")
                                  "kaynaklar": [kaynak[x] for x in kn], "dogrulandi": bool(kn)})
         agac = self.iu.agac_deposu.oku()
         hedef_ids = {str(h.get("id")) for h in agac["hedefler"]}
+        rapor_ref = f"rakip/{tarih}-{kod}-{self._sira(len(TEMALAR), 'tema')}.md"
+        kaynaklar = "\n".join(f"{c['marka']}: {c['kaynaklar'][0]}" for c in kartlar if c["kaynaklar"])
+        kaynak_ozet = (f"Ön bulgu; göreve başlamadan doğrula: {temizle(v.get('ozet'), 1000)}"
+                       f"\nKaynaklar: {kaynaklar[:1000]}")[:2200]
         gorevler = []
         for n, f in enumerate((v.get("firsatlar") or [])[:4]):
             if not isinstance(f, dict):
@@ -224,6 +228,8 @@ En çok 6 kart, 5 eksik, 4 fırsat, 2 soru."""}], "rakip-sentez")
             except (TypeError, ValueError):
                 rice = 0.0
             g["neden"] = f"Rakip istihbaratı {kod}/{tema}. RICE {rice:.2f}"
+            g["kaynak_ref"] = rapor_ref
+            g["kaynak_ozet"] = kaynak_ozet
             x = self.iu._gorev_ekle(agac, dep, g, "rakip", tarih, n + 1 + (10 if self.o.saat().hour >= 10 else 0))
             if x:
                 x["rice"] = round(rice, 2)
@@ -411,6 +417,9 @@ Bu haftanın B2B planını yaz. JSON:
   "ozet": "3-4 cümle"}}
 En çok 8 il, 4 segment, 4 kit, 5 görev. Toplu e-posta/arama gönderimi her zaman ONAY_GEREKTIREN."""}], "b2b-plan")
         agac = self.iu.agac_deposu.oku()
+        rapor_ref = f"b2b/{tarih}-plan.md"
+        kaynak_ozet = (f"B2B programı ön bulgusu; doğrula: {temizle(v.get('ozet'), 1100)}"
+                       f"\nYalnız toplu veri: {json.dumps(ozet, ensure_ascii=False)[:900]}")[:2200]
         gorevler = []
         if bdep and bdep.uyeler:
             for n, g in enumerate((v.get("gorevler") or [])[:5]):
@@ -418,6 +427,8 @@ En çok 8 il, 4 segment, 4 kit, 5 görev. Toplu e-posta/arama gönderimi her zam
                 if gg and re.search(r"(?i)gönder|toplu|e-?posta at|mail at|whatsapp|sms|telefonla ara|aranacak", gg["baslik"]):
                     gg["tip"] = "ONAY_GEREKTIREN"   # dışarıya temas her zaman sahip onayında
                 if gg:
+                    gg["kaynak_ref"] = rapor_ref
+                    gg["kaynak_ozet"] = kaynak_ozet
                     x = self.iu._gorev_ekle(agac, bdep, gg, "b2b", tarih, n + 1)
                     if x:
                         gorevler.append(x)
