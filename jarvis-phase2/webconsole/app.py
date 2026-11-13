@@ -487,11 +487,13 @@ def _satis_merkezi() -> dict:
         k = str(sp.get("kanal") or "?")
         kanallar[k] = kanallar.get(k, 0) + 1
     veri["kanallar"] = kanallar
+    # 13.11.2026: pazaryeri siparişleri artık alınıyor ama AYRI tabloda
+    # (core.pazaryeri_siparis) ve E-TİCARET sayfasında gösteriliyor. Bu
+    # sayfanın cirosu hâlâ yalnız web sitesidir; not bunu söyler.
     veri["kanal_notu"] = (
-        "Bu tabloda yalnız " + (", ".join(kanallar) or "hiçbir kanal") +
-        " var. Trendyol siparişleri sisteme HİÇ alınmıyor "
-        "(raw.trendyol_order tablosu yok); Trendyol satışları burada "
-        "GÖRÜNMEZ. Toplam ciro bu yüzden eksiktir.")
+        "Bu sayfa yalnız web sitesi siparişlerini ve gönderi kayıtlarını "
+        "gösterir. Trendyol, İdefix ve n11 satışları E-TİCARET sayfasındadır; "
+        "buradaki ciroya dahil değildir.")
 
     # --- ürün dağıtımı: satılan ve bedelsiz AYRI
     try:

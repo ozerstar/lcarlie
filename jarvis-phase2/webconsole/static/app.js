@@ -3122,7 +3122,7 @@ function fmRenderPlatforms() {
     const rozet = p.yazma ? '' : '<span class="fm-ro" title="yazma kapalı">salt okunur</span>';
     return `<button type="button" class="fm-chip${secili ? ' is-on' : ''}"
       data-platform="${escapeHtml(p.kod)}" aria-pressed="${secili}">
-      ${escapeHtml(p.ad)}${rozet}</button>`;
+      ${pzLogo(p.kod, p.ad)}${escapeHtml(p.ad)}${rozet}</button>`;
   }).join('');
 }
 
@@ -3191,7 +3191,7 @@ function fmRender() {
         : fmPct(r.komisyon_yuzde).replace('+', '') +
           (r.komisyon_istisnasi ? '<span class="fm-ex" title="ürün bazlı istisna">·</span>' : '');
       return `<tr>
-        <td class="fm-urun">${escapeHtml(String(r.urun_adi || '—'))}</td>
+        <td class="fm-urun">${snUrunHtml(r.urun_adi)}</td>
         <td class="fm-n">${fmNum(r.referans_fiyat)}</td>
         <td class="fm-n">${platformHucre}</td>
         <td class="fm-n">${fmPct(r.fark_yuzde)}</td>
@@ -5353,6 +5353,37 @@ function satisPara(x) {
     minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' TL' : String(x);
 }
 
+/* Ürün adı "AD (açıklama)" biçiminde gelir. Ad kalın, açıklama soluk yazılır;
+ * sondaki "x1" adet işaretine çevrilir. Parantez burada ayrıştırılır, yoksa
+ * genel metin süzgeci onu tireye çevirip satırı kalabalıklaştırıyordu. */
+function snUrunHtml(metin) {
+  return String(metin || '—').split(/(?<=\sx\d+),\s+/).map((parca) => {
+    const m = parca.trim().match(/^(.*?)(?:\s+x(\d+))?$/);
+    const tam = (m ? m[1] : parca).trim();
+    const adet = m && m[2] ? `<span class="pz-urun-adet">×${m[2]}</span>` : '';
+    const b = tam.match(/^(.+?)\s*(?:\(([^()]*)\)|\s[|·—–-]\s(.+))\s*$/);
+    if (!b) return `<b class="sn-ad">${escapeHtml(tam)}</b>${adet}`;
+    return `<b class="sn-ad">${escapeHtml(b[1].trim())}</b> <span class="sn-alt">${escapeHtml((b[2] || b[3] || '').trim())}</span>${adet}`;
+  }).join('<span class="sn-ayrac">,</span> ');
+}
+
+const SN_SINIF = {
+  DOGRULANMIS: ['odendi', 'Doğrulanmış'], IPTAL: ['iptal', 'İptal'],
+  BEYAN_EDILMIS: ['hazir', 'Beyan edilmiş'],
+};
+const SN_ODEME = {
+  PAID: ['odendi', 'Ödendi'], NOT_PAID: ['odenmedi', 'Ödenmedi'],
+  PARTIALLY_REFUNDED: ['iade', 'Kısmi iade'], FULLY_REFUNDED: ['iade', 'İade edildi'],
+};
+
+function snRozet(sozluk, kod) {
+  if (!kod) return '';
+  // Kodlar ASCII; Türkçe küçültme "I"yı "ı" yapar, o yüzden düz küçültme.
+  const duz = String(kod).replace(/_/g, ' ').toLowerCase();
+  const [sinif, ad] = sozluk[kod] || ['diger', duz.charAt(0).toUpperCase() + duz.slice(1)];
+  return `<span class="pz-rozet pz-d-${sinif}">${escapeHtml(ad)}</span>`;
+}
+
 function satisNotFormu(sip) {
   const ref = sip ? sip.entity_id : '';
   const urun = sip && sip.urunler ? String(sip.urunler).split(' x')[0] : '';
@@ -5403,7 +5434,8 @@ function renderSatislar() {
         <span class="ek-n">${bekleyen.length}</span><span class="ek-k">açıklama bekliyor</span></div>
       <div class="ek-tile"><span class="ek-n">${satisPara(toplamCiro)}</span><span class="ek-k">doğrulanmış ciro</span></div>
     </div>
-    <p class="o-uyari">${escapeHtml(satisVeri.kanal_notu || '')}</p>`;
+    <p class="sn-bilgi">${escapeHtml(satisVeri.kanal_notu || '')}
+      <button type="button" class="dk-btn" data-sn-eticaret>PAZARYERİ SATIŞLARINI AÇ</button></p>`;
 
   const bekleyenBlok = bekleyen.length ? `
     <h3 class="rp-sub">AÇIKLAMA BEKLEYEN GÖNDERİLER
@@ -5412,10 +5444,10 @@ function renderSatislar() {
       ${bekleyen.map((s) => `
         <details class="sn-kart">
           <summary>
-            <span class="sn-gun">${escapeHtml(String(s.gun || ''))}</span>
+            <span class="sn-gun">${kargoTarih(s.gun)}</span>
             <span class="sn-no">#${escapeHtml(String(s.siparis_no || ''))}</span>
-            <span class="sn-urun">${escapeHtml(String(s.urunler || '—'))}</span>
-            <span class="sn-durum">${escapeHtml(String(s.ciro_sinifi || ''))} · ${escapeHtml(String(s.odeme_durumu || ''))}</span>
+            <span class="sn-urun">${snUrunHtml(s.urunler)}</span>
+            <span class="sn-durum">${snRozet(SN_SINIF, s.ciro_sinifi)}${snRozet(SN_ODEME, s.odeme_durumu)}</span>
           </summary>
           ${satisNotFormu(s)}
         </details>`).join('')}
@@ -5424,27 +5456,27 @@ function renderSatislar() {
   const dagitimBlok = `
     <h3 class="rp-sub">ÜRÜN DAĞITIMI
       <span class="rp-src">satılan ve bedelsiz giden AYRI sayılır</span></h3>
-    <div class="tablo-kab"><table>
-      <thead><tr><th>Ürün</th><th>Satılan</th><th>Bedelsiz</th><th>Toplam çıkan</th></tr></thead>
+    <div class="pz-tablo-sar"><table class="pz-tablo">
+      <thead><tr><th>Ürün</th><th class="pz-tutar">Satılan</th><th class="pz-tutar">Bedelsiz</th><th class="pz-tutar">Toplam çıkan</th></tr></thead>
       <tbody>${dagitim.map((d) => `<tr>
-        <td>${escapeHtml(String(d.urun_adi || ''))}</td>
-        <td>${Number(d.satilan_adet || 0)}</td>
-        <td>${Number(d.bedelsiz_adet || 0)}</td>
-        <td><b>${Number(d.toplam_cikan || 0)}</b></td></tr>`).join('')}</tbody>
+        <td>${snUrunHtml(d.urun_adi)}</td>
+        <td class="pz-sayi">${Number(d.satilan_adet || 0)}</td>
+        <td class="pz-sayi">${Number(d.bedelsiz_adet || 0)}</td>
+        <td class="pz-tutar">${Number(d.toplam_cikan || 0)}</td></tr>`).join('')}</tbody>
     </table></div>`;
 
   const stokBlok = `
     <h3 class="rp-sub">STOK
       <span class="rp-src">elle sayım — platformun kendi stok sayısından ayrıdır</span></h3>
-    <div class="tablo-kab"><table>
-      <thead><tr><th>Ürün</th><th>Adet</th><th>Nerede</th><th>Sayım</th><th>Giren</th></tr></thead>
+    <div class="pz-tablo-sar"><table class="pz-tablo">
+      <thead><tr><th>Ürün</th><th class="pz-tutar">Adet</th><th>Nerede</th><th>Sayım</th><th>Giren</th></tr></thead>
       <tbody>${stok.length ? stok.map((s) => `<tr>
-        <td>${escapeHtml(String(s.urun_adi || ''))}</td>
-        <td><b>${Number(s.adet || 0)}</b></td>
-        <td>${escapeHtml(String(s.nerede || ''))}</td>
-        <td>${escapeHtml(String(s.sayim_zamani || '').slice(0, 10))}
+        <td>${snUrunHtml(s.urun_adi)}</td>
+        <td class="pz-tutar">${Number(s.adet || 0)}</td>
+        <td>${escapeHtml(/^SAHIP BEYANI/.test(String(s.nerede || '')) ? 'Sahip beyanı · konum belirtilmedi' : String(s.nerede || ''))}</td>
+        <td class="pz-dar">${kargoTarih(s.sayim_zamani)}
           ${Number(s.gun_gecti) > 14 ? '<span class="sn-eski">· ' + s.gun_gecti + ' gün önce</span>' : ''}</td>
-        <td>${escapeHtml(String(s.giren || ''))}</td></tr>`).join('')
+        <td>${escapeHtml(String(s.giren || '') === 'OWNER' ? 'Sahip' : String(s.giren || ''))}</td></tr>`).join('')
         : '<tr><td colspan="5" class="fm-empty">Henüz sayım girilmemiş.</td></tr>'}</tbody>
     </table></div>
     <div class="sn-form" id="stokForm">
@@ -5465,31 +5497,31 @@ function renderSatislar() {
 
   const notBlok = notlar.length ? `
     <h3 class="rp-sub">ELLE GİRİLEN AÇIKLAMALAR<span class="rp-src">${notlar.length} kayıt</span></h3>
-    <div class="tablo-kab"><table>
-      <thead><tr><th>Tarih</th><th>Tür</th><th>Ürün</th><th>Adet</th><th>Değer</th><th>Kime</th><th>Not</th></tr></thead>
+    <div class="pz-tablo-sar"><table class="pz-tablo">
+      <thead><tr><th>Tarih</th><th>Tür</th><th>Ürün</th><th class="pz-tutar">Adet</th><th class="pz-tutar">Değer</th><th>Kime</th><th>Not</th></tr></thead>
       <tbody>${notlar.map((n) => `<tr>
-        <td>${escapeHtml(String(n.girildi || '').slice(0, 10))}</td>
+        <td class="pz-dar">${kargoTarih(n.girildi)}</td>
         <td><span class="sn-tur">${escapeHtml(SATIS_TUR_ETIKET[n.tur] || n.tur || '')}</span></td>
-        <td>${escapeHtml(String(n.urun_adi || ''))}</td>
-        <td>${n.adet === null ? '—' : Number(n.adet)}</td>
-        <td>${satisPara(n.elle_fiyat)}</td>
+        <td>${snUrunHtml(n.urun_adi)}</td>
+        <td class="pz-sayi">${n.adet === null ? '—' : Number(n.adet)}</td>
+        <td class="pz-tutar">${satisPara(n.elle_fiyat)}</td>
         <td>${escapeHtml(String(n.alici || '—'))}</td>
         <td>${escapeHtml(String(n.not_metni || ''))}</td></tr>`).join('')}</tbody>
     </table></div>` : '';
 
   const tumBlok = `
     <h3 class="rp-sub">TÜM GÖNDERİLER<span class="rp-src">${sip.length} kayıt</span></h3>
-    <div class="tablo-kab"><table>
+    <div class="pz-tablo-sar"><table class="pz-tablo">
       <thead><tr><th>Tarih</th><th>No</th><th>Kanal</th><th>Ürünler</th>
-        <th>Tutar</th><th>Ödeme</th><th>Ciro sınıfı</th><th>Not</th></tr></thead>
+        <th class="pz-tutar">Tutar</th><th>Ödeme</th><th>Ciro sınıfı</th><th>Not</th></tr></thead>
       <tbody>${sip.map((s) => `<tr class="${s.ciro_sinifi === 'IPTAL' ? 'sn-iptal' : ''}">
-        <td>${escapeHtml(String(s.gun || ''))}</td>
-        <td>#${escapeHtml(String(s.siparis_no || ''))}</td>
-        <td>${escapeHtml(String(s.kanal || ''))}</td>
-        <td>${escapeHtml(String(s.urunler || '—'))}</td>
-        <td>${satisPara(s.toplam)}</td>
-        <td>${escapeHtml(String(s.odeme_durumu || ''))}</td>
-        <td>${escapeHtml(String(s.ciro_sinifi || ''))}</td>
+        <td class="pz-dar">${kargoTarih(s.gun)}</td>
+        <td class="pz-no">#${escapeHtml(String(s.siparis_no || ''))}</td>
+        <td class="pz-dar">${String(s.kanal || '') === 'WEB' ? pzLogo('wix', 'Web sitesi') : escapeHtml(String(s.kanal || ''))}</td>
+        <td>${snUrunHtml(s.urunler)}</td>
+        <td class="pz-tutar">${satisPara(s.toplam)}</td>
+        <td class="pz-dar">${snRozet(SN_ODEME, s.odeme_durumu)}</td>
+        <td class="pz-dar">${snRozet(SN_SINIF, s.ciro_sinifi)}</td>
         <td>${Number(s.not_sayisi) > 0 ? '✔' : ''}</td></tr>`).join('')}</tbody>
     </table></div>`;
 
@@ -5499,6 +5531,7 @@ function renderSatislar() {
 /* Delege dinleyiciler: panel her yenilemede yeniden çizildiği için
  * düğmeye doğrudan bağlanmak bir yenilemede kopardı. */
 document.addEventListener('click', async (e) => {
+  if (e.target.closest('[data-sn-eticaret]')) { setView('eticaret'); return; }
   const kaydet = e.target.closest('[data-sn-kaydet]');
   if (kaydet) {
     const form = kaydet.closest('.sn-form');

@@ -4790,6 +4790,28 @@ html[data-lcarlie-theme] .pz-k-pazarama { --pz: #2f5f7d; }
 .pz-kutu-ad { display: flex; align-items: center; gap: 9px; }
 .pz-kutu-kapali .pz-logo { filter: grayscale(1); opacity: .6; }
 .pz-tablo td .pz-logo, .kg-durum .pz-logo { display: block; }
+.pz-tablo td .pz-logo { width: 34px; height: 34px; }
+.fm-chip .pz-logo { width: 22px; height: 22px; border-radius: 6px; margin-right: 7px; }
+.pz-tablo .pz-sayi { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* -- satışlar: ürün adı kalın, açıklaması soluk; durumlar rozet -- */
+.sn-ad { font-weight: 600; color: var(--ivory); }
+.sn-alt { color: var(--ivory-3); }
+.sn-ayrac { color: var(--ivory-3); }
+.sn-kart > summary .sn-durum { display: inline-flex; gap: 6px; align-items: center; }
+.sn-kart > summary .pz-rozet { font-size: 12px; padding: 5px 9px; letter-spacing: 0; }
+.sn-bilgi {
+  display: flex; gap: 14px; align-items: center; flex-wrap: wrap;
+  margin: 0 0 18px; padding: 12px 16px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--glass);
+  font-size: 14px; line-height: 1.5; color: var(--ivory-2);
+}
+.sn-bilgi .dk-btn { margin-left: auto; }
+/* Alt başlık açıklaması daktilo yazısıyla çıkıyordu; gövde yazısına çekildi. */
+.rp-sub .rp-src {
+  font-family: inherit; letter-spacing: 0; text-transform: none;
+  font-size: 13.5px; font-weight: 400;
+}
 
 .pz-ust { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 4px; }
 .pz-ust-not { font-size: 13px; color: var(--ivory-3); }

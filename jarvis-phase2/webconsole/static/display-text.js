@@ -14,7 +14,9 @@
   s=s.replace(/office:team-cycle:[^\s,;]+/g,'Son ekip faaliyet kaydı');
   s=s.replace(/\b[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)+\b/g,k=>names[k]||'Açıklaması henüz tanımlanmamış kayıt');
   s=s.replace(/\b[A-Z][A-Z0-9_]{1,}\b/g,k=>names[k]||k);
-  s=s.replace(/\(([^()]*)\)/g,(_,v)=>'— '+v.trim()+' —');
+  // Parantez tireye çevrilir; cümle sonundaki parantezde kapanış tiresi konmaz
+  // ("BABYSOL (Güneş Kremi)" -> "BABYSOL — Güneş Kremi", sonda asılı tire kalmaz).
+  s=s.replace(/\(([^()]*)\)/g,(m,v,o,tam)=>'— '+v.trim()+(/^\s*(?:[.,;:!?]|$)/.test(tam.slice(o+m.length))?'':' —'));
   if(foreign(s))return 'Bu içerik için Türkçe açıklama henüz hazırlanamadı. Kaynağın okunması, işlemin tamamlandığı anlamına gelmez. Yeniden deneyebilirsiniz.';
   return s;
  }

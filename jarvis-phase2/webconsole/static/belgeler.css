@@ -10,3 +10,9 @@ table.mini{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}ta
 .chip{display:inline-block;font-size:11px;font-weight:700;color:#19428d;background:#eef3ff;border-radius:20px;padding:3px 8px;margin:2px 0 6px}
 .card-lines{display:grid;gap:8px}.card-line{display:grid;grid-template-columns:1fr auto;gap:6px 14px;align-items:center;border:1px solid #e1e5ed;border-radius:12px;padding:12px 14px;background:#fff}.card-line p{margin:3px 0 0}.card-line .document-actions{grid-column:1/-1;margin-top:4px;flex-wrap:wrap}.card-line select{min-height:36px;padding:6px 8px;font-size:12px;max-width:100%;flex:1 1 220px}
 @media (max-width:760px){.insights{grid-template-columns:1fr}.card-line{grid-template-columns:1fr}.card-line .num{text-align:left;font-weight:800}}
+/* Başlık görseli: temanın çizim bitkisi yerine markanın çekim arşivinden fotoğraf
+   (sahip 04.11: çizim "yapay ve amatör"; 13.11: "L'CARLIÉ ile ilgili resimler"). */
+html[data-lcarlie-theme] body .hero{position:relative;overflow:hidden;min-height:210px;background:linear-gradient(90deg,#fffdf8 0%,#fffdf8 46%,#fffdf800 74%),url('/img/hero/belgeler.webp') right center/auto 100% no-repeat,#fffdf8!important;border:1px solid #dddccf!important;border-bottom:3px solid #a35a1c!important}
+html[data-lcarlie-theme] body .hero::before{content:none!important}
+html[data-lcarlie-theme] body .hero .hero-mark{display:none}
+@media(max-width:700px){html[data-lcarlie-theme] body .hero{background:#fffdf8!important}}

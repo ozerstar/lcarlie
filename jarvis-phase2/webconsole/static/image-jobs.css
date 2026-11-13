@@ -46,3 +46,9 @@ textarea { width: 100%; min-height: 80px; box-sizing: border-box; margin: 8px 0;
 .ij-gorus summary { cursor: pointer; }
 .ij-gorus-metin { white-space: pre-line; margin-top: 8px; font-size: 13.5px; color: var(--ink-2, #42574b); }
 @media (max-width: 600px) { .ij-slotlar { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ij-urunler { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+/* Sayfa başlığı: panelin bölüm başlıklarıyla aynı dil -- solda yazı, sağda marka çekimi. */
+.ij-bas{position:relative;overflow:hidden;display:flex;align-items:center;min-height:190px;margin:12px 0 18px;padding:28px 32px;border:1px solid #dddccf;border-bottom:3px solid #7a3f6b;border-radius:14px;background:linear-gradient(90deg,#fffdf8 0%,#fffdf8 48%,#fffdf800 76%),url('/img/hero/gorselisleri.webp') right center/auto 100% no-repeat,#fffdf8}
+.ij-bas>div{max-width:560px}
+.ij-bas h1{margin:0 0 8px;font-size:clamp(28px,3.4vw,44px);font-weight:500;letter-spacing:-.04em;line-height:1.08}
+.ij-ust{margin:0 0 8px;font-size:12px;font-weight:600;letter-spacing:.02em;color:#7a3f6b}
+@media(max-width:700px){.ij-bas{background:#fffdf8;min-height:0;padding:20px}}
