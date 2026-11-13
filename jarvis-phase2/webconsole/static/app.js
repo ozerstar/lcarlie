@@ -5601,16 +5601,17 @@ function pzKanalKodu(kanal) {
     .replace(/ı/g, 'i').replace(/[^a-z0-9]/g, '');
 }
 
-/* Logosu elde olan kanallar (img/pazaryeri/). Kendi sitemizin logosu marka
- * monogramıdır; logosu olmayan kanal adıyla, renkli rozetle yazılır. */
-const PZ_LOGO = new Set(['trendyol', 'idefix', 'n11', 'hepsiburada']);
+/* Logosu elde olan kanallar (img/pazaryeri/). Kendi sitemiz (Wix) markanın
+ * "L’" işaretiyle gösterilir -- logodan kesildi, harfle yazılmadı (sahip
+ * 13.11.2026: "L’ var, LC diye bir şey yok bizde"). Logosu olmayan kanal
+ * adıyla, renkli rozetle yazılır. */
+const PZ_LOGO = { trendyol: 'trendyol', idefix: 'idefix', n11: 'n11', hepsiburada: 'hepsiburada', wix: 'site' };
 
 function pzLogo(kanal, ad) {
-  const kod = pzKanalKodu(kanal);
+  const dosya = PZ_LOGO[pzKanalKodu(kanal)];
+  if (!dosya) return '';
   const etiket = escapeHtml(ad || kanal || '').replace(/"/g, '&quot;');
-  if (kod === 'wix') return `<span class="pz-logo pz-logo-site" role="img" aria-label="${etiket}" title="${etiket}">L’C</span>`;
-  if (!PZ_LOGO.has(kod)) return '';
-  return `<img class="pz-logo" src="/img/pazaryeri/${kod}.png" alt="${etiket}" title="${etiket}" width="28" height="28">`;
+  return `<img class="pz-logo" src="/img/pazaryeri/${dosya}.png" alt="${etiket}" title="${etiket}" width="28" height="28">`;
 }
 
 function pzKanalRozeti(kanal, ad) {
