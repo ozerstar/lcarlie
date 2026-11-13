@@ -5601,8 +5601,21 @@ function pzKanalKodu(kanal) {
     .replace(/ı/g, 'i').replace(/[^a-z0-9]/g, '');
 }
 
+/* Logosu elde olan kanallar (img/pazaryeri/). Kendi sitemizin logosu marka
+ * monogramıdır; logosu olmayan kanal adıyla, renkli rozetle yazılır. */
+const PZ_LOGO = new Set(['trendyol', 'idefix', 'n11', 'hepsiburada']);
+
+function pzLogo(kanal, ad) {
+  const kod = pzKanalKodu(kanal);
+  const etiket = escapeHtml(ad || kanal || '').replace(/"/g, '&quot;');
+  if (kod === 'wix') return `<span class="pz-logo pz-logo-site" role="img" aria-label="${etiket}" title="${etiket}">L’C</span>`;
+  if (!PZ_LOGO.has(kod)) return '';
+  return `<img class="pz-logo" src="/img/pazaryeri/${kod}.png" alt="${etiket}" title="${etiket}" width="28" height="28">`;
+}
+
 function pzKanalRozeti(kanal, ad) {
-  return `<span class="pz-kanal pz-k-${pzKanalKodu(kanal)}">${escapeHtml(ad || kanal || '')}</span>`;
+  return pzLogo(kanal, ad)
+    || `<span class="pz-kanal pz-k-${pzKanalKodu(kanal)}">${escapeHtml(ad || kanal || '')}</span>`;
 }
 
 /* "MUĞLA", "seda çakırtaş" → "Muğla", "Seda Çakırtaş". Türkçe i/İ kuralıyla. */
@@ -5633,12 +5646,12 @@ async function loadPazaryeriSatis() {
   const kutular = kanallar.map((k) => {
     if (k.durum !== 'BAGLI') {
       return `<div class="pz-kutu pz-kutu-kapali">
-        <span class="pz-kutu-ad">${escapeHtml(k.ad || k.kanal)}</span>
+        <span class="pz-kutu-ad">${pzLogo(k.kanal, k.ad)}${escapeHtml(k.ad || k.kanal)}</span>
         <span class="pz-kutu-n">${escapeHtml(PZ_DURUM[k.durum] || k.durum)}</span>
         <span class="pz-kutu-not">${escapeHtml(k.not || '')}</span></div>`;
     }
     return `<div class="pz-kutu pz-k-${pzKanalKodu(k.kanal)}">
-      <span class="pz-kutu-ad">${escapeHtml(k.ad || k.kanal)}</span>
+      <span class="pz-kutu-ad">${pzLogo(k.kanal, k.ad)}${escapeHtml(k.ad || k.kanal)}</span>
       <span class="pz-kutu-n">${k.adet_30g}<small>sipariş</small></span>
       <span class="pz-kutu-ciro">${kargoPara(k.ciro_30g)}</span>
       <span class="pz-kutu-not">son 30 gün</span></div>`;
