@@ -46,7 +46,7 @@ TIER = {"TIER_50": 50, "TIER_250": 250, "TIER_1K": 1000, "TIER_10K": 10000,
 SAAT_TAVAN = 60                       # dakikada 1 -> saatte en fazla 60
 # Fren eşikleri (en az ORNEK teslimden sonra değerlendirilir)
 ORNEK = 40
-RED_ORANI = 0.05                      # "İstemiyorum" / teslim
+RED_ORANI = 0.08                      # "İstemiyorum" / teslim
 BASARISIZ_ORANI = 0.35                # sabit hatların çoğunda WhatsApp yok; bu
                                       # oran yüksek olabilir, ama ani sıçrama işaret
 KATALOG = "https://www.lcarlie.shop/_files/ugd/92cdbf_9a439a7872ad438ca0e0c7f6f908fe87.pdf"

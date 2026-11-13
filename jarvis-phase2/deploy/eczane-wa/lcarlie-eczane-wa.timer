@@ -2,7 +2,7 @@
 Description=Eczane WhatsApp kampanyasi: hafta ici 10:00-17:59 dakikada bir
 
 [Timer]
-OnCalendar=Mon..Fri *-*-* 10..17:*:00 Europe/Istanbul
+OnCalendar=Mon..Sat *-*-* 10..17:*:00 Europe/Istanbul
 AccuracySec=5s
 Persistent=false
 
