@@ -326,6 +326,51 @@ class Test(unittest.TestCase):
         self.assertIn(("seo_teknik", "COMPLETED"), olaylar)
         self.assertEqual(sum(1 for _, d in olaylar if d == "WORKING"), sum(1 for _, d in olaylar if d != "WORKING"))
 
+    def test_stop_before_model_does_not_consume_attempt(self):
+        iu = IsUretici(self.o, gunluk_tavan=50)
+        iu.gunluk()
+        before = self.agac()
+        calls = len(self.model.cagri)
+        result = iu.yurut(durdur=lambda: True)
+        self.assertEqual(result["durma_sebebi"], "STOP_REQUESTED")
+        self.assertEqual(len(self.model.cagri), calls)
+        self.assertEqual(self.agac(), before)
+
+    def test_budget_expiring_in_evidence_does_not_start_model(self):
+        from unittest.mock import patch
+        iu = IsUretici(self.o, gunluk_tavan=50)
+        iu.gunluk()
+        calls = len(self.model.cagri)
+        clock = [0]
+        def evidence(_dep):
+            clock[0] = 1210
+            return []
+        with patch("jarvis.is_uretici.time.monotonic", side_effect=lambda: clock[0]), patch.object(iu, "_kanitlar", side_effect=evidence):
+            result = iu.yurut(sure_sn=1200)
+        self.assertEqual(result["durma_sebebi"], "TIME_BUDGET")
+        self.assertEqual(len(self.model.cagri), calls)
+
+    def test_stop_in_model_checkpoints_delivery_and_does_not_repeat(self):
+        from unittest.mock import patch
+        iu = IsUretici(self.o, gunluk_tavan=50)
+        iu.gunluk()
+        stop = [False]
+        original = iu._model
+        def model(*args, **kwargs):
+            value = original(*args, **kwargs)
+            stop[0] = True
+            return value
+        with patch.object(iu, "_model", side_effect=model):
+            result = iu.yurut(durdur=lambda: stop[0])
+        self.assertEqual(result["teslim"], 1)
+        persisted = self.agac()
+        delivered = [g for d in persisted["departmanlar"].values() for g in d.get("gorevler", []) if g.get("durum") == "TESLIM_EDILDI"]
+        self.assertEqual(len(delivered), 1)
+        self.assertTrue(Path(delivered[0]["teslim"]["yol"]).exists())
+        calls = len(self.model.cagri)
+        iu.yurut()
+        self.assertEqual(len(self.model.cagri), calls)
+
     def test_yurut_sure_dolunca_yeni_ise_baslamaz(self):
         IsUretici(self.o, gunluk_tavan=50).gunluk()
         s = IsUretici(self.o, gunluk_tavan=50).yurut(sure_sn=0)
