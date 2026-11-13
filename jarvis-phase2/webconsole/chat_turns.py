@@ -69,20 +69,23 @@ def _append(turn_id: str, event: dict, status: str | None = None) -> None:
 def _run(turn_id: str, make_events: Callable[[], Iterator[dict]]) -> None:
     terminal = False
     tokens = ""
+    first_token_flushed = False
     last_flush = time.monotonic()
 
     def flush() -> None:
-        nonlocal tokens, last_flush
+        nonlocal tokens, last_flush, first_token_flushed
         if tokens:
             _append(turn_id, {"type": "token", "delta": tokens})
             tokens = ""
+            first_token_flushed = True
             last_flush = time.monotonic()
 
     try:
         for event in make_events():
             if event.get("type") == "token":
                 tokens += str(event.get("delta") or "")
-                if len(tokens) >= 48 or time.monotonic() - last_flush >= 0.12:
+                if tokens and (not first_token_flushed or len(tokens) >= 48
+                               or time.monotonic() - last_flush >= 0.12):
                     flush()
                 continue
             flush()
@@ -94,11 +97,11 @@ def _run(turn_id: str, make_events: Callable[[], Iterator[dict]]) -> None:
         flush()
         if not terminal:
             _append(turn_id, {"type": "error", "message": "Yanıt tamamlanamadı. Tekrar göndermeden önce iş durumunu kontrol edin."}, "ERROR")
-    except Exception:
+    except Exception:  # noqa: BLE001 - isolate producer failures and preserve turn status
         try:
             flush()
             _append(turn_id, {"type": "error", "message": "Yanıt tamamlanamadı. İşlem durumunu kontrol edin."}, "ERROR")
-        except Exception:
+        except Exception:  # noqa: BLE001 - storage may itself be unavailable
             pass
     finally:
         with _lock:

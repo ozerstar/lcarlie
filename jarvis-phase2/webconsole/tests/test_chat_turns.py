@@ -52,6 +52,32 @@ class ChatTurnTests(unittest.TestCase):
         chat_turns.start_or_resume(turn_id, "owner", "personal", None, events)
         self.assertEqual(len(called), 1)
 
+
+    def test_first_short_token_is_saved_before_producer_continues(self):
+        turn_id = str(uuid.uuid4())
+        producer_waiting = threading.Event()
+        release = threading.Event()
+        def events():
+            yield {"type": "token", "delta": ""}
+            yield {"type": "token", "delta": "İlk"}
+            producer_waiting.set()
+            release.wait(2)
+            yield {"type": "token", "delta": " yanıt"}
+            yield {"type": "done", "result": {"text": "İlk yanıt"}}
+        try:
+            # No elapsed-time threshold or next event may be required.
+            with patch.object(chat_turns.time, "monotonic", return_value=100.0):
+                chat_turns.start_or_resume(turn_id, "owner", "work", "sentetik", events)
+                self.assertTrue(producer_waiting.wait(1))
+                frames, status = chat_turns.read_after(turn_id, "owner", 0)
+                self.assertEqual(status, "RUNNING")
+                self.assertEqual([f["delta"] for f in frames if f["type"] == "token"], ["İlk"])
+        finally:
+            release.set()
+            frames, status = self._finished(turn_id)
+        self.assertEqual(status, "DONE")
+        self.assertEqual("".join(f["delta"] for f in frames if f["type"] == "token"), "İlk yanıt")
+
     def test_owner_and_message_are_bound_to_turn(self):
         turn_id = str(uuid.uuid4())
         chat_turns.start_or_resume(turn_id, "owner", "work", "Birinci", lambda: iter([
