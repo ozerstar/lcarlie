@@ -38,11 +38,20 @@ KOK = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(KOK))
 
 TR = timezone(timedelta(hours=3))
-SURE_DK = 30          # ziyaret 15 dk + pay
-ARALIK_DK = 45        # slot başlangıçları arası (yol dahil)
+# Sahip 13.11.2026: "bir iş bloke yapıldığında 1 saatlik alanı kapatalım; anlattı,
+# gitti, geldi, yolu uzun sürer". Bir randevu takvimde 60 dk kapatır (DB'deki
+# bitiş = başlangıç + BLOK_DK, çakışma kapısı bu aralıkla çalışır).
+ZIYARET_DK = 30       # eczanede geçen süre (15 dk tanışma + pay)
+BLOK_DK = 60          # ziyaret + yol: takvimde kapanan alan
 GUN_SAYISI = 10       # kaç iş günü ileriye
 ILK_GUN = 1           # en erken yarın
-SAATLER = [(10, 0), (10, 45), (11, 30), (13, 30), (14, 15), (15, 0), (15, 45), (16, 30)]
+SAATLER = [(10, 0), (11, 0), (12, 0), (14, 0), (15, 0), (16, 0), (17, 0)]
+# Yol süresi: kuş uçuşu mesafe / Ankara içi ortalama hız + park/yürüme payı.
+# Kuş uçuşu gerçek yoldan kısadır; hız düşük tutularak telafi edilir. Konumu
+# bilinmeyen eczanede yol, bloğun içindeki 30 dk sayılır.
+YOL_HIZ_KMS = 22.0
+YOL_PAY_DK = 10
+YAKIN_KM = 3.0        # "yakınınızda ziyaretimiz var" önerisi
 ANAHTAR_RE = re.compile(r"^[0-9a-f]{24}$")
 SAYFA = (Path(__file__).resolve().parent / "eczane-randevu.html")
 _hiz: dict[str, list[float]] = {}
@@ -64,8 +73,8 @@ def psql(sql: str, **degisken: str) -> list[dict]:
 def hedef(anahtar: str) -> dict | None:
     if not ANAHTAR_RE.match(anahtar or ""):
         return None
-    r = psql("SELECT row_to_json(x) FROM (SELECT id, eczane, il, durum FROM core.eczane_hedef"
-             " WHERE anahtar = :'a') x;", a=anahtar)
+    r = psql("SELECT row_to_json(x) FROM (SELECT id, eczane, il, durum, enlem, boylam"
+             " FROM core.eczane_hedef WHERE anahtar = :'a') x;", a=anahtar)
     return r[0] if r else None
 
 
@@ -74,22 +83,64 @@ def etkilesim(hedef_id: int, tur: str, ayrinti: dict | None = None) -> None:
          h=str(hedef_id), t=tur, d=json.dumps(ayrinti or {}, ensure_ascii=False))
 
 
-def bos_saatler() -> list[dict]:
-    dolu = psql("SELECT row_to_json(x) FROM (SELECT baslangic, bitis FROM core.eczane_randevu"
-                " WHERE durum <> 'IPTAL' AND bitis > now()) x;")
-    araliklar = [(datetime.fromisoformat(d["baslangic"]), datetime.fromisoformat(d["bitis"]))
-                 for d in dolu]
+def mesafe_km(a: tuple | None, b: tuple | None) -> float | None:
+    if not a or not b or None in a or None in b:
+        return None
+    from math import asin, cos, radians, sin, sqrt
+    la1, lo1, la2, lo2 = map(radians, (a[0], a[1], b[0], b[1]))
+    h = sin((la2 - la1) / 2) ** 2 + cos(la1) * cos(la2) * sin((lo2 - lo1) / 2) ** 2
+    return 2 * 6371 * asin(sqrt(h))
+
+
+def yol_dk(a: tuple | None, b: tuple | None) -> float:
+    km = mesafe_km(a, b)
+    return BLOK_DK - ZIYARET_DK if km is None else YOL_PAY_DK + km / YOL_HIZ_KMS * 60
+
+
+def bos_saatler(h: dict) -> list[dict]:
+    """Bu eczane için boş saatler.
+
+    1) Takvimde 60 dk'lık bloklar çakışamaz (DB kapısının aynısı).
+    2) Rota: aynı gün önceki ziyaretin bitişinden buraya, buradan sonraki
+       ziyarete yol yetişmeli. Uzak iki eczane art arda saate düşmez.
+    3) Aynı gün YAKIN_KM içinde ziyaret varsa komşu saat "yakın" işaretlenir.
+    """
+    dolu = psql("SELECT row_to_json(x) FROM (SELECT r.baslangic, r.bitis, e.enlem, e.boylam"
+                " FROM core.eczane_randevu r JOIN core.eczane_hedef e ON e.id = r.hedef_id"
+                " WHERE r.durum <> 'IPTAL' AND r.bitis > now() AND r.hedef_id <> :'h') x;",
+                h=str(h["id"]))
+    ziyaretler = [(datetime.fromisoformat(d["baslangic"]), datetime.fromisoformat(d["bitis"]),
+                   (d.get("enlem"), d.get("boylam"))) for d in dolu]
+    ben = (h.get("enlem"), h.get("boylam"))
     gunler, gun, eklenen = [], datetime.now(TR).date() + timedelta(days=ILK_GUN), 0
     while eklenen < GUN_SAYISI:
         if gun.weekday() < 5:
-            saatler = []
+            saatler, yakin = [], []
+            o_gun = [z for z in ziyaretler if z[0].astimezone(TR).date() == gun]
             for s, d in SAATLER:
                 b = datetime(gun.year, gun.month, gun.day, s, d, tzinfo=TR)
-                e = b + timedelta(minutes=SURE_DK)
-                if not any(b < y and e > x for x, y in araliklar):
+                e = b + timedelta(minutes=BLOK_DK)
+                if any(b < y and e > x for x, y, _ in ziyaretler):
+                    continue
+                uygun, komsu_yakin = True, False
+                for x, _y, konum in o_gun:
+                    if x < b:      # önceki ziyaret: oradaki işin bitişinden buraya yol
+                        bosluk = (b - (x + timedelta(minutes=ZIYARET_DK))).total_seconds() / 60
+                        if bosluk < yol_dk(konum, ben):
+                            uygun = False
+                    else:          # sonraki ziyaret: buradaki işin bitişinden oraya yol
+                        bosluk = (x - (b + timedelta(minutes=ZIYARET_DK))).total_seconds() / 60
+                        if bosluk < yol_dk(ben, konum):
+                            uygun = False
+                    km = mesafe_km(konum, ben)
+                    if km is not None and km <= YAKIN_KM and abs((x - b).total_seconds()) <= 2 * 3600:
+                        komsu_yakin = True
+                if uygun:
                     saatler.append(b.isoformat())
+                    if komsu_yakin:
+                        yakin.append(b.isoformat())
             if saatler:
-                gunler.append({"gun": gun.isoformat(), "saatler": saatler})
+                gunler.append({"gun": gun.isoformat(), "saatler": saatler, "yakin": yakin})
             eklenen += 1
         gun += timedelta(days=1)
     return gunler
@@ -163,7 +214,7 @@ class Y(BaseHTTPRequestHandler):
             acik = psql("SELECT row_to_json(x) FROM (SELECT baslangic, durum FROM core.eczane_randevu"
                         " WHERE hedef_id = :'h' AND durum IN ('TALEP','ONAYLANDI')) x;", h=str(h["id"]))
             return self._json(200, {"eczane": h["eczane"], "il": h["il"], "mevcut": acik[0] if acik else None,
-                                    "gunler": bos_saatler()})
+                                    "gunler": bos_saatler(h)})
         if u.path == "/randevu/cikis":
             h = hedef(t)
             if h:
@@ -198,10 +249,10 @@ class Y(BaseHTTPRequestHandler):
             bas = datetime.fromisoformat(str(v.get("saat")))
         except ValueError:
             return self._json(400, {"hata": "Saat seçin."})
-        gecerli = {s for g in bos_saatler() for s in g["saatler"]}
+        gecerli = {s for g in bos_saatler(h) for s in g["saatler"]}
         if bas.isoformat() not in gecerli:
             return self._json(409, {"hata": "Bu saat az önce doldu. Lütfen başka bir saat seçin."})
-        r = dict(baslangic=bas.isoformat(), bitis=(bas + timedelta(minutes=SURE_DK)).isoformat(),
+        r = dict(baslangic=bas.isoformat(), bitis=(bas + timedelta(minutes=BLOK_DK)).isoformat(),
                  yetkili=yetkili, unvan=str(v.get("unvan") or "")[:40], telefon=telefon,
                  ilgi=", ".join(str(x)[:30] for x in (v.get("ilgi") or [])[:8]),
                  notu=str(v.get("not") or "").strip()[:500])
