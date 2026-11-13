@@ -24,6 +24,7 @@ import base64
 import json
 import sys
 import urllib.parse
+import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -32,10 +33,11 @@ sys.path.insert(0, str(KOK))
 
 from jarvis import pazaryeri, haberci  # noqa: E402
 
-SABLON = "lcarlie_kargo_listesi_v1"
+SABLON_ON_EK = "lcarlie_kargo_satirli_v2_"
 TR = timezone(timedelta(hours=3))
-# Şablon parametresi tek satır olmalı; gövde 1024 karakteri aşamaz.
-PARCA_TAVAN = 850
+# Satır sonları Meta'da onaylı şablonların sabit metninde bulunur.
+# Parametreler tek satırdır; 10 satırın üzeri panelde gösterilir.
+SATIR_TAVAN = 10
 
 GITMIS = ("shipped", "deliver", "cancel", "return", "refund", "in_cargo",
           "completed", "teslim", "iptal", "iade", "kargoda")
@@ -69,6 +71,7 @@ def trendyol() -> list[dict]:
             "Authorization": "Basic " + yetki,
             "User-Agent": "%s - SelfIntegration" % sid}))
         for p in veri.get("content") or []:
+            a = p.get("shipmentAddress") or {}
             cikti.append({
                 "kanal": "Trendyol", "no": str(p.get("orderNumber")),
                 "kargo": (p.get("cargoProviderName") or "?").replace(" Marketplace", ""),
@@ -76,7 +79,15 @@ def trendyol() -> list[dict]:
                 "musteri": ("%s %s" % (p.get("customerFirstName") or "",
                                        p.get("customerLastName") or "")).strip(),
                 "urunler": _urunler([{"ad": s.get("productName"), "adet": s.get("quantity")}
-                                     for s in p.get("lines") or []])})
+                                     for s in p.get("lines") or []]),
+                # Etiket alanları (kargo-bekleyen.py): sabah mesajı bunları okumaz.
+                "alici": str(a.get("fullName") or "").strip(),
+                "adres": " ".join(str(x).strip() for x in (
+                    a.get("address1"), a.get("address2"), a.get("neighborhood")) if x),
+                "ilce": str(a.get("district") or ""), "il": str(a.get("city") or ""),
+                "telefon": str(a.get("phone") or ""),
+                "paket_no": str(p.get("shipmentPackageId") or p.get("id") or ""),
+                "durum": str(p.get("shipmentPackageStatus") or "")})
     return cikti
 
 
@@ -92,14 +103,21 @@ def idefix() -> list[dict]:
     for p in veri.get("items") or []:
         if _gitmis_mi(str(p.get("status"))):
             continue
+        a = p.get("shippingAddress") or {}
         cikti.append({
             "kanal": "İdefix", "no": str(p.get("orderNumber")),
             "kargo": p.get("cargoCompany") or "?",
             "kod": str(p.get("cargoTrackingNumber") or p.get("cargoKey") or "kod yok"),
-            "musteri": str(p.get("customerContactName") or
-                           (p.get("shippingAddress") or {}).get("fullName") or ""),
+            "musteri": str(p.get("customerContactName") or a.get("fullName") or ""),
             "urunler": _urunler([{"ad": i.get("productName"), "adet": 1}
-                                 for i in p.get("items") or []])})
+                                 for i in p.get("items") or []]),
+            "alici": str(a.get("fullName") or "").strip(),
+            "adres": " ".join(str(x).strip() for x in (
+                a.get("address1"), a.get("neighboorhood")) if x),
+            "ilce": str(a.get("county") or ""), "il": str(a.get("city") or ""),
+            "telefon": str(a.get("phone") or ""),
+            "paket_no": str(p.get("id") or ""),
+            "durum": str(p.get("statusDescription") or p.get("status") or "")})
     return cikti
 
 
@@ -154,30 +172,61 @@ def topla() -> tuple[list[dict], list[str]]:
     return satirlar, okunamayan
 
 
-def parcala(satirlar: list[dict], okunamayan: list[str]) -> list[str]:
+def tek_mesaj(satirlar: list[dict], okunamayan: list[str], tarih: str) -> tuple[str, list[str]]:
     adetler: dict[str, int] = {}
     for r in satirlar:
         adetler[r["musteri"]] = adetler.get(r["musteri"], 0) + 1
     ogeler = []
-    for i, r in enumerate(satirlar, 1):
+    gosterilecek = satirlar if len(satirlar) <= SATIR_TAVAN else satirlar[:SATIR_TAVAN - 1]
+    for r in gosterilecek:
         ek = " (aynı alıcı)" if adetler[r["musteri"]] > 1 else ""
-        ogeler.append("%d) %s %s · %s · kod %s · %s%s · %s" % (
-            i, r["kanal"], r["no"], r["kargo"], r["kod"], r["musteri"] or "-", ek,
-            r["urunler"]))
-    if not ogeler:
-        ogeler = ["Bekleyen sipariş yok."]
-    if okunamayan:
-        ogeler.append("⚠️ Okunamayan kanal: " + ", ".join(okunamayan))
-    parcalar, simdi = [], ""
-    for o in ogeler:
-        aday = (simdi + " ▸ " + o) if simdi else o
-        if len(aday) > PARCA_TAVAN and simdi:
-            parcalar.append(simdi)
-            simdi = o
-        else:
-            simdi = aday
-    parcalar.append(simdi)
-    return parcalar
+        oge = "%s %s · %s · kod %s · %s%s · %s" % (
+            r["kanal"], r["no"], r["kargo"], r["kod"], r["musteri"] or "-", ek,
+            r["urunler"])
+        ogeler.append(oge[:220] + "…" if len(oge) > 220 else oge)
+    if len(satirlar) > SATIR_TAVAN:
+        ogeler.append("Diğer %d siparişin listesi Jarvis panelinde." %
+                      (len(satirlar) - len(gosterilecek)))
+    durum = ("⚠️ Okunamayan kanal: " + ", ".join(okunamayan)
+             if okunamayan else "Tüm kanallar okundu.")
+    return SABLON_ON_EK + str(len(ogeler)), [tarih, str(len(satirlar)), *ogeler, durum]
+
+
+def _sablon_onayli(sablon: str) -> bool:
+    """Meta onayını her sabah doğrula; bekleyen şablonu göndermeye çalışma."""
+    from jarvis import whatsapp
+    token = whatsapp._env("META_WHATSAPP_TOKEN")
+    waba = whatsapp._env("META_WABA_ID")
+    if not token or not waba:
+        return False
+    url = "https://graph.facebook.com/v21.0/%s/message_templates?%s" % (
+        waba, urllib.parse.urlencode({"name": sablon, "fields": "name,status"}))
+    try:
+        istek = urllib.request.Request(url, headers={"Authorization": "Bearer " + token})
+        with urllib.request.urlopen(istek, timeout=15) as yanit:
+            veri = json.load(yanit)
+        return any(k.get("name") == sablon and k.get("status") == "APPROVED"
+                   for k in veri.get("data", []))
+    except Exception:  # noqa: BLE001 -- onay sorgusu aksarsa eski şablon kullanılır
+        return False
+
+
+def _eski_sablon_degerleri(degerler: list[str]) -> list[str]:
+    """Onay beklerken de yalnız tek bildirim gönder."""
+    tarih, toplam, *kalan = degerler
+    durum = kalan.pop()
+    ogeler = []
+    for i, oge in enumerate(kalan, 1):
+        aday = " ▸ ".join([*ogeler, "%d) %s" % (i, oge)])
+        if len(aday.encode("utf-8")) > 650:
+            break
+        ogeler.append("%d) %s" % (i, oge))
+    metin = " ▸ ".join(ogeler) or "Bekleyen sipariş yok."
+    if len(ogeler) < len(kalan):
+        metin += " · Kalan siparişler Jarvis panelinde."
+    if durum != "Tüm kanallar okundu.":
+        metin += " · " + durum
+    return [tarih, toplam, metin]
 
 
 def main() -> int:
@@ -186,17 +235,16 @@ def main() -> int:
     a = ap.parse_args()
     satirlar, okunamayan = topla()
     tarih = datetime.now(TR).strftime("%d.%m.%Y")
-    parcalar = parcala(satirlar, okunamayan)
-    for n, parca in enumerate(parcalar, 1):
-        baslik = tarih if len(parcalar) == 1 else "%s (%d/%d)" % (tarih, n, len(parcalar))
-        degerler = [baslik, str(len(satirlar)), parca]
-        if a.kuru:
-            print(" | ".join(degerler))
-            continue
-        from jarvis import whatsapp
-        sonuc = whatsapp.sablon_gonder(haberci.SAHIP_TELEFON, SABLON, degerler,
-                                       onay_kaynagi="jarvis-otomatik")
-        print("gonderildi", n, sonuc.get("wamid"))
+    sablon, degerler = tek_mesaj(satirlar, okunamayan, tarih)
+    if not _sablon_onayli(sablon):
+        sablon, degerler = "lcarlie_kargo_listesi_v1", _eski_sablon_degerleri(degerler)
+    if a.kuru:
+        print(sablon, "|", " | ".join(degerler))
+        return 1 if okunamayan else 0
+    from jarvis import whatsapp
+    sonuc = whatsapp.sablon_gonder(haberci.SAHIP_TELEFON, sablon, degerler,
+                                   onay_kaynagi="jarvis-otomatik")
+    print("gonderildi", sonuc.get("wamid"))
     return 1 if okunamayan else 0
 
 

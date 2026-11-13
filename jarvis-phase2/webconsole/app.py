@@ -2322,6 +2322,16 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(503, {"error": f"kargo okunamadı: {str(exc)[:200]}"})
             return
 
+        if path == "/api/pazaryeri-satis":
+            # E-TİCARET › pazaryeri satışları: sipariş nöbetçisinin yazdığı
+            # tablo + kanal bağlantı durumu. Yalnız okur.
+            from jarvis import pazaryeri_panel
+            try:
+                self._send_json(200, pazaryeri_panel.gorunum())
+            except Exception as exc:  # noqa: BLE001
+                self._send_json(503, {"error": f"pazaryeri satışları okunamadı: {str(exc)[:200]}"})
+            return
+
         if path == "/api/musteri":
             # 🔴 Ad/telefon/e-posta İSTEK ANINDA okunur, hiçbir yere
             # yazılmaz. Oturum kapısının arkasında; `_route_api_get` bu

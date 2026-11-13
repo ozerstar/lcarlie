@@ -4741,3 +4741,7 @@ html[data-lcarlie-theme] body.rol-ofis #mainNav .nav-group[hidden],
 .km-rozet.is-ACTIVE { color: #78be82; }
 .km-rozet.is-PAUSED { color: var(--ivory-2); }
 .km-iki { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+
+/* -- e-ticaret: pazaryeri satış tablosu dar ekranda yana kayar -- */
+.pz-tablo-sar { overflow-x: auto; margin-top: 14px; }
+.pz-tablo-sar .kg-tablo { min-width: 720px; }

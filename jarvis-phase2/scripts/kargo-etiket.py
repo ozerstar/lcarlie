@@ -44,6 +44,7 @@ from docx.enum.table import WD_ROW_HEIGHT_RULE, WD_TABLE_ALIGNMENT  # noqa: E402
 from docx.enum.text import WD_ALIGN_PARAGRAPH  # noqa: E402
 from docx.shared import Mm, Pt  # noqa: E402
 
+from jarvis import kargo_bekleyen  # noqa: E402
 from jarvis.basitkargo import Kargo, KargoHatasi  # noqa: E402
 
 # --- HB-1006 geometrisi (şablondan ölçüldü, 21.09.2026) ---
@@ -252,8 +253,17 @@ def main() -> int:
     ap.add_argument("--cikti", default=None)
     a = ap.parse_args()
 
-    k = Kargo()
     idler = list(a.siparis)
+    # 🔴 BasitKargo'ya yalnız GEREKİRSE bağlanılır. Seçilenlerin hepsi
+    # pazaryeri paketiyse (`PZ:…`) BasitKargo'nun erişilemez olması etiket
+    # basmayı durdurmamalı.
+    k = None
+    if a.son or any(not s.startswith(kargo_bekleyen.ON_EK) for s in idler):
+        try:
+            k = Kargo()
+        except KargoHatasi as hata:
+            print(f"BasitKargo'ya bağlanılamadı: {hata}", file=sys.stderr)
+            return 1
 
     if a.son:
         # Kodlanmış (barkodu olan) gönderiler; etiketi olmayanı istemek
@@ -274,6 +284,16 @@ def main() -> int:
 
     etiketler: list[tuple[str, bytes]] = []
     for sid in idler:
+        if sid.startswith(kargo_bekleyen.ON_EK):
+            # Pazaryeri paketi: kargo kodunu pazaryeri verdi, etiketi biz
+            # çizeriz (uçta indirilecek hazır etiket yok).
+            try:
+                etiketler.append((sid, kargo_bekleyen.etiket_png(
+                    kargo_bekleyen.paket_bul(sid))))
+                print(f"  {sid}: 1 etiket")
+            except Exception as hata:  # noqa: BLE001
+                print(f"  {sid}: etiket çizilemedi — {str(hata)[:140]}", file=sys.stderr)
+            continue
         try:
             pngler = etiket_getir(k, sid)
         except KargoHatasi as hata:

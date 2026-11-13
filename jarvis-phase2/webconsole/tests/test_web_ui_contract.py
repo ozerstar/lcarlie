@@ -136,6 +136,8 @@ KNOWN_ROUTES = {
     # Kargo: taslak -> fiyat -> barkod -> etiket zinciri ve kapida odeme.
     "/api/kargo", "/api/kargo/taslak", "/api/kargo/fiyat",
     "/api/kargo/barkod", "/api/kargo/etiket", "/api/kargo/kapida",
+    # E-ticaret: pazaryeri siparisleri ve kanal baglanti durumu.
+    "/api/pazaryeri-satis",
     # Iade ve degisiklik onerisi.
     "/api/iade", "/api/degisiklik",
     # Kreatif: itiraz akisi ve parti ekrani.

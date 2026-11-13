@@ -291,7 +291,7 @@ function setView(name) {
   });
   if (name === 'gorevler') { refreshActivity(); refreshProposals(); refreshOrchestration(); }
   if (name === 'fiyat') loadFiyatMatrisi();
-  if (name === 'eticaret') loadUrunAlanlari();
+  if (name === 'eticaret') { loadPazaryeriSatis(); loadUrunAlanlari(); }
   if (name === 'satislar') loadSatislar();
   if (name === 'kargo') loadKargo();
   if (name === 'musteri') loadMusteri();
@@ -5568,6 +5568,70 @@ document.addEventListener('click', async (e) => {
  * tıklanan bir düğme burada gerçek para demek.
  */
 
+/* ------------------------------------------------------------------
+   E-TİCARET · PAZARYERİ SATIŞLARI
+   Sipariş nöbetçisinin her kanaldan okuyup yazdığı siparişler. Kanalın
+   bağlantı durumu ayrı gösterilir: "sipariş yok" ile "okuyamıyoruz"
+   aynı şey değil.
+   ------------------------------------------------------------------ */
+const PZ_DURUM = {
+  BAGLI: 'bağlı', KIMLIK_YOK: 'bağlı değil', OKUNAMIYOR: 'okunamıyor',
+};
+
+function pzSiparisDurumu(d) {
+  const k = String(d || '').toLowerCase();
+  if (/cancel|iptal/.test(k)) return 'iptal';
+  if (/return|iade|refund/.test(k)) return 'iade';
+  if (/deliver|teslim|completed/.test(k)) return 'teslim edildi';
+  if (/shipped|in_cargo|kargoda/.test(k)) return 'kargoda';
+  if (/picking|created|invoiced|awaiting|hazir/.test(k)) return 'hazırlanıyor';
+  if (k === 'paid') return 'ödendi';
+  if (k === 'not_paid') return 'ödenmedi';
+  return String(d || '—');
+}
+
+async function loadPazaryeriSatis() {
+  const kutu = qs('pzGovde');
+  if (!kutu) return;
+  const { ok, body } = await api('/api/pazaryeri-satis');
+  const sayac = qs('pzCount');
+  if (!ok || !body || body.error) {
+    if (sayac) sayac.textContent = 'hata';
+    kutu.innerHTML = `<p class="o-uyari">${escapeHtml((body && body.error) || 'Pazaryeri satışları okunamadı.')}</p>`;
+    return;
+  }
+  const kanallar = body.kanallar || [];
+  const siparisler = body.siparisler || [];
+  if (sayac) sayac.textContent = `${siparisler.length} sipariş`;
+  const kutular = kanallar.map((k) => `
+    <div class="ek-tile ${k.durum === 'BAGLI' ? '' : 'ek-tile-uyari'}">
+      <span class="ek-k">${escapeHtml(k.ad || k.kanal)}</span>
+      <span class="ek-n">${k.durum === 'BAGLI' ? k.adet_30g : '—'}</span>
+      <span class="ek-k">${k.durum === 'BAGLI'
+        ? `30 günde sipariş · ${kargoPara(k.ciro_30g)}`
+        : escapeHtml(PZ_DURUM[k.durum] || k.durum)}</span>
+      ${k.durum === 'BAGLI' ? '' : `<span class="kg-bedava">${escapeHtml(k.not || '')}</span>`}
+    </div>`).join('');
+  const satirlar = siparisler.map((s) => `<tr>
+      <td>${kargoTarih(s.zaman)}</td>
+      <td>${escapeHtml(s.kanal_adi || s.kanal)}</td>
+      <td>${escapeHtml(s.siparis_no || '')}</td>
+      <td>${escapeHtml(s.musteri || '—')}</td>
+      <td>${escapeHtml(s.sehir || '')}</td>
+      <td>${escapeHtml(s.urunler || '—')}</td>
+      <td>${kargoPara(s.tutar)}</td>
+      <td>${escapeHtml(pzSiparisDurumu(s.durum))}</td></tr>`).join('');
+  kutu.innerHTML = `<div class="ek-ozet">${kutular}</div>
+    <div class="dk-dugmeler"><button type="button" class="dk-btn" id="pzKargoBtn">KARGO ETİKETLERİNE GİT</button></div>
+    <div class="pz-tablo-sar"><table class="kg-tablo"><thead><tr>
+      <th>tarih</th><th>kanal</th><th>sipariş</th><th>müşteri</th><th>şehir</th>
+      <th>ürünler</th><th>tutar</th><th>durum</th>
+    </tr></thead><tbody>${satirlar ||
+      '<tr><td colspan="8">Henüz sipariş yok.</td></tr>'}</tbody></table></div>`;
+  const git = qs('pzKargoBtn');
+  if (git) git.addEventListener('click', () => setView('kargo'));
+}
+
 let kargoVeri = null;
 let kargoSecili = new Set();
 
@@ -5648,6 +5712,59 @@ function kargoSatir(g) {
   </article>`;
 }
 
+/* Pazaryerinin kendi kargo koduyla gidecek paket (Trendyol, İdefix…).
+ * BasitKargo'dan barkod alınmaz; etiketi seçilip aynı sayfaya dizilir. */
+function kargoPazaryeriSatir(p) {
+  const id = escapeHtml(String(p.anahtar || ''));
+  const secili = kargoSecili.has(p.anahtar) ? 'checked' : '';
+  return `<article class="kg-kart" data-kg-id="${id}">
+    <header class="kg-ust">
+      ${p.etiket ? `<label class="kg-sec"><input type="checkbox" data-kg-sec="${id}" ${secili}>
+        <span>etiket</span></label>` : ''}
+      <div class="kg-kim">
+        <b>${escapeHtml(p.alici || '—')}</b>
+        <span>${escapeHtml(p.nere || '')}</span>
+      </div>
+      <div class="kg-durum">
+        <span class="kg-rozet kg-rozet-kapida">${escapeHtml(p.kanal || '')}</span>
+        <span class="kg-son">${escapeHtml(p.durum || '')}</span>
+      </div>
+    </header>
+    <div class="kg-orta">
+      <p class="kg-icerik">${escapeHtml(p.urunler || '—')}</p>
+    </div>
+    <footer class="kg-alt">
+      <span class="kg-tasiyici">${escapeHtml(p.kargo || 'taşıyıcı belli değil')}</span>
+      <span class="kg-barkod">kod ${escapeHtml(p.kod || 'yok')}</span>
+      <span>sipariş ${escapeHtml(p.no || '')}</span>
+      ${p.etiket ? '' : '<span>etiketi pazaryeri kodu gelince ya da BasitKargo gönderisinden alınır</span>'}
+    </footer>
+  </article>`;
+}
+
+function kargoPazaryeriBlok() {
+  const pz = kargoVeri.pazaryeri || {};
+  const paketler = pz.paketler || [];
+  const uyari = [];
+  if (pz.hata) uyari.push(pz.hata);
+  if (pz.bayat && !pz.hata) {
+    uyari.push(`Bu liste ${pz.yas_dakika ?? '?'} dakika önce okundu; yenisi alınamıyor olabilir.`);
+  }
+  if ((pz.okunamayan || []).length) {
+    uyari.push(`Okunamayan kanal: ${pz.okunamayan.join(', ')} — bu kanalda paket olabilir.`);
+  }
+  const yas = pz.hata || pz.bayat ? ''
+    : `${pz.yas_dakika || 0} dk önce okundu · 5 dakikada bir yenilenir`;
+  const etiketli = paketler.filter((p) => p.etiket).map((p) => p.anahtar);
+  return `<section class="kg-bolum">
+    <h3>PAZARYERİ PAKETLERİ <span class="kg-alt-baslik">kargoya verilecek · ${escapeHtml(yas)}</span></h3>
+    ${uyari.map((u) => `<p class="o-uyari">${escapeHtml(u)}</p>`).join('')}
+    ${etiketli.length > 1 ? `<button type="button" class="dk-btn" id="kargoPzHepsi">HEPSİNİ SEÇ</button>` : ''}
+    <div class="kg-liste">${paketler.map(kargoPazaryeriSatir).join('') ||
+      (pz.hata ? '' : '<p class="fm-empty">Kargoya verilecek pazaryeri paketi yok.</p>')}</div>
+  </section>`;
+}
+
 function kargoYeniForm() {
   const turler = (kargoVeri.odeme_turleri || ['CASH', 'CREDIT_CARD']).map((t) =>
     `<option value="${escapeHtml(t)}">${t === 'CASH' ? 'nakit' : 'kredi kartı'}</option>`).join('');
@@ -5695,7 +5812,10 @@ function renderKargo() {
   const yolda = liste.filter((g) => g.kargoya_verildi && !g.teslim_edildi).length;
   const kapidaAdet = liste.filter((g) => g.karsi_odemeli).length;
 
+  const pzAdet = ((kargoVeri.pazaryeri || {}).paketler || []).length;
   const ozet = `<div class="ek-ozet">
+    <div class="ek-tile ${pzAdet ? 'ek-tile-uyari' : ''}">
+      <span class="ek-n">${pzAdet}</span><span class="ek-k">pazaryeri paketi bekliyor</span></div>
     <div class="ek-tile"><span class="ek-n">${liste.length}</span><span class="ek-k">gönderi</span></div>
     <div class="ek-tile ${barkodsuz ? 'ek-tile-uyari' : ''}">
       <span class="ek-n">${barkodsuz}</span><span class="ek-k">barkod bekliyor</span></div>
@@ -5726,8 +5846,8 @@ function renderKargo() {
         <td>${escapeHtml(k.veren || '')}</td></tr>`).join('')}
     </tbody></table></section>` : '';
 
-  kutu.innerHTML = hata + ozet + kargoYeniForm() + etiketCubugu
-    + `<section class="kg-bolum"><h3>GÖNDERİLER</h3>
+  kutu.innerHTML = hata + ozet + etiketCubugu + kargoPazaryeriBlok() + kargoYeniForm()
+    + `<section class="kg-bolum"><h3>GÖNDERİLER <span class="kg-alt-baslik">BasitKargo</span></h3>
        <div class="kg-liste">${liste.map(kargoSatir).join('') ||
          '<p class="fm-empty">Gönderi yok.</p>'}</div></section>`
     + kararBlok
@@ -5768,6 +5888,15 @@ function kargoBagla() {
       if (btn) btn.disabled = kargoSecili.size === 0;
     });
   });
+
+  const pzHepsi = qs('kargoPzHepsi');
+  if (pzHepsi) {
+    pzHepsi.addEventListener('click', () => {
+      ((kargoVeri.pazaryeri || {}).paketler || [])
+        .filter((p) => p.etiket).forEach((p) => kargoSecili.add(p.anahtar));
+      renderKargo();
+    });
+  }
 
   kutu.querySelectorAll('[data-kg-fiyat]').forEach((btn) => {
     btn.addEventListener('click', () => kargoFiyatSor(btn.dataset.kgFiyat, btn));

@@ -1,0 +1,12 @@
+[Unit]
+Description=L'CARLIE kargoya verilecek pazaryeri paketleri (panel icin)
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+EnvironmentFile=/etc/lcarlie/jarvis-web.env
+EnvironmentFile=/etc/lcarlie/siparis-nobetci.env
+ExecStart=/opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/kargo-bekleyen.py
+# 1 = bir kanal okunamadi; dosya yine yazilir ve panel kanali adiyla gosterir.
+SuccessExitStatus=1

@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#f7f5ef">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
-  <link rel="stylesheet" href="/app.css?v=10">
+  <link rel="stylesheet" href="/app.css?v=11">
   <link rel="stylesheet" href="/experience.css?v=2">
   <link rel="stylesheet" href="/leadership.css?v=4">
   <link rel="stylesheet" href="/desktop-editorial.css?v=7">
@@ -507,6 +507,18 @@
 </main>
 
 <main class="stage stage-single view-panel" id="viewEticaret" hidden>
+  <section class="panel" aria-label="PAZARYERİ SATIŞLARI">
+    <div class="panel-head">
+      <h2 class="panel-title">E-TİCARET · PAZARYERİ SATIŞLARI</h2>
+      <span class="panel-count" id="pzCount">—</span>
+    </div>
+    <div class="panel-body sect-body">
+      <p class="fm-sub">Her pazaryerinin siparişi kendi entegrasyonundan iki
+      dakikada bir okunur. Kargoya verilecek paketlerin etiketi KARGO
+      sekmesinde.</p>
+      <div id="pzGovde"><p class="fm-empty">Yükleniyor…</p></div>
+    </div>
+  </section>
   <section class="panel" aria-label="E-TİCARET ÜRÜN BİLGİLERİ">
     <div class="panel-head">
       <h2 class="panel-title">E-TİCARET · ÜRÜN BİLGİLERİ</h2>
@@ -1262,8 +1274,9 @@
             <h2 class="panel-title">KARGO</h2>
           </div>
           <div class="panel-body sect-body">
-            <p class="fm-sub">Gönderi aç, taşıyıcı ve fiyatı gör, barkodu al,
-            etiketleri HB-1006 sayfasına dizip yazdır. Barkod üretimi
+            <p class="fm-sub">Pazaryeri paketlerini ve kendi gönderilerini gör,
+            etiketleri seçip HB-1006 sayfasına dizdir ve yazdır. Kendi
+            gönderinde taşıyıcı ve fiyatı görüp barkodu al. Barkod üretimi
             şirketin BasitKargo bakiyesinden para düşürür ve ekranda
             onaylanmadan yapılmaz.</p>
             <div id="kargoGovde"><p class="fm-empty">Yükleniyor…</p></div>
@@ -1398,7 +1411,7 @@
 
 <script src="/vendor/leaflet/leaflet.js"></script>
   <script src="/display-text.js?v=5"></script>
-<script src="/app.js?v=32"></script>
+<script src="/app.js?v=33"></script>
   <script src="/desktop-editorial.js?v=4"></script>
   <script src="/interior.js?v=2"></script>
   <script src="/workspace-refresh.js?v=1"></script>

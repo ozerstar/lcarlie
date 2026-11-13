@@ -36,6 +36,7 @@ import secrets
 from jarvis.db_transport import run as db_run
 from typing import Any
 
+from jarvis import kargo_bekleyen
 from jarvis.basitkargo import Kargo, KargoHatasi
 
 # Uçtaki taşıyıcı kodları (araç açıklamasından birebir).
@@ -168,8 +169,11 @@ def gonderiler(limit: int = 15) -> dict:
     """Panelin açılışta gördüğü tablo: gönderiler + verilmiş kararlar."""
     veri: dict[str, Any] = {"tasiyicilar": list(TASIYICILAR),
                             "odeme_turleri": list(ODEME_TURU)}
-    k = Kargo()
     try:
+        # 🔴 `Kargo()` da try'ın İÇİNDE: kimlik dosyası okunamayınca (13.11.2026,
+        # izin hatası) bütün sekme 503 veriyordu; pazaryeri paketleri
+        # BasitKargo'ya bağlı değil, onunla birlikte düşmemeli.
+        k = Kargo()
         r = k.cagir("list_shipments", {"size": min(int(limit), 25)})
         ham = ((r.get("veri") or {}).get("items")) or []
     except KargoHatasi as hata:
@@ -178,6 +182,8 @@ def gonderiler(limit: int = 15) -> dict:
         veri["gonderi_hatasi"] = f"BasitKargo'ya sorulamadı: {str(hata)[:200]}"
         ham = []
     veri["gonderiler"] = [_gonderi_ozet(g) for g in ham if isinstance(g, dict)]
+    # Pazaryerinin kendi kargo koduyla gidecek paketler (Trendyol, İdefix…).
+    veri["pazaryeri"] = kargo_bekleyen.panel_ozet()
     veri["kararlar"] = _oku(
         "SELECT row_to_json(x) FROM (SELECT * FROM mart.kargo_karar_ozet"
         " LIMIT 25) x")
