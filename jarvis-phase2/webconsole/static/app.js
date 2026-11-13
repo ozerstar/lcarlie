@@ -5575,19 +5575,46 @@ document.addEventListener('click', async (e) => {
    aynı şey değil.
    ------------------------------------------------------------------ */
 const PZ_DURUM = {
-  BAGLI: 'bağlı', KIMLIK_YOK: 'bağlı değil', OKUNAMIYOR: 'okunamıyor',
+  BAGLI: 'bağlı', KIMLIK_YOK: 'Bağlı değil', OKUNAMIYOR: 'Okunamıyor',
 };
 
+/* Pazaryerinin ham durumunu [sınıf, Türkçe ad] çiftine çevirir. */
 function pzSiparisDurumu(d) {
   const k = String(d || '').toLowerCase();
-  if (/cancel|iptal/.test(k)) return 'iptal';
-  if (/return|iade|refund/.test(k)) return 'iade';
-  if (/deliver|teslim|completed/.test(k)) return 'teslim edildi';
-  if (/shipped|in_cargo|kargoda/.test(k)) return 'kargoda';
-  if (/picking|created|invoiced|awaiting|hazir/.test(k)) return 'hazırlanıyor';
-  if (k === 'paid') return 'ödendi';
-  if (k === 'not_paid') return 'ödenmedi';
-  return String(d || '—');
+  if (/cancel|iptal/.test(k)) return ['iptal', 'İptal'];
+  if (/return|iade|refund/.test(k)) return ['iade', 'İade'];
+  if (/deliver|teslim|completed/.test(k)) return ['teslim', 'Teslim edildi'];
+  if (/shipped|in_cargo|kargoda/.test(k)) return ['kargoda', 'Kargoda'];
+  if (/picking|created|invoiced|awaiting|haz[ıi]r/.test(k)) return ['hazir', 'Hazırlanıyor'];
+  if (k === 'not_paid') return ['odenmedi', 'Ödenmedi'];
+  if (k === 'paid') return ['odendi', 'Ödendi'];
+  return ['diger', String(d || '—')];
+}
+
+function pzDurumRozeti(d) {
+  const [sinif, ad] = pzSiparisDurumu(d);
+  return `<span class="pz-rozet pz-d-${sinif}">${escapeHtml(ad)}</span>`;
+}
+
+function pzKanalKodu(kanal) {
+  return String(kanal || '').toLocaleLowerCase('tr-TR')
+    .replace(/ı/g, 'i').replace(/[^a-z0-9]/g, '');
+}
+
+function pzKanalRozeti(kanal, ad) {
+  return `<span class="pz-kanal pz-k-${pzKanalKodu(kanal)}">${escapeHtml(ad || kanal || '')}</span>`;
+}
+
+/* "MUĞLA", "seda çakırtaş" → "Muğla", "Seda Çakırtaş". Türkçe i/İ kuralıyla. */
+function pzBaslik(metin) {
+  return String(metin || '').toLocaleLowerCase('tr-TR').split(/\s+/).filter(Boolean)
+    .map((k) => k.charAt(0).toLocaleUpperCase('tr-TR') + k.slice(1)).join(' ');
+}
+
+function pzUrunler(liste) {
+  return (liste || []).map((u) =>
+    `${escapeHtml(u.ad || '—')}<span class="pz-urun-adet">×${escapeHtml(String(u.adet || 1))}</span>`)
+    .join(', ') || '—';
 }
 
 async function loadPazaryeriSatis() {
@@ -5603,29 +5630,39 @@ async function loadPazaryeriSatis() {
   const kanallar = body.kanallar || [];
   const siparisler = body.siparisler || [];
   if (sayac) sayac.textContent = `${siparisler.length} sipariş`;
-  const kutular = kanallar.map((k) => `
-    <div class="ek-tile ${k.durum === 'BAGLI' ? '' : 'ek-tile-uyari'}">
-      <span class="ek-k">${escapeHtml(k.ad || k.kanal)}</span>
-      <span class="ek-n">${k.durum === 'BAGLI' ? k.adet_30g : '—'}</span>
-      <span class="ek-k">${k.durum === 'BAGLI'
-        ? `30 günde sipariş · ${kargoPara(k.ciro_30g)}`
-        : escapeHtml(PZ_DURUM[k.durum] || k.durum)}</span>
-      ${k.durum === 'BAGLI' ? '' : `<span class="kg-bedava">${escapeHtml(k.not || '')}</span>`}
-    </div>`).join('');
+  const kutular = kanallar.map((k) => {
+    if (k.durum !== 'BAGLI') {
+      return `<div class="pz-kutu pz-kutu-kapali">
+        <span class="pz-kutu-ad">${escapeHtml(k.ad || k.kanal)}</span>
+        <span class="pz-kutu-n">${escapeHtml(PZ_DURUM[k.durum] || k.durum)}</span>
+        <span class="pz-kutu-not">${escapeHtml(k.not || '')}</span></div>`;
+    }
+    return `<div class="pz-kutu pz-k-${pzKanalKodu(k.kanal)}">
+      <span class="pz-kutu-ad">${escapeHtml(k.ad || k.kanal)}</span>
+      <span class="pz-kutu-n">${k.adet_30g}<small>sipariş</small></span>
+      <span class="pz-kutu-ciro">${kargoPara(k.ciro_30g)}</span>
+      <span class="pz-kutu-not">son 30 gün</span></div>`;
+  }).join('');
+  const bekleyen = siparisler.filter((s) => pzSiparisDurumu(s.durum)[0] === 'hazir').length;
   const satirlar = siparisler.map((s) => `<tr>
-      <td>${kargoTarih(s.zaman)}</td>
-      <td>${escapeHtml(s.kanal_adi || s.kanal)}</td>
-      <td>${escapeHtml(s.siparis_no || '')}</td>
-      <td>${escapeHtml(s.musteri || '—')}</td>
-      <td>${escapeHtml(s.sehir || '')}</td>
-      <td>${escapeHtml(s.urunler || '—')}</td>
-      <td>${kargoPara(s.tutar)}</td>
-      <td>${escapeHtml(pzSiparisDurumu(s.durum))}</td></tr>`).join('');
-  kutu.innerHTML = `<div class="ek-ozet">${kutular}</div>
-    <div class="dk-dugmeler"><button type="button" class="dk-btn" id="pzKargoBtn">KARGO ETİKETLERİNE GİT</button></div>
-    <div class="pz-tablo-sar"><table class="kg-tablo"><thead><tr>
-      <th>tarih</th><th>kanal</th><th>sipariş</th><th>müşteri</th><th>şehir</th>
-      <th>ürünler</th><th>tutar</th><th>durum</th>
+      <td class="pz-dar">${kargoTarih(s.zaman)}</td>
+      <td class="pz-dar">${pzKanalRozeti(s.kanal, s.kanal_adi)}</td>
+      <td class="pz-no">${escapeHtml(s.siparis_no || '')}</td>
+      <td class="pz-musteri">${escapeHtml(pzBaslik(s.musteri) || '—')}</td>
+      <td class="pz-dar">${escapeHtml(pzBaslik(s.sehir))}</td>
+      <td>${pzUrunler(s.urun_listesi)}</td>
+      <td class="pz-tutar">${kargoPara(s.tutar)}</td>
+      <td class="pz-dar">${pzDurumRozeti(s.durum)}</td></tr>`).join('');
+  kutu.innerHTML = `<div class="pz-kutular">${kutular}</div>
+    <div class="pz-ust">
+      <button type="button" class="dk-btn" id="pzKargoBtn">KARGO ETİKETLERİNE GİT</button>
+      <span class="pz-ust-not">${bekleyen
+        ? `${bekleyen} sipariş hazırlanıyor, kargoya verilmeyi bekliyor.`
+        : 'Kargoya verilmeyi bekleyen sipariş yok.'}</span>
+    </div>
+    <div class="pz-tablo-sar"><table class="pz-tablo"><thead><tr>
+      <th>Tarih</th><th>Kanal</th><th>Sipariş no</th><th>Müşteri</th><th>Şehir</th>
+      <th>Ürünler</th><th class="pz-tutar">Tutar</th><th>Durum</th>
     </tr></thead><tbody>${satirlar ||
       '<tr><td colspan="8">Henüz sipariş yok.</td></tr>'}</tbody></table></div>`;
   const git = qs('pzKargoBtn');
@@ -5722,12 +5759,12 @@ function kargoPazaryeriSatir(p) {
       ${p.etiket ? `<label class="kg-sec"><input type="checkbox" data-kg-sec="${id}" ${secili}>
         <span>etiket</span></label>` : ''}
       <div class="kg-kim">
-        <b>${escapeHtml(p.alici || '—')}</b>
-        <span>${escapeHtml(p.nere || '')}</span>
+        <b>${escapeHtml(pzBaslik(p.alici) || '—')}</b>
+        <span>${escapeHtml(pzBaslik(p.nere))}</span>
       </div>
       <div class="kg-durum">
-        <span class="kg-rozet kg-rozet-kapida">${escapeHtml(p.kanal || '')}</span>
-        <span class="kg-son">${escapeHtml(p.durum || '')}</span>
+        ${pzKanalRozeti(p.kanal, p.kanal)}
+        ${pzDurumRozeti(p.durum)}
       </div>
     </header>
     <div class="kg-orta">

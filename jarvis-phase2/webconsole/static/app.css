@@ -4742,6 +4742,85 @@ html[data-lcarlie-theme] body.rol-ofis #mainNav .nav-group[hidden],
 .km-rozet.is-PAUSED { color: var(--ivory-2); }
 .km-iki { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
 
-/* -- e-ticaret: pazaryeri satış tablosu dar ekranda yana kayar -- */
-.pz-tablo-sar { overflow-x: auto; margin-top: 14px; }
-.pz-tablo-sar .kg-tablo { min-width: 720px; }
+/* -- e-ticaret: pazaryeri satışları --
+   Renkler tema jetonlarından gelir (--ok/--warn/--crit/--info); rozet zemini
+   yazı renginin açık tonudur, böylece iki temada da okunur. */
+.pz-kutular {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px; margin-bottom: 18px;
+}
+.pz-kutu {
+  --pz: var(--ivory-3);
+  border: 1px solid var(--line); border-top: 3px solid var(--pz);
+  border-radius: 10px; background: var(--glass); padding: 14px 16px 15px;
+  display: flex; flex-direction: column; gap: 6px; min-width: 0;
+}
+.pz-kutu-ad {
+  font-size: 13px; font-weight: 600; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--pz);
+}
+.pz-kutu-n {
+  font-size: 30px; font-weight: 700; line-height: 1.05; color: var(--ivory);
+  font-variant-numeric: tabular-nums;
+}
+.pz-kutu-n small { font-size: 13px; font-weight: 500; color: var(--ivory-3); margin-left: 6px; }
+.pz-kutu-ciro { font-size: 14px; font-weight: 600; color: var(--ivory-2); font-variant-numeric: tabular-nums; }
+.pz-kutu-not { font-size: 12.5px; line-height: 1.45; color: var(--ivory-3); }
+.pz-kutu-kapali { border-style: dashed; border-top-style: solid; }
+.pz-kutu-kapali .pz-kutu-n { font-size: 15px; font-weight: 600; color: var(--ivory-3); }
+
+.pz-k-trendyol { --pz: #f0a05a; }
+.pz-k-idefix { --pz: #a79df0; }
+.pz-k-wix { --pz: var(--ok); }
+.pz-k-n11 { --pz: #e58aa8; }
+.pz-k-hepsiburada { --pz: #f0a05a; }
+.pz-k-ciceksepeti { --pz: #e58aa8; }
+.pz-k-pazarama { --pz: #7fb4d6; }
+html[data-lcarlie-theme] .pz-k-trendyol { --pz: #a8480c; }
+html[data-lcarlie-theme] .pz-k-idefix { --pz: #4a3f96; }
+html[data-lcarlie-theme] .pz-k-n11 { --pz: #8a2346; }
+html[data-lcarlie-theme] .pz-k-hepsiburada { --pz: #a8480c; }
+html[data-lcarlie-theme] .pz-k-ciceksepeti { --pz: #8a2346; }
+html[data-lcarlie-theme] .pz-k-pazarama { --pz: #2f5f7d; }
+
+.pz-ust { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 4px; }
+.pz-ust-not { font-size: 13px; color: var(--ivory-3); }
+
+.pz-tablo-sar { overflow-x: auto; margin-top: 12px; border: 1px solid var(--line); border-radius: 10px; }
+.pz-tablo { width: 100%; min-width: 860px; border-collapse: collapse; font-size: 14px; }
+.pz-tablo th {
+  text-align: left; font-size: 12px; font-weight: 600; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--ivory-3); white-space: nowrap;
+  padding: 11px 14px; border-bottom: 1px solid var(--line);
+}
+.pz-tablo td {
+  padding: 11px 14px; border-bottom: 1px solid var(--line-soft);
+  color: var(--ivory-2); vertical-align: middle;
+}
+.pz-tablo tbody tr:last-child td { border-bottom: 0; }
+.pz-tablo tbody tr:hover td { background: color-mix(in srgb, var(--ivory) 4%, transparent); }
+.pz-tablo .pz-dar { white-space: nowrap; }
+.pz-tablo .pz-no { white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--ivory-3); }
+.pz-tablo .pz-musteri { color: var(--ivory); font-weight: 500; }
+.pz-tablo .pz-tutar {
+  white-space: nowrap; text-align: right; font-weight: 600; color: var(--ivory);
+  font-variant-numeric: tabular-nums;
+}
+.pz-tablo th.pz-tutar { color: var(--ivory-3); }
+.pz-urun-adet { color: var(--ivory-3); margin-left: 3px; }
+
+.pz-rozet, .pz-kanal {
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  font-size: 12.5px; font-weight: 600; line-height: 1; color: var(--pz, var(--ivory-3));
+  background: color-mix(in srgb, var(--pz, var(--ivory-3)) 11%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pz, var(--ivory-3)) 28%, transparent);
+  border-radius: 999px; padding: 6px 11px;
+}
+.pz-rozet::before {
+  content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+}
+.pz-d-hazir { --pz: var(--warn); }
+.pz-d-kargoda { --pz: var(--info, #7fb4d6); }
+.pz-d-teslim, .pz-d-odendi { --pz: var(--ok); }
+.pz-d-iptal, .pz-d-iade { --pz: var(--crit); }
+.pz-d-odenmedi, .pz-d-diger { --pz: var(--ivory-3); }

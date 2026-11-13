@@ -19,7 +19,7 @@ from typing import Any
 
 from jarvis.db_transport import run as db_run
 
-KANAL_ADI = {"wix": "Web sitesi (Wix)", "trendyol": "Trendyol", "idefix": "İdefix",
+KANAL_ADI = {"wix": "Web sitesi", "trendyol": "Trendyol", "idefix": "İdefix",
              "n11": "n11", "hepsiburada": "Hepsiburada",
              "ciceksepeti": "Çiçeksepeti", "pazarama": "Pazarama"}
 
@@ -72,15 +72,30 @@ def _oku(sql: str) -> list[dict]:
     return cikti
 
 
-def _urunler(kalemler: Any) -> str:
-    """Kalemleri tek satıra indirir: uzun başlığın ilk kelimeleri + adet."""
-    parca = []
+def _kisa_ad(baslik: str) -> str:
+    """Pazaryeri başlığından ürün adını ayırır.
+
+    "LuciDerm Temizleme Köpüğü 150 ml - Lavanta-melisa…" → "LuciDerm Temizleme
+    Köpüğü". Ayraçta, parantezde ya da ilk rakamda (hacim, SPF değeri) durur;
+    en çok dört kelime.
+    """
+    kelimeler = []
+    for k in str(baslik or "").split():
+        if k in ("-", "–", "—", "|", "·") or k[0] in "(/" or k[0].isdigit():
+            break
+        kelimeler.append(k.rstrip(",;:"))
+        if len(kelimeler) == 4 or k[-1] in ",;:":
+            break
+    return " ".join(kelimeler) or "-"
+
+
+def _urunler(kalemler: Any) -> list[dict]:
+    """Kalemleri panelin gösterdiği kısa ad + adet listesine indirir."""
+    cikti = []
     for k in kalemler if isinstance(kalemler, list) else []:
-        if not isinstance(k, dict):
-            continue
-        ad = " ".join(str(k.get("ad") or "").split()[:3]) or "-"
-        parca.append("%s ×%s" % (ad, k.get("adet") or 1))
-    return ", ".join(parca)
+        if isinstance(k, dict):
+            cikti.append({"ad": _kisa_ad(k.get("ad")), "adet": k.get("adet") or 1})
+    return cikti
 
 
 def _kanal_durumu(n: dict) -> dict:
@@ -111,7 +126,7 @@ def gorunum(limit: int = 100) -> dict:
             "siparis_no": s["siparis_no"], "durum": s["durum"],
             "zaman": s["siparis_zamani"], "tutar": s["tutar"],
             "musteri": s["musteri_ad"], "sehir": s["sehir"],
-            "urunler": _urunler(s["kalemler"]), "kaynak": s["kaynak"]})
+            "urun_listesi": _urunler(s["kalemler"]), "kaynak": s["kaynak"]})
     return {"kanallar": sorted(kanallar.values(),
                                key=lambda k: (k["durum"] != "BAGLI", -k["adet_30g"])),
             "siparisler": siparisler}
