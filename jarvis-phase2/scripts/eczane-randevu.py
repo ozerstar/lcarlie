@@ -266,7 +266,7 @@ class Y(BaseHTTPRequestHandler):
             m = str(hata)
             if "eczane_randevu_tek_acik" in m:
                 return self._json(409, {"hata": "Eczaneniz için zaten bir randevu talebi var. "
-                                                 "Değişiklik için 0544 544 21 15'i arayabilirsiniz."})
+                                                 "Değişiklik için 0542 188 69 37 numarasını arayabilirsiniz."})
             if "exclusion" in m or "conflicting key" in m:
                 return self._json(409, {"hata": "Bu saat az önce doldu. Lütfen başka bir saat seçin."})
             raise

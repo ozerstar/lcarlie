@@ -250,7 +250,7 @@ def icerik(a: dict) -> tuple[str, str, str]:
     ortak = ("L’CARLIÉ, doğal ve bitkisel içeriklerle formüle edilmiş bir dermokozmetik markasıdır. "
              "Serimiz sekiz bakım grubunda 36 üründen oluşur: yüz bakımı, bebek ve çocuk bakımı, vücut bakımı, "
              "masaj ve spor, ağız bakımı, ayak bakımı, kadın ve erkek bakımı, saç ve ev bakımı.\n\n")
-    alt = ("Katalog: %s\n\nSaygılarımızla,\nL’CARLIÉ Eczane İlişkileri · 0544 544 21 15\n\n"
+    alt = ("Katalog: %s\n\nSaygılarımızla,\nL’CARLIÉ Eczane İlişkileri · Tel: 0542 188 69 37 · WhatsApp: 0544 544 21 15\n\n"
            "Bu e-postayı almak istemiyorsanız: %s" % (KATALOG, cikis))
     if a["il"] == "Ankara":
         sablon, konu = SABLON, KONU

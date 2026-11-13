@@ -88,7 +88,7 @@
   <div class="yazi"><span class="etiket">ECZANELERE ÖZEL</span><h1 id="baslik">15 dakikalık tanışma ziyareti</h1></div>
 </div>
 <main id="ana"><p class="yukleniyor">Yükleniyor…</p></main>
-<footer>L’CARLIÉ Eczane İlişkileri · info@lcarlie.com.tr · 0544 544 21 15</footer>
+<footer>L’CARLIÉ Eczane İlişkileri · info@lcarlie.com.tr · Tel: 0542 188 69 37 · WhatsApp: 0544 544 21 15</footer>
 <script>
 (function () {
   var t = new URLSearchParams(location.search).get('t') || '';
@@ -182,14 +182,14 @@
       .then(function (r) { return r.json().then(function (j) { return [r.status, j]; }); })
       .then(function (x) {
         if (x[0] !== 200) {
-          ana.innerHTML = '<div class="kart tamam"><h1>Bağlantı geçersiz</h1><p>Randevu için 0544 544 21 15 numarasından bize ulaşabilirsiniz.</p></div>' + giris();
+          ana.innerHTML = '<div class="kart tamam"><h1>Bağlantı geçersiz</h1><p>Randevu için 0542 188 69 37 numarasından bizi arayabilirsiniz.</p></div>' + giris();
           return;
         }
         veri = x[1];
         document.getElementById('baslik').textContent = veri.eczane + ' için tanışma ziyareti';
         if (veri.mevcut) {
           tamamCiz('Randevunuz var', uzunYaz(veri.mevcut.baslangic) + ' · ' + veri.eczane,
-            'Değişiklik için 0544 544 21 15 numarasından bize ulaşabilirsiniz.');
+            'Değişiklik için 0542 188 69 37 numarasından bizi arayabilirsiniz.');
           return;
         }
         if (!formuKoru) { form = {}; }
