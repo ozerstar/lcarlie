@@ -1,0 +1,14 @@
+[Unit]
+Description=L'CARLIE eczane WhatsApp kampanyasi (calisma basina en fazla 1 mesaj)
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+EnvironmentFile=/etc/lcarlie/jarvis-web.env
+EnvironmentFile=/etc/lcarlie/siparis-nobetci.env
+Environment=JARVIS_STATE_DIR=/opt/lcarlie/jarvis-phase2/state
+Environment=TZ=Europe/Istanbul
+ExecStart=/usr/bin/flock -n /run/lcarlie-eczane-wa.lock /opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/eczane-wa-kampanya.py
+TimeoutStartSec=90
+MemoryMax=300M
