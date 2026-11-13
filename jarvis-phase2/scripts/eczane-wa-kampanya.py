@@ -50,6 +50,13 @@ RED_ORANI = 0.05                      # "İstemiyorum" / teslim
 BASARISIZ_ORANI = 0.35                # sabit hatların çoğunda WhatsApp yok; bu
                                       # oran yüksek olabilir, ama ani sıçrama işaret
 KATALOG = "https://www.lcarlie.shop/_files/ugd/92cdbf_9a439a7872ad438ca0e0c7f6f908fe87.pdf"
+# Meta'da onaylı şablon gövdesi (gelen kutusunda giden mesaj olarak görünsün diye)
+GOVDE = ("Merhaba, {ad} için yazıyoruz. L’CARLIÉ, doğal ve bitkisel içeriklerle formüle edilmiş bir "
+         "dermokozmetik markasıdır. Yüz, bebek ve çocuk, vücut, masaj ve spor, ağız, ayak, kadın ve erkek, "
+         "saç ve ev bakımı olmak üzere sekiz grupta 36 ürünümüz var; tümü ÜTS’ye bildirimlidir.\n\n"
+         "Serimizi eczanenizde tanıtmak isteriz: 15 dakikalık bir ziyarette ürünleri elinizde inceleyebilir, "
+         "eczaneye özel koşulları konuşabiliriz. Size uygun gün ve saati aşağıdaki düğmeden seçebilirsiniz.\n\n"
+         "Kataloğumuz: " + KATALOG + "\n\n[Ziyaret saati seçin] [İstemiyorum]")
 ONIZLEME = ("L’CARLIÉ, doğal ve bitkisel içeriklerle formüle edilmiş bir dermokozmetik markasıdır. "
             "Serimizi eczanenizde tanıtmak isteriz: 15 dakikalık bir ziyarette ürünleri elinizde "
             "inceleyebilir, eczaneye özel koşulları konuşabiliriz.")
@@ -309,7 +316,21 @@ def gonder_bir() -> None:
          " jsonb_build_object('kanal','whatsapp','sablon', :'s','wamid', :'w'));"
          " UPDATE core.eczane_hedef SET durum = 'GONDERILDI', guncellendi = now() WHERE id = :'h' AND durum = 'YENI';",
          h=str(a["id"]), t=a["telefon"], s=SABLON, w=wamid)
+    giden_yaz(a["telefon"], wamid, GOVDE.format(ad=ad))
     print("GONDERILDI", a["id"], ad, "cep" if a["cep_mi"] else "sabit")
+
+
+def giden_yaz(telefon: str, wamid: str, metin: str) -> None:
+    """Gönderilen şablonu Jarvis gelen kutusundaki konuşmaya giden mesaj olarak yazar."""
+    if not wamid:
+        return
+    psql("INSERT INTO lcarlie.mesaj (konusma_id, harici_id, zaman, yon, gonderen, metin, ek)"
+         " SELECT id, :'w', now(), 'giden', :'g', :'m', jsonb_build_object('kaynak','eczane_kampanya','sablon', :'s')"
+         " FROM lcarlie.konusma WHERE kanal = 'whatsapp' AND harici_id = :'t'"
+         " ON CONFLICT (konusma_id, harici_id) DO NOTHING;"
+         " UPDATE lcarlie.konusma SET son_mesaj = greatest(coalesce(son_mesaj, now()), now()),"
+         " mesaj_sayisi = mesaj_sayisi + 1, guncelleme = now() WHERE kanal = 'whatsapp' AND harici_id = :'t';",
+         w=wamid, g=whatsapp._env("META_WHATSAPP_PHONE_NUMBER_ID") or "isletme", m=metin, s=SABLON, t=telefon)
 
 
 def main() -> None:
