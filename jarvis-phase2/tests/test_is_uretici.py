@@ -331,6 +331,173 @@ class Test(unittest.TestCase):
         s = IsUretici(self.o, gunluk_tavan=50).yurut(sure_sn=0)
         self.assertEqual(s["teslim"], 0)
 
+    def test_dependency_requires_approved_delivery(self):
+        import copy
+        iu = IsUretici(self.o, gunluk_tavan=50)
+        iu.gunluk()
+        original = iu.agac_deposu.oku()
+        for state in (None, "ACIK", "REDDEDILDI", "SURESI_DOLDU", "ARAC_GEREKLI", "ONAY_BEKLIYOR"):
+            with self.subTest(state=state):
+                tree = copy.deepcopy(original)
+                tasks = tree["departmanlar"]["SEO"]["gorevler"]
+                prerequisite = tasks[0]
+                child = copy.deepcopy(prerequisite)
+                child.update(id="dependent", work_id=None, bagimli=[prerequisite["id"]])
+                prerequisite["durum"] = state
+                tree["departmanlar"]["SEO"]["gorevler"] = ([prerequisite] if state else []) + [child]
+                iu.agac_deposu.yaz(tree, SAAT)
+                before = len(self.model.cagri)
+                iu.yurut()
+                self.assertEqual(iu.agac_deposu.oku()["departmanlar"]["SEO"]["gorevler"][-1]["durum"], "ACIK")
+                # An open prerequisite may run, but its child must wait for a later cycle.
+                if state != "ACIK":
+                    self.assertEqual(len(self.model.cagri), before)
+        tree = copy.deepcopy(original)
+        tasks = tree["departmanlar"]["SEO"]["gorevler"]
+        child = copy.deepcopy(tasks[0])
+        child.update(id="dependent", work_id=None, bagimli=[tasks[0]["id"]])
+        tasks[0].update(durum="TESLIM_EDILDI", teslim={"kalite": "GECTI", "yonetici": "ONAY"})
+        tree["departmanlar"]["SEO"]["gorevler"] = [tasks[0], child]
+        iu.agac_deposu.yaz(tree, SAAT)
+        self.assertEqual(iu.yurut()["teslim"], 1)
+
+    def test_completed_task_survives_interrupted_batch(self):
+        import copy
+        iu = IsUretici(self.o, gunluk_tavan=50)
+        iu.gunluk()
+        tree = iu.agac_deposu.oku()
+        tasks = tree["departmanlar"]["SEO"]["gorevler"]
+        second = copy.deepcopy(tasks[0])
+        second.update(id="second", work_id=None)
+        tasks.append(second)
+        iu.agac_deposu.yaz(tree, SAAT)
+        calls = 0
+        def interrupted(messages, kwargs):
+            nonlocal calls
+            if "Görevi şimdi yap" in messages[-1]["content"]:
+                calls += 1
+                if calls == 2:
+                    saved = iu.agac_deposu.oku()["departmanlar"]["SEO"]["gorevler"]
+                    self.assertEqual(saved[0]["durum"], "TESLIM_EDILDI")
+                    self.assertEqual(saved[-1]["deneme"], 1)
+                    raise KeyboardInterrupt("worker interrupted")
+            return cevap(messages, kwargs)
+        self.model.cevaplar = interrupted
+        with self.assertRaises(KeyboardInterrupt):
+            iu.yurut()
+        saved = iu.agac_deposu.oku()["departmanlar"]["SEO"]["gorevler"]
+        self.assertEqual(saved[0]["durum"], "TESLIM_EDILDI")
+        self.assertEqual(saved[-1]["durum"], "ACIK")
+        self.model.cevaplar = cevap
+        self.assertEqual(IsUretici(self.o, gunluk_tavan=50).yurut()["teslim"], 1)
+
+    def test_owner_handoff_is_durable_and_replayed_without_generation(self):
+        iu = IsUretici(self.o, gunluk_tavan=50)
+        iu.gunluk()
+        tree = iu.agac_deposu.oku()
+        tree["departmanlar"]["SEO"]["gorevler"][0]["sahibe_gonder"] = True
+        iu.agac_deposu.yaz(tree, SAAT)
+        attempts = []
+        def interrupted(*args):
+            attempts.append(args)
+            saved = iu.agac_deposu.oku()["departmanlar"]["SEO"]["gorevler"][0]
+            self.assertEqual(saved["durum"], "TESLIM_EDILDI")
+            self.assertEqual(saved["sahibe_gonderim"]["anahtar"], args[0])
+            raise KeyboardInterrupt("interrupted handoff")
+        self.o.oneri_ac = interrupted
+        with self.assertRaises(KeyboardInterrupt):
+            iu.yurut()
+        model_calls = len(self.model.cagri)
+        self.o.oneri_ac = lambda *args: attempts.append(args) or None
+        result = IsUretici(self.o, gunluk_tavan=50).yurut()
+        self.assertTrue(any("geçerli öneri doğrulanamadı" in x.get("uyari", "") for x in result["kayit"]))
+        task = iu.agac_deposu.oku()["departmanlar"]["SEO"]["gorevler"][0]
+        self.assertIn("sahibe_gonderim", task)
+        self.assertFalse(task.get("sahibe_gonderildi"))
+        self.o.oneri_ac = lambda *args: attempts.append(args) or 42
+        IsUretici(self.o, gunluk_tavan=50).yurut()
+        task = iu.agac_deposu.oku()["departmanlar"]["SEO"]["gorevler"][0]
+        self.assertEqual(task["sahibe_gonderildi"], 42)
+        self.assertNotIn("sahibe_gonderim", task)
+        self.assertEqual(attempts[0], attempts[1])
+        self.assertEqual(attempts[1], attempts[2])
+        self.assertEqual(len(self.model.cagri), model_calls)
+        IsUretici(self.o, gunluk_tavan=50).yurut()
+        self.assertEqual(len(attempts), 3)
+
+    def test_execution_failures_back_off_then_require_replan(self):
+        from datetime import timedelta
+        iu = IsUretici(self.o, gunluk_tavan=50)
+        iu.gunluk()
+        clock = [SAAT]
+        self.o.saat = lambda: clock[0]
+        def offline(messages, kwargs):
+            raise RuntimeError("Connection refused")
+        self.model.cevaplar = offline
+        for failure, delay in ((1, 300), (2, 900), (3, 86400)):
+            IsUretici(self.o, gunluk_tavan=50).yurut()
+            task = iu.agac_deposu.oku()["departmanlar"]["SEO"]["gorevler"][0]
+            retry = task["yeniden_deneme"]
+            self.assertEqual(retry["ardisik_hata"], failure)
+            self.assertEqual(datetime.fromisoformat(retry["sonraki"]), clock[0] + timedelta(seconds=delay))
+            self.assertEqual(task["deneme"], 0)
+            count = len(self.model.cagri)
+            IsUretici(self.o, gunluk_tavan=50).yurut()
+            self.assertEqual(len(self.model.cagri), count)
+            clock[0] += timedelta(seconds=delay)
+        self.assertEqual(task["durum"], "YENIDEN_PLANLA")
+        self.assertIn("yeniden planlama", task["red_sebebi"])
+        self.assertEqual(self.defter.apps, [])
+        # Replanning also respects the last cooldown; no hot retry loop.
+        clock[0] -= timedelta(seconds=1)
+        count = len(self.model.cagri)
+        self.assertEqual(IsUretici(self.o, gunluk_tavan=50).replan()["aday"], 0)
+        self.assertEqual(len(self.model.cagri), count)
+        clock[0] += timedelta(seconds=1)
+        tree = iu.agac_deposu.oku()
+        tree["departmanlar"]["SEO"]["gorevler"][0]["work_id"] = None
+        iu.agac_deposu.yaz(tree, clock[0])
+        self.model.cevaplar = lambda messages, kwargs: {
+            "karar": "AC", "tip": "ANALIZ", "baslik": "Meta açıklaması eksik sayfaları listele",
+            "cikti": "liste", "kabul_olcutu": "tüm eksikler", "sure_gun": 2,
+            "gerekce": "Bağlantı yeniden kullanılabilir; analizi tekrar dene."}
+        self.assertEqual(IsUretici(self.o, gunluk_tavan=50).replan()["yeniden_acildi"], 1)
+        task = iu.agac_deposu.oku()["departmanlar"]["SEO"]["gorevler"][0]
+        self.assertEqual(task["durum"], "ACIK")
+        self.assertNotIn("yeniden_deneme", task)
+
+    def test_success_resets_execution_retry_and_budget_does_not_spend_attempt(self):
+        from datetime import timedelta
+        iu = IsUretici(self.o, gunluk_tavan=50)
+        iu.gunluk()
+        self.model.cevaplar = lambda messages, kwargs: (_ for _ in ()).throw(RuntimeError("Connection refused"))
+        iu.yurut()
+        count = len(self.model.cagri)
+        result = IsUretici(self.o, gunluk_tavan=50).yurut()
+        self.assertEqual(result["yeniden_deneme_bekliyor"], 1)
+        self.assertEqual(len(self.model.cagri), count)
+        self.o.saat = lambda: SAAT + timedelta(minutes=5)
+        self.model.cevaplar = cevap
+        IsUretici(self.o, gunluk_tavan=50).yurut()
+        task = iu.agac_deposu.oku()["departmanlar"]["SEO"]["gorevler"][0]
+        self.assertEqual(task["durum"], "TESLIM_EDILDI")
+        self.assertNotIn("yeniden_deneme", task)
+        # Reset only fixture queue state to exercise budget exhaustion.
+        tree = iu.agac_deposu.oku()
+        task = tree["departmanlar"]["SEO"]["gorevler"][0]
+        task.update(durum="ACIK", deneme=0)
+        iu.agac_deposu.yaz(tree, self.o.saat())
+        count = len(self.model.cagri)
+        IsUretici(self.o, gunluk_tavan=0).yurut()
+        task = iu.agac_deposu.oku()["departmanlar"]["SEO"]["gorevler"][0]
+        self.assertEqual((task["durum"], task["deneme"]), ("ACIK", 0))
+        self.assertEqual(task["yeniden_deneme"]["ardisik_hata"], 0)
+        self.assertEqual(task["yeniden_deneme"]["tur"], "BUTCE")
+        self.assertEqual(task["yeniden_deneme"]["sonraki"], "2026-10-27T00:00:00+03:00")
+        self.assertEqual(len(self.model.cagri), count)
+        report = Path(iu.ozet_yaz({"mod": "yurut"})).read_text()
+        self.assertIn("Günlük model bütçesi doldu", report)
+
     def test_json_ayikla_ve_temizle(self):
         self.assertEqual(json_ayikla('Tamam:\n```json\n{"a": "}"}\n```')["a"], "}")
         self.assertEqual(json_ayikla('önce {"a": 1} sonra')["a"], 1)

@@ -54,7 +54,9 @@ ROLE_OUTPUTS: dict[str, tuple[str, ...]] = {
     COPYWRITER: ("creative_concepts",),
     META_PERFORMANCE: ("performance_baseline",),
     CREATIVE_INTELLIGENCE: ("test_plan", "experiment_matrix"),
-    COMPETITOR_CREATIVE: ("research_state",),
+    # A pending/complete status label is not a research deliverable. This
+    # pipeline has no source-backed competitor output yet.
+    COMPETITOR_CREATIVE: (),
     SOCIAL_CONTENT: ("social_plan",),
     CRO_SPECIALIST: ("cro_recommendations",),
     GROWTH_STRATEGIST: ("problems", "opportunities"),

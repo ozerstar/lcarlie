@@ -1,0 +1,47 @@
+name: Jarvis regression
+
+on:
+  pull_request:
+    paths: ['jarvis-phase2/**', '.github/workflows/jarvis-tests.yml']
+  push:
+    branches: [main, 'codex/jarvis-quality-*', 'fix/jarvis-*']
+    paths: ['jarvis-phase2/**', '.github/workflows/jarvis-tests.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jarvis-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  offline-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      EXTERNAL_ACTIONS: 'false'
+      JARVIS_WHATSAPP_GONDER: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install offline regression dependencies
+        working-directory: jarvis-phase2
+        run: python -m pip install -r requirements-test.txt
+      - name: Core regression (no credentials or production DB)
+        working-directory: jarvis-phase2
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Web console regression (local HTTP and mocked external services)
+        working-directory: jarvis-phase2
+        run: PYTHONPATH="$PWD:$PWD/webconsole" python -m unittest discover -s webconsole/tests -t webconsole/tests -p 'test_*.py' -v
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install locked office runtime dependency
+        working-directory: jarvis-phase2/office-ui
+        run: npm ci --ignore-scripts --omit=dev
+      - name: Deterministic browser-side logic
+        working-directory: jarvis-phase2
+        run: node --test integrations/*.test.js office-ui/*.test.mjs webconsole/tests/*.test.cjs

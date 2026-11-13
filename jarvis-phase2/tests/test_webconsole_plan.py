@@ -15,7 +15,14 @@ from unittest.mock import patch
 from jarvis import capabilities as caps
 from jarvis import execution_planner as ep
 
-from webconsole import app as webapp
+from tests import isolated_webapp
+
+
+def setUpModule():
+    global webapp, _app_context
+    _app_context = isolated_webapp("wc_app_plan")
+    webapp = _app_context.__enter__()
+    unittest.addModuleCleanup(_app_context.__exit__, None, None, None)
 
 
 def _registry(external_provider_status=caps.BLOCKED,

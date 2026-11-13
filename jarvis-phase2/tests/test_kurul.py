@@ -3,7 +3,8 @@ import json
 import sys
 import tempfile
 import unittest
-from datetime import datetime, timezone
+from unittest.mock import patch
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -37,7 +38,7 @@ def cevap(mesajlar, kw):
                                               "departman": "CREATIVE_STRAT", "neden": "rakip"}]}]}
     if "RED TEAM" in u:
         return {"kararlar": [{"id": "O1", "karar": "KABUL", "itiraz": "dayanak sağlam"},
-                             {"id": "O2", "karar": "SORGULA", "itiraz": "rakip fiyatı tek kaynak"},
+                             {"id": "O2", "karar": "KABUL", "itiraz": "rakip fiyatı tek kaynak"},
                              {"id": "O3", "karar": "RED", "itiraz": "eski iş, tekrar"},
                              {"id": "O99", "karar": "KABUL"}]}
     if "ana karar vericisisin" in u:
@@ -129,6 +130,106 @@ class TestKurul(unittest.TestCase):
         self.assertEqual(s["onaya"], 0)
         o1 = {g["id"]: g for g in self.agac()["departmanlar"]["SEO"]["gorevler"]}["o1"]
         self.assertEqual(o1["durum"], "ONAY_BEKLIYOR")   # karar yoksa birikmiş iş kapanmaz
+
+    def test_partial_review_does_not_enable_unreviewed_dispatch(self):
+        k = Kurul(self.iu)
+        k.sorgula = lambda os: {"O3": {"karar": "RED", "itiraz": "eski"}}
+        r = k.calistir()
+        self.assertEqual((r["gorev"], r["onaya"]), (0, 0))
+        self.assertEqual(len(self.agac()["kurul"]["bekleyen_denetimler"]), 2)
+        self.assertFalse(any("ana karar vericisisin" in m[0][-1]["content"] for m in self.model.cagri))
+
+    def test_explicit_unresolved_review_cannot_dispatch(self):
+        k = Kurul(self.iu)
+        k.sorgula = lambda os: {o["id"]: {"karar": "SORGULA", "itiraz": "kaynak eksik"} for o in os}
+        r = k.calistir()
+        self.assertEqual((r["gorev"], r["onaya"]), (0, 0))
+        self.assertEqual(len(self.agac()["kurul"]["bekleyen_denetimler"]), 2)
+
+    def test_outage_replays_saved_review_after_source_window(self):
+        k = Kurul(self.iu)
+        k.sorgula = lambda os: (_ for _ in ()).throw(RuntimeError("offline"))
+        k.calistir()
+        self.o.saat = lambda: SAAT + timedelta(days=3)
+        n = len(self.model.cagri)
+        r = Kurul(IsUretici(self.o, gunluk_tavan=50)).calistir()
+        self.assertEqual((r["gorev"], r["onaya"]), (1, 1))
+        self.assertFalse(any("Denetçi birim:" in m[0][-1]["content"] for m in self.model.cagri[n:]))
+        self.assertEqual(self.agac()["kurul"]["bekleyen_denetimler"], [])
+
+    def test_deferred_and_capped_items_remain_pending(self):
+        k = Kurul(self.iu)
+        k.karar_ver = lambda os, h: ({o["id"]: {"karar": "BEKLET", "gerekce": "sonra"} for o in os}, "")
+        k.calistir()
+        self.assertEqual(len(self.agac()["kurul"]["bekleyen_denetimler"]), 2)
+        with patch("jarvis.kurul.GOREV_TAVAN", 0), patch("jarvis.kurul.ONAY_TAVAN", 0):
+            Kurul(self.iu).calistir()
+        self.assertEqual(len(self.agac()["kurul"]["bekleyen_denetimler"]), 2)
+        r = Kurul(self.iu).calistir()
+        self.assertEqual((r["gorev"], r["onaya"]), (1, 1))
+
+    def test_handoff_replay_preserves_exact_payload_across_days(self):
+        for result in (None, False, True, 0, -1):
+            self.o.oneri_ac = lambda a, m, s: self.onaylar.append((a, m, s)) or result
+            r = Kurul(IsUretici(self.o, gunluk_tavan=50)).calistir()
+            self.assertEqual(r["onaya"], 0)
+        self.assertEqual(len(set(self.onaylar)), 1)
+        self.o.saat = lambda: SAAT + timedelta(days=2)
+        self.o.oneri_ac = lambda a, m, s: self.onaylar.append((a, m, s)) or 502
+        # Frozen outbox replay must not need a new model result.
+        self.model.cevaplar = lambda *args: (_ for _ in ()).throw(AssertionError("model called"))
+        r = Kurul(IsUretici(self.o, gunluk_tavan=50)).calistir()
+        self.assertEqual(r["onaya"], 1)
+        self.assertEqual(len(set(self.onaylar)), 1)
+        self.assertEqual(self.agac()["kurul"]["bekleyen_denetimler"], [])
+
+    def test_interrupted_callback_replays_without_new_proposal(self):
+        def interrupted(a, m, s):
+            self.onaylar.append((a, m, s))
+            raise KeyboardInterrupt()
+        self.o.oneri_ac = interrupted
+        with self.assertRaises(KeyboardInterrupt):
+            Kurul(self.iu).calistir()
+        self.o.oneri_ac = lambda a, m, s: self.onaylar.append((a, m, s)) or 501
+        r = Kurul(IsUretici(self.o, gunluk_tavan=50)).calistir()
+        self.assertEqual(r["gorev"], 0)  # acknowledged internal task is not regenerated
+        self.assertEqual(r["onaya"], 1)
+        self.assertEqual(len(set(self.onaylar)), 1)
+
+    def test_legacy_terminal_checkpoint_is_reconciled_after_interruption(self):
+        a = self.agac()
+        g = a["departmanlar"]["SEO"]["gorevler"][2]
+        g["kurul_oneri"] = {"anahtar": "old-ack", "baslik": g["baslik"], "tip": "ONAY_GEREKTIREN",
+            "departman": "SEO", "tamamlandi": "ONAYA_GITTI", "onay_id": 42,
+            "rt": {"karar": "KABUL", "itiraz": ""}, "karar": {"karar": "YAP"}}
+        self.iu.agac_deposu.yaz(a, SAAT)
+        Kurul(self.iu).calistir()
+        g = next(g for g in self.agac()["departmanlar"]["SEO"]["gorevler"] if g["id"] == "o1")
+        self.assertEqual(g["durum"], "ONAYA_GITTI")
+        self.assertFalse(any(a == "old-ack" for a, _, _ in self.onaylar))
+
+    def test_unrelated_similar_task_is_not_acknowledgement(self):
+        a = self.agac()
+        a["departmanlar"]["SEO"]["gorevler"].append({"id": "unrelated", "durum": "ACIK",
+            "baslik": "Meta açıklama taslaklarını yaz"})
+        self.iu.agac_deposu.yaz(a, SAAT)
+        r = Kurul(self.iu).calistir()
+        self.assertEqual(r["gorev"], 0)
+        pending = self.agac()["kurul"]["bekleyen_denetimler"]
+        self.assertEqual(pending[0]["kalem"]["ref"], "g1")
+        self.assertNotIn("tamamlandi", pending[0]["oneriler"][0])
+
+    def test_pending_processing_is_bounded_without_dropping_tail(self):
+        k = Kurul(self.iu)
+        k.sorgula = lambda os: {}
+        k.calistir()
+        seen = []
+        k.sorgula = lambda os: seen.extend(os) or {}
+        with patch("jarvis.kurul.SONUC_TAVAN", 1):
+            k.calistir()
+        # One saved source proposal plus one independently bounded legacy item.
+        self.assertEqual(len(seen), 2)
+        self.assertEqual(len(self.agac()["kurul"]["bekleyen_denetimler"]), 2)
 
     def test_radar_ozeti_girer(self):
         p = Path(self.tmp.name) / "panel.json"
