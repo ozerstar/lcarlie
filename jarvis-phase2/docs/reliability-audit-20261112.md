@@ -71,3 +71,40 @@ requires a measured capability gap and isolated license/dependency review.
 5. Run the final production smoke with real business evidence and explicit
    action boundaries. Deployment, real external actions and autonomous live
    operation are not claimed complete by this report.
+
+## Follow-up: bounded autonomy, feedback and desktop conversation
+
+- Execution failures now have persistent 5/15-minute backoff. The third
+  consecutive failure moves work to replanning with a 24-hour cooldown. This
+  bounds a retry burst, not lifetime retries. Daily budget exhaustion waits
+  until the next Turkey calendar day and does not consume quality attempts.
+- Recorded corrections can be retrieved by the original misconception as well
+  as the corrected answer. Context retains provenance, timestamps and complete
+  JSON records within budget; quoted feedback is not an instruction, new
+  permission or independent verification. This is retrieval, not model training.
+- Desktop chat prevents overlapping requests, reconnects with the same turn ID,
+  detects incomplete streams, preserves partial answers, and distinguishes
+  stopping display from cancelling server work. Copy controls and accessible
+  status/focus feedback are retained after rendering.
+- The first remote CI run failed: an inaccessible coding binary raised during
+  health discovery and the clean runner lacked image-test dependencies. Health
+  now reports an unavailable/unknown result without exposing the path. A separate
+  pinned test requirements file includes the existing image/PDF test imports.
+
+Verified again in a fresh Python 3.12 virtual environment **without** system
+site packages: 1,614 core tests (1,562 passed, 52 skipped), 575 web tests (550
+passed, 25 skipped), and 15 Node tests passed. JavaScript syntax and diff checks
+passed. These are local results, not a claim about a later remote CI run.
+
+No new channel permissions, external messages, autonomous code deployment,
+production service activation or database migration were performed. Only the
+cloud workspace is connected; production timers, live integrations, actual
+model quality/latency and browser visual acceptance remain unverified. This
+batch does not claim all systems are connected or that Jarvis operates 24/7.
+
+The subsequent team-contract batch is described in
+`team-professionalization-20261113.md`. Latest combined local verification:
+1,628 core tests (1,576 passed, 52 skipped), 575 web tests (550 passed, 25
+skipped), 15 Node tests passed. This supersedes the earlier follow-up counts.
+The owner explicitly approved uploading this batch to the existing draft PR,
+without merge or deployment. Remote CI must be checked on its published commit.

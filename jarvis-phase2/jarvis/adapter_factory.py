@@ -488,7 +488,14 @@ class CodingExecutorAdapter(CapabilityAdapter):
         from pathlib import Path as _Path
         import os as _os
         binary = _os.environ.get("JARVIS_KIMI_BIN", "/root/kimi-sandbox/bin/kimi")
-        present = _Path(binary).is_file()
+        try:
+            present = _Path(binary).is_file()
+        except (OSError, ValueError):
+            # Health discovery must remain usable on unprivileged workers.
+            # Do not expose installation paths or attempt privilege escalation.
+            return {"state": AdapterState.UNAVAILABLE.value,
+                    "binary_present": None, "reason": "binary_probe_failed",
+                    "boundary": "human-originated tasks only"}
         return {"state": (AdapterState.AVAILABLE if present
                           else AdapterState.UNAVAILABLE).value,
                 "binary_present": present,

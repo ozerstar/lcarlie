@@ -22,6 +22,8 @@ class SahteMemory:
 
         class Ev:
             records = self.veri.get(query, [])
+            source = f"postgres:{query}"
+            authority = "CANONICAL_COMPANY_MEMORY"
         return Ev()
 
 

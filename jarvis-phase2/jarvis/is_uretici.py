@@ -61,8 +61,26 @@ YONETICI_ACIK = os.environ.get("IS_URETICI_YONETICI", "true").lower() not in ("0
 # Departmanda bu kadar açık iş varken model yeni iş İCAT etmez (rutin iş yine açılır).
 # Ölçüldü: 03-04.11'de 271 görev açıldı, günlük temiz kapasite ~50; kuyruk boğuluyordu.
 ACIK_IS_TAVANI = int(os.environ.get("IS_URETICI_ACIK_TAVAN", "3"))
-# Yerel model kapalıyken (PC kapalı) düşen deneme hakkı yemez: işin suçu değil.
-_MODEL_KAPALI = ("yanıt vermedi", "Remote end closed", "timed out", "Connection refused")
+
+# Provider/JSON failures are distinct from quality-review attempts. Three
+# failed execution calls form one retry burst; then the planner must reassess.
+YURUT_RETRY_LIMIT = 3
+YURUT_RETRY_DELAYS = (300, 900, 86400)
+
+
+class ModelButcesiDoldu(RuntimeError):
+    """Daily budget is exhausted; this is not a failed task/provider call."""
+
+
+def yeniden_deneme_bekliyor(gorev: dict, zaman: datetime) -> bool:
+    next_at = (gorev.get("yeniden_deneme") or {}).get("sonraki")
+    if not next_at:
+        return False
+    try:
+        return zaman < datetime.fromisoformat(next_at)
+    except (TypeError, ValueError):
+        return False
+
 
 SISTEM = (
     "Sen L'CARLIÉ (Türk dermokozmetik markası, www.lcarlie.shop) şirket işletim "
@@ -664,7 +682,7 @@ class IsUretici:
     def _model(self, mod: str, mesajlar: list[dict], is_anahtari: str, max_tokens: int | None = None) -> dict:
         gun = self._gun()
         if self.butce.kalan(gun) <= 0:
-            raise RuntimeError("günlük model çağrı tavanı doldu")
+            raise ModelButcesiDoldu("günlük model çağrı tavanı doldu")
         self.butce.harca(gun)
         mt = int(max_tokens or MAX_TOKENS[mod])
         cevap = self.o.uret(mesajlar, max_tokens=mt, kademe=KADEME[mod],
@@ -963,6 +981,8 @@ class IsUretici:
             for task in dep_tree.get('gorevler', []):
                 if task.get('durum') not in ('YENIDEN_PLANLA', 'SURESI_DOLDU', 'REDDEDILDI'):
                     continue
+                if yeniden_deneme_bekliyor(task, now_):
+                    continue
                 last = (task.get('yeniden_planlama') or {}).get('tarih')
                 if last:
                     try:
@@ -1020,6 +1040,7 @@ class IsUretici:
                     task['son_tarih'] = (now_ + timedelta(days=validated['sure_gun'])).isoformat()
                     task['durum'] = 'ACIK'
                     task['deneme'] = 0
+                    task.pop('yeniden_deneme', None)
                     task['guclu'] = True
                     reopened += 1
                     if task.get('work_id') and not self.kuru:
@@ -1046,10 +1067,13 @@ class IsUretici:
         adaylar = []
         simdi_ = self.o.saat()
         tum = {x.get("id"): x for d in agac["departmanlar"].values() for x in d.get("gorevler", [])}
-        suresi_doldu = 0
+        suresi_doldu = bekleyen = 0
         for kod, d in agac["departmanlar"].items():
             for g in d.get("gorevler", []):
                 if g.get("durum") != "ACIK":
+                    continue
+                if yeniden_deneme_bekliyor(g, simdi_):
+                    bekleyen += 1
                     continue
                 # Bayat iş kuyruğu tıkıyordu (en eski önce alınıyor, en eskiler veri
                 # değiştiği için artık yapılamıyor). Rutin: dönemi geçince yenisi
@@ -1142,12 +1166,12 @@ class IsUretici:
             except Exception as e:  # noqa: BLE001
                 self._ofis(uye.key, "FAILED", g["baslik"])
                 self.kayit.append({"gorev": g["id"], "hata": str(e)[:300]})
-                if any(x in str(e) for x in _MODEL_KAPALI):
-                    g["deneme"] = max(0, int(g["deneme"]) - 1)
+                self._yurut_hatasi(g, e)
                 checkpoint()
-                if "tavan" in str(e):
+                if isinstance(e, ModelButcesiDoldu):
                     break
                 continue
+            g.pop("yeniden_deneme", None)  # Sağlıklı çağrı ardışık hata serisini kapatır.
             gecti, sebepler, t = teslim_dogrula(v, {k.kimlik for k in kanitlar})
             # Ekip içeriği yazmış ama veri eksik diye kabulü tam saymamışsa bu bir iş ÇIKTISIDIR:
             # dürüst eksik beyanı reddetmek ekibi susturuyordu (03.11 deneme: 3/3 bu sebeple döndü).
@@ -1218,7 +1242,36 @@ class IsUretici:
         self.agac_deposu.yaz(agac, self.o.saat()) if not self.kuru else None
         return {"mod": "yurut", "tarih": tarih, "aday": len(adaylar), "teslim": teslim,
                 "duzeltmede": duzeltmede, "reddedilen": reddedilen,
-                "kalite_gecemedi": basarisiz, "suresi_doldu": suresi_doldu, "kayit": self.kayit}
+                "kalite_gecemedi": basarisiz, "suresi_doldu": suresi_doldu,
+                "yeniden_deneme_bekliyor": bekleyen, "kayit": self.kayit}
+
+    def _yurut_hatasi(self, gorev: dict, hata: Exception) -> None:
+        """Persist bounded retries; neither failure nor a timeout is completion."""
+        current = self.o.saat()
+        previous = gorev.get("yeniden_deneme") or {}
+        failures = max(0, int(previous.get("ardisik_hata", 0)))
+        budget = isinstance(hata, ModelButcesiDoldu)
+        if budget:
+            local = current.astimezone(timezone(timedelta(hours=3)))
+            next_at = (local + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+            reason = "Günlük model bütçesi doldu; sonraki Türkiye günü beklenecek."
+        else:
+            failures += 1
+            delay = YURUT_RETRY_DELAYS[min(failures, YURUT_RETRY_LIMIT) - 1]
+            next_at = current + timedelta(seconds=delay)
+            reason = f"Yürütme çağrısı başarısız ({type(hata).__name__}); ardışık hata {failures}/{YURUT_RETRY_LIMIT}."
+            if failures >= YURUT_RETRY_LIMIT:
+                gorev["durum"] = "YENIDEN_PLANLA"
+                gorev["red_sebebi"] = reason + " Yeni yürütme öncesi yeniden planlama gerekli."
+        # Yanıt üretilemediyse henüz kalite incelemesi yoktur. JSON/sağlayıcı
+        # hataları ayrı sayaçta tutulur, içerik düzeltme hakkını tüketmez.
+        gorev["deneme"] = max(0, int(gorev.get("deneme", 0)) - 1)
+        gorev["yeniden_deneme"] = {
+            "ardisik_hata": failures, "son_hata": current.isoformat(),
+            "sonraki": next_at.isoformat(), "neden": reason,
+            "tur": "BUTCE" if budget else "YURUTME"}
+        self.kayit.append({"gorev": gorev["id"], "bekleme": reason,
+                           "sonraki_deneme": next_at.isoformat(), "durum": gorev["durum"]})
 
     def _sahibe_aktar(self, g: dict) -> None:
         """Kalıcı teslimi aynı anahtarla iç insan-onay kuyruğuna aktarır; dış eylem yok."""
@@ -1291,6 +1344,11 @@ class IsUretici:
         onay = [f"- {d.get('ad', k)}: {g['baslik']}" for k, d in agac["departmanlar"].items()
                 for g in d.get("gorevler", []) if g.get("durum") == "ONAY_BEKLIYOR"][-15:]
         satir += ["", "## Senin onayını bekleyen işler"] + (onay or ["- (yok)"])
+        retries = [f"- {g['baslik']}: {g['yeniden_deneme'].get('neden', '')} "
+                   f"Sonraki değerlendirme: {g['yeniden_deneme'].get('sonraki', '')}"
+                   for d in agac["departmanlar"].values() for g in d.get("gorevler", [])
+                   if g.get("yeniden_deneme")]
+        satir += ["", "## Yeniden deneme / yeniden planlama bekleyen işler"] + (retries or ["- (yok)"])
         satir += ["", f"_Son çalışma: {sonuc.get('mod')} · {json.dumps({k: v for k, v in sonuc.items() if k not in ('kayit',)}, ensure_ascii=False)}_"]
         yol = self.dizin / f"ozet-{tarih}.md"
         if not self.kuru:

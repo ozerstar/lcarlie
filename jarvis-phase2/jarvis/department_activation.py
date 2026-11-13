@@ -63,8 +63,8 @@ def _ig_direktor(rows: dict[str, list]) -> str:
     puanlar = [int(r["kanca_puani"]) for r in paket if r.get("kanca_puani") is not None]
     ort = round(sum(puanlar) / len(puanlar)) if puanlar else None
     son = [r for r in paket if str(r.get("gun")) == gunler[-1]]
-    return (f"{len(gunler)} günde {len(paket)} içerik inceledim; {duzelt} tanesini "
-            f"düzelttirdim, {bulgulu} tanesi mevzuat bulgusuyla onaya kapalı. "
+    return (f"{len(gunler)} günde {len(paket)} içerik inceledim; {duzelt} tanesinde "
+            f"düzeltme talebi var (tamamlandığı doğrulanmadı), {bulgulu} tanesi mevzuat bulgusuyla onaya kapalı. "
             f"Son paket {gunler[-1]}: {son[0].get('urun_slug')}. "
             f"Ortalama kanca puanı {ort if ort is not None else 'yok'} (eleme ölçüsü, "
             f"izlenme tahmini değil). {bekleyen} içerik sahip kararını bekliyor; "

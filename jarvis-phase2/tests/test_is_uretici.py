@@ -425,6 +425,79 @@ class Test(unittest.TestCase):
         IsUretici(self.o, gunluk_tavan=50).yurut()
         self.assertEqual(len(attempts), 3)
 
+    def test_execution_failures_back_off_then_require_replan(self):
+        from datetime import timedelta
+        iu = IsUretici(self.o, gunluk_tavan=50)
+        iu.gunluk()
+        clock = [SAAT]
+        self.o.saat = lambda: clock[0]
+        def offline(messages, kwargs):
+            raise RuntimeError("Connection refused")
+        self.model.cevaplar = offline
+        for failure, delay in ((1, 300), (2, 900), (3, 86400)):
+            IsUretici(self.o, gunluk_tavan=50).yurut()
+            task = iu.agac_deposu.oku()["departmanlar"]["SEO"]["gorevler"][0]
+            retry = task["yeniden_deneme"]
+            self.assertEqual(retry["ardisik_hata"], failure)
+            self.assertEqual(datetime.fromisoformat(retry["sonraki"]), clock[0] + timedelta(seconds=delay))
+            self.assertEqual(task["deneme"], 0)
+            count = len(self.model.cagri)
+            IsUretici(self.o, gunluk_tavan=50).yurut()
+            self.assertEqual(len(self.model.cagri), count)
+            clock[0] += timedelta(seconds=delay)
+        self.assertEqual(task["durum"], "YENIDEN_PLANLA")
+        self.assertIn("yeniden planlama", task["red_sebebi"])
+        self.assertEqual(self.defter.apps, [])
+        # Replanning also respects the last cooldown; no hot retry loop.
+        clock[0] -= timedelta(seconds=1)
+        count = len(self.model.cagri)
+        self.assertEqual(IsUretici(self.o, gunluk_tavan=50).replan()["aday"], 0)
+        self.assertEqual(len(self.model.cagri), count)
+        clock[0] += timedelta(seconds=1)
+        tree = iu.agac_deposu.oku()
+        tree["departmanlar"]["SEO"]["gorevler"][0]["work_id"] = None
+        iu.agac_deposu.yaz(tree, clock[0])
+        self.model.cevaplar = lambda messages, kwargs: {
+            "karar": "AC", "tip": "ANALIZ", "baslik": "Meta açıklaması eksik sayfaları listele",
+            "cikti": "liste", "kabul_olcutu": "tüm eksikler", "sure_gun": 2,
+            "gerekce": "Bağlantı yeniden kullanılabilir; analizi tekrar dene."}
+        self.assertEqual(IsUretici(self.o, gunluk_tavan=50).replan()["yeniden_acildi"], 1)
+        task = iu.agac_deposu.oku()["departmanlar"]["SEO"]["gorevler"][0]
+        self.assertEqual(task["durum"], "ACIK")
+        self.assertNotIn("yeniden_deneme", task)
+
+    def test_success_resets_execution_retry_and_budget_does_not_spend_attempt(self):
+        from datetime import timedelta
+        iu = IsUretici(self.o, gunluk_tavan=50)
+        iu.gunluk()
+        self.model.cevaplar = lambda messages, kwargs: (_ for _ in ()).throw(RuntimeError("Connection refused"))
+        iu.yurut()
+        count = len(self.model.cagri)
+        result = IsUretici(self.o, gunluk_tavan=50).yurut()
+        self.assertEqual(result["yeniden_deneme_bekliyor"], 1)
+        self.assertEqual(len(self.model.cagri), count)
+        self.o.saat = lambda: SAAT + timedelta(minutes=5)
+        self.model.cevaplar = cevap
+        IsUretici(self.o, gunluk_tavan=50).yurut()
+        task = iu.agac_deposu.oku()["departmanlar"]["SEO"]["gorevler"][0]
+        self.assertEqual(task["durum"], "TESLIM_EDILDI")
+        self.assertNotIn("yeniden_deneme", task)
+        # Reset only fixture queue state to exercise budget exhaustion.
+        tree = iu.agac_deposu.oku()
+        task = tree["departmanlar"]["SEO"]["gorevler"][0]
+        task.update(durum="ACIK", deneme=0)
+        iu.agac_deposu.yaz(tree, self.o.saat())
+        count = len(self.model.cagri)
+        IsUretici(self.o, gunluk_tavan=0).yurut()
+        task = iu.agac_deposu.oku()["departmanlar"]["SEO"]["gorevler"][0]
+        self.assertEqual((task["durum"], task["deneme"]), ("ACIK", 0))
+        self.assertEqual(task["yeniden_deneme"]["ardisik_hata"], 0)
+        self.assertEqual(task["yeniden_deneme"]["tur"], "BUTCE")
+        self.assertEqual(task["yeniden_deneme"]["sonraki"], "2026-10-27T00:00:00+03:00")
+        self.assertEqual(len(self.model.cagri), count)
+        report = Path(iu.ozet_yaz({"mod": "yurut"})).read_text()
+        self.assertIn("Günlük model bütçesi doldu", report)
+
     def test_json_ayikla_ve_temizle(self):
         self.assertEqual(json_ayikla('Tamam:\n```json\n{"a": "}"}\n```')["a"], "}")
         self.assertEqual(json_ayikla('önce {"a": 1} sonra')["a"], 1)
