@@ -248,7 +248,13 @@ def frenler() -> bool:
 # ------------------------------------------------------------------ 3. gönderim
 SIRADAKI = """
 SELECT row_to_json(x) FROM (
-  SELECT DISTINCT ON (h.oncelik, h.id) h.id, h.il, h.eczane, h.eczaci, h.anahtar, lower(e.eposta) AS eposta
+  -- Eski listede "İ" çoğu yerde düz "I" yazılmış ("DEMIRTEPE" -> "Demırtepe" gitti).
+  -- Odanın nöbet kaydı ve Google adı doğru yazımlı: varsa o kullanılır.
+  SELECT DISTINCT ON (h.oncelik, h.id) h.id, h.il,
+         coalesce((SELECT k.ad FROM raw.eczane_kaynak k
+                   WHERE k.hedef_id = h.id AND k.kaynak IN ('AEO_NOBET', 'GMAPS') AND k.ad ILIKE '%eczane%'
+                   ORDER BY (k.kaynak = 'AEO_NOBET') DESC LIMIT 1), h.eczane) AS eczane,
+         h.eczaci, h.anahtar, lower(e.eposta) AS eposta
   FROM core.eczane_hedef h
   JOIN core.eczane_eposta e ON e.hedef_id = h.id AND e.dogrulama IN ('GECERLI','BELIRSIZ')
   WHERE (:'il' = '*' OR h.il = :'il') AND h.durum NOT IN ('GECERSIZ','CIKTI','ILGISIZ')
