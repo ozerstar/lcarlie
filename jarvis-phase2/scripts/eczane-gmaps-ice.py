@@ -188,7 +188,9 @@ COMMIT;
 
 def main():
     il, yol = sys.argv[1], sys.argv[2]
-    veri = list(satirlar(il, yol))
+    # Aynı eczane komşu mahalle aramalarında tekrar tekrar çıkar (Ankara: 2.723
+    # satır); aynı place_id iki kez yazılırsa ON CONFLICT tüm yüklemeyi düşürür.
+    veri = list({v["kaynak_id"]: v for v in satirlar(il, yol) if v["kaynak_id"]}.values())
     # \copy metin biçiminde ters eğik çizgi kaçış karakteridir
     govde = "\n".join(json.dumps(v, ensure_ascii=False).replace("\\", "\\\\") for v in veri)
     sql = YUKLE.replace("\\copy y FROM STDIN", "\\copy y FROM STDIN\n" + govde + "\n\\.")
