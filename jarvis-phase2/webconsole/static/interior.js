@@ -7,13 +7,16 @@
     raporlar: ['Raporlar', 'Bulguları ve dayandıkları kayıtları bir arada incele.', 'izleme', ['Bulgular', 'Kaynaklar', 'Karar']],
     gorevler: ['Görevler', 'Çalışmaları takip et; önerileri inceleyip karar ver.', 'is', ['Çalışmalar', 'Öneriler', 'Döngüler']],
     fiyat: ['Fiyat', 'Ürünleri karşılaştır; değişikliği önce gör, sonra onaya gönder.', 'is', ['Ürünleri süz', 'Önizle', 'Onaya gönder']],
-    eticaret: ['E-ticaret', 'Ürün bilgilerinin kanallar arasında nerede ayrıştığını gör.', 'is', ['Ürünü seç', 'Alanları karşılaştır', 'Düzeltmeyi incele']],
+    eticaret: ['E-ticaret', 'Pazaryeri satışlarını izle; ürün bilgilerinin kanallar arasında nerede ayrıştığını gör.', 'is', ['Satışları gör', 'Ürünü seç', 'Alanları karşılaştır']],
     satislar: ['Satışlar', 'Gönderilerin ve doğrulanan satışların gerçek kaydını izle.', 'is', ['Gönderiler', 'Açıklamalar', 'Doğrulama']],
-    kargo: ['Kargo', 'Gönderileri takip et; ücretli barkod adımını ayrıca onayla.', 'is', ['Gönderiyi seç', 'Fiyatı gör', 'Barkodu onayla']],
+    kargo: ['Kargo', 'Pazaryeri paketlerini ve gönderileri takip et; etiketleri sayfaya dizdir.', 'is', ['Paketi seç', 'Etiketi üret', 'Barkodu onayla']],
     gelenkutusu: ['Gelen kutusu', 'Müşteri konuşmalarını ve kimin yanıtlayacağını gör.', 'is', ['Mesajı aç', 'Sahibini gör', 'Yanıtla']],
+    eczaneler: ['Eczaneler', 'Eczane listesini, yapılan her teması ve dönüşleri tek yerde izle.', 'is', ['Eczaneyi bul', 'Teması gör', 'Dönüşü izle']],
     musteri: ['Müşteriler', 'Sipariş geçmişini, tekrar alışverişi ve iadeleri incele.', 'is', ['Kişiyi seç', 'Geçmişi gör', 'İadeyi incele']],
     uretilenler: ['Üretilenler', 'Kreatif fikirleri, görselleri ve dosyaları tek yerde bul.', 'kreatif', ['Çalışmalar', 'Görseller', 'Ayrıntılar']],
     kreatifParti: ['Kreatif', 'Haftalık fikirleri incele; görsel üretimi için karar ver.', 'kreatif', ['Partiler', 'Fikirler', 'Onay']],
+    gorselOnay: ['Görsel onayları', 'Üretilen görselleri incele; yayına çıkacak olanı onayla.', 'kreatif', ['Görseli aç', 'Karşılaştır', 'Onayla']],
+    kampanya: ['Kampanya', 'Satışı ve reklam harcamasını kanal kanal, kampanya kampanya izle.', 'kreatif', ['Genel durum', 'Kanallar', 'Kampanyalar']],
     reklam: ['Reklam', 'Gerçek performansla biçimleri ve çağrı düğmelerini karşılaştır.', 'kreatif', ['Düğme', 'Biçim', 'Kreatif']],
     tasarim: ['Tasarım', 'Şablonlardan çıkan işleri ve onay durumunu takip et.', 'kreatif', ['Şablon', 'Üretim', 'Onay']],
     ekip: ['Ekip', 'Ekip üyelerinin işlerini ve konuşmalarını görünür tut.', 'org', ['Üyeler', 'İşler', 'Durum']],
@@ -27,7 +30,7 @@
     ayarlar: ['Ayarlar', 'Çalışma alanının durumunu ve erişim tercihlerini gör.', 'org', ['Durum', 'Tercihler', 'Erişim']],
   };
   const ids = {
-    analiz:'Analiz',asistan:'Asistan',raporlar:'Raporlar',gorevler:'Gorevler',fiyat:'Fiyat',eticaret:'Eticaret',satislar:'Satislar',kargo:'Kargo',gelenkutusu:'GelenKutusu',musteri:'Musteri',uretilenler:'Uretilenler',kreatifParti:'KreatifParti',reklam:'Reklam',tasarim:'Tasarim',ekip:'Ekip',ajanlar:'Ajanlar',hafiza:'Hafiza',veri:'Veri',katalog:'Katalog',saha:'Saha',isler:'Isler',sistem:'Sistem',ayarlar:'Ayarlar'
+    analiz:'Analiz',asistan:'Asistan',raporlar:'Raporlar',gorevler:'Gorevler',fiyat:'Fiyat',eticaret:'Eticaret',satislar:'Satislar',kargo:'Kargo',gelenkutusu:'GelenKutusu',musteri:'Musteri',eczaneler:'Eczaneler',gorselOnay:'GorselOnay',kampanya:'Kampanya',uretilenler:'Uretilenler',kreatifParti:'KreatifParti',reklam:'Reklam',tasarim:'Tasarim',ekip:'Ekip',ajanlar:'Ajanlar',hafiza:'Hafiza',veri:'Veri',katalog:'Katalog',saha:'Saha',isler:'Isler',sistem:'Sistem',ayarlar:'Ayarlar'
   };
   const groupNames={izleme:'Günlük çalışma',is:'Şirket işleri',kreatif:'Kreatif stüdyo',org:'Çalışma altyapısı'};
   const chartViews=new Set(['satislar','fiyat','eticaret','isler','kargo','musteri','sistem']);
