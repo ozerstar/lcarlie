@@ -128,17 +128,29 @@ def gelenleri_isle() -> None:
         m.login(kul, sif)
         m.select("INBOX", readonly=True)       # okundu işareti DEĞİŞMEZ
         tarih = (datetime.now(TR) - timedelta(days=14)).strftime("%d-%b-%Y")
-        _, veri = m.search(None, "SINCE", tarih)
-        for no in (veri[0] or b"").split()[-400:]:
-            _, parca = m.fetch(no, "(BODY.PEEK[])")
+        # 🔴 Yandex büyük FETCH'te bağlantıyı kesiyor ("FETCH => problems with
+        # connection", 13.11). Her çalışmada tüm gövdeleri çekmek yerine: UID ile
+        # yalnız YENİ mesajlar, önce yalnız başlık; gövde yalnız bizim adresimizden
+        # gelen cevapta ya da geri dönen postada çekilir.
+        _, veri = m.uid("search", None, "SINCE", tarih)
+        for uid in (veri[0] or b"").split()[-400:]:
+            anahtar = "uid:" + uid.decode()
+            if anahtar in gorulen:
+                continue
+            _, parca = m.uid("fetch", uid, "(BODY.PEEK[HEADER.FIELDS (FROM SUBJECT MESSAGE-ID)])")
+            bas = parca[0][1] if parca and isinstance(parca[0], tuple) else b""
+            baslik = email.message_from_bytes(bas)
+            gorulen.add(anahtar)
+            mid = (baslik.get("Message-ID") or anahtar).strip()
+            kimden = parseaddr(baslik.get("From") or "")[1].lower()
+            konu = coz(baslik.get("Subject"))
+            geri_olabilir = ("mailer-daemon" in kimden or "postmaster" in kimden
+                             or re.search(r"undeliver|delivery status|teslim edilemedi|returned mail|failure", konu, re.I))
+            if kimden not in gonderilen and not geri_olabilir:
+                continue
+            _, parca = m.uid("fetch", uid, "(BODY.PEEK[])")
             ham = parca[0][1] if parca and isinstance(parca[0], tuple) else b""
             msj = email.message_from_bytes(ham)
-            mid = (msj.get("Message-ID") or "").strip()
-            if not mid or mid in gorulen:
-                continue
-            gorulen.add(mid)
-            kimden = parseaddr(msj.get("From") or "")[1].lower()
-            konu = coz(msj.get("Subject"))
             govde = ""
             for p in msj.walk():
                 if p.get_content_type() == "text/plain":

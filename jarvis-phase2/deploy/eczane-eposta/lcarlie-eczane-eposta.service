@@ -7,6 +7,7 @@ Type=oneshot
 WorkingDirectory=/opt/lcarlie/jarvis-phase2
 EnvironmentFile=/etc/lcarlie/jarvis-web.env
 EnvironmentFile=/etc/lcarlie/siparis-nobetci.env
+EnvironmentFile=-/etc/lcarlie/eczane-eposta.env
 Environment=JARVIS_STATE_DIR=/opt/lcarlie/jarvis-phase2/state
 Environment=TZ=Europe/Istanbul
 ExecStart=/usr/bin/flock -n /run/lcarlie-eczane-eposta.lock /opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/eczane-eposta-kampanya.py
