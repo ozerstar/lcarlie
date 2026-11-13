@@ -4464,6 +4464,76 @@ html, body { max-width: 100%; overflow-x: hidden; }
 }
 .gk-m-giden .gk-m-metin { border-color: var(--line); }
 
+/* --- Zaman, gun ayraci, rozetler --- */
+.gk-zaman { margin-left: auto; font-size: 11px; color: var(--ivory); opacity: 0.75; font-family: var(--font-mono); }
+.gk-gun-ayrac { display: flex; justify-content: center; margin: 6px 0 2px; }
+.gk-gun-ayrac span {
+  font-size: 11px; padding: 3px 10px; border-radius: 8px;
+  background: #e1f3fb; color: #1d3a47;
+}
+.gk-wa-rozet {
+  font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 999px;
+  background: #25d366; color: #0b2e1a;
+}
+.gk-eczane-rozet {
+  font-size: 11px; letter-spacing: 0.06em; padding: 2px 7px; border-radius: 999px;
+  background: #155761; color: #ffffff;
+}
+
+/* --- WhatsApp gorunumu (yalniz kanal = whatsapp) --- */
+.gk-wa-bas {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin: -12px -12px 10px; padding: 10px 12px;
+  background: #075e54; color: #ffffff; border-radius: var(--radius) var(--radius) 0 0;
+}
+.gk-wa-logo {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
+  padding: 3px 8px; border-radius: 999px; background: #25d366; color: #0b2e1a;
+}
+.gk-wa-kim { display: flex; flex-direction: column; gap: 1px; margin-right: auto; }
+.gk-wa-kim b { font-size: 14px; color: #ffffff; }
+.gk-wa-kim small { font-size: 11px; color: #d9f2ec; }
+.gk-wa-bas .gk-rozet { color: #ffffff; border-color: rgba(255, 255, 255, 0.55); }
+
+.gk-wa-akis {
+  background: #efeae2; border-radius: var(--radius); padding: 12px 10px; gap: 8px;
+}
+.gk-wa-m { display: flex; flex-direction: column; gap: 3px; max-width: 86%; }
+.gk-wa-gelen { align-self: flex-start; }
+.gk-wa-giden { align-self: flex-end; }
+.gk-wa-balon {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 7px 10px 5px; border-radius: 9px; color: #111b21;
+  box-shadow: 0 1px 1px rgba(11, 20, 26, 0.13);
+}
+.gk-wa-gelen .gk-wa-balon { background: #ffffff; border-top-left-radius: 2px; }
+.gk-wa-giden .gk-wa-balon { background: #d9fdd3; border-top-right-radius: 2px; }
+.gk-wa-metin {
+  font-size: 13px; line-height: 1.5; color: #111b21;
+  white-space: pre-wrap; word-break: break-word;
+}
+.gk-wa-sablon {
+  font-size: 11px; letter-spacing: 0.04em; color: #075e54; font-weight: 600;
+}
+.gk-wa-altbilgi { font-size: 11px; color: #54656f; }
+.gk-wa-alt {
+  display: flex; justify-content: flex-end; align-items: center; gap: 4px;
+  font-size: 11px; color: #54656f;
+}
+.gk-wa-tik { font-size: 11px; color: #54656f; letter-spacing: -2px; }
+.gk-wa-okundu { color: #0b6fa4; }
+.gk-wa-hata { color: #a3271f; letter-spacing: 0; }
+.gk-wa-yanit {
+  font-size: 11px; color: #075e54; background: #e7f6f2;
+  border-left: 3px solid #25d366; padding: 3px 7px; border-radius: 4px;
+}
+.gk-wa-dugmeler { display: flex; flex-direction: column; gap: 3px; }
+.gk-wa-dugme {
+  display: block; text-align: center; font-size: 12px; font-weight: 600;
+  padding: 8px 10px; border-radius: 9px; background: #ffffff; color: #027eb5;
+  box-shadow: 0 1px 1px rgba(11, 20, 26, 0.13);
+}
+
 .gk-eylem { display: flex; gap: 6px; flex-wrap: wrap; }
 .gk-b {
   font-family: var(--font-ui); font-size: 11px; letter-spacing: 0.08em;

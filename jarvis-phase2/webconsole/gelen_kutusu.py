@@ -66,11 +66,15 @@ def konusmalar(durum: str | None = None, limit: int = VARSAYILAN_LIMIT) -> list[
     sql = f"""
     SELECT row_to_json(x) FROM (
       SELECT k.id, k.kanal, k.harici_id,
-             COALESCE(NULLIF(k.musteri_ad,''), k.musteri_ref, k.harici_id) AS musteri,
+             COALESCE(e.eczane, NULLIF(k.musteri_ad,''), k.musteri_ref, k.harici_id) AS musteri,
+             e.ilce AS eczane_ilce, (e.id IS NOT NULL) AS eczane_kampanya,
              k.mesaj_sayisi, k.son_mesaj, k.devir_durumu, k.devir_sebep,
              s.metin AS son_metin, s.yon AS son_yon, s.sinif AS son_sinif,
              (s.yon = 'gelen') AS cevapsiz
       FROM lcarlie.konusma k
+      -- Eczane kampanyası konuşması: numara yerine eczane adı görünsün
+      LEFT JOIN core.eczane_hedef e
+        ON e.id = NULLIF(k.notlar->>'eczane_hedef_id', '')::bigint
       LEFT JOIN LATERAL (
         SELECT m.metin, m.yon, m.sinif FROM lcarlie.mesaj m
         WHERE m.konusma_id = k.id ORDER BY m.zaman DESC LIMIT 1
@@ -93,18 +97,26 @@ def konusma(konusma_id: int, limit: int = 60) -> dict:
     bas = _calistir(f"""
     SELECT row_to_json(x) FROM (
       SELECT k.id, k.kanal, k.harici_id,
-             COALESCE(NULLIF(k.musteri_ad,''), k.musteri_ref, k.harici_id) AS musteri,
+             COALESCE(e.eczane, NULLIF(k.musteri_ad,''), k.musteri_ref, k.harici_id) AS musteri,
+             e.ilce AS eczane_ilce, (e.id IS NOT NULL) AS eczane_kampanya,
              k.musteri_ref, k.mesaj_sayisi, k.son_mesaj,
              k.devir_durumu, k.devir_sebep, k.devir_zaman
-      FROM lcarlie.konusma k WHERE k.id = {kid}
+      FROM lcarlie.konusma k
+      LEFT JOIN core.eczane_hedef e
+        ON e.id = NULLIF(k.notlar->>'eczane_hedef_id', '')::bigint
+      WHERE k.id = {kid}
     ) x;
     """)
     if not bas:
         raise KutuHatasi("konusma bulunamadi: %s" % kid)
+    # ek: şablon/düğme bilgisi; teslim: kampanya mesajının Meta durumu (✓ ✓✓ okundu)
     mesajlar = _calistir(f"""
     SELECT row_to_json(x) FROM (
-      SELECT m.id, m.zaman, m.yon, m.gonderen, m.metin, m.sinif, m.mevzuat
-      FROM lcarlie.mesaj m WHERE m.konusma_id = {kid}
+      SELECT m.id, m.zaman, m.yon, m.gonderen, m.metin, m.sinif, m.mevzuat,
+             m.ek, g.durum AS teslim
+      FROM lcarlie.mesaj m
+      LEFT JOIN core.eczane_gonderim g ON g.wamid = m.harici_id
+      WHERE m.konusma_id = {kid}
       ORDER BY m.zaman DESC LIMIT {limit}
     ) x;
     """)

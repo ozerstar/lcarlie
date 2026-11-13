@@ -8490,19 +8490,89 @@ function gkEtiket(durum) {
   return '<span class="gk-rozet gk-insan">SENDE</span>';
 }
 
+var GK_AY = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+
+/* Mesaj zamani: bugunse yalniz saat, degilse "13 Kas 15:24". */
+function gkZaman(iso, uzun) {
+  if (!iso) return '';
+  var d = new Date(iso);
+  if (isNaN(d)) return '';
+  var saat = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  var bugun = new Date();
+  var ayniGun = d.toDateString() === bugun.toDateString();
+  if (ayniGun && !uzun) return saat;
+  return d.getDate() + ' ' + GK_AY[d.getMonth()] +
+    (d.getFullYear() !== bugun.getFullYear() ? ' ' + d.getFullYear() : '') + ' ' + saat;
+}
+
+function gkGunAyraci(iso) {
+  var d = new Date(iso);
+  var bugun = new Date();
+  var dun = new Date(); dun.setDate(bugun.getDate() - 1);
+  if (d.toDateString() === bugun.toDateString()) return 'Bugün';
+  if (d.toDateString() === dun.toDateString()) return 'Dün';
+  return d.getDate() + ' ' + GK_AY[d.getMonth()] + ' ' + d.getFullYear();
+}
+
+function gkKanalRozet(kanal) {
+  if (kanal === 'whatsapp') return '<span class="gk-wa-rozet">WhatsApp</span>';
+  return '<span class="gk-kanal">' + escapeHtml(kanal || '') + '</span>';
+}
+
 function gkSatir(k) {
-  var son = (k.son_metin || '').slice(0, 90);
+  var son = (k.son_metin || '').replace(/\s*\[Ziyaret saati seçin\] \[İstemiyorum\]\s*$/, '').slice(0, 90);
   var cevapsiz = k.cevapsiz ? '<span class="gk-bekleyen">CEVAPSIZ</span>' : '';
   var sinif = k.son_sinif
     ? '<span class="gk-sinif">' + escapeHtml(k.son_sinif) + '</span>' : '';
+  var eczane = k.eczane_kampanya ? '<span class="gk-eczane-rozet">ECZANE</span>' : '';
+  var ilce = k.eczane_ilce ? ' · ' + escapeHtml(k.eczane_ilce) : '';
   return '<button type="button" class="gk-satir' +
     (gkSecili === k.id ? ' is-secili' : '') + '" data-kid="' + k.id + '">' +
     '<span class="gk-ust">' + gkEtiket(k.devir_durumu) + cevapsiz +
-    '<span class="gk-kanal">' + escapeHtml(k.kanal || '') + '</span>' + sinif +
+    gkKanalRozet(k.kanal) + eczane + sinif +
+    '<span class="gk-zaman">' + escapeHtml(gkZaman(k.son_mesaj)) + '</span>' +
     '</span>' +
-    '<span class="gk-ad">' + escapeHtml(String(k.musteri || '')) + '</span>' +
+    '<span class="gk-ad">' + escapeHtml(String(k.musteri || '')) + ilce + '</span>' +
     '<span class="gk-son">' + escapeHtml(son) + '</span>' +
     '</button>';
+}
+
+/* Teslim isareti: WhatsApp'taki gibi ✓ gonderildi, ✓✓ teslim, mavi ✓✓ okundu. */
+function gkTik(teslim) {
+  if (teslim === 'READ') return '<span class="gk-wa-tik gk-wa-okundu">✓✓</span>';
+  if (teslim === 'DELIVERED') return '<span class="gk-wa-tik">✓✓</span>';
+  if (teslim === 'FAILED') return '<span class="gk-wa-tik gk-wa-hata">ulaşmadı</span>';
+  if (teslim) return '<span class="gk-wa-tik">✓</span>';
+  return '';
+}
+
+/* WhatsApp balonu. Kampanya sablonu (ek.sablon) dugmeleriyle cizilir;
+ * gelen hizli yanit dugmesi (ek.button_payload) etiket olarak gorunur. */
+function gkWaBalon(m) {
+  var ek = m.ek || {};
+  var giden = m.yon !== 'gelen';
+  var metin = m.metin || '';
+  var dugmeler = '';
+  var altbilgi = '';
+  if (ek.sablon) {
+    metin = metin.replace(/\s*\[Ziyaret saati seçin\] \[İstemiyorum\]\s*$/, '');
+    altbilgi = '<span class="gk-wa-altbilgi">L’CARLIÉ Eczane İlişkileri</span>';
+    dugmeler = '<span class="gk-wa-dugmeler">' +
+      '<span class="gk-wa-dugme">🔗 Ziyaret saati seçin</span>' +
+      '<span class="gk-wa-dugme">↩ İstemiyorum</span></span>';
+  }
+  var yanit = (!giden && ek.button_payload)
+    ? '<span class="gk-wa-yanit">↩ Düğmeye bastı: ' +
+      escapeHtml(String(ek.button_payload).indexOf('ECZ_RED') === 0 ? 'İstemiyorum' : ek.button_payload) +
+      '</span>'
+    : '';
+  return '<div class="gk-wa-m ' + (giden ? 'gk-wa-giden' : 'gk-wa-gelen') + '">' +
+    '<div class="gk-wa-balon">' +
+      (ek.sablon ? '<span class="gk-wa-sablon">ŞABLON · ' + escapeHtml(ek.sablon) + '</span>' : '') +
+      yanit +
+      '<span class="gk-wa-metin">' + escapeHtml(metin) + '</span>' + altbilgi +
+      '<span class="gk-wa-alt">' + escapeHtml(gkZaman(m.zaman, true)) + (giden ? gkTik(m.teslim) : '') + '</span>' +
+    '</div>' + dugmeler + '</div>';
 }
 
 async function loadGelenKutusu() {
@@ -8546,11 +8616,20 @@ async function gkKonusmaAc(kid) {
   }
   var k = r.body;
   var oneri = k.oneri || {};
+  var wa = k.kanal === 'whatsapp';
+  var oncekiGun = '';
   var mesajlar = (k.mesajlar || []).map(function (m) {
+    var gun = m.zaman ? new Date(m.zaman).toDateString() : '';
+    var ayrac = '';
+    if (gun && gun !== oncekiGun) {
+      ayrac = '<div class="gk-gun-ayrac"><span>' + escapeHtml(gkGunAyraci(m.zaman)) + '</span></div>';
+      oncekiGun = gun;
+    }
+    if (wa) return ayrac + gkWaBalon(m);
     var yon = m.yon === 'gelen' ? 'gk-m-gelen' : 'gk-m-giden';
     var kim = m.yon === 'gelen' ? 'Musteri' : 'Biz';
-    return '<div class="gk-m ' + yon + '">' +
-      '<span class="gk-m-kim">' + kim + '</span>' +
+    return ayrac + '<div class="gk-m ' + yon + '">' +
+      '<span class="gk-m-kim">' + kim + ' · ' + escapeHtml(gkZaman(m.zaman, true)) + '</span>' +
       '<span class="gk-m-metin">' + escapeHtml(m.metin || '') + '</span></div>';
   }).join('');
 
@@ -8559,12 +8638,18 @@ async function gkKonusmaAc(kid) {
       escapeHtml(oneri.sebep_metni || '')
     : 'Devir kapisina gore <b>Jarvis</b> cevaplayabilir.';
 
-  kutu.innerHTML =
-    '<div class="gk-d-bas"><b>' + escapeHtml(String(k.musteri || '')) + '</b>' +
-    '<span class="gk-kanal">' + escapeHtml(k.kanal || '') + '</span>' +
-    gkEtiket(k.devir_durumu) + '</div>' +
+  var bas = wa
+    ? '<div class="gk-wa-bas"><span class="gk-wa-logo">WhatsApp</span>' +
+        '<span class="gk-wa-kim"><b>' + escapeHtml(String(k.musteri || '')) + '</b>' +
+        '<small>' + (k.eczane_ilce ? escapeHtml(k.eczane_ilce) + ' · ' : '') +
+        '+' + escapeHtml(String(k.harici_id || '')) + ' · bizim hat 0544 544 21 15</small></span>' +
+        (k.eczane_kampanya ? '<span class="gk-eczane-rozet">ECZANE</span>' : '') +
+        gkEtiket(k.devir_durumu) + '</div>'
+    : '<div class="gk-d-bas"><b>' + escapeHtml(String(k.musteri || '')) + '</b>' +
+      gkKanalRozet(k.kanal) + gkEtiket(k.devir_durumu) + '</div>';
+  kutu.innerHTML = bas +
     '<p class="gk-oneri">' + oneriMetni + '</p>' +
-    '<div class="gk-akis">' +
+    '<div class="gk-akis' + (wa ? ' gk-wa-akis' : '') + '">' +
       (mesajlar || '<p class="fm-empty">Mesaj yok.</p>') + '</div>' +
     '<div class="gk-eylem">' +
       '<button type="button" class="gk-b" data-devir="INSANDA" data-kid="' +
