@@ -40,10 +40,11 @@ MESAJ = (
 # Uretilen gorselin kendisi. Avatar/simge gorsellerini DISLAMAK icin
 # kaynak adresi desenle suzulur.
 GORSEL = (
-    'div[data-message-author-role="assistant"] img[src*="oaiusercontent"]',
-    'div[data-message-author-role="assistant"] img[src*="files.oaiusercontent"]',
-    'div[data-message-author-role="assistant"] img[alt*="Generated" i]',
-    'div[data-message-author-role="assistant"] img[src^="blob:"]',
+    # Generated images have an explicit preview card in the current ChatGPT UI.
+    # Never use broad image selectors: user-upload thumbnails are also blobs.
+    '[data-testid="generated-image-preview"] img',
+    'img[alt^="Oluşturulan görsel" i]',
+    'img[alt^="Generated image" i]',
 )
 
 # Avatar/ikon kaynaklari: bunlar uretilmis gorsel DEGIL.
@@ -60,8 +61,16 @@ def _gorsel_adresleri(page) -> list[str]:
         try:
             loc = page.locator(secici)
             for i in range(loc.count()):
-                src = loc.nth(i).get_attribute("src") or ""
-                if src and not GORSEL_DISLANAN.search(src) and src not in adresler:
+                im = loc.nth(i)
+                src = im.get_attribute("src") or ""
+                if not src:
+                    try:
+                        src = im.evaluate("(el) => el.currentSrc || el.src") or ""
+                    except Exception:                          # noqa: BLE001
+                        src = ""
+                if (src and not GORSEL_DISLANAN.search(src)
+                        and src.startswith(("http://", "https://", "blob:", "data:image/"))
+                        and src not in adresler):
                     adresler.append(src)
         except Exception:                              # noqa: BLE001
             continue
@@ -70,20 +79,29 @@ def _gorsel_adresleri(page) -> list[str]:
 
 def _indir(page, adres: str) -> bytes | None:
     """Gorseli sayfanin oturumuyla indirir."""
+    if adres.startswith("data:image/"):
+        import base64
+        try:
+            return base64.b64decode(adres.split(",", 1)[1])
+        except Exception:                                  # noqa: BLE001
+            return None
     if adres.startswith("blob:"):
         # blob: adresi ag uzerinden alinamaz; sayfa icinde base64'e cevrilir.
+        # 🔴 15.11.2026: eskiden bayt bayt `s += String.fromCharCode` ile
+        #    birkac MB'lik PNG icin milyonlarca ara dize uretiliyordu (sekmenin
+        #    1.120 MB V8 tavanina yakin). FileReader dogrudan base64 verir.
         try:
             veri = page.evaluate(
                 """async (url) => {
                     const r = await fetch(url);
                     const b = await r.blob();
-                    const buf = await b.arrayBuffer();
-                    const bytes = new Uint8Array(buf);
-                    let s = '';
-                    for (let i = 0; i < bytes.length; i++) {
-                        s += String.fromCharCode(bytes[i]);
-                    }
-                    return btoa(s);
+                    const d = await new Promise((ok, red) => {
+                        const fr = new FileReader();
+                        fr.onload = () => ok(String(fr.result || ''));
+                        fr.onerror = () => red(fr.error);
+                        fr.readAsDataURL(b);
+                    });
+                    return d.slice(d.indexOf(',') + 1);
                 }""", adres)
         except Exception:                              # noqa: BLE001
             return None
@@ -108,8 +126,10 @@ def calistir(page, is_: dict, zaman_asimi_s: float | None = None) -> dict:
     tavan = float(zaman_asimi_s or ZAMAN_ASIMI_S)
     bitis = time.time() + tavan
 
-    page.goto(ADRES, wait_until="domcontentloaded", timeout=60000)
-    page.wait_for_timeout(2500)
+    # Aynı tarayıcı sekmesini ve sohbeti sürdür; yalnız yanlış/boş sayfadaysa yönlen.
+    if "chatgpt.com" not in (page.url or ""):
+        page.goto(ADRES, wait_until="domcontentloaded", timeout=60000)
+    page.wait_for_timeout(1200)
     ortak.kapiyi_gec(page)
 
     kutu = ortak.ilk_bulunan(page, KUTU)
@@ -175,3 +195,5 @@ def calistir(page, is_: dict, zaman_asimi_s: float | None = None) -> dict:
     except (ZamanAsimi, HandlerHatasi):
         metin = ""
     return {"metin": metin, "dosyalar": dosyalar}
+
+

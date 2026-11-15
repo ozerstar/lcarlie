@@ -66,7 +66,14 @@ if (-not $acik) {
         "--no-first-run",
         "--no-default-browser-check",
         "--disable-session-crashed-bubble",
-        "--restore-last-session=false"
+        "--restore-last-session=false",
+        # RAM AYRIMI (15.11.2026, olculdu): bu Chrome'un her sekmesi 1.120 MB
+        # JS yigini tavaniyla aciliyordu; 7-15.11 arasi 138 cokme raporunun
+        # 138'i de renderer OOM (0xE0000008), sayfa cokmelerinin hepsi
+        # ~1,1 GB'ta. Tavan 3 GB'a cikarildi (olculdu: bayraksiz 1.031 MB'ta
+        # olur, 3072 ile 1.816 MB ayakta). 4096 YAZMA: V8 4 GB kafesinde tasar,
+        # tavan 97 MB'a duser ve sekme kilitlenir (15.11 olculdu).
+        "--js-flags=--max-old-space-size=3072"
     )
     Start-Process -FilePath $Chrome -ArgumentList $argumanlar
     Write-Host "Chrome aciliyor (profil: $Profil)..." -ForegroundColor Cyan
@@ -83,7 +90,16 @@ if (-not $acik) {
         Write-Host "Chrome $Port portunda dinlemedi. Baska bir Chrome ayni profili kullaniyor olabilir." -ForegroundColor Red
         exit 1
     }
-    Start-Process -FilePath $Chrome -ArgumentList @("--user-data-dir=$Profil", "https://chatgpt.com/")
+    # İşler arasında aynı ChatGPT konuşmasını sürdür; yalnızca doğrulanmış sohbet URL'si yüklenir.
+    $chatgptAdres = "https://chatgpt.com/"
+    $sonKonusmaDosyasi = Join-Path $Kok "state\chatgpt-last-url.txt"
+    if (Test-Path $sonKonusmaDosyasi) {
+        $kayitliAdres = (Get-Content -Raw -LiteralPath $sonKonusmaDosyasi).Trim()
+        if ($kayitliAdres -match '^https://chatgpt\.com/c/[A-Za-z0-9-]+/?$') {
+            $chatgptAdres = $kayitliAdres
+        }
+    }
+    Start-Process -FilePath $Chrome -ArgumentList @("--user-data-dir=$Profil", $chatgptAdres)
     Start-Sleep -Seconds 2
     Start-Process -FilePath $Chrome -ArgumentList @("--user-data-dir=$Profil", "https://claude.ai/new")
 }
@@ -91,3 +107,4 @@ if (-not $acik) {
 Write-Host ""
 Write-Host "SIMDI: acilan pencerede ChatGPT ve Claude'a giris yap (bir kez yeter)." -ForegroundColor Cyan
 Write-Host "Oturum bu profilde kalir; worker ona BAGLANIR, sifre gormez." -ForegroundColor Cyan
+

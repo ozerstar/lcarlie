@@ -30,6 +30,7 @@
 from __future__ import annotations
 
 import os
+import re
 import random
 import tempfile
 import sys
@@ -111,6 +112,21 @@ def tarayiciya_baglan(playwright):
     oturumla ayni profili iki surec kullanmaya calisir ve profil
     kilitlenirdi ("profile is already in use").
     """
+    # 🔴 15.11.2026 OLCULDU: nabiz her 60 sn'de YENI bir CDP baglantisi
+    #    aciyor ve hicbirini kapatmiyordu; Playwright surucusu (node.exe)
+    #    1 sa 37 dk'da 1.277 MB ozel bellege cikti (~13 MB/dk). Gece boyu
+    #    biriken baglantilar sabah ilk iste surucuyu dusuruyordu
+    #    ("Playwright connection closed"). Artik tek baglanti tutulur;
+    #    yalniz kopmussa yenisi acilir. close() CAGRILMAZ: CDP baglantisinda
+    #    tarayicinin kendisini kapatabilir.
+    global _BAGLANTI
+    if _BAGLANTI is not None:
+        try:
+            if _BAGLANTI.is_connected() and _BAGLANTI.contexts:
+                return _BAGLANTI
+        except Exception:                                  # noqa: BLE001
+            pass
+        _BAGLANTI = None
     try:
         tarayici = playwright.chromium.connect_over_cdp(
             "http://127.0.0.1:%d" % CDP_PORT, timeout=20000)
@@ -122,7 +138,11 @@ def tarayiciya_baglan(playwright):
             % (CDP_PORT, yol or "BULUNAMADI", str(hata)[:200])) from None
     if not tarayici.contexts:
         raise KapiHatasi("Chrome baglandi ama hic baglam yok")
+    _BAGLANTI = tarayici
     return tarayici
+
+
+_BAGLANTI = None   # tek CDP baglantisi; surucu yeniden kurulunca sifirlanir
 
 
 # --------------------------------------------------------------------------
@@ -160,6 +180,78 @@ def ekrani_sakla(is_id: int, ham: bytes | None) -> None:
 # --------------------------------------------------------------------------
 # Bir is
 # --------------------------------------------------------------------------
+def _oturum_anahtari(hedef: str) -> str:
+    """Her sağlayıcı için tek sekme/sohbet tut; handler değişince sekme açma."""
+    if hedef.startswith("chatgpt_"):
+        return "chatgpt"
+    if hedef.startswith("claude_"):
+        return "claude"
+    return hedef
+
+
+def _mevcut_sohbeti_bul(baglam, anahtar: str):
+    alan = "chatgpt.com" if anahtar == "chatgpt" else "claude.ai" if anahtar == "claude" else None
+    if not alan:
+        return None
+    adaylar = [p for p in baglam.pages if not p.is_closed() and alan in (p.url or "")]
+    sohbetler = [p for p in adaylar if ("/c/" in p.url if anahtar == "chatgpt" else "/chat/" in p.url)]
+    if anahtar == "chatgpt":
+        # Same Work conversation across worker restarts; never guess by tab order.
+        kayit = KOK / "state" / "chatgpt-last-url.txt"
+        try:
+            url = kayit.read_text(encoding="utf-8").strip()
+        except OSError:
+            url = ""
+        if re.fullmatch(r"https://chatgpt\.com/c/[A-Za-z0-9-]+/?", url):
+            tam_eslesme = next((p for p in sohbetler if (p.url or "").rstrip("/") == url.rstrip("/")), None)
+            if tam_eslesme is not None:
+                return tam_eslesme
+    return (sohbetler or adaylar or [None])[-1]
+
+
+def _chatgpt_sohbet_kaydet(sayfa, anahtar: str) -> None:
+    """Son ChatGPT konuşmasını yeniden başlatmada sürdürebilmek için kaydet."""
+    if anahtar != "chatgpt" or sayfa is None or sayfa.is_closed():
+        return
+    url = sayfa.url or ""
+    if not re.fullmatch(r"https://chatgpt\.com/c/[A-Za-z0-9-]+/?", url):
+        return
+    hedef = KOK / "state" / "chatgpt-last-url.txt"
+    try:
+        hedef.parent.mkdir(parents=True, exist_ok=True)
+        gecici = hedef.with_suffix(".tmp")
+        gecici.write_text(url, encoding="utf-8")
+        gecici.replace(hedef)
+    except OSError as e:
+        say("ChatGPT sohbet adresi kaydedilemedi: %s" % e)
+
+# --------------------------------------------------------------------------
+# Cokme kurtarma (15.11.2026)
+# --------------------------------------------------------------------------
+# 🔴 OLCULDU: 13-14.11'de bir cokmeden sonra worker 36 isi arka arkaya
+#    "TargetClosedError: Playwright connection closed" ile 2-4 sn icinde
+#    dusurdu. Sebep: surucu (node.exe) baglantisi olunce `sync_playwright`
+#    nesnesi OLU kaliyordu ve dongu ayni olu nesneyle devam ediyordu; yalniz
+#    worker'i elle yeniden baslatmak duzeltiyordu. Ayni sekilde cokmus
+#    (renderer OOM) bir sekme `is_closed()` False dondurur ama kullanilamaz.
+SURUCU_OLU = ("connection closed", "Connection closed", "Target closed",
+              "Browser has been closed", "browser has disconnected")
+SEKME_COKTU = ("Target crashed", "Page crashed", "crashed")
+
+
+def surucu_olu_mu(hata: BaseException) -> bool:
+    metin = "%s: %s" % (type(hata).__name__, hata)
+    return any(k in metin for k in SURUCU_OLU)
+
+
+def sekme_saglikli_mi(sayfa) -> bool:
+    """Cokmus sekme hata firlatir; saglikli sekme 1 dondurur."""
+    try:
+        return sayfa.evaluate("() => 1") == 1
+    except Exception:                                      # noqa: BLE001
+        return False
+
+
 def isi_yap(playwright, kapi: Kapi, is_: dict, sayfa_havuzu: dict | None = None) -> str:
     """Tek isi bastan sona yurutur. Sonuc durumunu dondurur."""
     from handlers import ortak
@@ -172,18 +264,34 @@ def isi_yap(playwright, kapi: Kapi, is_: dict, sayfa_havuzu: dict | None = None)
     sayfa = None
     goruntusu: bytes | None = None
     sayfa_havuzu = sayfa_havuzu if sayfa_havuzu is not None else {}
+    oturum = _oturum_anahtari(hedef)
     try:
         modul = handlers.getir(hedef)
-        onbellek = sayfa_havuzu.get(hedef)
+        onbellek = sayfa_havuzu.get(oturum)
         if onbellek:
             tarayici, sayfa = onbellek
-            if sayfa.is_closed():
+            if sayfa.is_closed() or not sekme_saglikli_mi(sayfa):
+                say("is %d: onbellekteki sekme kapali/cokmus, yeniden baglaniliyor" % is_id)
+                sayfa_havuzu.pop(oturum, None)
                 sayfa = None
         if sayfa is None:
             tarayici = tarayiciya_baglan(playwright)
             baglam = tarayici.contexts[0]
-            sayfa = baglam.new_page()
-            sayfa_havuzu[hedef] = (tarayici, sayfa)
+            sayfa = _mevcut_sohbeti_bul(baglam, oturum)
+            if sayfa is not None and not sekme_saglikli_mi(sayfa):
+                # Cokmus sekmeyi ayni adresle yeniden yukle; olmazsa yeni sekme.
+                adres = sayfa.url or ""
+                try:
+                    sayfa.reload(wait_until="domcontentloaded", timeout=60000)
+                    say("is %d: cokmus sekme yeniden yuklendi (%s)" % (is_id, adres[:60]))
+                except Exception:                          # noqa: BLE001
+                    sayfa = baglam.new_page()
+                    if adres.startswith("https://"):
+                        sayfa.goto(adres, wait_until="domcontentloaded", timeout=60000)
+                    say("is %d: cokmus sekme yerine yeni sekme acildi" % is_id)
+            if sayfa is None:
+                sayfa = baglam.new_page()
+            sayfa_havuzu[oturum] = (tarayici, sayfa)
         # Girdi dosyalari kullanicinin Chrome oturumuna aktarilmak uzere
         # yalnizca bu is boyunca gecici dosyalara yazilir.
         with tempfile.TemporaryDirectory(prefix="jarvis-browser-job-") as gecici:
@@ -228,6 +336,12 @@ def isi_yap(playwright, kapi: Kapi, is_: dict, sayfa_havuzu: dict | None = None)
         sebep = "%s: %s" % (type(hata).__name__, str(hata)[:400])
         say("is %d HATA: %s" % (is_id, sebep))
         say(traceback.format_exc(limit=4))
+        if surucu_olu_mu(hata) or any(k in sebep for k in SEKME_COKTU):
+            # Havuzu bosalt; surucu oluyse main() Playwright'i yeniden kurar.
+            sayfa_havuzu.clear()
+            if surucu_olu_mu(hata):
+                sayfa_havuzu["__surucu_olu__"] = True
+            sayfa = None
         try:
             kapi.hata(is_id, jeton, sebep, goruntusu)
         except KapiHatasi as k:
@@ -235,9 +349,8 @@ def isi_yap(playwright, kapi: Kapi, is_: dict, sayfa_havuzu: dict | None = None)
         return "HATA"
 
     finally:
-        # Hedef sekmesi acik kalir; kullanici GPT/Claude cevabini gorebilir.
-        # Sonraki is ayni sekmeyi yeni bir istem icin kullanir.
-        pass
+        # Hedef sekmesi ve konuşma açık kalır; yeniden başlatmada GPT adresini sürdür.
+        _chatgpt_sohbet_kaydet(sayfa, oturum)
 
 
 # --------------------------------------------------------------------------
@@ -265,20 +378,44 @@ def main() -> int:
     if silinen:
         say("%d eski ekran goruntusu silindi" % silinen)
 
+    sayfa_havuzu: dict = {}
+
+    global _BAGLANTI
+    while True:
+        # 🔴 Surucu olurse Playwright BURADA yeniden kurulur (15.11.2026).
+        #    Eskiden tek `with` vardi; olu surucuyle dongu sonsuza dek
+        #    "connection closed" uretiyordu.
+        _BAGLANTI = None
+        sayfa_havuzu.clear()
+        try:
+            _dongu(sync_playwright, kapi, worker, sayfa_havuzu)
+        except Exception as hata:                          # noqa: BLE001
+            if not surucu_olu_mu(hata):
+                raise
+            say("Playwright surucusu oldu (%s); 10 sn sonra yeniden kuruluyor"
+                % str(hata)[:120])
+        time.sleep(10)
+
+
+def _dongu(sync_playwright, kapi: Kapi, worker: str, sayfa_havuzu: dict) -> None:
     son_nabiz = 0.0
     son_temizlik = time.time()
     son_is: str | None = None
-    sayfa_havuzu: dict = {}
-
     with sync_playwright() as playwright:
         while True:
+            if sayfa_havuzu.pop("__surucu_olu__", False):
+                say("surucu baglantisi koptu; Playwright yeniden kurulacak")
+                return
             # --- nabiz ---
             if time.time() - son_nabiz >= NABIZ_S:
                 chrome_acik = True
                 try:
                     tarayiciya_baglan(playwright)
-                except KapiHatasi:
+                except KapiHatasi as hata:
                     chrome_acik = False
+                    if surucu_olu_mu(hata):
+                        say("nabiz: surucu olu (%s)" % str(hata)[:120])
+                        return
                 try:
                     kapi.nabiz(worker, nabiz_ayrintisi(son_is, chrome_acik))
                     son_nabiz = time.time()
@@ -319,3 +456,4 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         say("worker elle durduruldu")
         raise SystemExit(0) from None
+

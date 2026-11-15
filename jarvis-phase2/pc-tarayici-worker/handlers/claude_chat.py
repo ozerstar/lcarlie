@@ -38,8 +38,10 @@ ZAMAN_ASIMI_S = 180.0          # sohbet: 3 dk (sartname)
 def calistir(page, is_: dict, zaman_asimi_s: float | None = None) -> dict:
     tavan = float(zaman_asimi_s or ZAMAN_ASIMI_S)
 
-    page.goto(ADRES, wait_until="domcontentloaded", timeout=60000)
-    page.wait_for_timeout(2500)
+    # Aynı tarayıcı sekmesini ve sohbeti sürdür; yalnız yanlış/boş sayfadaysa yönlen.
+    if "claude.ai" not in (page.url or ""):
+        page.goto(ADRES, wait_until="domcontentloaded", timeout=60000)
+    page.wait_for_timeout(1200)
     ortak.kapiyi_gec(page)
 
     kutu = ortak.ilk_bulunan(page, KUTU)
