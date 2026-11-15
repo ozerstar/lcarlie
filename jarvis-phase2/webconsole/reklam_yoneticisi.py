@@ -858,7 +858,7 @@ def kural_onerileri(r: dict) -> list[dict]:
         sip = sum(o["defter"]["siparis"] for _, _, _, o in kesler)
         kodlar_k = [kod for _, kod, _, _ in kesler]
         out.append(_oneri(
-            "META_MEDIA", "URUN", ",".join(kodlar_k), ", ".join(kodlar_k), 1,
+            "META_MEDIA", "URUN", ",".join(sorted(kodlar_k)), ", ".join(kodlar_k), 1,
             "%d ürünün Trendyol reklamlarını durdur ya da bütçesini yarıya indir: %s." % (
                 len(kesler), ", ".join(kodlar_k)),
             "Bu ürünlere %s harcandı, reklam başladıktan sonra toplam %d sipariş. "

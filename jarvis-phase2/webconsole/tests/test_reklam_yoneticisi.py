@@ -280,6 +280,12 @@ class Oneriler(unittest.TestCase):
         # aralık bugünü içermiyorsa not yok
         self.assertIsNone(_satir(_rapor(v, bit=date(2026, 11, 14)), "A1")["an_not"])
 
+    def test_toplu_kes_anahtari_siradan_bagimsiz(self):
+        # 15.11 #185: ürün sırası harcamaya göre değişince aynı öneri yeniden kuyruğa düştü.
+        o = ry._oneri("META_MEDIA", "URUN", ",".join(sorted(["VIREON", "FEMISIA"])), "", 1,
+                      "x", "y", "", "", "", "", True, "kes-toplu", "")
+        self.assertEqual(o["anahtar"], "kes-toplu:FEMISIA,VIREON")
+
     def test_tek_gunde_MER_kurali_calismaz(self):
         r = _rapor(bas=BUGUN - timedelta(days=1), bit=BUGUN - timedelta(days=1))
         self.assertNotIn("mer", {o["anahtar"].split(":")[0] for o in r["oneriler"]})
