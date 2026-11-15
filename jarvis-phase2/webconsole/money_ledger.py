@@ -122,14 +122,15 @@ _MONTHS = {"ocak": 1, "subat": 2, "mart": 3, "nisan": 4, "mayis": 5, "haziran": 
            "agustos": 8, "eylul": 9, "ekim": 10, "kasim": 11, "aralik": 12}
 _NOISE = re.compile(r"kredi kartlarim|adios|premium|asil kart|son hareketler|kart hareket|volte|vlte|"
                     r"\*\*|ek ?kart|bekleyen|provizyon|yapi ?kredi|tapkred|toplam borc|asgari|"
-                    r"hesap kesim|son odeme|^\W*\d{1,2}:\d{2}|ekstre|borcu|limit|minimum|kart numarasi|"
+                    r"hesap kesim|son odeme|^\W*\d{1,2}:\d{2}|ekstre|borcu|limiti\b|kart limit|limit (?:artis|asim)|minimum|kart numarasi|"
                     r"islem tarihi|^aciklama$|^taksit$|^tutar$|^hareket tipi$|^bakiye$|^tarih$|"
                     # the bank's type column alone on a line ("Para Çekme"), never the description
                     r"^(gelen transfer|giden transfer|encard|harcamasi|encard harcamasi|odeme|diger|"
                     r"iptal/iade|para cekme|masraf/ucret|vergi kesintisi|faiz gideri)$", re.I)
 _TYPE_ONLY = re.compile(r"^(gelen transfer|giden transfer|encard|harcamasi|encard harcamasi|odeme|diger|"
                         r"iptal/iade|para cekme|masraf/ucret|vergi kesintisi|faiz gideri|tarih|bakiye)$")
-_HEADER = re.compile(r"limit(?!ed)|ekstre borcu|kart numarasi|ad soyad|minimum odeme|hesap adi|iban", re.I)
+# "limiti", "kart limit", "limit artis/asim" are headers; "LIMIT RESTORAN" is a merchant
+_HEADER = re.compile(r"limiti\b|kart limit|limit (?:artis|asim)|ekstre borcu|kart numarasi|ad soyad|minimum odeme|hesap adi|iban", re.I)
 
 
 def _date_in(chunk, today):

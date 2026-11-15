@@ -26,5 +26,14 @@ class StatementReaderTest(unittest.TestCase):
         self.assertTrue(moves[2]["party"].startswith("KCC KAFE"))
 
 
+    def test_merchant_named_limit_is_not_card_limit(self):
+        text = ("Kart limiti 150.000,00 TL\n"
+                "Kullanilabilir kart limiti 12.000,00 TL\n"
+                "03.11.2026 LIMIT RESTORAN GIDA ANKARA TR 3.000,00 TL\n")
+        moves = ml.parse_statement(text, today=date(2026, 11, 14))
+        self.assertEqual([m["amount"] for m in moves], [300000])
+        self.assertIn("LIMIT RESTORAN", moves[0]["party"].upper())
+
+
 if __name__ == "__main__":
     unittest.main()
