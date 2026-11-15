@@ -32,8 +32,8 @@ module.exports = [
     ad: 'kargoya_verildi',
     kategori: 'UTILITY',
     dil: 'tr',
-    // 🔴 SURE VAADI YOK: sitede "16:00 aynı gün", sozlesmede "1-7 is gunu"
-    // yaziyor ve bu celiski cozulmedi. Teslim suresi TAAHHUT EDILMIYOR.
+    // Sahip karari 15.11.2026: teslim suresi her yerde "1–3 iş günü".
+    // Bu sablon Meta onayli; govde degisirse yeniden onaya gider, o yuzden sure eklenmedi.
     govde:
       'Merhaba {{1}}, {{2}} numaralı siparişiniz kargoya verildi. ' +
       'Kargo takip numaranız: {{3}}. ' +

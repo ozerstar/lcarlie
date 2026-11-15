@@ -58,7 +58,7 @@ ayrıntısı kendi dosyalarındadır (`30-urun-<slug>`).
 | DERMANOVA | `dermanova` | İz görünümünü azaltmaya yardımcı krem |
 | KINESIS + | `kinesis` | Sporcu masaj/bakım kremi |
 | DORSIVIA | `dorsivia` | Isınma etkili bel-sırt masaj kremi |
-| CAL JAW | `calmjaw` | Gece çene bakım roll-on'u |
+| CALJAW | `calmjaw` | Gece çene bakım roll-on'u |
 | MENTHALIS | `menthalis` | Canlandırıcı bitki yağları roll-on |
 | CALMORIS | `calmoris` | Rahatlatıcı bakım roll-on |
 | LIPVORA | `lipvora` | Dudak nemlendirici balm |
@@ -73,8 +73,8 @@ ayrıntısı kendi dosyalarındadır (`30-urun-<slug>`).
 ## Katalogda bilinen metin hataları
 LUCIDERM açıklaması "Lucidem" diye başlıyor · DERMANOVA adını iki kez yazıyor ·
 BABYSOL'de yarım cümle · CALMAROS'ta bitişik kelime · **MENTHALIS'te INCI listesi
-hiç yok** (içerik beyanı zorunlu) · HAIR NOURISHER slug'ı hatalı · CAL JAW sitede
-"CAL JAW", matrikste "CALM JAW".
+hiç yok** (içerik beyanı zorunlu) · HAIR NOURISHER slug'ı hatalı · Ürün adı **CALJAW**
+(sahip kararı 15.11.2026; CALMJAW / CAL JAW / CALM JAW yazılmaz, slug `calmjaw` kalır).
 
 ## Eski katalogda olup güncel listede olmayanlar
 EARCLIA · AUROLIS · NOMORE — yalnız eski katalogda geçer, satıştaki 36 ürün

@@ -415,7 +415,7 @@ const URUNLER = {
   },
 
   CALJAW: {
-    ad: 'CAL JAW', altBaslik: 'Gece Çene Bakım Roll-On\'u', fiyat: '1.100 TL', hacim: null,
+    ad: 'CALJAW', altBaslik: 'Gece Çene Bakım Roll-On\'u', fiyat: '1.100 TL', hacim: null,
     urunSayfasi: 'https://www.lcarlie.shop/product-page/calmjaw',
     aciklama: 'Gece bakım rutinine eşlik etmek üzere bitkisel yağların dengeli bir karışımıyla formüle edilmiş roll-on bakım yağıdır. Roll-on başlığı kontrollü ve pratik uygulama sağlar.',
     aktifler: ['Hodan Yağı', 'Lavanta Yağı', 'Vetiver Yağı', 'Akgünlük (Frankincense)', 'Ylang Ylang'],
@@ -423,7 +423,7 @@ const URUNLER = {
     kullanim: 'Temiz ve kuru cilt üzerine ince bir tabaka halinde, roll-on başlığıyla dairesel hareketler yapılarak uygulanır. Göz çevresiyle temas ettirilmez.',
     anahtarKelimeler: ['cal jaw', 'caljaw', 'calm jaw', 'cene roll'],
     gunesUrunu: false,
-    dogrulamaNotu: 'Sitede "CAL JAW", Master Matrix kanonik adi "CALM JAW", slug calmjaw. Ad birlestirilmeli.'
+    dogrulamaNotu: 'Sahip karari 15.11.2026: urun adi CALJAW (CALMJAW / CAL JAW / CALM JAW yazilmaz). Slug calmjaw link kirilmasin diye kalir; eski yazimlar yalniz anahtar kelime.'
   },
 
   OPTYWAVE: {

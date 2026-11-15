@@ -306,7 +306,7 @@ const SABLON = {
   KARGO: {
     cevap: null,
     insanaAktar: true,
-    not: 'Kargo suresi konusunda sitede ve sozlesmede celiski var (bkz. 03_MEVZUAT §14). Teyit edilene kadar otomatik sure vaadi verilmez.'
+    not: 'Sahip karari 15.11.2026: kargo/teslim suresi her yerde 1–3 is gunu (onceki site/sozlesme celiskisi kapandi). Takip/gecikme sorusu yine insana aktarilir.'
   },
 
   // Musteri bir sikayet/belirti anlatiyor ama hastalik adi gecmiyor.
@@ -618,7 +618,7 @@ function akisMotoru(girdi) {
       if (ozel) {
         urun = u2;
         taslakCevap = ozel + (sinif === 'KARGO'
-          ? ' Kargo ve teslimat sorunuz için ekip arkadaşımız en kısa sürede dönüş yapacak.'
+          ? ' Siparişleriniz 1–3 iş günü içinde teslim edilir; kargo ve teslimat sorunuz için ekip arkadaşımız en kısa sürede dönüş yapacak.'
           : ' İade ve değişim sorunuz için ekip arkadaşımız en kısa sürede dönüş yapacak.');
         insanaAktar = true;   // lojistik kismi icin insan yine devrede
       }
