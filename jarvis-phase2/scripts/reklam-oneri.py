@@ -307,10 +307,11 @@ def _anahtar(o: dict, hafta: str) -> str:
 
 def onay_metni(o: dict) -> str:
     from jarvis.reklam_uzman import UZMAN_ADI
-    return ("REKLAM ÖNERİSİ · %s\nNE: %s\nNEDEN (ölçüm): %s\nBEKLENEN ETKİ: %s\nRİSK: %s\n"
+    # İlk satır WhatsApp onay mesajının KONUSU olur (wa-onay.py): önerinin kendisi.
+    return ("Reklam: %s\n%s\nNEDEN (ölçüm): %s\nBEKLENEN ETKİ: %s\nRİSK: %s\n"
             "GERİ ALMA: %s\nÖLÇÜM PLANI: %s\n\nOnaylamak hiçbir reklam ayarını DEĞİŞTİRMEZ; "
             "uygulama Ads Manager'da elle yapılır. Jarvis paneli > KAMPANYA." % (
-                UZMAN_ADI.get(o["departman"], o["departman"]), o["ne"], o["neden"],
+                o["ne"][:110], UZMAN_ADI.get(o["departman"], o["departman"]), o["neden"],
                 o.get("beklenen_etki") or "—", o.get("risk") or "—", o.get("geri_alma") or "—",
                 o.get("olcum") or "—"))
 
