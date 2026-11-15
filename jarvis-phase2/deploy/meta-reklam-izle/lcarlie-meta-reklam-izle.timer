@@ -1,0 +1,12 @@
+[Unit]
+Description=LCARLIE Meta reklam izleme - saatte bir (:12)
+
+[Timer]
+OnCalendar=*:12
+# Kacirilan kosu (yeniden baslatma) acilista bir kez telafi edilir.
+Persistent=true
+RandomizedDelaySec=60
+Unit=lcarlie-meta-reklam-izle.service
+
+[Install]
+WantedBy=timers.target
