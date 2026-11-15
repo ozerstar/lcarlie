@@ -16,7 +16,7 @@
     uretilenler: ['Üretilenler', 'Kreatif fikirleri, görselleri ve dosyaları tek yerde bul.', 'kreatif', ['Çalışmalar', 'Görseller', 'Ayrıntılar']],
     kreatifParti: ['Kreatif', 'Haftalık fikirleri incele; görsel üretimi için karar ver.', 'kreatif', ['Partiler', 'Fikirler', 'Onay']],
     gorselOnay: ['Görsel onayları', 'Üretilen görselleri incele; yayına çıkacak olanı onayla.', 'kreatif', ['Görseli aç', 'Karşılaştır', 'Onayla']],
-    kampanya: ['Kampanya', 'Satışı ve reklam harcamasını kanal kanal, kampanya kampanya izle.', 'kreatif', ['Genel durum', 'Kanallar', 'Kampanyalar']],
+    kampanya: ['Reklam yöneticisi', 'Hangi kreatif ne harcadı, gerçekte ne getirdi; uzman ekiplerin önerisi.', 'kreatif', ['Ne yapmalıyım', 'Kreatifler', 'Öneriler']],
     reklam: ['Reklam', 'Gerçek performansla biçimleri ve çağrı düğmelerini karşılaştır.', 'kreatif', ['Düğme', 'Biçim', 'Kreatif']],
     tasarim: ['Tasarım', 'Şablonlardan çıkan işleri ve onay durumunu takip et.', 'kreatif', ['Şablon', 'Üretim', 'Onay']],
     ekip: ['Ekip', 'Ekip üyelerinin işlerini ve konuşmalarını görünür tut.', 'org', ['Üyeler', 'İşler', 'Durum']],

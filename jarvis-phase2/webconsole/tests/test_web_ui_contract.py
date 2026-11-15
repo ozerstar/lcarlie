@@ -59,7 +59,7 @@ def _fonksiyon_govdeleri(js: str, onek: str):
 # Every path the frontend may call, and the reason each one is legitimate.
 KNOWN_ROUTES = {
     # Existing read-only GET handlers in app.py, backed by live campaign views.
-    "/api/kampanya", "/api/reklam-olcum",
+    "/api/kampanya", "/api/reklam-olcum", "/api/reklam-yoneticisi",
     "/api/account/password",
     # Etkin sohbetin turlari (04.11.2026): panel acilinca konusma geri gelir.
     "/api/chat/aktif",

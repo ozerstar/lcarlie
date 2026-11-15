@@ -4854,3 +4854,227 @@ html[data-lcarlie-theme] .pz-k-pazarama { --pz: #2f5f7d; }
 .pz-d-teslim, .pz-d-odendi { --pz: var(--ok); }
 .pz-d-iptal, .pz-d-iade { --pz: var(--crit); }
 .pz-d-odenmedi, .pz-d-diger { --pz: var(--ivory-3); }
+
+/* ==================================================================
+   REKLAM YÖNETİCİSİ (KAMPANYA sekmesi, 15.11.2026) — önek ry-
+   Mobil önce: sahip telefondan bakar. Tablo telefonda KART olur
+   (td::before data-l etiketi); masaüstünde yatay kayan tablo, ilk
+   sütun sabit. Yazı tabanı ≥12px, renkler panel jetonlarından
+   (test_panel_okunurluk). Satır içi stil yok (CSP).
+   ================================================================== */
+.ry { display: grid; gap: 14px; min-width: 0; }
+.ry > * { min-width: 0; }
+.ry-neyap {
+  border: 1px solid var(--line-strong); border-left: 3px solid var(--gold);
+  background: rgba(201, 169, 97, 0.07); padding: 12px 14px; border-radius: var(--radius);
+}
+.ry-neyap-baslik { margin: 0 0 6px; font-size: 17px; font-weight: 600; color: var(--champagne); letter-spacing: .02em; }
+.ry-neyap-liste { margin: 0; padding-left: 22px; display: grid; gap: 6px; }
+.ry-neyap-liste li { font-size: 15px; line-height: 1.5; color: var(--ivory); }
+.ry-kaynak { margin: 8px 0 0; font-size: 12px; color: var(--ivory-3); line-height: 1.45; }
+.ry-temiz { font-size: 14px; color: var(--ivory-2); margin: 4px 0; }
+.ry-not { font-size: 12px; color: var(--ivory-3); line-height: 1.5; margin: 8px 0 0; }
+
+.ry-arac { display: grid; gap: 8px; }
+.ry-aralik { display: flex; flex-wrap: wrap; gap: 6px; }
+.ry-chip {
+  font: inherit; font-size: 13px; color: var(--ivory-2); background: var(--glass-2);
+  border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; min-height: 36px;
+  cursor: pointer; text-decoration: none; display: inline-flex; align-items: center;
+}
+.ry-chip:hover { border-color: var(--line-strong); color: var(--ivory); }
+.ry-chip.is-on { background: rgba(201, 169, 97, 0.18); border-color: var(--gold); color: var(--champagne); }
+.ry-ozel { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
+.ry-ozel label, .ry-suzgec label { display: grid; gap: 3px; font-size: 12px; color: var(--ivory-3); }
+.ry-ozel input, .ry-suzgec select {
+  font: inherit; font-size: 13px; color: var(--ivory); background: var(--ink-2);
+  border: 1px solid var(--line); border-radius: var(--radius); padding: 6px 8px; min-height: 36px; max-width: 100%;
+}
+.ry-olcum { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0; font-size: 12px; color: var(--ivory-3); }
+.ry-olcum .is-bayat { color: var(--warn); }
+
+.ry-kartlar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.ry-kart {
+  display: grid; gap: 2px; align-content: start; padding: 10px 12px; min-width: 0;
+  background: var(--glass-2); border: 1px solid var(--line-soft); border-top: 2px solid var(--line-strong);
+  border-radius: var(--radius);
+}
+.ry-kart-ad { font-size: 12px; color: var(--ivory-3); letter-spacing: .02em; }
+.ry-kart-ad i { font-style: normal; color: var(--ivory-4); }
+.ry-kart-deger { font-size: 19px; font-weight: 600; color: var(--ivory); line-height: 1.25; overflow-wrap: anywhere; }
+.ry-kart-alt { font-size: 12px; color: var(--ivory-3); line-height: 1.4; overflow-wrap: anywhere; }
+.ry-kart.is-iyi { border-top-color: var(--ok); }
+.ry-kart.is-iyi .ry-kart-deger { color: var(--ok); }
+.ry-kart.is-kotu { border-top-color: var(--crit); }
+.ry-kart.is-kotu .ry-kart-deger { color: var(--crit); }
+.ry-kart.is-uyari { border-top-color: var(--warn); }
+.ry-kart.is-notr { border-top-color: var(--info); }
+
+.ry-trend-kutu { min-width: 0; }
+.ry-lejant { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--ivory-2); margin-bottom: 6px; }
+.ry-lejant span::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 6px; vertical-align: -1px; border-radius: 2px; }
+.ry-lj-h::before { background: var(--gold); }
+.ry-lj-c::before { background: var(--ok); }
+.ry-lejant .ry-lj-ust { color: var(--ivory-3); }
+.ry-lejant .ry-lj-ust::before { display: none; }
+.ry-svg { display: block; width: 100%; height: 150px; background: var(--glass); border-bottom: 1px solid var(--line); }
+.ry-bar-h { fill: var(--gold); }
+.ry-bar-c { fill: var(--ok); }
+.ry-bar-h.is-soluk, .ry-bar-c.is-soluk { opacity: .35; }
+.ry-eksen { stroke: var(--line-strong); stroke-width: 1; }
+.ry-eksen-yazi { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--ivory-3); margin-top: 4px; }
+.ry-eksen-yazi span:nth-child(2) { text-align: center; color: var(--ivory-2); }
+.ry-gun-detay { margin-top: 8px; }
+.ry-gun-detay summary, .ry-eski summary {
+  cursor: pointer; font-size: 13px; color: var(--ivory-2); min-height: 40px; display: flex; align-items: center;
+}
+
+.ry-govde { display: grid; gap: 14px; min-width: 0; }
+.ry-ana, .ry-yan { min-width: 0; }
+.ry-sekmeler { display: flex; gap: 2px; overflow-x: auto; border-bottom: 1px solid var(--line); margin-bottom: 10px; }
+.ry-sekmeler button {
+  font: inherit; font-size: 14px; color: var(--ivory-3); background: none; border: 0;
+  border-bottom: 2px solid transparent; padding: 10px 12px; min-height: 44px; cursor: pointer; white-space: nowrap;
+}
+.ry-sekmeler button.is-on { color: var(--champagne); border-bottom-color: var(--gold); }
+.ry-suzgec { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+.ry-suzgec select { width: 100%; }
+
+.ry-tablo-sar { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.ry-tablo { width: 100%; border-collapse: collapse; font-size: 13px; }
+.ry-tablo th {
+  text-align: right; font-weight: 500; font-size: 12px; color: var(--ivory-3); padding: 8px 10px;
+  border-bottom: 1px solid var(--line); white-space: nowrap; vertical-align: bottom;
+}
+.ry-tablo th:first-child { text-align: left; }
+.ry-tablo th small { font-size: 11px; color: var(--ivory-4); font-weight: 400; }
+.ry-tablo td { padding: 9px 10px; border-bottom: 1px solid var(--line-soft); vertical-align: top; color: var(--ivory-2); }
+.ry-tablo td small { display: block; font-size: 12px; color: var(--ivory-3); margin-top: 2px; }
+.ry-tablo td.ry-sayi, .ry-tablo th { white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; }
+.ry-sayi b { color: var(--ivory); font-weight: 600; }
+.ry-tablo th.ry-meta, .ry-tablo td.ry-meta { background: rgba(142, 168, 196, 0.06); }
+.ry-tablo th.ry-defter, .ry-tablo td.ry-defter { background: rgba(143, 185, 154, 0.07); }
+.ry-tablo tr.is-an td { background: rgba(205, 111, 104, 0.08); }
+.ry-olculemez { font-size: 12px; color: var(--info); letter-spacing: .02em; }
+.ry-arti { color: var(--ok); font-weight: 600; }
+.ry-eksi { color: var(--crit); font-weight: 600; }
+
+.ry-kreatif {
+  display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: left;
+  font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer;
+}
+.ry-kreatif:hover b { color: var(--gold-hi); }
+.ry-kucuk {
+  flex: 0 0 56px; width: 56px; height: 56px; object-fit: cover; border-radius: var(--radius);
+  border: 1px solid var(--line); background: var(--ink-3);
+}
+.ry-kucuk-yok {
+  display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--ivory-3);
+  letter-spacing: .06em;
+}
+.ry-kreatif-metin { display: grid; gap: 3px; min-width: 0; }
+.ry-kreatif-metin b { font-size: 14px; color: var(--ivory); font-weight: 600; overflow-wrap: anywhere; }
+.ry-kreatif-metin small { font-size: 12px; color: var(--ivory-3); overflow-wrap: anywhere; }
+.ry-etiketler, .ry-isaretler { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }
+.ry-durum, .ry-hedef, .ry-isaret, .ry-oneri-say, .ry-rozet, .ry-onay {
+  font-size: 11px; letter-spacing: .04em; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line);
+  white-space: nowrap; color: var(--ivory-2);
+}
+.ry-durum.is-on { color: var(--ok); border-color: rgba(143, 185, 154, .5); }
+.ry-durum.is-bad { color: var(--crit); border-color: rgba(205, 111, 104, .55); }
+.ry-durum.is-off { color: var(--ivory-3); }
+.ry-isaret { color: var(--warn); border-color: rgba(217, 168, 79, .45); }
+.ry-isaret, .ry-hedef { white-space: normal; overflow-wrap: anywhere; }
+.ry-oneri-say { color: var(--gold-hi); border-color: var(--line-strong); }
+.ry-rozet { font-weight: 700; }
+.ry-rozet.is-IYI { color: var(--ink-0); background: var(--ok); border-color: var(--ok); }
+.ry-rozet.is-IZLE { color: var(--ink-0); background: var(--warn); border-color: var(--warn); }
+.ry-rozet.is-KES { color: var(--ink-0); background: var(--crit); border-color: var(--crit); }
+.ry-rozet.is-BILINMIYOR { color: var(--info); }
+.ry-rozet-hucre { min-width: 180px; }
+.ry-rozet-hucre small { white-space: normal; }
+.ry-etiketler .ry-rozet { display: none; }
+
+.ry-pay { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 6px; }
+.ry-pay li { display: grid; grid-template-columns: 130px minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: 13px; color: var(--ivory-2); }
+.ry-pay-bar svg { display: block; width: 100%; height: 8px; background: var(--glass-2); }
+.ry-pay-bar rect { fill: var(--gold); }
+.ry-pay li.is-an { color: var(--crit); }
+.ry-pay li.is-an rect { fill: var(--crit); }
+.ry-pay b { font-weight: 600; white-space: nowrap; }
+
+.ry-dept { display: grid; gap: 8px; margin-bottom: 10px; }
+.ry-dept-ad { margin: 6px 0 2px; font-size: 13px; color: var(--gold-hi); letter-spacing: .04em; font-weight: 600; }
+.ry-oneri {
+  border: 1px solid var(--line-soft); border-left: 3px solid var(--line-strong); border-radius: var(--radius);
+  padding: 10px 12px; background: var(--glass-2); display: grid; gap: 4px;
+}
+.ry-oneri.is-o1 { border-left-color: var(--crit); }
+.ry-oneri.is-o2 { border-left-color: var(--warn); }
+.ry-oneri.is-o3 { border-left-color: var(--info); }
+.ry-oneri header { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--ivory-3); }
+.ry-oneri h4 { margin: 0; font-size: 14px; line-height: 1.45; color: var(--ivory); font-weight: 600; }
+.ry-oneri p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ivory-2); }
+.ry-o-et { display: block; font-size: 12px; color: var(--ivory-3); letter-spacing: .03em; margin-bottom: 1px; }
+.ry-suzgec-kutu > summary { cursor: pointer; font-size: 13px; color: var(--ivory-2); min-height: 40px; display: flex; align-items: center; }
+.ry-suzgec-kutu[open] > summary { margin-bottom: 4px; }
+.ry-oneri footer { margin-top: 2px; }
+.ry-onay { color: var(--warn); border-color: rgba(217, 168, 79, .45); }
+.ry-onay.is-kuyruk { color: var(--gold-hi); border-color: var(--line-strong); }
+.ry-onay.is-yok { color: var(--ivory-3); }
+.ry-uyari-oneri { font-size: 13px; color: var(--ivory-2); }
+.ry-yan .ek-sor { margin-top: 12px; }
+.ry-eski { border-top: 1px solid var(--line); padding-top: 6px; }
+
+.ry-dialog {
+  width: min(920px, calc(100vw - 24px)); max-height: calc(100vh - 32px); padding: 0;
+  background: var(--ink-2); color: var(--ivory); border: 1px solid var(--line-strong); border-radius: var(--radius);
+}
+.ry-dialog::backdrop { background: rgba(0, 0, 0, .7); }
+.ry-dialog-ic { position: relative; padding: 16px; overflow-y: auto; max-height: calc(100vh - 34px); }
+.ry-dialog h3 { margin: 0 64px 4px 0; font-size: 18px; color: var(--champagne); }
+.ry-kapat { position: absolute; top: 10px; right: 10px; }
+.ry-dialog-izgara { display: grid; gap: 14px; margin-top: 10px; }
+.ry-buyuk { display: flex; width: 100%; max-width: 420px; aspect-ratio: 1 / 1; object-fit: contain; background: var(--ink-0); border: 1px solid var(--line); }
+.ry-dugmeler { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.ry-metin p { margin: 0 0 8px; font-size: 14px; line-height: 1.55; color: var(--ivory-2); white-space: pre-line; }
+.ry-dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; font-size: 13px; margin: 8px 0 0; }
+.ry-dl dt { color: var(--ivory-3); }
+.ry-dl dd { margin: 0; color: var(--ivory); }
+
+/* telefon: tablo satırı karta dönüşür; "Ne yapmalıyım" ilk ekranda görünsün
+   diye bölüm kapağı (iv-hero) ve akış şeridi bu sekmede gizlenir. */
+@media (max-width: 760px) {
+  #viewKampanya .iv-hero, #viewKampanya .iv-flow { display: none; }
+  .ry-tablo thead { display: none; }
+  .ry-tablo, .ry-tablo tbody, .ry-tablo tr, .ry-tablo td { display: block; width: 100%; }
+  .ry-tablo tr {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 10px; padding: 10px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .ry-tablo td { border: 0; padding: 4px 0; text-align: left; white-space: normal; }
+  .ry-tablo td.ry-sayi { text-align: left; white-space: normal; }
+  .ry-tablo td::before { content: attr(data-l); display: block; font-size: 11px; color: var(--ivory-3); letter-spacing: .02em; }
+  .ry-tablo td.ry-kreatif-hucre { grid-column: 1 / -1; padding-bottom: 8px; }
+  .ry-tablo td.ry-kreatif-hucre::before { display: none; }
+  .ry-tablo td.ry-rozet-hucre { grid-column: 1 / -1; display: none; }
+  .ry-tablo td.ry-meta, .ry-tablo td.ry-defter { background: none; }
+  .ry-tablo td.ry-defter { grid-column: 1 / -1; }
+  .ry-etiketler .ry-rozet { display: inline-block; }
+  .ry-tablo td.ry-sayi small { display: inline; margin-left: 6px; }
+  .ry-tablo td.ry-defter small { display: block; margin-left: 0; }
+  .ry-pay li { grid-template-columns: 110px minmax(0, 1fr); }
+  .ry-pay li b { grid-column: 1 / -1; }
+}
+@media (min-width: 761px) {
+  .ry-kartlar { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  .ry-suzgec { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .ry-tablo td.ry-kreatif-hucre { position: sticky; left: 0; z-index: 1; background: var(--ink-1); min-width: 250px; max-width: 300px; }
+  .ry-tablo td.ry-kreatif-hucre, .ry-tablo th:first-child { text-align: left; white-space: normal; }
+  .ry-tablo td.ry-kreatif-hucre { padding-right: 18px; box-shadow: 1px 0 0 var(--line-soft); }
+  .ry-dialog-izgara { grid-template-columns: minmax(0, 420px) minmax(0, 1fr); }
+}
+@media (min-width: 1280px) {
+  .ry-govde { grid-template-columns: minmax(0, 1fr) 320px; align-items: start; }
+  .ry-yan { position: sticky; top: 0; max-height: calc(100vh - 160px); overflow-y: auto; padding-right: 4px; }
+}

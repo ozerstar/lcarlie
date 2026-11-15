@@ -894,32 +894,106 @@
 </main>
 
 <main class="stage stage-single view-panel" id="viewKampanya" hidden>
-  <section class="panel" aria-label="KAMPANYA İZLEME">
+  <section class="panel" aria-label="REKLAM YÖNETİCİSİ">
     <div class="panel-head">
-      <h2 class="panel-title">KAMPANYA · İZLEME</h2>
+      <h2 class="panel-title">KAMPANYA · REKLAM YÖNETİCİSİ</h2>
       <span class="panel-count" id="kampanyaCount">—</span>
     </div>
     <div class="panel-body sect-body">
       <p class="fm-sub">
-        Tüm satış kanalları (Wix, Trendyol, İdefix, n11, Hepsiburada) ve tüm
-        reklamlar <strong>15 dakikada bir</strong> ölçülür; sayfa açıkken her
-        dakika kendini yeniler. Ciro = müşterinin <strong>ödediği</strong> tutar
-        (üstü çizili liste fiyatı değil). Okunamayan kaynak sıfır yazılmaz, ayrıca belirtilir.
+        Meta reklamları reklam reklam: ne harcadı, ne getirdi. <strong>Meta'nın iddiası</strong> ile
+        <strong>bizim defterimiz</strong> (gerçek sipariş) ayrı sütundur. Trendyol'a giden reklamda Meta
+        satışı göremez: "ölçülemez" yazar, sıfır değildir. Bu sayfadan hiçbir reklam ayarı değişmez.
       </p>
-      <div id="kmOlcum"><p class="sect-empty">Yükleniyor…</p></div>
-      <h3 class="km-baslik">Süren kampanyalar · reklam reklam ayrıntı</h3>
-      <div id="kampanyaGovde"><p class="sect-empty">Yükleniyor…</p></div>
-      <div class="ek-sor">
-        <label class="ek-sor-lbl" for="km-sor-META_MEDIA">Meta ekibine sor — bu ölçümü okuyarak cevaplar</label>
-        <div class="ek-sor-row">
-          <input id="km-sor-META_MEDIA" class="ek-sor-in" type="text" autocomplete="off"
-                 placeholder="Hangi reklamın bütçesini artıralım? LUCIDERM neden yoruldu?">
-          <button type="button" class="ek-sor-btn" data-ekip-sor="META_MEDIA" data-onek="km-">SOR</button>
+      <div class="ry" id="ryKok">
+        <section class="ry-neyap" id="ryNeYap" aria-label="Ne yapmalıyım"><p class="sect-empty">Yükleniyor…</p></section>
+        <div class="ry-arac">
+          <div class="ry-aralik" role="group" aria-label="Tarih aralığı">
+            <button type="button" class="ry-chip" data-ry-aralik="bugun" aria-pressed="false">Bugün</button>
+            <button type="button" class="ry-chip" data-ry-aralik="dun" aria-pressed="false">Dün</button>
+            <button type="button" class="ry-chip is-on" data-ry-aralik="7" aria-pressed="true">7 gün</button>
+            <button type="button" class="ry-chip" data-ry-aralik="30" aria-pressed="false">30 gün</button>
+            <button type="button" class="ry-chip" data-ry-aralik="ozel" aria-pressed="false">Özel</button>
+          </div>
+          <form class="ry-ozel" id="ryOzel" hidden>
+            <label for="ryBas">Başlangıç<input type="date" id="ryBas" required></label>
+            <label for="ryBit">Bitiş<input type="date" id="ryBit" required></label>
+            <button type="submit" class="ry-chip">Uygula</button>
+          </form>
+          <p class="ry-olcum" id="ryOlcum"></p>
         </div>
-        <div class="ek-cevap" id="km-cevap-META_MEDIA" hidden></div>
+        <div class="ry-kartlar" id="ryKartlar"></div>
+        <section class="ry-trend-kutu" aria-label="Günlük trend">
+          <h3 class="km-baslik">Günlük · Meta harcaması ve gerçek satış</h3>
+          <div id="ryTrend"></div>
+        </section>
+        <div class="ry-govde">
+          <div class="ry-ana">
+            <div class="ry-sekmeler" role="tablist" aria-label="Düzey">
+              <button type="button" role="tab" class="is-on" data-ry-sekme="reklam" aria-selected="true">Reklamlar</button>
+              <button type="button" role="tab" data-ry-sekme="set" aria-selected="false">Reklam setleri</button>
+              <button type="button" role="tab" data-ry-sekme="kampanya" aria-selected="false">Kampanyalar</button>
+              <button type="button" role="tab" data-ry-sekme="yerlesim" aria-selected="false">Yerleşim</button>
+            </div>
+            <details class="ry-suzgec-kutu" id="rySuzgecKutu"><summary>Süz ve sırala</summary>
+            <div class="ry-suzgec" id="rySuzgec">
+              <label for="ryFKampanya">Kampanya<select id="ryFKampanya"><option value="">Tümü</option></select></label>
+              <label for="ryFSet">Reklam seti<select id="ryFSet"><option value="">Tümü</option></select></label>
+              <label for="ryFDurum">Durum<select id="ryFDurum">
+                <option value="">Tümü</option><option value="on">Yayında</option>
+                <option value="off">Durdu</option><option value="bad">Reddedildi / sorunlu</option></select></label>
+              <label for="ryFHedef">Hedef<select id="ryFHedef">
+                <option value="">Tümü</option><option value="trendyol">Trendyol</option>
+                <option value="site">Site</option><option value="diger">Diğer (mesaj, profil)</option></select></label>
+              <label for="rySirala">Sırala<select id="rySirala">
+                <option value="harcama">Harcama</option><option value="sonuc">Reklam sonrası sonuç</option>
+                <option value="roas">ROAS (defter)</option><option value="tik">Bağlantı tıklaması</option>
+                <option value="ctr">CTR</option><option value="tbm">TBM (ucuzdan)</option></select></label>
+            </div></details>
+            <div id="ryTablo"><p class="sect-empty">Yükleniyor…</p></div>
+          </div>
+          <aside class="ry-yan" aria-label="Öneriler">
+            <h3 class="km-baslik">Öneriler · uzman ekipler</h3>
+            <div id="ryOneriler"><p class="sect-empty">Yükleniyor…</p></div>
+            <h3 class="km-baslik">Meta uyarıları · son 3 gün</h3>
+            <div id="ryUyarilar"></div>
+            <div class="ek-sor">
+              <label class="ek-sor-lbl" for="km-sor-META_MEDIA">Meta ekibine sor — Uzman 1 bu ölçümü okuyarak cevaplar</label>
+              <div class="ek-sor-row">
+                <input id="km-sor-META_MEDIA" class="ek-sor-in" type="text" autocomplete="off"
+                       placeholder="Hangi kreatifin bütçesini artıralım?">
+                <button type="button" class="ek-sor-btn" data-ekip-sor="META_MEDIA" data-onek="km-">SOR</button>
+              </div>
+              <div class="ek-cevap" id="km-cevap-META_MEDIA" hidden></div>
+            </div>
+            <div class="ek-sor">
+              <label class="ek-sor-lbl" for="km-sor-MARKETPLACE">Pazaryeri ekibine sor — Uzman 2 (Trendyol, fiyat, katkı)</label>
+              <div class="ek-sor-row">
+                <input id="km-sor-MARKETPLACE" class="ek-sor-in" type="text" autocomplete="off"
+                       placeholder="Trendyol'da hangi ürün reklamla arttı?">
+                <button type="button" class="ek-sor-btn" data-ekip-sor="MARKETPLACE" data-onek="km-">SOR</button>
+              </div>
+              <div class="ek-cevap" id="km-cevap-MARKETPLACE" hidden></div>
+            </div>
+          </aside>
+        </div>
+        <details class="ry-eski">
+          <summary>Tüm satış kanalları × tüm reklamlar (15 dakikalık ölçüm)</summary>
+          <div id="kmOlcum"><p class="sect-empty">Yükleniyor…</p></div>
+        </details>
+        <details class="ry-eski">
+          <summary>Süren kampanya izleme · reklam reklam ayrıntı</summary>
+          <div id="kampanyaGovde"><p class="sect-empty">Yükleniyor…</p></div>
+        </details>
       </div>
     </div>
   </section>
+  <dialog id="ryDialog" class="ry-dialog" aria-labelledby="ryDialogBaslik">
+    <div class="ry-dialog-ic">
+      <button type="button" class="ry-chip ry-kapat" id="ryDialogKapat">Kapat</button>
+      <div id="ryDialogGovde"></div>
+    </div>
+  </dialog>
 </main>
 
 <main class="stage stage-single view-panel" id="viewSistem" hidden>

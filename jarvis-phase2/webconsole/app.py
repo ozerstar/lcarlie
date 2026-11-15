@@ -78,6 +78,7 @@ import eczane_takip  # noqa: E402
 import harita  # noqa: E402
 import saha  # noqa: E402
 import sistem  # noqa: E402
+import reklam_yoneticisi  # noqa: E402
 
 import chat  # noqa: E402
 import chat_turns  # noqa: E402
@@ -2079,6 +2080,33 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/api/reklam-olcum":
             self._send_json(200, _reklam_olcum_gorunumu())
+            return
+        if path == "/api/reklam-yoneticisi":
+            # KAMPANYA sekmesinin Reklam Yoneticisi gorunumu (15.11.2026).
+            # Yalniz okur; reklam ayari degistiren bir uc YOKTUR.
+            def _q(k):
+                return (query.get(k) or [""])[0] or None
+            try:
+                rapor = reklam_yoneticisi.rapor(_q("aralik"), _q("bas"), _q("bit"))
+            except Exception:  # noqa: BLE001 - okunamayan veri sifir yazilmaz
+                traceback.print_exc()
+                self._send_json(503, {"durum": "OKUNAMADI",
+                                      "error": "Reklam verisi şu anda okunamadı."})
+                return
+            rapor["medya"] = _reklam_medya_dizini()
+            self._send_json(200, rapor)
+            return
+        if path.startswith("/api/reklam-yoneticisi/medya/"):
+            # scripts/reklam-oneri.py'nin indirdigi kreatif gorseli. CSP dis
+            # gorsele kapali; yalniz rakamli ad_id kabul edilir (yol gecisi yok).
+            ad = path.rsplit("/", 1)[-1]
+            hedef = None
+            if ad.endswith(".jpg") and ad[:-4].isdigit() and 6 <= len(ad) - 4 <= 25:
+                hedef = STATE_DIR / "reklam-medya" / ad
+            if hedef is None or not hedef.is_file():
+                self._send_json(404, {"error": "Görsel bulunamadı."})
+                return
+            self._send_file(hedef, "image/jpeg")
             return
         if path == "/api/sistem":
             # Uc makinenin kaynak kullanimi + kaynak politikasi.
@@ -4502,6 +4530,24 @@ def _reklam_olcum_gorunumu() -> dict:
     return o
 
 
+def _reklam_medya_dizini() -> dict:
+    """state/reklam-medya/index.json: ad_id -> {gorsel, video, onizleme}.
+    Okunamazsa bos sozluk (panel 'gorsel yok' yazar)."""
+    try:
+        ham = json.loads((STATE_DIR / "reklam-medya" / "index.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    out = {}
+    for aid, k in ham.items():
+        if not str(aid).isdigit() or not isinstance(k, dict):
+            continue
+        link = str(k.get("onizleme") or "")
+        out[str(aid)] = {"gorsel": bool(k.get("gorsel")) and (STATE_DIR / "reklam-medya" / ("%s.jpg" % aid)).is_file(),
+                         "video": bool(k.get("video")),
+                         "onizleme": link if link.startswith("https://fb.me/") else None}
+    return out
+
+
 def _kampanya_gorunumu() -> dict:
     """KAMPANYA sekmesi ve Meta ekibinin kaniti: scripts/kampanya-izle.py'nin
     saatlik olcumu. Panel Meta'yi/Trendyol'u KENDISI sorgulamaz, betigin
@@ -4645,6 +4691,22 @@ def _ekip_sor(kod: str, soru: str, extra_evidence: list[dict] | None = None) -> 
                                                 + str(kmp["olculdu"])[:16] + "): "
                                                 + " ".join(kmp["rapor"].split())[:1600]})
         except Exception:  # noqa: BLE001
+            pass
+    # 0c) REKLAM UZMAN IKILISI -- 15.11.2026: META_MEDIA ve MARKETPLACE'in
+    #     sorumlusu reklam uzmanlaridir (jarvis/reklam_uzman.py, sistem
+    #     istemleri config/reklam-uzman/). Uzmanin karar kurallari ve Reklam
+    #     Yoneticisi'nin son 7 gunluk kreatif olcumu ilk parcalara konur.
+    if kod in ("META_MEDIA", "MARKETPLACE"):
+        try:
+            from jarvis.reklam_uzman import karar_kurallari, UZMAN_ADI
+            yontem = karar_kurallari(kod, sinir=1100)
+            if yontem:
+                kanit.insert(0, {"ref": "bilgi:reklam-uzman-" + kod.lower(),
+                                 "summary": "UZMAN YÖNTEMİ (" + UZMAN_ADI[kod]
+                                            + ", departman sorumlusunun sistem istemi): " + yontem})
+            kanit.insert(0, {"ref": "reklam-yoneticisi:7g",
+                             "summary": reklam_yoneticisi.kanit_ozeti(reklam_yoneticisi.rapor("7"))})
+        except Exception:  # noqa: BLE001 - kanit eklenemezse soru yine cevaplanir
             pass
     okunamayan: list[str] = []
     sorgular: list[str] = []

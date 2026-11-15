@@ -1,0 +1,11 @@
+[Unit]
+Description=LCARLIE reklam uzman ikilisi - saatte bir (:25, meta-reklam-izle :12'den sonra)
+
+[Timer]
+OnCalendar=*:25
+Persistent=true
+RandomizedDelaySec=60
+Unit=lcarlie-reklam-oneri.service
+
+[Install]
+WantedBy=timers.target
