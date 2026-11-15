@@ -215,7 +215,8 @@ def kanit_metni(rapor: dict, dun: dict | None, bugun: dict | None) -> str:
                 "amac": s["amac"], "optimizasyon": s["optimizasyon"], "gunluk_butce": s["gunluk_butce"],
                 "harcama": s["m"]["harcama"], "gosterim": s["m"]["gosterim"],
                 "link_tiklama": s["m"]["link_tiklama"], "ctr": s["m"]["ctr"], "tbm": s["m"]["tbm"],
-                "cpm": s["m"]["cpm"], "frekans": s["m"]["frekans"], "an_pay": s["m"]["an_pay"],
+                "cpm": s["m"]["cpm"], "frekans": s["m"]["frekans"], "an_pay_7_gun_toplami": s["m"]["an_pay"],
+                "an_harcama_son_2_gun": s.get("an_son2"), "an_son_harcama_gunu": s.get("an_son_gun"),
                 "meta_satin_alma": s["m"]["satin_alma"] if s["meta_olculur"] else "OLCULEMEZ",
                 "urun_defter": {k: d.get(k) for k in ("siparis", "ciro", "katki", "sonuc", "roas",
                                                        "basabas_roas", "birim_katki")} if d else None,
@@ -239,13 +240,14 @@ def kanit_metni(rapor: dict, dun: dict | None, bugun: dict | None) -> str:
 
 GOREV = """Aşağıdaki <veri> L'CARLIÉ reklam hesabının ölçümüdür (son 7 gün + dün + bugün; defter = bizim siparişlerimiz, meta_* = Meta'nın iddiası; Trendyol hedefli reklamda Meta satış GÖREMEZ).
 'kural_onerileri' deterministik kural motorunun önerileridir; onları TEKRARLAMA.
-Kurallar: urun_defter ATIF DEĞİLDİR (ürünün o kanaldaki tüm satışıdır). En az 2 sipariş ve 1 siparişin katkısı (birim_katki) kadar harcama yoksa veri azdır: bütçe artırma önerme. Rozet KES olan ürüne bütçe artırma önerme. Audience Network tıklaması kreatif başarısı sayılmaz.
+Kurallar: urun_defter ATIF DEĞİLDİR (ürünün o kanaldaki tüm satışıdır). En az 2 sipariş ve 1 siparişin katkısı (birim_katki) kadar harcama yoksa veri azdır: bütçe artırma önerme. Rozet KES olan ürüne bütçe artırma önerme. Audience Network tıklaması kreatif başarısı sayılmaz. Audience Network kararı YALNIZ an_harcama_son_2_gun'e bakar: 0 ise AN zaten kapalıdır, AN ile ilgili öneri YAZMA (an_pay_7_gun_toplami geçmiştir).
 Görevin: senin alanında ({alan}) kural motorunun KAÇIRDIĞI en fazla {adet} somut öneri ver. Kural motoru zaten doğru söylüyorsa boş liste dön. Her sayı <veri>'de geçmeli; geçmeyen sayı yazma.
 Yalnız şu JSON'u döndür, başka metin yazma:
 {{"oneriler":[{{"kapsam":"HESAP|KAMPANYA|SET|REKLAM|YERLESIM|URUN","hedef_id":"<veri'deki id ya da ürün kodu>","hedef_ad":"...","oncelik":1-3,"ne":"tek cümle eylem","neden":"sayılarla, dönemle, kaynakla","beklenen_etki":"aralık + güven","risk":"...","geri_alma":"...","olcum":"ne zaman, hangi metrik","onay_gerekir":true|false,"ozet":"sahibe tek satır, sade Türkçe, rakamla"}}]}}"""
 
 
-def model_onerileri(kod: str, kanit: str, kanit_sayilari: set[float]) -> tuple[list[dict], list[str], str]:
+def model_onerileri(kod: str, kanit: str, kanit_sayilari: set[float],
+                    an_kapali: bool = False) -> tuple[list[dict], list[str], str]:
     from jarvis import providers
     from jarvis.reklam_uzman import istem, UZMAN_ADI
     sistem = istem(kod)
@@ -271,6 +273,11 @@ def model_onerileri(kod: str, kanit: str, kanit_sayilari: set[float]) -> tuple[l
         if not isinstance(o, dict) or not o.get("ne") or not o.get("neden"):
             continue
         tum = " ".join(str(o.get(k) or "") for k in ("ne", "neden", "beklenen_etki", "ozet"))
+        # 15.11 #182: model 7 günlük AN payına bakıp kapatılmış AN için öneri yazdı.
+        if an_kapali and ("audience network" in tum.lower() or " an " in (" " + tum.lower() + " ")):
+            notlar.append("%s önerisi düştü (AN son 2 günde zaten kapalı): %s" % (
+                UZMAN_ADI[kod], str(o.get("ne"))[:80]))
+            continue
         eksik = dogrulanmayan(tum, kanit_sayilari)
         if eksik:
             notlar.append("%s önerisi düştü (doğrulanmayan sayı: %s): %s" % (
@@ -360,7 +367,8 @@ def kos(tetik: str, kuru: bool, kuyruksuz: bool = False) -> int:
         sayilar = _sayilar(kanit)
         modeller, notlar, model_adi = [], [], []
         for kod in ("META_MEDIA", "MARKETPLACE"):
-            m, n, ad = model_onerileri(kod, kanit, sayilar)
+            m, n, ad = model_onerileri(kod, kanit, sayilar,
+                                       an_kapali=r7["ozet"].get("an_son2_harcama") == 0)
             modeller += m
             notlar += n
             if ad and ad not in model_adi:
