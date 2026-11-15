@@ -30,6 +30,8 @@ DOSYALAR=(core-sema.sql core-kimlik-fn.sql core-authority-seed.sql
           # 15.11.2026 TEK KAYNAK: finans merkezi -> core.urun_maliyet (FINANS) + core.urun_maliyet_guncel
           urun-maliyet-finans.sql
           mart-marj.sql
+          # 15.11.2026 K2 STOK: core.stok_guncel - mart.satis_kalem_tum (mart-marj) gerekir
+          stok-tek-kaynak.sql
           mart-para.sql mart-hazirlik.sql
           # 🔴 mart-nakit.sql, mart-hazirlik.sql'den SONRA: mart.maliyet_kalite'ye bagimli.
           mart-nakit.sql

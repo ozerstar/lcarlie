@@ -85,8 +85,10 @@ INSERT INTO core.urun_kimlik (finans_ad, urun_kod, urun_id, barkod, uts_no, paza
  ('Babysoft',    'BABYSOFT',       '24fed361-2f30-f048-0c9d-d9d60f1c0003', '8684869609523', '12515879', '8684869609523', NULL),
  ('Buguard',     'BUGUARD',        '12003267-dcf1-3add-17e8-163b08af5579', '8684869609301', '12329699', NULL,
    'Trendyol''daki 8684869609301 ilaninin basligi SOFTGUARD (Anti Mite & Akar) - UTS''de 9301 BUGUARD. Pazaryeri barkodu teyit edilmedi.'),
- ('Dorsivia',    'DORSIVIA',       '331165e3-5705-c501-6782-cb8d7950fa65', '8684869609592', '13346719', '8684869609400',
-   'Kutu + UTS 8684869609592; Wix SKU ve Trendyol ilani 8684869609400 (YANLIS, 10.11 olculdu).'),
+ -- 🔴 15.11.2026 sahip karari: "Wix'te neyse o" -> GTIN 8684869609400 (Wix SKU, EAN-13 saglamasi 0 dogru).
+ --    UTS/kutu baskisindaki 9592 bilgi olarak notta kalir; eslestirme 9400 ile yapilir.
+ ('Dorsivia',    'DORSIVIA',       '331165e3-5705-c501-6782-cb8d7950fa65', '8684869609400', '13346719', '8684869609400',
+   'sahip 15.11: Wix degeri esas -> GTIN 8684869609400 (Wix SKU + Trendyol ilani). UTS kaydi (13346719) ve kutu baskisi 8684869609592; 9592 artik eslestirme anahtari DEGIL.'),
  ('Softguard',   'SOFTGUARD',      '2abdb739-3675-3c6b-a312-2283a12e395b', '8684869609608', NULL, NULL,
    'Tekstil spreyi - UTS kozmetik listesinde yok (beklenen).'),
  ('Dermacorn',   'DERMACORN',      '9433babc-a59e-334a-0915-4ae14726b9e0', '8684869609288', '11456187', '8684869609288', NULL)

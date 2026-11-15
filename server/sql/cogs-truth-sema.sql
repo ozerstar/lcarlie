@@ -167,8 +167,9 @@ UPDATE core.maliyet_bileseni SET katki_yonu = 'AZALTIR'
 -- ---------------------------------------------------------------------------
 -- 3) BILESEN OKUYUCU  -  tarihe gore gecerli surum
 -- ---------------------------------------------------------------------------
-DROP FUNCTION IF EXISTS core.bilesen_bul(text, timestamptz);
-CREATE FUNCTION core.bilesen_bul(p_bilesen text, p_tarih timestamptz)
+-- 🔴 15.11.2026: DROP+CREATE yerine CREATE OR REPLACE - mart.satis_kalem_tum ve
+--    core.stok_guncel bu fonksiyona bagli; her yayinda DROP edilince yayin kiriliyordu.
+CREATE OR REPLACE FUNCTION core.bilesen_bul(p_bilesen text, p_tarih timestamptz)
 RETURNS TABLE (deger numeric, uygulama text, kanit_sinifi text, kritiklik text)
 LANGUAGE sql STABLE AS $$
   SELECT m.deger, m.uygulama, m.kanit_sinifi, m.kritiklik
@@ -190,12 +191,31 @@ DROP VIEW IF EXISTS mart.ekonomi_veri_kalitesi CASCADE;
 DROP VIEW IF EXISTS mart.siparis_ekonomi       CASCADE;
 
 CREATE VIEW mart.siparis_ekonomi AS
+-- 🔴 15.11.2026 K1: TUM KANALLAR. Wix siparisleri eskisi gibi mart.siparis'ten,
+--    pazaryeri/elle siparisleri mart.satis_kalem_tum'den (siparis_id 'trendyol:<no>').
+--    Komisyonlar artik YUZDE degil TUTAR olarak satir duzeyinde hesaplanir
+--    (odenen KDV dahil tutar x yuzde); K6: Wix POS %5 yalniz PayTR'a.
+--    Ilk 26 sutun ayni ad/sira; kanal ve tutar_kaynagi SONDA.
 WITH kalem AS (
   SELECT k.siparis_id,
-         sum(k.satir_ciro_net)                            AS net_ciro,
-         sum(k.satir_maliyet)                             AS cogs,
-         count(*) FILTER (WHERE NOT k.maliyeti_biliniyor) AS cogs_eksik_kalem
-    FROM mart.siparis_kalem k GROUP BY k.siparis_id
+         min(k.kanal)                                     AS kanal,
+         min(k.olusturma)                                 AS olusturma,
+         -- 🔴 pazaryeri iptal/iade satiri ciroya girmez (kismi iade)
+         sum(k.satir_ciro_net) FILTER (WHERE k.kanal = 'wix' OR k.ciro_sinifi <> 'IPTAL') AS net_ciro,
+         sum(k.satir_maliyet)  FILTER (WHERE k.kanal = 'wix' OR k.ciro_sinifi <> 'IPTAL') AS cogs,
+         count(*) FILTER (WHERE NOT k.maliyeti_biliniyor)  AS cogs_eksik_kalem,
+         sum(k.odeme_komisyonu) FILTER (WHERE k.kanal = 'wix' OR k.ciro_sinifi <> 'IPTAL') AS odeme_tutar,
+         sum(k.kanal_komisyonu) FILTER (WHERE k.kanal = 'wix' OR k.ciro_sinifi <> 'IPTAL') AS kanal_tutar,
+         bool_or(k.odeme_komisyon_yuzde IS NULL)           AS odeme_eksik,
+         bool_or(k.kanal_komisyon_yuzde IS NULL)           AS kanal_eksik,
+         bool_or(k.satir_ciro IS NULL)                     AS tutar_eksik,
+         CASE WHEN bool_and(k.ciro_sinifi = 'IPTAL')         THEN 'IPTAL'
+              WHEN bool_or(k.ciro_sinifi = 'ODENMEDI')       THEN 'ODENMEDI'
+              WHEN bool_or(k.ciro_sinifi = 'BEYAN_EDILMIS')  THEN 'BEYAN_EDILMIS'
+              ELSE 'DOGRULANMIS' END                      AS ciro_sinifi,
+         max(k.durum)                                      AS durum,
+         string_agg(DISTINCT k.tutar_kaynagi, ',')         AS tutar_kaynagi
+    FROM mart.satis_kalem_tum k GROUP BY k.siparis_id
 ), kargo AS (
   -- 🔴 KARGO SIPARISE ANCAK DETERMINISTIK BAG VARSA YAZILIR (foreignCode).
   --    Bag yoksa UNKNOWN'dur; ortalama kargo bedeli DAGITILMAZ.
@@ -207,67 +227,69 @@ WITH kalem AS (
          count(*) FILTER (WHERE g.cod_komisyon_sinifi = 'NOT_YET_KNOWN') AS cod_bekleyen,
          count(*) FILTER (WHERE g.cod_komisyon_sinifi = 'UNKNOWN')       AS cod_bilinmeyen
     FROM mart.gonderi g WHERE g.siparis_id IS NOT NULL GROUP BY g.siparis_id
-), b AS (
+), b0 AS (
   SELECT s.siparis_id, s.olusturma, s.ciro_sinifi, s.olcumde,
          s.teslimat_durumu, s.odeme_durumu,
-         k.net_ciro,
-         -- 29.09.2026 · COGS KDV TABANI COZULDU: sahip beyani KDV_DAHIL.
-         --   Ciro tarafi KDV HARIC olculuyor (net_ciro_kdv_haric). Maliyeti
-         --   KDV DAHIL birakmak iki tarafi FARKLI tabanda karsilastirmak
-         --   olurdu ve katkiyi sistematik olarak DUSUK gosterirdi.
-         --
-         -- 🔴 Ayari YAZMAK tek basina YETMIYORDU (olculdu 29.09.2026):
-         --   eski kod yalnizca 'taban cozulmemisse yukari duzeltme IHTIMALI
-         --   var' diyordu. Taban beyan edilince ihtimali sifirliyor ama
-         --   maliyeti DUSURMUYORDU: dogru cevabi girmek ust siniri
-         --   40.158 -> 36.425 TL'ye DUSURUYORDU. KDV_DAHIL dali eklendi.
-         CASE WHEN (SELECT deger FROM core.ayar
-                     WHERE anahtar = 'maliyet_kdv_tabani') = 'KDV_DAHIL'
-              THEN round(k.cogs / 1.2, 2)
-              ELSE k.cogs END                          AS cogs,
-         k.cogs_eksik_kalem,
+         k.net_ciro, k.cogs AS cogs_ham, k.cogs_eksik_kalem,
          kg.kargo_maliyet, kg.cod_komisyon, kg.cod_bekleyen, kg.cod_bilinmeyen,
          (kg.siparis_id IS NOT NULL) AS kargo_bagli,
-         (SELECT deger     FROM core.bilesen_bul('PAKETLEME',       s.olusturma)) AS paketleme,
-         (SELECT kritiklik FROM core.bilesen_bul('PAKETLEME',       s.olusturma)) AS paketleme_kritiklik,
-         (SELECT deger     FROM core.bilesen_bul('ODEME_KOMISYONU', s.olusturma)) AS odeme_yuzde,
-         (SELECT kritiklik FROM core.bilesen_bul('ODEME_KOMISYONU', s.olusturma)) AS odeme_kritiklik,
-         (SELECT deger     FROM core.bilesen_bul('KANAL_KOMISYONU', s.olusturma)) AS kanal_yuzde,
+         k.odeme_tutar, coalesce(k.odeme_eksik, false) AS odeme_eksik,
+         -- Wix'in kendi kanal komisyonu: core.maliyet_bileseni KANAL_KOMISYONU (beyansiz -> NULL)
+         round(coalesce(k.net_ciro,0) * (SELECT deger FROM core.bilesen_bul('KANAL_KOMISYONU', s.olusturma)) / 100.0, 2) AS kanal_tutar,
+         ((SELECT deger FROM core.bilesen_bul('KANAL_KOMISYONU', s.olusturma)) IS NULL) AS kanal_eksik,
          (SELECT kritiklik FROM core.bilesen_bul('KANAL_KOMISYONU', s.olusturma)) AS kanal_kritiklik,
-         (SELECT deger FROM core.ayar WHERE anahtar='maliyet_kdv_tabani')         AS cogs_kdv_tabani,
-         -- 29.09.2026 · Sahip beyani: 400 TL birim maliyet KARGOYU DA kapsiyor.
-         --   Boyle oldugunda olculen kargo ucretini katkidan AYRICA dusmek
-         --   ayni gideri IKI KEZ saymaktir (olculen tutar: 32 sipariste
-         --   1.075,54 TL). Ayar yoksa eski davranis korunur.
-         (SELECT deger FROM core.ayar WHERE anahtar='maliyet_kargo_dahil')        AS cogs_kargo_dahil
+         false AS tutar_eksik, 'wix'::text AS kanal, 'ODENEN'::text AS tutar_kaynagi
     FROM mart.siparis s
     LEFT JOIN kalem k  ON k.siparis_id  = s.siparis_id
     LEFT JOIN kargo kg ON kg.siparis_id = s.siparis_id
+  UNION ALL
+  SELECT k.siparis_id, k.olusturma, k.ciro_sinifi, k.olusturma >= mart.kesim(),
+         k.durum, CASE WHEN k.ciro_sinifi = 'ODENMEDI' THEN 'NOT_PAID' ELSE 'PAID' END,
+         k.net_ciro, k.cogs, k.cogs_eksik_kalem,
+         -- 🔴 Pazaryeri kargosu hakedisten kesilir, kaydi YOK -> NULL (kritik eksik)
+         NULL::numeric, NULL::numeric, 0::bigint, 0::bigint, false,
+         k.odeme_tutar, k.odeme_eksik, k.kanal_tutar, k.kanal_eksik, 'CRITICAL'::text,
+         k.tutar_eksik, k.kanal, k.tutar_kaynagi
+    -- mart.siparis'te olmayan her siparis: pazaryeri, elle ve henuz cekilmemis Wix (alici_siparis)
+    FROM kalem k WHERE NOT EXISTS (SELECT 1 FROM mart.siparis s WHERE s.siparis_id = k.siparis_id)
+), b AS (
+  SELECT b0.*,
+         -- COGS KDV TABANI (15.11: KDV_HARIC, finans merkezi). KDV_DAHIL beyan
+         -- edilirse maliyet /1,2 ile ciro tabanina indirilir.
+         CASE WHEN (SELECT deger FROM core.ayar
+                     WHERE anahtar = 'maliyet_kdv_tabani') = 'KDV_DAHIL'
+              THEN round(b0.cogs_ham / 1.2, 2)
+              ELSE b0.cogs_ham END                     AS cogs,
+         (SELECT deger     FROM core.bilesen_bul('PAKETLEME',       b0.olusturma)) AS paketleme,
+         (SELECT kritiklik FROM core.bilesen_bul('PAKETLEME',       b0.olusturma)) AS paketleme_kritiklik,
+         (SELECT deger FROM core.ayar WHERE anahtar='maliyet_kdv_tabani')          AS cogs_kdv_tabani,
+         -- maliyet_kargo_dahil=EVET ise olculen kargo AYRICA dusulmez (15.11: HAYIR)
+         (SELECT deger FROM core.ayar WHERE anahtar='maliyet_kargo_dahil')         AS cogs_kargo_dahil
+    FROM b0
 ), h AS (
   SELECT b.*,
-    -- Bilinen bilesenlerden hesaplanan katki
     (coalesce(b.net_ciro,0) - coalesce(b.cogs,0)
      - CASE WHEN b.cogs_kargo_dahil = 'EVET' THEN 0
             ELSE coalesce(b.kargo_maliyet,0) END
      - coalesce(b.cod_komisyon,0)
      - coalesce(b.paketleme,0)
-     - coalesce(coalesce(b.net_ciro,0) * b.odeme_yuzde / 100.0, 0)
-     - coalesce(coalesce(b.net_ciro,0) * b.kanal_yuzde / 100.0, 0)) AS katki,
-    -- 🔴 COGS KDV TABANI COZULMEMISSE katki YUKARI da hareket edebilir.
-    --    400 TL KDV DAHIL ise gercek COGS 400/1,2'dir -> maliyet duser.
-    --    Bu, katkiyi ARTIRABILECEK TEK cozulmemis bilesendir; digerlerinin
-    --    hepsi maliyettir (>= 0) ve yalniz DUSURUR.
+     - coalesce(b.odeme_tutar, 0)
+     - coalesce(b.kanal_tutar, 0)) AS katki,
     CASE WHEN b.cogs_kdv_tabani IS NULL AND b.cogs IS NOT NULL
          THEN round(b.cogs - b.cogs / 1.2, 2) ELSE 0 END AS cogs_kdv_lehte_duzeltme,
-    -- Kritik / ikincil cozulmemis bilesenler AYRI listelenir
     array_remove(ARRAY[
       CASE WHEN b.cogs IS NULL OR b.cogs_eksik_kalem > 0 THEN 'urun_cogs' END,
-      CASE WHEN NOT b.kargo_bagli
+      CASE WHEN b.tutar_eksik THEN 'gercek_tutar(liste fiyati kullanilmadi)' END,
+      CASE WHEN b.kanal NOT IN ('wix','elle')
+           THEN 'giden_kargo(pazaryeri kesintisi VERI_YOK)'
+           WHEN b.kanal = 'elle' THEN 'giden_kargo(elle satis-gonderi bagi yok)'
+           WHEN NOT b.kargo_bagli
             AND coalesce(b.cogs_kargo_dahil,'HAYIR') <> 'EVET'
            THEN 'giden_kargo(siparis-gonderi bagi yok)' END,
       CASE WHEN coalesce(b.cod_bilinmeyen,0) > 0         THEN 'cod_komisyonu(UNKNOWN)' END,
-      CASE WHEN b.odeme_yuzde IS NULL AND b.odeme_kritiklik='CRITICAL' THEN 'odeme_komisyonu' END,
-      CASE WHEN b.kanal_yuzde IS NULL AND b.kanal_kritiklik='CRITICAL' THEN 'kanal_komisyonu' END,
+      CASE WHEN b.odeme_eksik                            THEN 'odeme_komisyonu' END,
+      CASE WHEN b.kanal_eksik AND b.kanal = 'wix' AND b.kanal_kritiklik = 'CRITICAL' THEN 'kanal_komisyonu'
+           WHEN b.kanal_eksik AND b.kanal <> 'wix'       THEN 'kanal_komisyonu(VERI_YOK)' END,
       CASE WHEN b.teslimat_durumu = 'CANCELED'           THEN 'iade_ekonomisi(UNKNOWN)' END
     ], NULL) AS kritik_eksik,
     array_remove(ARRAY[
@@ -294,52 +316,45 @@ SELECT
   round(h.kargo_maliyet, 2)                               AS kargo_maliyet,
   round(h.cod_komisyon, 2)                                AS cod_komisyon,
   h.paketleme                                             AS paketleme,
-  CASE WHEN h.odeme_yuzde IS NOT NULL
-       THEN round(coalesce(h.net_ciro,0) * h.odeme_yuzde / 100.0, 2) END AS odeme_komisyonu,
-  CASE WHEN h.kanal_yuzde IS NOT NULL
-       THEN round(coalesce(h.net_ciro,0) * h.kanal_yuzde / 100.0, 2) END AS kanal_komisyonu,
+  CASE WHEN NOT h.odeme_eksik THEN round(coalesce(h.odeme_tutar,0), 2) END AS odeme_komisyonu,
+  CASE WHEN NOT h.kanal_eksik THEN round(coalesce(h.kanal_tutar,0), 2) END AS kanal_komisyonu,
 
   -- ===== KNOWN_COMPONENT_CONTRIBUTION =====
-  -- 🔴 ADI BILEREK NOTR. "Alt sinir" DEGILDIR: cozulmemis COGS KDV tabani
-  --    katkiyi YUKARI da tasiyabilir. Yon iddiasi yalniz asagidaki
+  -- 🔴 ADI BILEREK NOTR. "Alt sinir" DEGILDIR. Yon iddiasi yalniz
   --    en_iyi_olasi_katki ile ve ACIKCA yapilir.
   round(h.katki, 2)                                       AS bilinen_bilesen_katkisi,
   h.cogs_kdv_lehte_duzeltme                               AS cogs_kdv_lehte_duzeltme,
 
   -- ===== KANITLANABILIR UST SINIR =====
-  -- 🔴 Tum cozulmemis bilesenler maliyettir (>= 0) ve katkiyi yalniz DUSURUR;
-  --    TEK istisna COGS KDV tabanidir ve etkisi YUKARI ve SINIRLIDIR.
-  --    Dolayisiyla gercek katki SU DEGERI ASAMAZ.
+  -- 🔴 Tum cozulmemis bilesenler maliyettir (>= 0) ve katkiyi yalniz DUSURUR.
   round(h.katki + h.cogs_kdv_lehte_duzeltme, 2)           AS en_iyi_olasi_katki,
 
   h.kritik_eksik                                          AS kritik_eksik,
   h.ikincil_eksik                                         AS ikincil_eksik,
   (h.kritik_eksik || h.ikincil_eksik)                     AS eksik_bilesenler,
 
-  -- ===== TAMLIK  (bilesen bazli, parasal esik YOK) =====
   CASE
     WHEN cardinality(h.kritik_eksik)  > 0 THEN 'INCOMPLETE'
     WHEN cardinality(h.ikincil_eksik) > 0 THEN 'PARTIAL'
     ELSE 'COMPLETE'
   END                                                     AS tamlik,
 
-  -- ===== EKONOMIK OLARAK DOGRULANMIS =====
-  -- 🔴 YALNIZ hicbir KRITIK bilesen eksik degilse. Ikincil eksik varsa
-  --    ekonomi "dogrulanmis" sayilir ama katki IYIMSER kalir - bu ayrim
-  --    ikincil_eksik listesinde gorunur.
   (cardinality(h.kritik_eksik) = 0)                       AS ekonomik_dogrulanmis,
 
   CASE WHEN h.cogs IS NULL THEN 'UNKNOWN'
        ELSE coalesce((SELECT CASE WHEN bool_and(mk.kalite='OLCULMUS') THEN 'MEASURED'
                                   ELSE 'BUSINESS_INPUT' END
-                        FROM mart.siparis_kalem k2
+                        FROM mart.satis_kalem_tum k2
                         JOIN mart.maliyet_kalite mk ON mk.urun_id = k2.urun_id
                        WHERE k2.siparis_id = h.siparis_id), 'UNKNOWN')
-  END                                                     AS cogs_kanit_sinifi
+  END                                                     AS cogs_kanit_sinifi,
+  -- K1 ekleri (sona)
+  h.kanal                                                 AS kanal,
+  h.tutar_kaynagi                                         AS tutar_kaynagi
 FROM h;
 
 COMMENT ON VIEW mart.siparis_ekonomi IS
-  'Siparis basina ekonomi. bilinen_bilesen_katkisi bir SINIR IDDIASI DEGILDIR; '
+  'Siparis basina ekonomi, TUM kanallar (K1 15.11.2026, kanal sutunu). bilinen_bilesen_katkisi bir SINIR IDDIASI DEGILDIR; '
   'kanitlanabilir ust sinir en_iyi_olasi_katki kolonundadir. Reklam maliyeti BU GRAIN''DE YOKTUR.';
 
 -- ---------------------------------------------------------------------------

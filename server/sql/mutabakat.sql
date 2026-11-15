@@ -191,11 +191,21 @@ SELECT 'tek para birimi', count(DISTINCT para_birimi)::text, '1',
 -- 🔴 Bu bolum, projenin kok bulgusunun tekrarini onler: birbirinden turemis
 --    iki sayi ayni seyi soylemek zorundadir. Kalem indirimi hatasi aylarca
 --    gorunmedi cunku kimse iki rakami yan yana koymadi.
-SELECT 'mart.gunluk cirosu = mart.gunluk_marj cirosu' AS kontrol,
+-- 15.11.2026 K1: gunluk_marj artik TUM kanallar; mart.gunluk Wix. Wix payi Wix'e,
+--   gunluk_marj toplami tum kanal kalemlerine esit olmali.
+SELECT 'mart.gunluk cirosu = satis_kalem_tum Wix cirosu (olcumde)' AS kontrol,
        coalesce(a.c,0)::text || ' / ' || coalesce(b.c,0)::text AS deger,
        CASE WHEN coalesce(a.c,0) = coalesce(b.c,0) THEN 'SUCCESS' ELSE 'FAILED' END AS durum
   FROM (SELECT sum(ciro_dogrulanmis + ciro_beyan_edilmis) AS c FROM mart.gunluk) a,
-       (SELECT sum(ciro) AS c FROM mart.gunluk_marj) b
+       (SELECT sum(satir_ciro) AS c FROM mart.satis_kalem_tum
+         WHERE kanal = 'wix' AND olcumde AND ciro_sinifi IN ('DOGRULANMIS','BEYAN_EDILMIS')) b
+UNION ALL
+SELECT 'mart.gunluk_marj cirosu = satis_kalem_tum tum kanal (olcumde)',
+       coalesce(a.c,0)::text || ' / ' || coalesce(b.c,0)::text,
+       CASE WHEN coalesce(a.c,0) = coalesce(b.c,0) THEN 'SUCCESS' ELSE 'FAILED' END
+  FROM (SELECT sum(ciro) AS c FROM mart.gunluk_marj) a,
+       (SELECT sum(satir_ciro) AS c FROM mart.satis_kalem_tum
+         WHERE olcumde AND ciro_sinifi IN ('DOGRULANMIS','BEYAN_EDILMIS')) b
 UNION ALL
 SELECT 'mart.gunluk kargosu = gunluk_marj kargo_tum',
        coalesce(a.k,0)::text || ' / ' || coalesce(b.k,0)::text,
@@ -378,12 +388,21 @@ SELECT 'gunluk anlik goruntu zinciri saglam',
 -- 8) Ekonomi cirosu, siparis aynasiyla MUTABIK olmali.
 --    🔴 gelir_durumu kirilimi ciroyu BOLER; bolunmus parcalarin toplami
 --       butune esit degilse bir siparis iki kez ya da hic sayilmis demektir.
-SELECT 'ekonomi cirosu siparis aynasiyla mutabik',
-       (SELECT round(sum(net_ciro_kdv_haric),2)::text FROM mart.siparis_ekonomi),
+--    15.11.2026 K1: siparis_ekonomi tum kanallar -> Wix payi Wix aynasiyla,
+--    pazaryeri/elle payi satis_kalem_tum (iptal haric) ile.
+SELECT 'ekonomi cirosu siparis aynasiyla mutabik (wix)',
+       (SELECT round(sum(net_ciro_kdv_haric),2)::text FROM mart.siparis_ekonomi WHERE kanal = 'wix'),
        (SELECT round(sum(toplam - kdv),2)::text FROM raw.wix_order),
-       CASE WHEN (SELECT round(sum(net_ciro_kdv_haric),2) FROM mart.siparis_ekonomi)
+       CASE WHEN (SELECT round(sum(net_ciro_kdv_haric),2) FROM mart.siparis_ekonomi WHERE kanal = 'wix')
                  IS NOT DISTINCT FROM
                  (SELECT round(sum(toplam - kdv),2) FROM raw.wix_order)
+            THEN 'SUCCESS' ELSE 'FAILED' END
+UNION ALL
+SELECT 'ekonomi cirosu kalem aynasiyla mutabik (pazaryeri+elle)',
+       (SELECT round(coalesce(sum(net_ciro_kdv_haric),0),2)::text FROM mart.siparis_ekonomi WHERE kanal <> 'wix'),
+       (SELECT round(coalesce(sum(satir_ciro_net),0),2)::text FROM mart.satis_kalem_tum WHERE kanal <> 'wix' AND ciro_sinifi <> 'IPTAL'),
+       CASE WHEN (SELECT round(coalesce(sum(net_ciro_kdv_haric),0),2) FROM mart.siparis_ekonomi WHERE kanal <> 'wix')
+               = (SELECT round(coalesce(sum(satir_ciro_net),0),2) FROM mart.satis_kalem_tum WHERE kanal <> 'wix' AND ciro_sinifi <> 'IPTAL')
             THEN 'SUCCESS' ELSE 'FAILED' END;
 
 -- 9) INCOMPLETE bir siparis ASLA ekonomik olarak dogrulanmis sayilamaz.
@@ -517,14 +536,16 @@ SELECT 'ARTIRIR yonlu cozulmemis bilesen ust sinira dahil', count(*)::text, '0',
 --        KAYBOLUR ve katki oldugundan yuksek gorunur.
 --        Bu kontrol, yeni bilesen ekleyenin view'i de guncellemesini ZORUNLU kilar.
 --        🔴 Liste elle tutuluyor: view degistiginde BURASI da degismeli.
+--        15.11.2026 K6: POS_KOMISYONU mart.satis_kalem_tum'de PayTR siparisine isleniyor
+--        (ODEME_KOMISYONU'nun beyan edilmis karsiligi).
 SELECT 'acik bilesenlerin tamami ekonomi view''inde isleniyor',
        (SELECT count(*)::text FROM core.maliyet_bileseni
          WHERE gecerli_bitis IS NULL
-           AND bilesen NOT IN ('PAKETLEME','ODEME_KOMISYONU','KANAL_KOMISYONU')),
+           AND bilesen NOT IN ('PAKETLEME','ODEME_KOMISYONU','POS_KOMISYONU','KANAL_KOMISYONU')),
        '0',
        CASE WHEN (SELECT count(*) FROM core.maliyet_bileseni
                    WHERE gecerli_bitis IS NULL
-                     AND bilesen NOT IN ('PAKETLEME','ODEME_KOMISYONU','KANAL_KOMISYONU')) = 0
+                     AND bilesen NOT IN ('PAKETLEME','ODEME_KOMISYONU','POS_KOMISYONU','KANAL_KOMISYONU')) = 0
             THEN 'SUCCESS' ELSE 'FAILED' END;
 -- =============================================================================
 -- CR-017  GA4 / FUNNEL TRUTH  (17.09.2026)

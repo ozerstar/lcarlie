@@ -41,7 +41,8 @@ DROP VIEW IF EXISTS mart.ekonomi_gunluk        CASCADE;
 -- ---------------------------------------------------------------------------
 CREATE VIEW mart.ekonomi_gunluk AS
 WITH gunler AS (
-  SELECT (olusturma AT TIME ZONE 'Europe/Istanbul')::date AS gun FROM raw.wix_order
+  -- 15.11 K1: gunler siparis_ekonomi'den (tum kanallar); raw.wix_order yalniz Wix gunu verirdi
+  SELECT (olusturma AT TIME ZONE 'Europe/Istanbul')::date AS gun FROM mart.siparis_ekonomi
   UNION SELECT gun FROM raw.meta_harcama WHERE kampanya_id <> '_HESAP'
 ), sip AS (
   SELECT (e.olusturma AT TIME ZONE 'Europe/Istanbul')::date AS gun,
@@ -56,6 +57,9 @@ WITH gunler AS (
          sum(e.en_iyi_olasi_katki)      FILTER (WHERE e.gelir_durumu='REALIZED') AS ust_sinir,
          sum(e.bilinen_bilesen_katkisi) FILTER (WHERE e.ekonomik_dogrulanmis
                                             AND e.gelir_durumu='REALIZED')       AS dogrulanmis_katki
+         ,sum(e.net_ciro_kdv_haric) FILTER (WHERE e.gelir_durumu='REALIZED' AND e.kanal = 'wix') AS wix_net
+         ,sum(e.net_ciro_kdv_haric) FILTER (WHERE e.gelir_durumu='REALIZED' AND e.kanal NOT IN ('wix','elle')) AS pazaryeri_net
+         ,sum(e.net_ciro_kdv_haric) FILTER (WHERE e.gelir_durumu='REALIZED' AND e.kanal = 'elle') AS elle_net
     FROM mart.siparis_ekonomi e GROUP BY 1
 ), rek AS (
   SELECT gun, sum(harcama) AS harcama FROM raw.meta_harcama
@@ -92,7 +96,11 @@ SELECT
     WHEN coalesce(s.tam,0) = 0                                   THEN 'EKONOMI_OLCULEMEDI'
     WHEN s.tam < s.siparis                                       THEN 'EKONOMI_KISMI'
     ELSE 'EKONOMI_TAM'
-  END                                               AS ekonomi_durumu
+  END                                               AS ekonomi_durumu,
+  -- K1 ekleri (sona)
+  round(coalesce(s.wix_net,0),2)                    AS wix_net_ciro,
+  round(coalesce(s.pazaryeri_net,0),2)              AS pazaryeri_net_ciro,
+  round(coalesce(s.elle_net,0),2)                   AS elle_net_ciro
 FROM gunler g
 LEFT JOIN sip s ON s.gun = g.gun
 LEFT JOIN rek r ON r.gun = g.gun
