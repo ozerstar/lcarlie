@@ -227,6 +227,28 @@ def _js(sql: str) -> str:
     return "SELECT row_to_json(x) FROM (%s) x;" % sql
 
 
+def satis_sorgulari(bas: str, bit: str) -> dict[str, str]:
+    """GERÇEK SATIŞ (defter) okumasının TEK yeri. Rapor yalnız bu üç parçanın
+    BİÇİMİNE bağlıdır, kaynağına değil:
+      defter          gun, kanal, barkod, kod, siparis, adet, ciro   (gün×kanal×ürün)
+      defter_gunluk   gun, kanal, siparis, ciro                     (gün×kanal, sipariş bir kez)
+      defter_tazelik  son_olcum                                      (satış kaydının son güncellenmesi)
+    15.11.2026: pazaryeri + elle satış kanal bilgisiyle mart.siparis_kalem /
+    siparis_ekonomi zincirine ekleniyor (başka ajan). Hazır olunca yalnız bu
+    işlevin SQL'i o görünümlere çevrilir (aynı sütun adlarıyla); ciro =
+    müşterinin ÖDEDİĞİ tutar kalmalı (Trendyol liste fiyatı değil), iptal/iade
+    hariç. Görünüm yetkisi: jarvis_web SELECT (lcarlie-panel-db-rolu)."""
+    return {
+        "defter": _js(
+            "SELECT gun, kanal, barkod, kod, siparis, adet, ciro FROM mart.reklam_defter_satis "
+            "WHERE gun BETWEEN '%s' AND '%s'" % (bas, bit)),
+        "defter_gunluk": _js(
+            "SELECT gun, kanal, siparis, ciro FROM mart.reklam_defter_gunluk "
+            "WHERE gun BETWEEN '%s' AND '%s'" % (bas, bit)),
+        "defter_tazelik": _js("SELECT son_olcum FROM mart.reklam_defter_tazelik"),
+    }
+
+
 def veri_oku(bas: date, bit: date, trend_gun: int = 30) -> dict:
     """Panelin okuduğu her şey, tek tur. Bir parça okunamazsa o parça
     `okunamadi` listesine girer, sıfır yazılmaz."""
@@ -243,18 +265,18 @@ def veri_oku(bas: date, bit: date, trend_gun: int = 30) -> dict:
             "SELECT DISTINCT ON (ad_id) ad_id, gun, durum, adset_durum, kampanya_durum, gunluk_butce, "
             "kampanya_amaci, optimizasyon FROM raw.meta_izleme_reklam ORDER BY ad_id, gun DESC"),
         "kreatif": _js("SELECT * FROM mart.reklam_kreatif"),
+        # AN kararı aralık toplamına değil SON 2 GÜNE bakar (15.11: sahip AN'yi
+        # 13.11'de kapatmıştı, 7 günlük toplam bayat "kapat" önerisi üretti).
+        "an_gunluk": _js(
+            "SELECT gun, adset_id, sum(harcama) harcama FROM raw.meta_izleme_yerlesim "
+            "WHERE yayinci = 'audience_network' AND gun BETWEEN '%s' AND '%s' "
+            "GROUP BY 1, 2" % (tb, s)),
         "yerlesim": _js(
             "SELECT ad_id, yayinci, konum, sum(harcama) harcama, sum(gosterim) gosterim, "
             "sum(tiklama) tiklama, sum(link_tiklama) link_tiklama, sum(sepete_ekle) sepete_ekle, "
             "sum(satin_alma) satin_alma FROM raw.meta_izleme_yerlesim "
             "WHERE gun BETWEEN '%s' AND '%s' GROUP BY 1,2,3" % (b, s)),
-        "defter": _js(
-            "SELECT gun, kanal, barkod, kod, siparis, adet, ciro FROM mart.reklam_defter_satis "
-            "WHERE gun BETWEEN '%s' AND '%s'" % (tb, s)),
-        "defter_gunluk": _js(
-            "SELECT gun, kanal, siparis, ciro FROM mart.reklam_defter_gunluk "
-            "WHERE gun BETWEEN '%s' AND '%s'" % (tb, s)),
-        "defter_tazelik": _js("SELECT * FROM mart.reklam_defter_tazelik"),
+        **satis_sorgulari(tb, s),
         "ekonomi": _js("SELECT * FROM mart.reklam_urun_ekonomi"),
         "uyari": _js(
             "SELECT anahtar, kural, seviye, metin, oneri, veri, ilk_at, son_at "
@@ -388,6 +410,24 @@ def rapor_kur(v: dict, bas: date, bit: date, simdi: datetime | None = None,
             "m": m, "ilk_harcama_gunu": x.get("ilk_harc"),
         })
 
+    # --- Audience Network: son 2 gün ve son harcama günü (set bazında) ---
+    son2_bas = (bit - timedelta(days=1)).isoformat()
+    an_son2: dict[str, float] = {}
+    an_son_gun_set: dict[str, str] = {}
+    an_son_gun_tum = None
+    for a in v.get("an_gunluk") or []:
+        gun = str(a["gun"])[:10]
+        h = _f(a.get("harcama"))
+        if h <= 0 or gun > bit.isoformat():
+            continue
+        sid = str(a.get("adset_id") or "")
+        if gun >= son2_bas:
+            an_son2[sid] = an_son2.get(sid, 0.0) + h
+        if gun > an_son_gun_set.get(sid, ""):
+            an_son_gun_set[sid] = gun
+        if an_son_gun_tum is None or gun > an_son_gun_tum:
+            an_son_gun_tum = gun
+
     # --- ürün grupları: aynı ürün + aynı kanal hedefleyen reklamlar ---
     grup: dict[tuple, dict] = {}
     for s in satirlar:
@@ -460,6 +500,13 @@ def rapor_kur(v: dict, bas: date, bit: date, simdi: datetime | None = None,
             s["grup"] = {"kanal": kanal, "reklam_sayisi": len(g["reklam"]), "ilk_gun": g["ilk_gun"],
                          "harcama": round(g["harcama"], 2), "link_tiklama": g["link_tiklama"]}
         s["rozet"], s["rozet_neden"] = rozet(s, gun_sayisi)
+        s["an_son2"] = round(an_son2.get(s["adset_id"], 0.0), 2)
+        s["an_son_gun"] = an_son_gun_set.get(s["adset_id"])
+        s["an_not"] = None
+        if (bit >= simdi.date() - timedelta(days=0) and s["m"]["an_harcama"] > 0
+                and s["an_son2"] == 0 and s["an_son_gun"]):
+            g = s["an_son_gun"]
+            s["an_not"] = "AN şimdi kapalı · son AN harcaması %s.%s" % (g[8:10], g[5:7])
         s["isaretler"] = isaretler(s)
 
     satirlar.sort(key=lambda s: -s["m"]["harcama"])
@@ -615,6 +662,8 @@ def rapor_kur(v: dict, bas: date, bit: date, simdi: datetime | None = None,
         "mer": _yuvarla(_bol(tum_ciro, top["harcama"])) if tum_ciro is not None else None,
         "an_harcama": round(an_harcama, 2),
         "an_pay": _yuvarla(_bol(an_harcama, yer_toplam, 100), 1),
+        "an_son2_harcama": (round(sum(an_son2.values()), 2) if v.get("an_gunluk") is not None else None),
+        "an_son_gun": an_son_gun_tum,
         "aktif_reklam": sum(1 for s in satirlar if s["durum"] == "ACTIVE"),
         "reklam_sayisi": len(satirlar),
     }
@@ -725,7 +774,9 @@ def isaretler(s: dict) -> list[str]:
         out.append("TBM yüksek (%s)" % tl(m["tbm"]))
     if m["frekans"] is not None and m["frekans"] > FREKANS_UST and s["m"].get("erisim_tekil"):
         out.append("Frekans %s" % sayi(m["frekans"], 1))
-    if m["an_pay"] and m["an_pay"] > AN_PAY_UST:
+    if m["an_pay"] and m["an_pay"] > AN_PAY_UST and s.get("an_not"):
+        out.append("Audience Network %%%s (aralık toplamı)" % sayi(m["an_pay"], 0))
+    elif m["an_pay"] and m["an_pay"] > AN_PAY_UST:
         out.append("Audience Network %%%s" % sayi(m["an_pay"], 0))
     if (s.get("amac") == "OUTCOME_SALES" and s.get("optimizasyon") == "LANDING_PAGE_VIEWS"
             and s["hedef"] == "trendyol"):
@@ -748,28 +799,28 @@ def kural_onerileri(r: dict) -> list[dict]:
     out: list[dict] = []
     ozet, satirlar = r["ozet"], r["satirlar"]
 
-    # 1) Audience Network
+    # 1) Audience Network — SON 2 GÜN (bit ve bir önceki gün). Aralık toplamı
+    #    kapatılmış AN'yi "kapat" diye önerir (15.11 #179 bayattı: AN 13.11'de
+    #    kapatılmıştı).
     an_set: dict[str, dict] = {}
     for s in satirlar:
-        if s["m"]["an_harcama"] > 0:
-            o = an_set.setdefault(s["adset_id"], {"ad": s["set"], "an": 0.0, "h": 0.0})
-            o["an"] += s["m"]["an_harcama"]
-            o["h"] += s["m"]["harcama"]
-    if an_set and (ozet.get("an_pay") or 0) > AN_PAY_UST:
+        if s.get("an_son2", 0) > 0 and s["adset_id"] not in an_set:
+            an_set[s["adset_id"]] = {"ad": s["set"], "an": s["an_son2"]}
+    if an_set:
         en = sorted(an_set.items(), key=lambda kv: -kv[1]["an"])
         adlar = ", ".join(v["ad"] for _, v in en)
+        toplam = sum(v["an"] for v in an_set.values())
         out.append(_oneri(
             "META_MEDIA", "YERLESIM", ",".join(k for k, _ in en), adlar, 1,
             "%d reklam setinde Audience Network yerleşimini kapat." % len(an_set),
-            "Seçili dönemde Audience Network payı %%%s (%s); uzman eşiği %%%d. "
-            "AN tıklamaları satışa dönmüyor (11.11'de pay %%98,9 ölçüldü)." % (
-                sayi(ozet["an_pay"], 0), tl0(ozet["an_harcama"]), AN_PAY_UST),
-            "Günlük AN harcaması Instagram akış/hikâyeye kayar; tıklama sayısı düşer, nitelik artar.",
+            "Son 2 günde Audience Network'e %s harcandı (%s). AN tıklamaları satışa "
+            "dönmüyor (11.11'de pay %%98,9 ölçüldü); uzman eşiği %%%d." % (
+                tl0(toplam), adlar, AN_PAY_UST),
+            "AN harcaması Instagram akış/hikâyeye kayar; tıklama sayısı düşer, nitelik artar.",
             "Teslim kısa süre yavaşlayabilir; set düzenlemesi öğrenmeyi etkiler.",
             "Yerleşimde Audience Network'ü yeniden işaretle.",
-            "48 saat sonra yerleşim tablosunda AN payı %0 ve TBM.", True, "an",
-            "Audience Network'ü kapat: payı %%%s, oraya %s gitti." % (
-                sayi(ozet["an_pay"], 0), tl0(ozet["an_harcama"]))))
+            "48 saat sonra yerleşim tablosunda AN harcaması 0.", True, "an",
+            "Audience Network'ü kapat: son 2 günde oraya %s gitti." % tl0(toplam)))
 
     # 2) Reddedilen / sorunlu reklam
     for s in satirlar:

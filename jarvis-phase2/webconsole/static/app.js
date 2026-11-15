@@ -9347,8 +9347,11 @@ function ryKartlarHtml(r) {
       sonucSinif),
     ryKart('MER <i>(tüm kanallar)</i>', o.mer == null ? '—' : rySayi(o.mer, 2),
       o.tum_ciro == null ? 'defter okunamadı' : `${rySayi(o.tum_siparis)} sipariş · ${ryTl(o.tum_ciro)} ciro ÷ harcama`),
-    ryKart('Audience Network', o.an_pay == null ? '—' : '%' + rySayi(o.an_pay, 0),
-      `${ryTl(o.an_harcama)} · eşik %10`, (o.an_pay || 0) > 10 ? 'is-kotu' : ''),
+    ryKart('Audience Network <i>(aralık)</i>', o.an_pay == null ? '—' : '%' + rySayi(o.an_pay, 0),
+      o.an_son2_harcama === 0 && o.an_son_gun
+        ? `${ryTl(o.an_harcama)} · şimdi kapalı, son harcama ${escapeHtml(o.an_son_gun.slice(8, 10) + '.' + o.an_son_gun.slice(5, 7))}`
+        : `${ryTl(o.an_harcama)} · son 2 gün ${ryTl(o.an_son2_harcama)} · eşik %10`,
+      (o.an_son2_harcama || 0) > 0 && (o.an_pay || 0) > 10 ? 'is-kotu' : ''),
   ].join('');
 }
 
@@ -9438,7 +9441,8 @@ function ryReklamSatir(s) {
   }
   const oneri = ryOnerileriBul([s.ad_id, s.adset_id, s.urun || '-']);
   const isaret = (s.isaretler || []).map((i) => `<span class="ry-isaret">${escapeHtml(i)}</span>`).join('');
-  const sor = oneri.length ? `<span class="ry-oneri-say">${oneri.length} öneri</span>` : '';
+  const sor = (oneri.length ? `<span class="ry-oneri-say">${oneri.length} öneri</span>` : '')
+    + (s.an_not ? `<span class="ry-an-not">${escapeHtml(s.an_not)}</span>` : '');
   return `<tr class="ry-satir" data-ry-ad="${escapeHtml(s.ad_id)}">
     <td class="ry-kreatif-hucre" data-l="Kreatif"><button type="button" class="ry-kreatif" data-ry-ac="${escapeHtml(s.ad_id)}">
       ${kucuk}<span class="ry-kreatif-metin"><b>${escapeHtml(s.ad)}</b>
@@ -9459,7 +9463,7 @@ function ryReklamSatir(s) {
     <td data-l="Gerçek sipariş (defter)" class="ry-sayi ry-defter">${defter}</td>
     <td data-l="Reklam sonrası" class="ry-sayi">${katki}</td>
     <td data-l="ROAS (defter)" class="ry-sayi">${roas}</td>
-    <td data-l="Durum" class="ry-rozet-hucre">${ryRozet(s)}<small>${escapeHtml(s.rozet_neden || '')}</small></td>
+    <td data-l="Durum" class="ry-rozet-hucre">${ryRozet(s)}${s.an_not ? `<span class="ry-an-not">${escapeHtml(s.an_not)}</span>` : ''}<small>${escapeHtml(s.rozet_neden || '')}</small></td>
   </tr>`;
 }
 

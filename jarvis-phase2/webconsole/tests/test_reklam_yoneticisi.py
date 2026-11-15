@@ -92,6 +92,7 @@ def _veri(**ek):
             {"ad_id": "A1", "yayinci": "instagram", "konum": "instagram_reels", "harcama": 1180,
              "gosterim": 20000, "tiklama": 830, "link_tiklama": 820, "sepete_ekle": 0, "satin_alma": 0},
         ],
+        "an_gunluk": [{"gun": "2026-11-14", "adset_id": "S1", "harcama": 320.0}],
         "defter": [
             # reklam başlamadan ÖNCE (12.11) -> sayılmamalı
             {"gun": "2026-11-12", "kanal": "trendyol", "barkod": "8684869609295", "kod": "LUCIDERM",
@@ -265,6 +266,19 @@ class Oneriler(unittest.TestCase):
         for o in r["oneriler"]:
             for alan in ("ne", "neden", "beklenen_etki", "risk", "geri_alma", "olcum"):
                 self.assertTrue(o[alan], (o["anahtar"], alan))
+
+    def test_AN_karari_son_iki_gune_bakar(self):
+        # 15.11 #179: AN 13.11'de kapatılmıştı, 7 günlük toplam bayat öneri üretti.
+        v = _veri(an_gunluk=[{"gun": "2026-11-12", "adset_id": "S1", "harcama": 320.0}])
+        r = _rapor(v)
+        self.assertNotIn("an", {o["anahtar"].split(":")[0] for o in r["oneriler"]})
+        a1 = _satir(r, "A1")
+        self.assertEqual(a1["an_not"], "AN şimdi kapalı · son AN harcaması 12.11")
+        self.assertEqual(r["ozet"]["an_son2_harcama"], 0)
+        self.assertEqual(r["ozet"]["an_son_gun"], "2026-11-12")
+        self.assertIn("Audience Network %21 (aralık toplamı)", a1["isaretler"])
+        # aralık bugünü içermiyorsa not yok
+        self.assertIsNone(_satir(_rapor(v, bit=date(2026, 11, 14)), "A1")["an_not"])
 
     def test_tek_gunde_MER_kurali_calismaz(self):
         r = _rapor(bas=BUGUN - timedelta(days=1), bit=BUGUN - timedelta(days=1))
