@@ -189,6 +189,21 @@ class MetaVeDefterAyri(unittest.TestCase):
         self.assertEqual(d["siparis"], 1)
         self.assertAlmostEqual(d["ciro"], 580.82)
 
+    def test_tutari_bilinmeyen_siparis_sifir_tl_sayilmaz(self):
+        # Trendyol nöbetçi kaydı (liste fiyatı) ciroya girmez: ciro NULL.
+        v = _veri()
+        v["defter"].append({"gun": "2026-11-14", "kanal": "trendyol", "barkod": "8684869609295",
+                            "kod": "LUCIDERM", "siparis": 1, "adet": 1, "ciro": None})
+        v["defter_gunluk"].append({"gun": "2026-11-15", "kanal": "trendyol", "siparis": 1,
+                                   "ciro": 0, "tutari_bilinmeyen_kalem": 1})
+        r = _rapor(v)
+        d = _satir(r, "A2")["defter"]
+        self.assertEqual(d["siparis"], 2)
+        self.assertEqual(d["tutar_bilinmeyen"], 1)
+        self.assertAlmostEqual(d["ciro"], 580.82)      # bilinmeyen tutar 0 diye eklenmedi
+        self.assertIsNone(d["katki"])                  # katkı tamamlanamaz, uydurulmaz
+        self.assertEqual(r["ozet"]["tutar_bilinmeyen_siparis"], 1)
+
     def test_siparis_katkisi_odenen_tutardan(self):
         d = _satir(_rapor(), "A2")["defter"]
         beklenen = 580.82 / 1.2 - 0.19 * 580.82 - 80.02 - 92.66

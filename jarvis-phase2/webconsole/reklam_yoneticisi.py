@@ -233,19 +233,21 @@ def satis_sorgulari(bas: str, bit: str) -> dict[str, str]:
       defter          gun, kanal, barkod, kod, siparis, adet, ciro   (gün×kanal×ürün)
       defter_gunluk   gun, kanal, siparis, ciro                     (gün×kanal, sipariş bir kez)
       defter_tazelik  son_olcum                                      (satış kaydının son güncellenmesi)
-    15.11.2026: pazaryeri + elle satış kanal bilgisiyle mart.siparis_kalem /
-    siparis_ekonomi zincirine ekleniyor (başka ajan). Hazır olunca yalnız bu
-    işlevin SQL'i o görünümlere çevrilir (aynı sütun adlarıyla); ciro =
-    müşterinin ÖDEDİĞİ tutar kalmalı (Trendyol liste fiyatı değil), iptal/iade
-    hariç. Görünüm yetkisi: jarvis_web SELECT (lcarlie-panel-db-rolu)."""
+    15.11.2026 akşam: tüm kanallar (Wix, Trendyol, Idefix, n11, HB, elle satış)
+    mart.satis_urun_gunluk / satis_kanal_gunluk / satis_tazelik görünümlerinden
+    okunur. Ciro = müşterinin ÖDEDİĞİ tutar; iptal, iade, ödenmemiş hariç.
+    Trendyol'da tutarı bilinmeyen sipariş (nöbetçideki liste fiyatı) ciroya
+    girmez: ürün satırında ciro NULL, kanal satırında tutari_bilinmeyen_kalem
+    -> panel "tutar bilinmiyor" yazar, 0 TL yazmaz. Klinik ürün (Schüssler)
+    bu görünümlerde yoktur."""
     return {
         "defter": _js(
-            "SELECT gun, kanal, barkod, kod, siparis, adet, ciro FROM mart.reklam_defter_satis "
+            "SELECT gun, kanal, barkod, kod, siparis, adet, ciro FROM mart.satis_urun_gunluk "
             "WHERE gun BETWEEN '%s' AND '%s'" % (bas, bit)),
         "defter_gunluk": _js(
-            "SELECT gun, kanal, siparis, ciro FROM mart.reklam_defter_gunluk "
+            "SELECT gun, kanal, siparis, ciro, tutari_bilinmeyen_kalem FROM mart.satis_kanal_gunluk "
             "WHERE gun BETWEEN '%s' AND '%s'" % (bas, bit)),
-        "defter_tazelik": _js("SELECT son_olcum FROM mart.reklam_defter_tazelik"),
+        "defter_tazelik": _js("SELECT son_olcum FROM mart.satis_tazelik"),
     }
 
 
@@ -455,9 +457,15 @@ def rapor_kur(v: dict, bas: date, bit: date, simdi: datetime | None = None,
         ilk = (grup.get((d["kanal"], kod)) or {}).get("ilk_gun") or bas.isoformat()
         if max(ilk, bas.isoformat()) <= gun <= bit.isoformat():
             x = def_urun.setdefault((d["kanal"], kod), {"siparis": 0, "adet": 0.0, "ciro": 0.0,
-                                                        "katki": 0.0, "katki_tam": True})
+                                                        "katki": 0.0, "katki_tam": True,
+                                                        "tutar_bilinmeyen": 0})
             x["siparis"] += int(_f(d.get("siparis")))
             x["adet"] += _f(d.get("adet"))
+            if d.get("ciro") is None:
+                # tutarı bilinmeyen sipariş: ciroya 0 diye girmez, katkı tamamlanamaz
+                x["tutar_bilinmeyen"] += int(_f(d.get("siparis")))
+                x["katki_tam"] = False
+                continue
             x["ciro"] += _f(d.get("ciro"))
             e = ekon.get(kod)
             kom = None
@@ -471,14 +479,15 @@ def rapor_kur(v: dict, bas: date, bit: date, simdi: datetime | None = None,
     for d in v.get("defter_gunluk") or []:
         gun = str(d["gun"])[:10]
         def_trend.setdefault(gun, {})[d["kanal"]] = {
-            "siparis": int(_f(d.get("siparis"))), "ciro": _f(d.get("ciro"))}
+            "siparis": int(_f(d.get("siparis"))), "ciro": _f(d.get("ciro")),
+            "tutar_bilinmeyen": int(_f(d.get("tutari_bilinmeyen_kalem")))}
 
     def _defter_ozet(kanal, kod, harcama):
         """Ürün geneli defter + rozet."""
         if not defter_okundu:
             return {"durum": "OKUNAMADI"}
         d = def_urun.get((kanal, kod), {"siparis": 0, "adet": 0.0, "ciro": 0.0,
-                                         "katki": 0.0, "katki_tam": True})
+                                         "katki": 0.0, "katki_tam": True, "tutar_bilinmeyen": 0})
         e = ekon.get(kod) or {}
         ke = (e.get("kanallar") or {}).get(kanal) or {}
         katki_v = d["katki"] if (d["katki_tam"] and e.get("maliyet") is not None) else None
@@ -487,7 +496,8 @@ def rapor_kur(v: dict, bas: date, bit: date, simdi: datetime | None = None,
                 "ciro": round(d["ciro"], 2), "katki": _yuvarla(katki_v),
                 "sonuc": _yuvarla(katki_v - harcama) if katki_v is not None else None,
                 "roas": _yuvarla(roas), "basabas_roas": ke.get("basabas_roas"),
-                "birim_katki": ke.get("katki"), "eksik": ke.get("eksik") or ""}
+                "birim_katki": ke.get("katki"), "eksik": ke.get("eksik") or "",
+                "tutar_bilinmeyen": d.get("tutar_bilinmeyen", 0)}
 
     for s in satirlar:
         kanal = kanal_of(s["hedef"])
@@ -659,6 +669,9 @@ def rapor_kur(v: dict, bas: date, bit: date, simdi: datetime | None = None,
                         if (defter_okundu and hedef_katki is not None) else None),
         "reklamli_harcama": round(reklamli_harcama, 2),
         "tum_siparis": tum_siparis, "tum_ciro": _yuvarla(tum_ciro),
+        "tutar_bilinmeyen_siparis": (sum(k.get("tutar_bilinmeyen", 0) for g, kk in def_trend.items()
+                                         if bas.isoformat() <= g <= bit.isoformat() for k in kk.values())
+                                     if defter_okundu else None),
         "mer": _yuvarla(_bol(tum_ciro, top["harcama"])) if tum_ciro is not None else None,
         "an_harcama": round(an_harcama, 2),
         "an_pay": _yuvarla(_bol(an_harcama, yer_toplam, 100), 1),

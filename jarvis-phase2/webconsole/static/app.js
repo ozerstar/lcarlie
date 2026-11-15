@@ -9346,7 +9346,7 @@ function ryKartlarHtml(r) {
       o.hedef_katki == null ? 'maliyeti bilinmeyen ürün var' : `katkı ${ryTl(o.hedef_katki)} − harcama ${ryTl(o.reklamli_harcama)}`,
       sonucSinif),
     ryKart('MER <i>(tüm kanallar)</i>', o.mer == null ? '—' : rySayi(o.mer, 2),
-      o.tum_ciro == null ? 'defter okunamadı' : `${rySayi(o.tum_siparis)} sipariş · ${ryTl(o.tum_ciro)} ciro ÷ harcama`),
+      o.tum_ciro == null ? 'defter okunamadı' : `${rySayi(o.tum_siparis)} sipariş · ${ryTl(o.tum_ciro)} ciro ÷ harcama${o.tutar_bilinmeyen_siparis ? ` · ${o.tutar_bilinmeyen_siparis} siparişin tutarı bilinmiyor, ciroya girmedi` : ''}`),
     ryKart('Audience Network <i>(aralık)</i>', o.an_pay == null ? '—' : '%' + rySayi(o.an_pay, 0),
       o.an_son2_harcama === 0 && o.an_son_gun
         ? `${ryTl(o.an_harcama)} · şimdi kapalı, son harcama ${escapeHtml(o.an_son_gun.slice(8, 10) + '.' + o.an_son_gun.slice(5, 7))}`
@@ -9434,7 +9434,7 @@ function ryReklamSatir(s) {
   let defter = '—', katki = '—', roas = '—';
   if (d && d.durum === 'OKUNAMADI') defter = '<span class="ry-olculemez">OKUNAMADI</span>';
   else if (d && d.durum === 'OK') {
-    defter = `${rySayi(d.siparis)} sipariş<small>${ryTl(d.ciro)} · ürün geneli${s.grup && s.grup.reklam_sayisi > 1 ? ` · ${s.grup.reklam_sayisi} reklam` : ''}</small>`;
+    defter = `${rySayi(d.siparis)} sipariş<small>${ryTl(d.ciro)} · ürün geneli${s.grup && s.grup.reklam_sayisi > 1 ? ` · ${s.grup.reklam_sayisi} reklam` : ''}${d.tutar_bilinmeyen ? ` · ${d.tutar_bilinmeyen} siparişin tutarı bilinmiyor` : ''}</small>`;
     katki = d.sonuc == null ? (d.eksik ? escapeHtml(d.eksik) : '—')
       : `<span class="${d.sonuc >= 0 ? 'ry-arti' : 'ry-eksi'}">${ryTl(d.sonuc)}</span><small>katkı ${ryTl(d.katki)}</small>`;
     roas = `${d.roas == null ? '—' : rySayi(d.roas, 2)}<small>başabaş ${d.basabas_roas == null ? '—' : rySayi(d.basabas_roas, 2)}</small>`;
