@@ -373,8 +373,11 @@ def kos(tetik: str, kuru: bool, kuyruksuz: bool = False) -> int:
             notlar += n
             if ad and ad not in model_adi:
                 model_adi.append(ad)
+        # Kopya: aynı metin YA DA kuralın zaten hedeflediği nesne (15.11 #184 = #180).
         gorulen = {o["ne"].lower()[:60] for o in kural}
-        tum = kural + [o for o in modeller if o["ne"].lower()[:60] not in gorulen]
+        hedefler = {h for o in kural for h in str(o.get("hedef_id") or "").split(",") if h}
+        tum = kural + [o for o in modeller if o["ne"].lower()[:60] not in gorulen
+                       and not (set(str(o.get("hedef_id") or "").split(",")) & hedefler)]
         tum.sort(key=lambda o: (o["oncelik"], 0 if o["kaynak"] == "KURAL" else 1))
         ozet = [o["ozet"] for o in tum[:3]]
         if not ozet:
