@@ -325,6 +325,9 @@ BEGIN
     GRANT SELECT ON core.urun_maliyet_guncel, core.urun_kimlik, core.urun_kimlik_denetim,
                     core.finans_maliyet_anlik TO jarvis_web;
     GRANT EXECUTE ON FUNCTION core.finans_maliyet_yaz(jsonb) TO jarvis_web;
+    -- core.maliyet_bul() cagirani yetkisiyle calisir: panel mart.siparis_kalem'i
+    -- okurken "permission denied for table urun_maliyet" aliyordu (15.11 olculdu).
+    GRANT SELECT ON core.urun_maliyet TO jarvis_web;
   END IF;
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'ai_reader') THEN
     GRANT SELECT ON core.urun_maliyet_guncel, core.urun_kimlik, core.urun_kimlik_denetim,

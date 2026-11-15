@@ -104,7 +104,8 @@ SELECT u.urun_id,
        CASE WHEN mk.kalite = 'OLCULMUS' THEN 'TAMAM'
             WHEN coalesce(s.ciro_net,0) > 0  THEN 'P0 - satti, maliyeti olculmedi'
             ELSE 'P2 - satis yok' END         AS oncelik,
-       'Wix > Urunler > urun > Maliyet alani' AS nereye_girilir
+       -- 15.11.2026: maliyetin tek kaynagi finans merkezi; Wix alani KOPYA
+       'Jarvis > Finans > Urun Karliligi (uretim faturasi / Harcama ekle)' AS nereye_girilir
   FROM raw.wix_urun u
   LEFT JOIN mart.maliyet_kalite mk ON mk.urun_id = u.urun_id
   LEFT JOIN (SELECT urun_id, adet, ciro_net FROM mart.urun_sinyal) s ON s.urun_id = u.urun_id
