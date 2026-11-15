@@ -47,6 +47,9 @@ SELECT m.urun_id,
        coalesce((SELECT deger FROM core.ayar WHERE anahtar='maliyet_kdv_tabani'),
                 'TEYIT_EDILMEDI')                   AS kdv_tabani,
        CASE
+         -- 15.11.2026: finans merkezi = uretim faturasindan hesaplanan
+         -- tam maliyet (tek kaynak, urun-maliyet-finans.sql)
+         WHEN m.kaynak = 'FINANS'                             THEN 'OLCULMUS'
          -- Wix'ten gelen deger, sahibin urun kartina girdigi gercek maliyettir
          WHEN m.kaynak = 'WIX'                                THEN 'OLCULMUS'
          -- Elle girilmis ama gerekcesinde "ORTALAMA"/"DEGIL" geciyorsa tahmin
@@ -57,7 +60,7 @@ SELECT m.urun_id,
        END AS kalite
   FROM core.urun_maliyet m
   LEFT JOIN raw.wix_urun u ON u.urun_id = m.urun_id
- WHERE m.gecerli_bitis IS NULL;
+ WHERE m.gecerli_bitis IS NULL AND m.iptal_at IS NULL;
 
 COMMENT ON VIEW mart.maliyet_kalite IS
   'Aktif maliyet kayitlarinin KALITESI. OLCULMUS=gercek, TAHMIN=sahip ortalamasi.';

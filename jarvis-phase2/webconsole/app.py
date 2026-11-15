@@ -2067,9 +2067,11 @@ class Handler(BaseHTTPRequestHandler):
                 "source": evidence.source,
                 "latency_ms": evidence.latency_ms,
                 # Panelin "bu sayi ne kadar guvenilir" diyebilmesi icin.
-                "uyari": ("Maliyet sahip beyanidir (tum urunlere ortalama "
-                          "400 TL), gercek urun maliyeti degildir. Marj "
-                          "yaklasiktir."),
+                # 15.11.2026: tek kaynak finans merkezi (core.urun_maliyet_guncel)
+                "uyari": ("Maliyet finans merkezinden: uretim faturasi + "
+                          "dagitilan genel gider, KDV haric birim tam "
+                          "maliyet. Kargo platformun kargo bedelinden ayrica "
+                          "dusulur."),
             })
             return
         if path == "/api/kampanya":
@@ -3848,8 +3850,12 @@ def _yeni_fiyat(mevcut: float, yontem: str, deger: float) -> float:
 
 
 def _marj_hesapla(fiyat: float, komisyon: float | None, kdv: float,
-                  maliyet: float | None) -> dict:
+                  maliyet: float | None, kargo: float = 0.0) -> dict:
     """Gorunumdeki formulun AYNISI. Iki yerde iki farkli hesap olmamali.
+
+    15.11.2026: mart.platform_fiyat_matrisi kargo_bedeli'ni de dusuyordu,
+    bu islev dusmuyordu -- "AYNISI" degildi, toplu onizleme marji kargo
+    kadar iyimser cikiyordu. Kargo artik ayni yerde dusulur.
 
     Eksik girdi uydurulmaz: komisyon veya maliyet yoksa marj None doner ve
     uyari neyin eksik oldugunu soyler.
@@ -3858,7 +3864,7 @@ def _marj_hesapla(fiyat: float, komisyon: float | None, kdv: float,
         return {"marj": None, "marj_yuzde": None, "uyari": "KOMISYON_YOK"}
     if maliyet is None:
         return {"marj": None, "marj_yuzde": None, "uyari": "MALIYET_YOK"}
-    net = (fiyat * (1 - komisyon / 100.0)) / (1 + kdv / 100.0)
+    net = (fiyat * (1 - komisyon / 100.0) - kargo) / (1 + kdv / 100.0)
     marj = net - maliyet
     yuzde = (100.0 * marj / net) if net else None
     if marj < 0:
@@ -3918,7 +3924,8 @@ def _toplu_onizleme(body: dict) -> dict:
             yeni,
             float(komisyon) if komisyon is not None else None,
             float(r.get("kdv_yuzde") or 20),
-            float(maliyet) if maliyet is not None else None)
+            float(maliyet) if maliyet is not None else None,
+            float(r.get("kargo_bedeli") or 0))
         sayac[marj["uyari"]] = sayac.get(marj["uyari"], 0) + 1
         satirlar.append({
             "urun_id": r.get("urun_id"), "urun_adi": r.get("urun_adi"),

@@ -26,7 +26,10 @@ DOSYALAR=(core-sema.sql core-kimlik-fn.sql core-authority-seed.sql
           #    mart.meta_kapsama'yi okur. Kapsama paydasi artik sabit kodlu degil.
           meta-hesap-kayit.sql
           core-authority-guncelle.sql
-          urun-maliyet-sema.sql mart-marj.sql
+          urun-maliyet-sema.sql
+          # 15.11.2026 TEK KAYNAK: finans merkezi -> core.urun_maliyet (FINANS) + core.urun_maliyet_guncel
+          urun-maliyet-finans.sql
+          mart-marj.sql
           mart-para.sql mart-hazirlik.sql
           # 🔴 mart-nakit.sql, mart-hazirlik.sql'den SONRA: mart.maliyet_kalite'ye bagimli.
           mart-nakit.sql

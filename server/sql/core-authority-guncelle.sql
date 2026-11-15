@@ -78,31 +78,20 @@ WHERE alan = 'ad_spend';
 -- --------------------------------------------------------------------------
 -- 🔴 "PARTIAL" cunku yapi kurulu ve akiyor ama VERI neredeyse yok.
 --    CONNECTED demek yanlis olurdu: baglanti var, icerik yok.
+-- 🔴 15.11.2026: TEK KAYNAK FINANS MERKEZI (sahip). 16.09 "ortalama 400 TL"
+--    ELLE kayitlari iptal edildi (silinmedi); Wix Maliyet alani artik KOPYA.
 UPDATE core.source_authority SET
-  current_connection = 'PARTIAL',
-  authority = 'Wix urun Maliyet alani (sahip girisi)',
-  mirror = 'raw.wix_urun.maliyet -> core.urun_maliyet (zamana gore versiyonlu)',
-  freshness = 'gunluk 08:30; degisim yakalanip tarihlenir',
-  -- 🔴 KAPSAMA ile KALITE AYRI SEYDIR (CR-012 denetim bulgusu).
-  --    "%96,2 kapsama" tehlikeli derecede iyimser bir cumle: 36 urunun
-  --    36'sinda maliyet VAR ama hepsi AYNI 400 TL sahip tahmini.
-  --    Olculmus maliyet sayisi: 0. Yani kapsama yuksek, kalite SIFIR.
-  gap = 'KAPSAMA %96,2 ama KALITE SIFIR: 36 urunun 36''sinda maliyet var, '
-        'hepsi AYNI 400 TL SAHIP TAHMINI (mart.maliyet_kalite: OLCULMUS=0, '
-        'TAHMIN=36). Urun bazinda karlilik karsilastirmasi bu veriyle '
-        'YAPILAMAZ - hepsi ayni sayi. SKU bazinda reklam karari verilirse '
-        'yanlis urun secilir. '
-        'MALIYETIN KDV TABANI TEYIT EDILMEDI: 400 TL''nin KDV dahil mi haric '
-        'mi oldugu sahibe sorulmadi. Hesap KDV HARIC varsayar (COGS standardi); '
-        'varsayim panelde ve core.ayar.maliyet_kdv_tabani''nda GORUNUR tutulur. '
-        'Etki bu veri setinde 3.733 TL. '
-        'Maliyet girilmeyen kalemde marj NULL doner - 0 veya tahmin URETILMEZ. '
-        'Maliyet bugun girilince GECMIS siparisler icin gecerli sayilmaz; '
-        'gecmise donuk beyan core.maliyet_gecmise_don() ile ve GEREKCELI yapilir. '
-        'Numune/UGC gonderilerinin urun maliyeti henuz baglanmadi (BasitKargo '
-        'tarafinda productId yok, yalniz urun adi var).',
+  current_connection = 'CONNECTED',
+  authority = 'Jarvis finans merkezi > Urun Karliligi (webconsole/product_profit.py): uretim faturasi + dagitilan genel gider / uretilen adet, KDV HARIC',
+  mirror = 'core.finans_maliyet_anlik -> core.urun_maliyet (kaynak FINANS, zamana gore versiyonlu) -> core.urun_maliyet_guncel; Wix Maliyet alani = x1,20 KOPYA',
+  freshness = 'saatlik (lcarlie-finans-maliyet.timer); deger degisince yeni surum',
+  gap = 'Birim maliyet BUTUN uretim faturalarinin ortalamasidir, parti bazli degil. '
+        'Genel gider (tester, TTS, UGR, reklam materyali) urunlere ESIT dagitilir; '
+        'dagitim anahtari degisirse birim maliyet degisir. Finans merkezinde uretim '
+        'faturasi olmayan urunde maliyet VERI_YOK (marj NULL). '
+        'Kargo, komisyon, paketleme birim maliyete DAHIL DEGIL - ayri bilesen.',
   dogrulama_zamani = now(),
-  dogrulama_yontemi = 'CR-012: mart.maliyet_kalite ile olculdu - 36 kayit, tamami TAHMIN'
+  dogrulama_yontemi = '15.11.2026: mutabakat "finans maliyeti = urun_maliyet" + "gecerli maliyet kaynagi yalniz FINANS"'
 WHERE alan = 'cogs';
 
 

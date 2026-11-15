@@ -59,13 +59,36 @@ CREATE TABLE IF NOT EXISTS core.urun_maliyet (
   para_birimi       text NOT NULL DEFAULT 'TRY',
   gecerli_baslangic timestamptz NOT NULL,
   gecerli_bitis     timestamptz,           -- NULL = hala gecerli
-  kaynak            text NOT NULL CHECK (kaynak IN ('WIX','ELLE')),
+  kaynak            text NOT NULL CHECK (kaynak IN ('WIX','ELLE','FINANS')),
   gerekce           text,
   created_at        timestamptz NOT NULL DEFAULT now(),
   UNIQUE (urun_id, gecerli_baslangic)
 );
 CREATE INDEX IF NOT EXISTS urun_maliyet_aktif_idx
   ON core.urun_maliyet (urun_id) WHERE gecerli_bitis IS NULL;
+
+-- --------------------------------------------------------------------------
+-- 15.11.2026 · TEK KAYNAK = FINANS MERKEZI (sahip: "urun maliyetleri Jarvis'in
+-- finans merkezinde kayitli, her urun icin yazili")
+-- --------------------------------------------------------------------------
+-- 🔴 FINANS kaynagi: webconsole/product_profit.py'nin birim TAM maliyeti
+--    (uretim faturasi + tester/test/UGR/genel giderin urune dusen payi),
+--    KDV HARIC. core.finans_maliyet_yaz() yazar (urun-maliyet-finans.sql).
+-- 🔴 iptal_at: kayit SILINMEZ, GECERSIZ ilan edilir. 16.09'daki "ortalama
+--    400 TL" ELLE kayitlari boyle kapatildi: gecmis olcumler izlenebilir
+--    kalir ama core.maliyet_bul() onlari bir daha DONDURMEZ.
+ALTER TABLE core.urun_maliyet ADD COLUMN IF NOT EXISTS iptal_at timestamptz;
+ALTER TABLE core.urun_maliyet ADD COLUMN IF NOT EXISTS iptal_gerekce text;
+ALTER TABLE core.urun_maliyet DROP CONSTRAINT IF EXISTS urun_maliyet_kaynak_check;
+ALTER TABLE core.urun_maliyet ADD CONSTRAINT urun_maliyet_kaynak_check
+  CHECK (kaynak IN ('WIX','ELLE','FINANS'));
+ALTER TABLE core.urun_maliyet DROP CONSTRAINT IF EXISTS urun_maliyet_iptal_gerekce_ck;
+ALTER TABLE core.urun_maliyet ADD CONSTRAINT urun_maliyet_iptal_gerekce_ck
+  CHECK (iptal_at IS NULL OR coalesce(btrim(iptal_gerekce),'') <> '');
+COMMENT ON COLUMN core.urun_maliyet.maliyet IS
+  'Birim maliyet. FINANS kayitlarinda KDV HARIC tam maliyet (KDV dahil = x1,20, core.urun_maliyet_guncel).';
+COMMENT ON COLUMN core.urun_maliyet.iptal_at IS
+  'Dolu ise kayit GECERSIZ: maliyet_bul/maliyet_guncelle gormez. Silme yerine kullanilir.';
 
 -- 🔴 CHECK (maliyet > 0): sifir maliyet KAYIT EDILMEZ. Wix'te bos birakilan
 --    alan 0 doner; onu "maliyet sifir" diye yazmak, marji %100 gosterir.
@@ -92,6 +115,15 @@ BEGIN
     RAISE EXCEPTION 'urun_id bos olamaz';
   END IF;
 
+  -- 🔴 15.11.2026: WIX ARTIK KAYNAK DEGIL. Wix'in Maliyet alani 04.11'de
+  --    finans merkezinden (tam maliyet x1,20, KDV DAHIL) YAZILDI; yani bir
+  --    KOPYADIR. Onu yeniden kaynak sayip versiyonlamak ayni gercegin iki
+  --    kaynagini yaratir (ustelik farkli KDV tabaninda). raw.wix_urun.maliyet
+  --    ham ayna olarak durur; tutarlilik core.urun_maliyet_guncel.wix_durumu'nda.
+  IF p_kaynak = 'WIX' THEN
+    RETURN 'WIX_KOPYA';
+  END IF;
+
   -- Sifir/negatif/NULL = "girilmemis". Aktif kayit varsa KAPATILIR
   -- (maliyet silinmis demektir), yeni kayit acilmaz.
   --
@@ -103,16 +135,19 @@ BEGIN
   --    otomatik yuklemeye yenilmez.
   IF p_maliyet IS NULL OR p_maliyet <= 0 THEN
     UPDATE core.urun_maliyet SET gecerli_bitis = p_an
-     WHERE urun_id = p_urun_id AND gecerli_bitis IS NULL
-       AND (p_kaynak <> 'WIX' OR kaynak = 'WIX');
+     WHERE urun_id = p_urun_id AND gecerli_bitis IS NULL AND iptal_at IS NULL
+       AND (p_kaynak <> 'WIX' OR kaynak = 'WIX')
+       AND (kaynak <> 'FINANS' OR p_kaynak = 'FINANS');
     IF FOUND THEN RETURN 'KAPATILDI'; END IF;
     -- 🔴 'YOK' ile 'reddedildi' AYNI SEY DEGIL (ikinci tur denetimi).
     --    Wix bir ELLE kaydini kapatamadiginda eski hali 'YOK' donuyordu;
     --    cagiran "kayit yoktu" ile "korundu"yu ayirt edemiyordu - sessiz
     --    reddedis.
-    IF EXISTS (SELECT 1 FROM core.urun_maliyet
-                WHERE urun_id = p_urun_id AND gecerli_bitis IS NULL) THEN
-      RETURN 'KORUNDU_ELLE';
+    SELECT m.kaynak INTO v_kaynak FROM core.urun_maliyet m
+     WHERE m.urun_id = p_urun_id AND m.gecerli_bitis IS NULL AND m.iptal_at IS NULL
+     LIMIT 1;
+    IF v_kaynak IS NOT NULL THEN
+      RETURN 'KORUNDU_' || v_kaynak;
     END IF;
     RETURN 'YOK';
   END IF;
@@ -124,11 +159,12 @@ BEGIN
   SELECT m.maliyet, m.maliyet_id, m.kaynak INTO v_o_anki, v_id, v_kaynak
     FROM core.urun_maliyet m
    WHERE m.urun_id = p_urun_id
+     AND m.iptal_at IS NULL
      AND m.gecerli_baslangic <= p_an
      AND (m.gecerli_bitis IS NULL OR m.gecerli_bitis > p_an)
    ORDER BY m.gecerli_baslangic DESC LIMIT 1;
 
-  IF v_o_anki IS NOT NULL AND v_o_anki = p_maliyet THEN
+  IF v_o_anki IS NOT NULL AND v_o_anki = p_maliyet AND v_kaynak = p_kaynak THEN
     RETURN 'DEGISMEDI';          -- idempotency buradan gelir
   END IF;
 
@@ -148,6 +184,13 @@ BEGIN
     IF p_kaynak = 'WIX' AND v_kaynak = 'ELLE' THEN
       RETURN 'KORUNDU_ELLE';   -- cagiran bunu acik is olarak gosterebilir
     END IF;
+    -- 🔴 15.11.2026: FINANS EN YUKSEK ONCELIK. Finans merkezinin faturadan
+    --    hesapladigi maliyet elle yazilan bir sayiyla ezilmez; degistirmek
+    --    isteyen finans merkezinde (Urun Karliligi > Harcama ekle) degistirir.
+    --    Tek kaynak budur - ikinci giris kapisi acmak kopuklugu geri getirir.
+    IF p_kaynak <> 'FINANS' AND v_kaynak = 'FINANS' THEN
+      RETURN 'KORUNDU_FINANS';
+    END IF;
     UPDATE core.urun_maliyet SET gecerli_bitis = p_an WHERE maliyet_id = v_id;
   END IF;
 
@@ -156,7 +199,8 @@ BEGIN
   -- yutar ve iki kayit ayni ani kapsar.
   SELECT min(m.gecerli_baslangic) INTO v_sonraki
     FROM core.urun_maliyet m
-   WHERE m.urun_id = p_urun_id AND m.gecerli_baslangic > p_an;
+   WHERE m.urun_id = p_urun_id AND m.gecerli_baslangic > p_an
+     AND m.iptal_at IS NULL;
 
   INSERT INTO core.urun_maliyet (urun_id, maliyet, gecerli_baslangic, gecerli_bitis, kaynak, gerekce)
   VALUES (p_urun_id, p_maliyet, p_an, v_sonraki, p_kaynak,
@@ -178,7 +222,9 @@ BEGIN
     maliyet       = EXCLUDED.maliyet,
     gecerli_bitis = EXCLUDED.gecerli_bitis,
     kaynak        = EXCLUDED.kaynak,
-    gerekce       = EXCLUDED.gerekce;
+    gerekce       = EXCLUDED.gerekce,
+    iptal_at      = NULL,
+    iptal_gerekce = NULL;
 
   RETURN CASE WHEN v_o_anki IS NULL THEN 'ILK' ELSE 'YENI_SURUM' END;
 END $$;
@@ -188,12 +234,16 @@ END $$;
 -- --------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION core.maliyet_bul(p_urun_id text, p_tarih timestamptz)
 RETURNS numeric LANGUAGE sql STABLE AS $$
+  -- 🔴 15.11.2026: iptal edilmis kayit (ör. 16.09 "ortalama 400 TL")
+  --    hicbir tarih icin donmez; ayni ani iki gecerli kayit kapsarsa
+  --    FINANS (finans merkezi) kazanir.
   SELECT m.maliyet
     FROM core.urun_maliyet m
    WHERE m.urun_id = p_urun_id
+     AND m.iptal_at IS NULL
      AND m.gecerli_baslangic <= p_tarih
      AND (m.gecerli_bitis IS NULL OR m.gecerli_bitis > p_tarih)
-   ORDER BY m.gecerli_baslangic DESC
+   ORDER BY (m.kaynak = 'FINANS') DESC, m.gecerli_baslangic DESC
    LIMIT 1
 $$;
 

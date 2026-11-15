@@ -8,9 +8,9 @@ GIRDILER VE KAYNAKLARI
                  olculdu), bu yuzden tek kaynak panel.
                  🔴 Oran sabit DEGIL: 29 urun %10, BABYSHOWER %15.
   kdv            urunler.csv -> kdv
-  maliyet        core.urun_maliyet -> 36/36 kayit ₺400, kaynak ELLE.
-                 🔴 BU OLCUM DEGIL, BEYAN. Wix maliyet alani 0,00 oldugu icin
-                 urun basina gercek maliyet bilinmiyor; tabloda isaretlenir.
+  maliyet        core.urun_maliyet_guncel -> finans merkezi (15.11.2026 tek
+                 kaynak): uretim faturasi + dagitilan genel gider, KDV HARIC.
+                 Eski "36/36 urune 400 TL ELLE" beyani gecersiz (iptal edildi).
   kargo          KARGOYU BIZ ODUYORUZ -- isletme sahibi beyani (23.10.2026).
                  Tutar BasitKargo tarifesinden olculdu (firma indirimi
                  uygulanmis, KDV dahil): listelemelerde secili tasiyici
@@ -83,9 +83,14 @@ def envanter(jeton: str, satici: str) -> dict[str, float]:
 
 
 def maliyetler() -> dict[str, float]:
-    """barkod -> birim maliyet (core.urun_maliyet, raw.wix_urun.sku uzerinden)."""
-    sql = ("select w.sku, m.maliyet from core.urun_maliyet m "
-           "join raw.wix_urun w using (urun_id) where m.gecerli_bitis is null;")
+    """barkod -> birim maliyet, KDV HARIC (core.urun_maliyet_guncel = finans merkezi).
+
+    Hem Wix SKU'su hem kutu/UTS barkodu hem pazaryeri barkodu anahtar olur
+    (DORSIVIA: Wix/TY 9400, kutu 9592). Maliyeti olmayan urun listede YOK
+    -> tabloda "YOK" yazar, 0 sayilmaz."""
+    sql = ("select k, birim_maliyet_kdv_haric from core.urun_maliyet_guncel g, "
+           "lateral unnest(array[g.wix_sku, g.barkod, g.pazaryeri_barkod]) k "
+           "where durum = 'GIRILDI' and k is not null;")
     cikti = subprocess.run(
         ["docker", "exec", "-i", "lcarlie-postgres", "psql", "-U", "n8n", "-d", "n8n",
          "-At", "-F", ";", "-c", sql],
@@ -183,12 +188,11 @@ net ciro uzerinden **%{ort_marj:.0f}**.
 | KDV | %20, urun dosyasindan | olculdu |
 | Kargonun bizde oldugu | Isletme sahibi beyani | **beyan** |
 | Kargo tutari | BasitKargo tarifesi: {KARGO_ADI}, 1 desi, {KARGO_KDV_DAHIL:.2f} TL (KDV dahil) -> {kargo:.2f} TL | olculdu |
-| **Maliyet** | **core.urun_maliyet: 36/36 urune 400 TL, kaynak ELLE** | **BEYAN -- olcum degil** |
+| **Maliyet** | **core.urun_maliyet_guncel: finans merkezi, uretim faturasi + genel gider payi, KDV haric** | olculdu (fatura) |
 
-Maliyet tablonun tek zayif ayagi. Wix'teki maliyet alani 36 urunun 36'sinda da
-0,00 oldugu icin urun basina gercek maliyet bilinmiyor; 400 TL tek tek olculmus
-degil, topluca beyan edilmis bir rakam. Gercek maliyet 400 TL'nin uzerindeyse
-asagidaki marjlar oldugundan yuksek gorunur -- ozellikle 900 TL'lik bandda.
+Maliyet finans merkezinin birim TAM maliyetidir (butun uretim faturalarinin
+ortalamasi + tester/TTS/UGR/reklam materyali payi, urunlere esit dagitilmis).
+Kargo ayri satirda dusulur.
 
 ## Urun urun
 
@@ -302,7 +306,7 @@ def main() -> int:
             "komisyon_yuzde": round(oran * 100) if oran else None,
             "komisyon": round(komisyon, 2) if komisyon is not None else None,
             "maliyet": m,
-            "maliyet_kaynak": "ELLE BEYAN" if m is not None else "YOK",
+            "maliyet_kaynak": "FINANS" if m is not None else "YOK",
             "marj_kargosuz": round(marj, 2) if marj is not None else None,
             "marj_yuzde": round(marj / net * 100, 1) if marj is not None else None,
             "marj_kargolu": round(marj_k, 2) if marj_k is not None else None,

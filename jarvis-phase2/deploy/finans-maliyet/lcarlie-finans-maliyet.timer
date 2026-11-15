@@ -1,0 +1,10 @@
+[Unit]
+Description=Finans merkezi urun maliyeti aktarimi (saatlik)
+
+[Timer]
+OnCalendar=*-*-* *:17:00
+Persistent=true
+Unit=lcarlie-finans-maliyet.service
+
+[Install]
+WantedBy=timers.target

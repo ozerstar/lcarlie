@@ -209,8 +209,11 @@ def urun_ozeti(u: dict, satislar: list[dict]) -> dict:
     wix = _sayi(u.get("wix_satis"))
     maliyet = _sayi(u.get("birim_maliyet"))
     marj = None
+    # 15.11.2026: maliyet finans merkezinden KDV HARIC gelir; Wix fiyatı KDV
+    # DAHİL. Aynı tabanda karşılaştırılır (iki tarafı karıştırmak marjı şişirir).
     if wix is not None and maliyet is not None and wix:
-        marj = round((wix - maliyet) / wix * 100, 1)
+        net = wix / 1.20
+        marj = round((net - maliyet) / net * 100, 1)
     return {
         "urun_adi": u.get("urun_adi"),
         "sku": u.get("sku"),

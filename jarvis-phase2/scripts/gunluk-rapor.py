@@ -102,8 +102,8 @@ def b_para() -> str:
             f"  Net ciro (KDV hariç)          : {r[1]} TL",
             f"  Ürün maliyeti                 : {r[2]} TL",
             f"  Bilinen katkı                 : {r[3]} TL",
-            "  NOT: maliyet sahibin beyanıdır (400 TL/birim, KDV ve kargo dahil);",
-            "       tedarikçi faturasıyla ölçülmüş değildir.",
+            "  NOT: maliyet finans merkezinden (üretim faturası + genel gider payı,",
+            "       KDV hariç); kargo ayrıca düşülür. Kaynak: core.urun_maliyet_guncel.",
         ]
     return bolum(
         "2) PARA",

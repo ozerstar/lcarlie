@@ -104,11 +104,26 @@ SELECT 'ust uste binen donem yok', count(*)::text, '0',
     ON a.urun_id = b.urun_id AND a.maliyet_id < b.maliyet_id
    AND a.gecerli_baslangic < coalesce(b.gecerli_bitis,'infinity'::timestamptz)
    AND b.gecerli_baslangic < coalesce(a.gecerli_bitis,'infinity'::timestamptz)
+   -- 15.11.2026: iptal edilmis (gecersiz ilan edilmis) kayit donem sayilmaz
+   AND a.iptal_at IS NULL AND b.iptal_at IS NULL
 UNION ALL
 SELECT 'urun basina en fazla 1 aktif kayit', count(*)::text, '0',
        CASE WHEN count(*)=0 THEN 'SUCCESS' ELSE 'FAILED' END
-  FROM (SELECT urun_id FROM core.urun_maliyet WHERE gecerli_bitis IS NULL
-         GROUP BY urun_id HAVING count(*) > 1) t;
+  FROM (SELECT urun_id FROM core.urun_maliyet WHERE gecerli_bitis IS NULL AND iptal_at IS NULL
+         GROUP BY urun_id HAVING count(*) > 1) t
+UNION ALL
+-- 15.11.2026 TEK KAYNAK: gecerli her maliyet finans merkezinden gelmeli.
+SELECT 'gecerli maliyet kaynagi yalniz FINANS', count(*)::text, '0',
+       CASE WHEN count(*)=0 THEN 'SUCCESS' ELSE 'FAILED' END
+  FROM core.urun_maliyet WHERE gecerli_bitis IS NULL AND iptal_at IS NULL AND kaynak <> 'FINANS'
+UNION ALL
+SELECT 'finans maliyeti = urun_maliyet (KDV haric)', count(*)::text, '0',
+       CASE WHEN count(*)=0 THEN 'SUCCESS' ELSE 'FAILED' END
+  FROM core.urun_maliyet_guncel g
+  JOIN core.urun_kimlik k ON k.urun_id = g.urun_id
+  JOIN LATERAL (SELECT birim_tam_kurus FROM core.finans_maliyet_anlik a
+                 WHERE a.finans_ad = k.finans_ad ORDER BY olcum_at DESC LIMIT 1) s ON true
+ WHERE g.birim_maliyet_kdv_haric IS DISTINCT FROM round(s.birim_tam_kurus/100.0, 2);
 
 \echo ''
 \echo '=== E) PII SIZINTISI ==='

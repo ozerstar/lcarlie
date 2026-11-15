@@ -360,9 +360,11 @@ def dosya_uret(u: dict) -> tuple[str, str, dict]:
     if marj is not None:
         A(f"| En düşük marj | %{marj} |")
     A("")
-    if u.get("maliyet_kaynagi") == "ELLE":
-        A("> Maliyet **ölçülmedi**, elle girilmiş tahmin (₺400). Marj buna dayanıyor,"
-          " kesin değildir.")
+    if u.get("maliyet_kaynagi") == "FINANS":
+        A("> Maliyet finans merkezinden (üretim faturası + genel gider payı, KDV hariç).")
+        A("")
+    elif u.get("birim_maliyet") is None:
+        A("> Maliyet finans merkezinde **yok** (VERI_YOK); marj hesaplanmadı.")
         A("")
 
     A("## Satışta söylenebilir")
