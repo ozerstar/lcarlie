@@ -33,12 +33,14 @@ Kuru koşu (`kuru=True`) 1-3. kapıları işletir ama ağa çıkmaz: panelde
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import time
 import urllib.error
 import urllib.request
 import uuid
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -59,6 +61,10 @@ GECERLI_ONAYLAR = frozenset({ONAY_INSAN, ONAY_OTOMATIK})
 
 class GondermeReddedildi(RuntimeError):
     """Bir kapı geçilemedi. Mesaj GÖNDERİLMEDİ."""
+
+
+class GonderimBelirsiz(RuntimeError):
+    """İstek kabul edilmiş olabilir; uzlaştırılmadan yeniden GÖNDERİLMEZ."""
 
 
 def _env(anahtar: str) -> str:
@@ -138,11 +144,90 @@ def _meta_cagir(telefon_id: str, jeton: str,
         return {}, "ag hatasi: %s" % type(hata).__name__, None
 
 
+@contextmanager
+def _gonderim_kilidi(anahtar: str | None):
+    if anahtar is None:
+        yield
+        return
+    # All keyed senders share this cross-process lock. Persisting the intent
+    # before I/O also blocks replay after a crash, even without a result row.
+    import fcntl
+    DEFTER.parent.mkdir(parents=True, exist_ok=True)
+    with DEFTER.with_suffix(".kilit").open("a") as lock:
+        os.chmod(lock.name, 0o600)
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        yield
+
+
+def _gonderim_yap(kayit: dict, telefon_id: str, jeton: str, govde: dict,
+                  is_anahtari: str | None) -> dict:
+    baslangic = time.monotonic()
+    if is_anahtari is not None:
+        if not isinstance(is_anahtari, str) or not 1 <= len(is_anahtari.strip()) <= 240:
+            raise GondermeReddedildi("gonderim is anahtari gecersiz; aga cikilmadi")
+        kayit["is_anahtari"] = hashlib.sha256(is_anahtari.encode()).hexdigest()
+        kayit["istek_ozeti"] = hashlib.sha256(json.dumps(
+            govde, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+    with _gonderim_kilidi(is_anahtari):
+        if is_anahtari is not None and DEFTER.exists():
+            previous = None
+            try:
+                with DEFTER.open(encoding="utf-8") as ledger:
+                    for line in ledger:
+                        row = json.loads(line)
+                        if row.get("is_anahtari") == kayit["is_anahtari"]:
+                            if row.get("istek_ozeti") != kayit["istek_ozeti"]:
+                                raise GonderimBelirsiz("ayni is anahtari farkli icerikle eslesiyor; tekrar gonderilmedi")
+                            previous = row
+            except (OSError, ValueError, AttributeError):
+                raise GonderimBelirsiz("gonderim gecmisi okunamadi; tekrar gonderilmedi") from None
+            if previous:
+                if previous.get("sonuc") == "GONDERILDI" and previous.get("wamid"):
+                    return {"wamid": previous["wamid"], "defter_kaydedildi": True, "tekrar": True}
+                if previous.get("sonuc") != "REDDEDILDI":
+                    raise GonderimBelirsiz("onceki gonderim sonucu belirsiz; uzlastirmadan tekrar gonderilmedi")
+
+        _gonderim_niyeti_yaz(kayit)
+
+        def belirsiz(sebep):
+            kayit.update({"sonuc": "BELIRSIZ", "sebep": sebep})
+            _defter_yaz(kayit)
+            raise GonderimBelirsiz(sebep + "; tekrar gondermeden once is durumunu kontrol edin")
+
+        try:
+            veri, sebep, _ = _meta_cagir(telefon_id, jeton, govde)
+        except Exception:  # response decoding/connection failure can follow provider acceptance
+            belirsiz("saglayici yaniti dogrulanamadi")
+        if sebep:
+            # Only explicit request rejections are safe to retry. Timeouts,
+            # HTTP 408/5xx and unrecognised errors cannot prove non-acceptance.
+            if sebep in {f"Meta HTTP {s}" for s in (400, 401, 403, 404, 405, 413, 422, 429)}:
+                kayit.update({"sonuc": "REDDEDILDI", "sebep": sebep})
+                _defter_yaz(kayit)
+                raise GondermeReddedildi(sebep)
+            belirsiz(sebep)
+        mesajlar = veri.get("messages") if isinstance(veri, dict) else None
+        wamid = (mesajlar[0].get("id") if isinstance(mesajlar, list) and mesajlar
+                 and isinstance(mesajlar[0], dict) else None)
+        if not isinstance(wamid, str) or not wamid.strip():
+            belirsiz("saglayici gecerli mesaj kimligi dondurmedi")
+        # GONDERILDI remains a compatibility label for provider ACCEPTANCE.
+        # Actual delivery is established separately by webhook receipts.
+        kayit.update({"sonuc": "GONDERILDI", "wamid": wamid,
+                      "kabul_edildi": True, "teslim_edildi": None,
+                      "gecikme_ms": round((time.monotonic() - baslangic) * 1000, 1)})
+        saved = _defter_yaz(kayit)
+        if not saved:
+            import sys
+            sys.stderr.write("[whatsapp] kabul edildi; sonuc defteri yazilamadi; uzlastirma gerekli\n")
+        return {"wamid": wamid, "defter_kaydedildi": saved, "tekrar": False}
+
+
 def gonder(telefon: str, metin: str, *, onay_kaynagi: str,
            konusma_id: int | None = None, kuru: bool = False,
-           kaynak_mesaj_id: int | None = None) -> dict[str, Any]:
+           kaynak_mesaj_id: int | None = None,
+           is_anahtari: str | None = None) -> dict[str, Any]:
     """Tek mesaj gönderir. Her kapı ayrı ayrı denetlenir ve kaydedilir."""
-    baslangic = time.time()
     kayit: dict[str, Any] = {
         "ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "telefon_son4": _telefon_sadele(telefon)[-4:],
@@ -197,33 +282,22 @@ def gonder(telefon: str, metin: str, *, onay_kaynagi: str,
     if not jeton or not telefon_id:
         reddet("anahtar veya telefon kimligi yok")
 
-    _gonderim_niyeti_yaz(kayit)
-    veri, sebep, ayrinti = _meta_cagir(telefon_id, jeton, {
+    sonuc = _gonderim_yap(kayit, telefon_id, jeton, {
         "messaging_product": "whatsapp",
         "recipient_type": "individual",
         "to": numara,
         "type": "text",
         "text": {"preview_url": False, "body": temiz},
-    })
-    if sebep:
-        reddet(sebep, ayrinti)
-
-    wamid = ""
-    mesajlar = veri.get("messages") or []
-    if mesajlar:
-        wamid = str(mesajlar[0].get("id") or "")
-    kayit.update({"sonuc": "GONDERILDI", "wamid": wamid,
-                  "gecikme_ms": round((time.time() - baslangic) * 1000, 1)})
-    defter_kaydedildi = _defter_yaz(kayit)
-    return {"gonderildi": True, "defter_kaydedildi": defter_kaydedildi,
-            "wamid": wamid, "telefon": numara,
+    }, is_anahtari)
+    return {"gonderildi": True, **sonuc, "kabul_edildi": True,
+            "teslim_edildi": None, "uzlastirma_gerekli": not sonuc["defter_kaydedildi"], "telefon": numara,
             "metin": temiz, "bulgular": []}
 
 
 def sablon_gonder(telefon: str, sablon: str, degerler: list[str], *,
                   onay_kaynagi: str, baslik_gorsel: str = "", dil: str = "tr",
                   onizleme: str = "", konusma_id: int | None = None,
-                  kuru: bool = False) -> dict[str, Any]:
+                  kuru: bool = False, is_anahtari: str | None = None) -> dict[str, Any]:
     """Meta'da ONAYLI şablonla mesaj gönderir. 24 saat penceresi gerekmez.
 
     `gonder` serbest metin yazar ve ancak müşteri yazdıysa çıkar. Şablon ise
@@ -239,7 +313,6 @@ def sablon_gonder(telefon: str, sablon: str, degerler: list[str], *,
     OLAMAZ; Meta bunları 132000 ile reddeder. Sessiz kırpma yapılmaz,
     gönderim reddedilir ki yanlış adres müşteriye hiç gitmesin.
     """
-    baslangic = time.time()
     kayit: dict[str, Any] = {
         "ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "tur": "sablon",
@@ -313,26 +386,15 @@ def sablon_gonder(telefon: str, sablon: str, degerler: list[str], *,
         bilesenler.append({"type": "body", "parameters": [
             {"type": "text", "text": str(d)} for d in degerler]})
 
-    _gonderim_niyeti_yaz(kayit)
-    veri, sebep, ayrinti = _meta_cagir(telefon_id, jeton, {
+    sonuc = _gonderim_yap(kayit, telefon_id, jeton, {
         "messaging_product": "whatsapp",
         "recipient_type": "individual",
         "to": numara,
         "type": "template",
         "template": {"name": sablon, "language": {"code": dil},
                      "components": bilesenler},
-    })
-    if sebep:
-        reddet(sebep, ayrinti)
-
-    wamid = ""
-    mesajlar = veri.get("messages") or []
-    if mesajlar:
-        wamid = str(mesajlar[0].get("id") or "")
-    kayit.update({"sonuc": "GONDERILDI", "wamid": wamid,
-                  "gecikme_ms": round((time.time() - baslangic) * 1000, 1)})
-    defter_kaydedildi = _defter_yaz(kayit)
-    return {"gonderildi": True, "defter_kaydedildi": defter_kaydedildi,
-            "wamid": wamid, "telefon": numara,
+    }, is_anahtari)
+    return {"gonderildi": True, **sonuc, "kabul_edildi": True,
+            "teslim_edildi": None, "uzlastirma_gerekli": not sonuc["defter_kaydedildi"], "telefon": numara,
             "sablon": sablon, "degerler": list(degerler or []),
             "onizleme": onizleme, "bulgular": []}

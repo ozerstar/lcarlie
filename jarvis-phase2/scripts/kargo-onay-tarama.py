@@ -297,7 +297,10 @@ def isle(satir: dict, *, gercek: bool, k: Kargo) -> str:
             "Teşekkür ederiz, adresiniz onaylandı. Siparişiniz kargoya "
             "hazırlanıyor; gönderiye verildiğinde takip numaranızı "
             "buradan ileteceğiz.",
-            onay_kaynagi=whatsapp.ONAY_OTOMATIK)
+            onay_kaynagi=whatsapp.ONAY_OTOMATIK,
+            is_anahtari=f"kargo-onay-kapanis:{no}")
+    except whatsapp.GonderimBelirsiz:
+        _alarm("onay kapanisi belirsiz", "siparis %s: tekrar gondermeyin; uzlastirma gerekli" % no)
     except whatsapp.GondermeReddedildi as hata:
         _alarm("onay kapanisi gonderilemedi", "siparis %s: %s" % (no, hata))
     return "%s: HEPSIJET BARKOD %s (%.2f TL)" % (

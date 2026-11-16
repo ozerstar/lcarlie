@@ -239,6 +239,51 @@ class TestKurul(unittest.TestCase):
         self.assertIn("radar", [x["tur"] for x in kalemler])
         self.assertEqual(k._denetci("_RADAR", {d.kod: d for d in deps()}), "MARKET_INT")
 
+    def test_missing_or_shared_reviewer_never_falls_back_to_producer(self):
+        k = Kurul(self.iu)
+        seo = deps()[0]
+        self.assertIsNone(k._denetci("SEO", {"SEO": seo}))
+        shared = Departman("WEB", "Web", "", uyeler=seo.uyeler)
+        self.assertIsNone(k._denetci("SEO", {"SEO": seo, "WEB": shared}))
+        executive = next(d for d in deps() if d.kod == "EXEC")
+        self.assertIsNone(k._denetci("EXEC", {"EXEC": executive}))
+        self.assertEqual(k._denetci("SEO", {"SEO": seo, "EXEC": executive}), "EXEC")
+
+    def test_blocked_source_survives_age_window_until_reviewer_returns(self):
+        tree = self.agac()
+        tree["departmanlar"]["SEO"]["gorevler"] = [tree["departmanlar"]["SEO"]["gorevler"][0]]
+        self.iu.agac_deposu.yaz(tree, SAAT)
+        (Path(self.tmp.name) / "programlar/rakip/2026-11-03-TR-1.md").unlink()
+        self.o.departmanlar = lambda: [deps()[0]]
+        result = Kurul(self.iu).calistir()
+        self.assertEqual(result["denetci_bekliyor"], 1)
+        self.assertEqual(len(self.agac()["kurul"]["bekleyen_kaynaklar"]), 1)
+        self.assertNotIn("kurul", self.agac()["departmanlar"]["SEO"]["gorevler"][0])
+        self.assertEqual(len(self.model.cagri), 0)
+        self.o.departmanlar = deps
+        self.o.saat = lambda: SAAT + timedelta(days=3)
+        result = Kurul(IsUretici(self.o, gunluk_tavan=50)).calistir()
+        self.assertEqual(result["gorev"], 1)
+        self.assertEqual(result["denetci_bekliyor"], 0)
+        self.assertEqual(self.agac()["kurul"]["bekleyen_kaynaklar"], [])
+
+    def test_saved_self_review_cannot_replay_frozen_owner_payload(self):
+        tree = self.agac()
+        tree["departmanlar"]["SEO"]["gorevler"] = [tree["departmanlar"]["SEO"]["gorevler"][0]]
+        proposal = {"anahtar": "self-reviewed", "tip": "ONAY_GEREKTIREN", "departman": "SEO", "baslik": "Unsafe old proposal",
+                    "rt": {"karar": "KABUL", "itiraz": ""}, "karar": {"karar": "YAP", "gerekce": ""},
+                    "onay_payload": {"anahtar": "self-reviewed", "metin": "old", "sebep": "old"}}
+        tree["kurul"] = {"bekleyen_denetimler": [{"kalem": {"tur": "teslim", "ref": "g1", "dep": "SEO", "baslik": "Old"},
+            "denetci": "SEO", "guven": "YUKSEK", "sorun": "", "anlam": "Self-reviewed", "oneriler": [proposal]}]}
+        self.iu.agac_deposu.yaz(tree, SAAT)
+        k = Kurul(self.iu)
+        with patch.object(k, "sonuclar", return_value=[]):
+            result = k.calistir()
+        self.assertEqual((result["gorev"], result["onaya"]), (0, 0))
+        self.assertEqual(result["denetci_bekliyor"], 1)
+        self.assertEqual(self.onaylar, [])
+        self.assertIn("engel", self.agac()["kurul"]["bekleyen_denetimler"][0])
+
 
 if __name__ == "__main__":
     unittest.main()

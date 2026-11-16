@@ -118,7 +118,8 @@ def main() -> None:
     print("\nbaslik gorseli:", gorsel)
     sonuc = whatsapp.sablon_gonder(
         telefon, SABLON, degerler, onay_kaynagi=whatsapp.ONAY_INSAN,
-        baslik_gorsel=gorsel, onizleme=onizleme, kuru=not arg.gonder)
+        baslik_gorsel=gorsel, onizleme=onizleme, kuru=not arg.gonder,
+        is_anahtari=f"siparis-teyit:{veri['no']}")
     print(json.dumps({k: v for k, v in sonuc.items() if k != "onizleme"},
                      ensure_ascii=False))
 

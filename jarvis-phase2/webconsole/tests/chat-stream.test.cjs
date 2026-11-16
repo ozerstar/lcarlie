@@ -65,3 +65,18 @@ test('malformed stream becomes incomplete instead of an unhandled failure', asyn
   assert.equal(h.released(),true);
   assert.equal(h.elements.sendBtn.disabled,false);
 });
+test('terminal errors preserve partial text and never report success', async()=>{
+  for (const terminal of [
+    {type:'error',message:'Provider stopped'},
+    {type:'done',result:{kind:'ERROR',message:'Provider stopped'}},
+    {type:'done',result:{kind:'REQUIRES_REASONING_CAPABILITY',message:'Unavailable'}}
+  ]) {
+    const h=harness([JSON.stringify({type:'token',delta:'Partial evidence'})+'\n'+JSON.stringify(terminal)+'\n']);
+    await h.send('question');
+    assert.match(h.rows[1].innerHTML,/Partial evidence/);
+    assert.equal(h.elements.chatDockStatus.textContent,'Yanıt hatayla sonlandı');
+    assert.equal(h.calls.length,1);
+    assert.equal(h.elements.sendBtn.disabled,false);
+    assert.equal(h.rows[1].copy,true);
+  }
+});

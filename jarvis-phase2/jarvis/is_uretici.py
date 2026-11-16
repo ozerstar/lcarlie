@@ -1264,7 +1264,15 @@ class IsUretici:
                                      "tarih": self.o.saat().isoformat()}
             checkpoint()
         self.agac_deposu.yaz(agac, self.o.saat()) if not self.kuru else None
+        recovered_evidence = 0
+        reconcile = getattr(self.o.defter, "reconcile_team_deliveries", None)
+        if not self.kuru and callable(reconcile):
+            try:
+                recovered_evidence = reconcile()
+            except Exception as exc:  # retained deliveries will be reconciled by a later run
+                self.kayit.append({"uyari": "teslim defteri uzlastirmasi bekliyor", "hata_tipi": type(exc).__name__})
         return {"mod": "yurut", "tarih": tarih, "aday": len(adaylar), "teslim": teslim,
+                "recovered_evidence": recovered_evidence,
                 "duzeltmede": duzeltmede, "reddedilen": reddedilen, "inceleme_bekliyor": incelemede,
                 "kalite_gecemedi": basarisiz, "suresi_doldu": suresi_doldu,
                 "yeniden_deneme_bekliyor": bekleyen, "kayit": self.kayit}
