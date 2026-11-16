@@ -48,3 +48,31 @@ class EnterContextMixin:
             sonuc = cm.__enter__()
             self.addCleanup(cm.__exit__, None, None, None)
             return sonuc
+
+
+from contextlib import contextmanager
+
+
+@contextmanager
+def isolated_webapp(name="test_webapp"):
+    """Import the real console with disposable image and authentication state.
+
+    auth can already be cached by another test, so changing the environment
+    alone is insufficient: its captured AUTH_FILE must be scoped as well.
+    """
+    import importlib
+    import importlib.util
+    import os
+    import tempfile
+    from unittest.mock import patch
+
+    with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {
+        "JARVIS_STATE_DIR": directory,
+        "JARVIS_WEB_STATE_DIR": str(Path(directory) / "webconsole"),
+    }), patch.object(sys, "path", [str(PAKET_KOK / "webconsole"), *sys.path]):
+        auth = importlib.import_module("auth")
+        with patch.object(auth, "AUTH_FILE", Path(directory) / "webconsole" / "auth.json"):
+            spec = importlib.util.spec_from_file_location(name, PAKET_KOK / "webconsole" / "app.py")
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            yield module

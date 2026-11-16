@@ -15,6 +15,7 @@ import importlib.util
 import sys
 import unittest
 import urllib.parse
+from tests import isolated_webapp
 from pathlib import Path
 
 KOK = Path(__file__).resolve().parents[1]
@@ -60,7 +61,9 @@ class GunlukMaskesi(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.H = _yukle("wc_app", KOK / "webconsole/app.py").Handler
+        cls._app_context = isolated_webapp("wc_app_mask")
+        cls.H = cls._app_context.__enter__().Handler
+        cls.addClassCleanup(cls._app_context.__exit__, None, None, None)
 
     def test_webhook_anahtari_maskelenir(self):
         gizli = "0FYns0hCETevSNLRzvLp927dUS0BE2x"

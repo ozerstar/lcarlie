@@ -14,7 +14,8 @@ Akış (is_uretici.yurut her teslimden hemen sonra çağırır):
   1. olgu_denetimi  — model YOK: kanıtta izi olmayan rakam, bozuk tutar, analizde gelecek tarih.
   2. istem_denetim  — yönetici modeli teslimi görev + kabul ölçütü + kanıtla okur:
                       ONAY / DUZELT (somut düzeltme listesi) / RED.
-  3. DUZELT → aynı görev düzeltme listesiyle yeniden açılır (en çok DUZELTME_TURU tur);
+  3. INCELEME_BEKLIYOR → aynı teslim ve kanıtlarla yalnız inceleme yeniden denenir.
+  4. DUZELT → aynı görev düzeltme listesiyle yeniden açılır (en çok DUZELTME_TURU tur);
      tur biterse ya da RED ise görev gerekçesiyle REDDEDILDI olur. Sahipsiz kuyruk yok.
 Yalnız ONAY alan teslim "teslim edildi" sayılır ve sahibe gider.
 """
@@ -26,6 +27,7 @@ from typing import Any
 
 DUZELTME_TURU = 2          # yönetici en çok bu kadar kez geri gönderir
 ONAY, DUZELT, RED = "ONAY", "DUZELT", "RED"
+INCELEME_BEKLIYOR = "INCELEME_BEKLIYOR"
 
 _AYLAR = {"ocak": 1, "şubat": 2, "subat": 2, "mart": 3, "nisan": 4, "mayıs": 5, "mayis": 5,
           "haziran": 6, "temmuz": 7, "ağustos": 8, "agustos": 8, "eylül": 9, "eylul": 9,
@@ -131,13 +133,15 @@ JSON:
 
 
 def karar_ayikla(v: dict[str, Any], bulgular: list[str]) -> tuple[str, list[str], str]:
-    """Model kararını doğrular. Okunamayan karar ONAY sayılmaz: otomatik bulgu varsa DUZELT."""
+    """Eksik/geçersiz inceleme onay veya içerik düzeltmesi sayılmaz."""
+    if not isinstance(v, dict):
+        v = {}
     karar = str(v.get("karar") or "").strip().upper().replace("İ", "I")
-    duzeltmeler = [str(x).strip()[:400] for x in (v.get("duzeltmeler") or []) if str(x).strip()][:5]
+    if karar not in (ONAY, DUZELT, RED) or v.get("_kesik_onarildi"):
+        return INCELEME_BEKLIYOR, [], "geçerli yönetici incelemesi yok; aynı teslim yeniden incelenecek"
+    liste = v.get("duzeltmeler") or []
+    duzeltmeler = [str(x).strip()[:400] for x in liste if str(x).strip()][:5] if isinstance(liste, list) else []
     gerekce = str(v.get("gerekce") or "").strip()[:400]
-    if karar not in (ONAY, DUZELT, RED):
-        karar = DUZELT if bulgular else ONAY
-        gerekce = gerekce or "yönetici kararı okunamadı; otomatik denetime göre karar verildi"
     if karar == DUZELT and not duzeltmeler:
         duzeltmeler = list(bulgular) or [gerekce or "teslimi kabul ölçütüne göre tamamla"]
     return karar, duzeltmeler, gerekce

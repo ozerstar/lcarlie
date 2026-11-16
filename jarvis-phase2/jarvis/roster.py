@@ -2333,6 +2333,7 @@ def opinions(memory: Any, only: tuple[str, ...] = (), *, activity: dict | None =
 
         rows: dict[str, list] = {}
         eksik: list[str] = []
+        untrusted: list[str] = []
         for query in member.reads:
             if query in cache:
                 rows[query] = cache[query]
@@ -2343,11 +2344,19 @@ def opinions(memory: Any, only: tuple[str, ...] = (), *, activity: dict | None =
             except Exception:  # noqa: BLE001 - okunamayan sorgu bir durumdur
                 eksik.append(query)
                 continue
-            cache[query] = kayitlar
             source = str(getattr(evidence, "source", ""))
-            source_refs[query] = (source if source.startswith("postgres:") and
-                                  getattr(evidence, "authority", "") == "CANONICAL_COMPANY_MEMORY" else "")
+            if not (source.startswith("postgres:") and
+                    getattr(evidence, "authority", "") == "CANONICAL_COMPANY_MEMORY"):
+                # Unverified rows must not reach speakers or the shared cache.
+                eksik.append(query)
+                untrusted.append(query)
+                continue
+            cache[query] = kayitlar
+            source_refs[query] = source
             rows[query] = kayitlar
+
+        if untrusted:
+            kayit["untrusted_sources"] = untrusted
 
         kayit["evidence_refs"] = list(dict.fromkeys(
             source_refs.get(query, "") for query in rows

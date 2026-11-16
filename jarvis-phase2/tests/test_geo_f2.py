@@ -2,7 +2,6 @@ import os
 import unittest
 from uuid import uuid4
 
-import psycopg
 
 try:
     from jarvis.geo_f2 import fetch_searxng, find_brand_mentions, ingest_response, record_unavailable
@@ -26,6 +25,8 @@ class AliasTests(unittest.TestCase):
 @unittest.skipUnless(os.environ.get("GEO_TEST_DATABASE_URL"), "test DB not configured")
 class DatabaseTests(unittest.TestCase):
     def test_evidence_separation_and_variant_identity(self):
+        import psycopg  # Required only when the integration DB is configured.
+
         conn = psycopg.connect(os.environ["GEO_TEST_DATABASE_URL"])
         try:
             alias = "GEO_TEST_" + uuid4().hex

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 from jarvis import adapter_factory as af
 from jarvis.routing import ProviderState
@@ -26,6 +27,15 @@ class AdapterContractTests(unittest.TestCase):
             health = adapter.health()
             self.assertIn("state", health)
             self.assertIn(health["state"], {state.value for state in af.AdapterState})
+
+    def test_inaccessible_binary_is_unknown_and_unavailable(self):
+        for error in (PermissionError("private path"), OSError("I/O"), ValueError("invalid")):
+            with self.subTest(error=type(error).__name__), patch("pathlib.Path.is_file", side_effect=error):
+                health = af.CodingExecutorAdapter().health()
+                self.assertEqual(health["state"], af.AdapterState.UNAVAILABLE.value)
+                self.assertIsNone(health["binary_present"])
+                self.assertEqual(health["reason"], "binary_probe_failed")
+                self.assertNotIn("private path", str(health))
 
     def test_health_of_a_broken_upstream_is_reported_not_raised(self):
         class Broken(FakeMemory):

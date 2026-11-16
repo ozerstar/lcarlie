@@ -24,3 +24,23 @@ class TaskAutonomyTests(unittest.TestCase):
             task = Agac(tree_dir).oku()['departmanlar']['SEO']['gorevler'][0]
             self.assertEqual((task['work_id'], task['durum']), (work_id, 'YENIDEN_PLANLA'))
             self.assertEqual(store.snapshot()['works'][0]['status'], 'NEEDS_REPLAN')
+
+    def test_applied_or_cancelled_work_is_not_reopened(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            store = Store(root / 'improvement' / 'ledger.sqlite3')
+            now = datetime.now(timezone.utc)
+            for state in ('APPLIED', 'REJECTED', 'EXPIRED'):
+                work_id = store.work(source_key='isuretici:' + state,
+                    domain='SEO', objective='Check pages', owner='seo',
+                    metric='pages', unit='teslim', source='test')
+                if state == 'APPLIED':
+                    store.apply(work_id=work_id, at=now.isoformat(), evidence='verified delivery', actor='seo')
+                else:
+                    with store.db() as db:
+                        db.execute('UPDATE work SET approval_state=? WHERE id=?', (state, work_id))
+            self.assertEqual(recover_pruned_work(store, root / 'is-uretici', now), 0)
+            self.assertEqual(Agac(root / 'is-uretici').oku()['departmanlar'], {})
+            with store.db() as db:
+                self.assertEqual(db.execute('SELECT COUNT(*) FROM work').fetchone()[0], 3)
+                self.assertEqual(db.execute('SELECT COUNT(*) FROM application').fetchone()[0], 1)

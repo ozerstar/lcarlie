@@ -2,6 +2,9 @@
 from tests import betik_yolu
 import importlib.util
 import sys
+import shutil
+import subprocess
+from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location("kb", betik_yolu("kreatif-brief.py"))
 kb = importlib.util.module_from_spec(spec)
@@ -23,42 +26,36 @@ YAKALANMAMALI = [
     "Günlük bakım rutinime ekledim",
 ]
 
-hata = 0
-print("--- YAKALANMALI ---")
-for cumle, beklenen in YAKALANMALI:
-    bulunan = kb.imla_denetimi([cumle])
-    ok = beklenen in bulunan
-    hata += 0 if ok else 1
-    print(f"{'OK  ' if ok else 'HATA'} {cumle[:44]:<44} -> {bulunan}")
-
-print("--- YAKALANMAMALI (yanlis pozitif testi) ---")
-for cumle in YAKALANMAMALI:
-    bulunan = kb.imla_denetimi([cumle])
-    ok = not bulunan
-    hata += 0 if ok else 1
-    print(f"{'OK  ' if ok else 'HATA'} {cumle[:44]:<44} -> {bulunan}")
-
-toplam = len(YAKALANMALI) + len(YAKALANMAMALI)
-print()
-print("SONUC:", f"{toplam}/{toplam} DOGRU" if hata == 0 else f"{hata}/{toplam} YANLIS")
-# 🔴 EKLENDI 22.09.2026 - modul duzeyindeki sys.exit() kesfi kiriyordu.
-#    `unittest discover` bu dosyayi ICE AKTARIR; sys.exit(0) SystemExit
-#    firlatir ve discover bunu "ImportError: Failed to import test module"
-#    diye raporlar. Denetimler GECTIGI halde paket kirmizi goruntu verip
-#    deploy.sh'yi durduruyordu.
-#
-#    Yalnizca cikisi kosullamak YETMEZDI: o zaman denetim import sirasinda
-#    kosar, basarisizsa 'HATA' basar ve unittest hicbir sey gormezdi.
-#    Sessiz basarisizlik olmasin diye sonuc ayrica bir TestCase'e bagli.
-if __name__ == "__main__":
-    sys.exit(1 if hata else 0)
-
-
-import unittest as _unittest  # noqa: E402
+import unittest as _unittest
 
 
 class DenetimSonucu(_unittest.TestCase):
-    """Bu dosyanin kendi denetimleri unittest'e de gorunur olsun."""
+    """Keep real dictionary validation distinct from the portable parser test."""
 
+    @_unittest.skipUnless(shutil.which("hunspell"), "hunspell integration unavailable")
     def test_butun_denetimler_gecti(self):
-        self.assertEqual(hata, 0, f"{hata} denetim basarisiz")
+        for cumle, beklenen in YAKALANMALI:
+            with self.subTest(cumle=cumle):
+                self.assertIn(beklenen, kb.imla_denetimi([cumle]))
+        for cumle in YAKALANMAMALI:
+            with self.subTest(cumle=cumle):
+                self.assertEqual(kb.imla_denetimi([cumle]), [])
+
+    def test_hunspell_output_filter_contract(self):
+        output = "bakımlaşır\nşunayem\ntitleri\nEASYCOMB\ndan\nbakımlaşır\n"
+        result = subprocess.CompletedProcess([], 0, output.encode(), b"")
+        with patch("shutil.which", return_value="/test/hunspell"), \
+                patch("subprocess.run", return_value=result) as run:
+            self.assertEqual(kb.imla_denetimi(["sample"]),
+                             ["bakımlaşır", "şunayem", "titleri"])
+            self.assertEqual(run.call_args.args[0][:4],
+                             ["hunspell", "-d", "tr_TR", "-l"])
+
+    def test_unavailable_checker_is_not_a_linguistic_pass(self):
+        with patch("shutil.which", return_value=None), patch("subprocess.run") as run:
+            self.assertEqual(kb.imla_denetimi(["bakımlaşır"]), [])
+            run.assert_not_called()
+
+
+if __name__ == "__main__":
+    _unittest.main()

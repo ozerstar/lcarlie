@@ -101,3 +101,18 @@
   .app-view .cmdbar .cmd-form { flex-wrap: wrap; }
   .app-view .cmdbar .cmd-form textarea { flex: 1 1 100%; order: -1; }
 }
+
+/* Keep incomplete replies visually distinct from verified final answers. */
+.cmdbar .chat-stream-notice {
+  border-inline-start: 3px solid #a87527;
+  padding: .55rem .75rem;
+  margin-top: .75rem;
+  background: rgba(168, 117, 39, .08);
+  font-size: .85rem;
+  line-height: 1.5;
+}
+.cmdbar .chat-msg[aria-busy="true"] { border-inline-start: 2px solid #6c8067; }
+.cmdbar button:focus-visible, .cmdbar textarea:focus-visible {
+  outline: 2px solid #526b4b;
+  outline-offset: 3px;
+}

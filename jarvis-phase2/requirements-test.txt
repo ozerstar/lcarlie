@@ -1,0 +1,7 @@
+# Offline regression dependencies, not production service activation.
+-r requirements-push.txt
+Pillow==13.0.0
+pillow-heif==1.8.1
+numpy==2.2.6
+fonttools==4.61.1
+PyMuPDF==1.26.6

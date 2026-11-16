@@ -27,13 +27,14 @@ import re
 import sys
 from pathlib import Path
 
-sys.path.insert(0, "/opt/lcarlie/jarvis-phase2")
+KOK = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(KOK))
 os.environ.setdefault("JARVIS_MEMORY_TRANSPORT", "local-docker")
 
 import importlib.util  # noqa: E402
 
 _spec = importlib.util.spec_from_file_location(
-    "kb", "/opt/lcarlie/jarvis-phase2/scripts/kreatif-brief.py")
+    "kb", KOK / "scripts" / "kreatif-brief.py")
 kb = importlib.util.module_from_spec(_spec)
 sys.argv = ["itibar-tara"]
 _spec.loader.exec_module(kb)

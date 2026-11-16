@@ -13,7 +13,8 @@ AKIŞ (koşu başına 3 adım, model çağrısı = denetçi birim sayısı + 2)
   1 DENETİM   Her sonuç kendi denetçi birimine gider (DENETCI haritası).
               Birim: ne anlama geliyor, güven, en çok 2 iç öneri.
   2 RED TEAM  Bütün öneriler toplu sorgulanır: KABUL / SORGULA / RED.
-  3 ANA KARAR EXEC (ana kafa) RED olmayanları YAP / BEKLET / IPTAL eder.
+  3 ANA KARAR EXEC yalnız KABUL alanları YAP / BEKLET / IPTAL eder.
+              SORGULA/eksik yanıt bekler; teslim yalnız teyitli dağıtımdan sonra tüketilir.
   Dağıtım     YAP + iç iş  -> hedef birime görev (kaynak=kurul), yurut yapar.
               YAP + onay   -> core.ai_sistem_onerisi -> ana sayfa onay kuyruğu.
   Rapor       raporlar/<tarih>/KURUL-<saat>.md (panelde Raporlar).
@@ -240,7 +241,22 @@ JSON: {{"kararlar": [{{"id": "O1", "karar": "YAP|BEKLET|IPTAL", "oncelik": 1, "g
         tarih = self.iu._gun()
         agac = self.iu.agac_deposu.oku()
         deps = {d.kod: d for d in self.o.departmanlar()}
-        sonuclar = self.sonuclar(agac, simdi)
+        state = agac.setdefault("kurul", {})
+        bekleyen = state.setdefault("bekleyen_denetimler", [])
+        pending_refs = {(d["kalem"]["tur"], d["kalem"]["ref"]) for d in bekleyen}
+        sonuclar = [s for s in self.sonuclar(agac, simdi)
+                    if (s["tur"], s["ref"]) not in pending_refs][:max(0, SONUC_TAVAN - len(bekleyen))]
+
+        def kaydet():
+            if not self.iu.kuru:
+                self.iu.agac_deposu.yaz(agac, simdi)
+
+        def kimlik(o, kaynak):
+            if "anahtar" not in o:
+                raw = json.dumps([kaynak, o["departman"], o["tip"], o["baslik"], o.get("neden", "")],
+                                 ensure_ascii=False)
+                o["anahtar"] = "kurul-v2-" + hashlib.sha256(raw.encode()).hexdigest()[:32]
+
 
         # 1) denetim: denetçi birim başına tek çağrı
         gruplar: dict[str, list[dict]] = {}
@@ -260,33 +276,52 @@ JSON: {{"kararlar": [{{"id": "O1", "karar": "YAP|BEKLET|IPTAL", "oncelik": 1, "g
             except Exception as e:  # noqa: BLE001
                 self.iu.kayit.append({"kurul": kod, "hata": str(e)[:200]})
 
-        # öneri havuzu: denetimden gelenler + birikmiş ONAY_BEKLIYOR işler
-        oneriler: list[dict] = []
+        # Persist the review and exact proposals before downstream calls. Snapshots
+        # survive the source's 36-hour eligibility window; never store task aliases.
         for d in denetimler:
+            d["kalem"] = {k: v for k, v in d["kalem"].items() if k != "gorev"}
+            bekleyen.append(d)
+        denetimler = list(bekleyen)
+        oneriler: list[dict] = []
+        for d in denetimler[:SONUC_TAVAN]:
             for o in d["oneriler"]:
-                oneriler.append(dict(o, id=f"O{len(oneriler) + 1}", kaynak_ref=d["kalem"]["ref"],
-                                     dayanak=f"{d['kalem']['baslik']} — denetçi {d['denetci']}: {d['anlam']}"[:500]))
+                kimlik(o, [d["kalem"]["tur"], d["kalem"]["ref"]])
+                o.setdefault("kaynak_ref", d["kalem"]["ref"])
+                o.setdefault("dayanak", f"{d['kalem']['baslik']} — denetçi {d['denetci']}: {d['anlam']}"[:500])
+                if not o.get("tamamlandi"):
+                    oneriler.append(o)
         eski = [(k, g) for k, dd in agac["departmanlar"].items() for g in dd.get("gorevler", [])
                 if g.get("durum") == "ONAY_BEKLIYOR"][:ESKI_ONAY_TAVAN]
+        eski_map = {}
         for k, g in eski:
-            oneriler.append({"id": f"O{len(oneriler) + 1}", "baslik": g.get("baslik", ""), "tip": "ONAY_GEREKTIREN",
-                             "departman": k, "neden": g.get("neden", ""), "eski_gorev": g,
-                             "dayanak": f"birikmiş onay işi ({g.get('id')}): {g.get('cikti', '')}"[:500]})
+            o = g.setdefault("kurul_oneri", {"baslik": g.get("baslik", ""), "tip": "ONAY_GEREKTIREN",
+                "departman": k, "neden": g.get("neden", ""),
+                "dayanak": f"birikmiş onay işi ({g.get('id')}): {g.get('cikti', '')}"[:500]})
+            kimlik(o, ["eski", g["id"]])
+            eski_map[o["anahtar"]] = g
+            if not o.get("tamamlandi"):
+                oneriler.append(o)
+        for i, o in enumerate(oneriler, 1):
+            o["id"] = f"O{i}"
+        kaydet()
 
         # 2) red team
         try:
-            rt = self.sorgula(oneriler)
+            rt = self.sorgula([o for o in oneriler if not o.get("onay_payload")])
         except Exception as e:  # noqa: BLE001
             rt = {}
             self.iu.kayit.append({"kurul": "redteam", "hata": str(e)[:200]})
         for o in oneriler:
-            o["rt"] = rt.get(o["id"], {"karar": "SORGULA", "itiraz": "red team cevap vermedi"})
-        aday = [o for o in oneriler if o["rt"]["karar"] != "RED"]
+            if not o.get("onay_payload"):
+                o["rt"] = rt.get(o["id"], {"karar": "SORGULA", "itiraz": "red team cevap vermedi"})
+            if o["rt"]["karar"] == "RED":
+                o["tamamlandi"] = "RED"
+        aday = [o for o in oneriler if o["rt"]["karar"] == "KABUL"]
 
         # 3) ana karar
         hedefler = "\n".join(f"- {h.get('id')}: {h.get('baslik')} ({h.get('olcut')})" for h in agac.get("hedefler", [])) or "-"
         try:
-            kararlar, ozet = self.karar_ver(aday, hedefler) if rt else ({}, "")
+            kararlar, ozet = self.karar_ver([o for o in aday if not o.get("onay_payload")], hedefler)
         except Exception as e:  # noqa: BLE001
             kararlar, ozet = {}, ""
             self.iu.kayit.append({"kurul": "karar", "hata": str(e)[:200]})
@@ -294,53 +329,66 @@ JSON: {{"kararlar": [{{"id": "O1", "karar": "YAP|BEKLET|IPTAL", "oncelik": 1, "g
         # dağıtım
         dagitilan, onaya = [], []
         for o in sorted(aday, key=lambda x: kararlar.get(x["id"], {}).get("oncelik", 9)):
-            k = kararlar.get(o["id"])
+            k = o.get("karar") if o.get("onay_payload") else kararlar.get(o["id"])
             o["karar"] = k or {"karar": "BEKLET", "oncelik": 9, "gerekce": "karar verilmedi"}
+            if k and k["karar"] == "IPTAL":
+                o["tamamlandi"] = "IPTAL"
             if not k or k["karar"] != "YAP":
                 continue
             if o["tip"] == "ONAY_GEREKTIREN":
                 if len(onaya) >= ONAY_TAVAN:
                     continue
+                self._onay_payload(o)
+                kaydet()  # exact key + payload precede callback (ambiguous interruption is replayable)
                 aid = self._onaya_gonder(o, tarih)
                 if aid is not None:
                     onaya.append((o, aid))
+                    o["tamamlandi"] = "ONAYA_GITTI"
+                    o["onay_id"] = aid
+                    kaydet()
             elif len(dagitilan) < GOREV_TAVAN:
-                dep = deps[o["departman"]]
+                dep = deps.get(o["departman"])
+                if dep is None or not dep.uyeler:
+                    continue
                 g = {"baslik": o["baslik"], "tip": o["tip"], "sorumlu": dep.uyeler[0].key,
                      "cikti": "kurul kararı teslimi: bulgu + tablo/madde + öneri",
                      "kabul_olcutu": "dayanaktaki bulguyla ilişkisi gösterilmiş, en az 3 madde/tablo satırı",
                      "sure_gun": 3, "hedef_id": "", "neden": f"kurul: {o['dayanak']}"[:300]}
-                saat = _simdi_tr(simdi).strftime("%H")
-                x = self.iu._gorev_ekle(agac, dep, g, "kurul", tarih, 0,
-                                        gid=f"{tarih}-{dep.kod}-kurul{saat}-{len(dagitilan) + 1}")
-                if x:
+                gid = o["anahtar"]
+                x = next((t for t in agac["departmanlar"].get(dep.kod, {}).get("gorevler", [])
+                          if t.get("id") == gid and t.get("kurul_oneri_anahtari") == gid), None)
+                if x is None:
+                    g["kurul_oneri_anahtari"] = gid
+                    x = self.iu._gorev_ekle(agac, dep, g, "kurul", tarih, 0, gid=gid)
+                if x and x.get("kurul_oneri_anahtari") == gid:
                     dagitilan.append((o, x))
+                    o["tamamlandi"] = "GOREVE_GITTI"
+                    o["gorev_id"] = x["id"]
+                    kaydet()
                     self.iu._ofis(dep.uyeler[0].key, "WORKING", f"Kuruldan iş aldı: {o['baslik']}"[:200])
 
-        # işaretle: denetlenen sonuçlar bir daha gelmez; ele alınan eski onay işleri kapanır
+        # Consume a source only after every proposal has a terminal acknowledgement.
+        # Missing review/decision, BEKLET, capacity limits and callback failures remain queued.
         if not self.iu.kuru:
-            for d in denetimler:
+            tamam = [d for d in denetimler if all(o.get("tamamlandi") for o in d["oneriler"])]
+            for d in tamam:
                 kal = d["kalem"]
                 if kal["tur"] == "teslim":
-                    kal["gorev"]["kurul"] = {"tarih": simdi.isoformat(), "denetci": d["denetci"], "guven": d["guven"]}
+                    for dd in agac["departmanlar"].values():
+                        for g in dd.get("gorevler", []):
+                            if g["id"] == kal["ref"]:
+                                g["kurul"] = {"tarih": simdi.isoformat(), "denetci": d["denetci"],
+                                              "guven": d["guven"], "oneriler": d["oneriler"]}
                 else:
-                    agac["kurul"].setdefault("islenen", []).append(kal["ref"])
-            agac["kurul"]["islenen"] = agac["kurul"].get("islenen", [])[-200:]
-            gonderilen = {o["id"] for o, _ in onaya}
-            for o in oneriler:
-                g = o.get("eski_gorev")
-                if g is None:
-                    continue
-                k = kararlar.get(o["id"], {}).get("karar")
-                if o["id"] in gonderilen:
-                    g["durum"] = "ONAYA_GITTI"
-                elif rt.get(o["id"], {}).get("karar") == "RED" or k == "IPTAL":
-                    g["durum"] = "KURUL_KAPATTI"
-                elif k == "BEKLET":
-                    g["durum"] = "BEKLETILDI"
-                else:
-                    continue   # karar yok ya da onay tavanı doldu: sonraki kurulda yeniden ele alınır
-                g["kurul"] = {"tarih": simdi.isoformat(), "rt": o["rt"], "karar": o.get("karar")}
+                    state.setdefault("islenen", []).append(kal["ref"])
+            state["islenen"] = state.get("islenen", [])[-200:]
+            state["bekleyen_denetimler"] = [d for d in denetimler if d not in tamam]
+            for g in eski_map.values():
+                o = g["kurul_oneri"]
+                if o.get("tamamlandi"):
+                    g["durum"] = "ONAYA_GITTI" if o["tamamlandi"] == "ONAYA_GITTI" else "KURUL_KAPATTI"
+                    g["kurul"] = {"tarih": simdi.isoformat(), "rt": o["rt"], "karar": o.get("karar")}
+            kaydet()
 
         yol = self._rapor(tarih, simdi, denetimler, oneriler, dagitilan, onaya, ozet)
         if not self.iu.kuru:
@@ -349,20 +397,27 @@ JSON: {{"kararlar": [{{"id": "O1", "karar": "YAP|BEKLET|IPTAL", "oncelik": 1, "g
                 "oneri": len(oneriler), "red": sum(o["rt"]["karar"] == "RED" for o in oneriler),
                 "gorev": len(dagitilan), "onaya": len(onaya), "rapor": yol, "kayit": self.iu.kayit}
 
+    def _onay_payload(self, o: dict) -> dict:
+        if "onay_payload" not in o:
+            metin = (f"KURUL KARARI · {o['departman']}\n\n{o['baslik']}\n\nDayanak: {o['dayanak']}\n"
+                     f"Red team: {o['rt']['karar']} — {o['rt']['itiraz']}\nKarar: {o['karar']['gerekce']}\n\n"
+                     "Onaylamak bu işi yalnız sahibin gündemine alır; hiçbir platforma otomatik yazılmaz.")
+            o["onay_payload"] = {"anahtar": o["anahtar"], "metin": metin[:3500],
+                "sebep": f"Kurul: denetci + red team + ana karar YAP dedi: {o['baslik']}"[:400]}
+        return o["onay_payload"]
+
     def _onaya_gonder(self, o: dict, tarih: str) -> int | None:
         if self.iu.kuru or not self.o.oneri_ac:
             return None
-        metin = (f"KURUL KARARI · {o['departman']}\n\n{o['baslik']}\n\nDayanak: {o['dayanak']}\n"
-                 f"Red team: {o['rt']['karar']} — {o['rt']['itiraz']}\nKarar: {o['karar']['gerekce']}\n\n"
-                 "Onaylamak bu işi yalnız sahibin gündemine alır; hiçbir platforma otomatik yazılmaz.")
-        # Aynı başlık aynı gün ikinci kez önerilmez (hash() süreçten sürece değişir; md5 sabit).
-        anahtar = f"{tarih}.{o['departman']}.{hashlib.md5(o['baslik'].encode()).hexdigest()[:10]}"
+        p = self._onay_payload(o)
         try:
-            return self.o.oneri_ac(anahtar, metin[:3500],
-                                   f"Kurul: denetci + red team + ana karar YAP dedi: {o['baslik']}"[:400])
+            aid = self.o.oneri_ac(p["anahtar"], p["metin"], p["sebep"])
+            if isinstance(aid, int) and not isinstance(aid, bool) and aid > 0:
+                return aid
+            self.iu.kayit.append({"kurul": "onay", "uyari": "onay kuyruğu olumlu kimlik döndürmedi"})
         except Exception as e:  # noqa: BLE001
             self.iu.kayit.append({"kurul": "onay", "uyari": f"onay kuyruğuna yazılamadı: {e}"[:200]})
-            return None
+        return None
 
     def _rapor(self, tarih, simdi, denetimler, oneriler, dagitilan, onaya, ozet) -> str:
         saat = _simdi_tr(simdi).strftime("%H%M")

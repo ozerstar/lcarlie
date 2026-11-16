@@ -14,10 +14,16 @@ def recover_pruned_work(store, tree_dir, now):
     data = tree.oku()
     existing = {task.get('work_id') for dep in data['departmanlar'].values()
                 for task in dep.get('gorevler', [])}
+    # Applied/measured work is not unfinished queue work; rejected or expired
+    # approval must not be silently reopened. Keep its ledger evidence intact.
     with store.db() as db:
         works = [dict(row) for row in db.execute(
             "SELECT id,source_key,domain,objective,owner,metric,unit,target,due,created,source "
-            "FROM work WHERE source_key LIKE 'isuretici:%' ORDER BY id")]
+            "FROM work WHERE source_key LIKE 'isuretici:%' "
+            "AND COALESCE(approval_state, '') NOT IN ('REJECTED', 'EXPIRED') "
+            "AND NOT EXISTS (SELECT 1 FROM application WHERE application.work_id=work.id) "
+            "AND NOT EXISTS (SELECT 1 FROM measurement WHERE measurement.work_id=work.id) "
+            "ORDER BY id")]
     recovered = 0
     for work in works:
         if work['id'] in existing:
