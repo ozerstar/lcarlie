@@ -13,6 +13,8 @@ import json
 import os
 from pathlib import Path
 
+from jarvis.is_uretici import teslim_onayli
+
 DURUM = Path(os.environ.get("JARVIS_STATE_DIR", "/opt/lcarlie/jarvis-phase2/state"))
 IU = DURUM / "is-uretici"
 PR = DURUM / "programlar"
@@ -60,7 +62,7 @@ def ozet() -> dict:
             if g.get("durum") == "ACIK":
                 acik += 1
             t = g.get("teslim") or {}
-            if t.get("kalite") not in ("GECTI", "KISMI"):
+            if not teslim_onayli(g):
                 continue
             try:
                 gun = datetime.datetime.fromisoformat(str(t.get("tarih"))).astimezone(tr).date()
