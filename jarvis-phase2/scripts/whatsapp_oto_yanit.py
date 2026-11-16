@@ -228,8 +228,11 @@ def isle(aday: dict, baslangic: str) -> str:
         sonuc = whatsapp.gonder(
             gelen_kutusu.telefon_bul(konusma_id), metin,
             onay_kaynagi=whatsapp.ONAY_OTOMATIK, konusma_id=konusma_id,
-            kaynak_mesaj_id=mesaj_id)
+            kaynak_mesaj_id=mesaj_id, is_anahtari=f"oto-yanit:{mesaj_id}")
         bitir(mesaj_id, "sent", sonuc.get("wamid") or "")
+        if sonuc.get("uzlastirma_gerekli"):
+            gelen_kutusu.durum_yaz(konusma_id, "INSANDA", "OTOMATIK_YANIT_KAYDI_EKSIK")
+            return "sent_handoff"
         if devret:
             gelen_kutusu.durum_yaz(konusma_id, "INSANDA", taslak.get("sebep"))
         return "sent_handoff" if devret else "sent"

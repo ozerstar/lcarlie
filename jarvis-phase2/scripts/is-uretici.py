@@ -247,7 +247,8 @@ def main() -> int:
         else:
             sonuc = iu.yurut(a.sinir or 12, sure_sn=a.sure)
         if not a.kuru:
-            sonuc['recovered_evidence'] = iu.o.defter.reconcile_team_deliveries()
+            if 'recovered_evidence' not in sonuc:
+                sonuc['recovered_evidence'] = iu.o.defter.reconcile_team_deliveries()
             sonuc['recovered_tasks'] = recovered_tasks
         sonuc["ozet"] = iu.ozet_yaz(sonuc)
     except Exception as e:  # noqa: BLE001

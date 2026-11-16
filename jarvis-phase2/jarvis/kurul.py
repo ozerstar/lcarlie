@@ -83,11 +83,18 @@ class Kurul:
         return self.iu._model(tur, [{"role": "system", "content": SISTEM},
                                     {"role": "user", "content": kullanici}], anahtar)
 
-    def _denetci(self, kaynak_dep: str, deps: dict[str, Departman]) -> str:
-        d = DENETCI.get(kaynak_dep, "EXEC")
-        if d not in deps or not deps[d].uyeler:
-            d = "EXEC" if "EXEC" in deps and deps["EXEC"].uyeler else kaynak_dep
-        return d
+    def _denetci_uygun(self, kod: str, kaynak_dep: str, deps: dict[str, Departman], uye_key: str | None = None) -> bool:
+        if kod == kaynak_dep or kod not in deps or not deps[kod].uyeler:
+            return False
+        reviewer = deps[kod].uyeler[0].key if uye_key is None else uye_key
+        producers = {u.key for u in deps[kaynak_dep].uyeler} if kaynak_dep in deps else set()
+        return bool(reviewer) and reviewer in {u.key for u in deps[kod].uyeler} and reviewer not in producers
+
+    def _denetci(self, kaynak_dep: str, deps: dict[str, Departman]) -> str | None:
+        for kod in (DENETCI.get(kaynak_dep, "EXEC"), "EXEC"):
+            if self._denetci_uygun(kod, kaynak_dep, deps):
+                return kod
+        return None  # Missing independent staff is a blocker, never self-review.
 
     # ------------------------------------------------------------ girdiler
     def sonuclar(self, agac: dict, simdi: datetime) -> list[dict]:
@@ -174,7 +181,7 @@ Her sonuç için en çok 2 öneri; gereksizse boş liste.""", "kurul-denetim")
                 oneriler.append({"baslik": baslik, "tip": tip if tip in (*IC_TIPLER, "ONAY_GEREKTIREN") else "ANALIZ",
                                  "departman": hedef, "neden": temizle(o.get("neden"), 300)})
             guven = str(d.get("guven") or "").upper()
-            out.append({"kalem": kalemler[i], "denetci": dep.kod,
+            out.append({"kalem": kalemler[i], "denetci": dep.kod, "denetci_uye": dep.uyeler[0].key,
                         "guven": guven if guven in ("YUKSEK", "ORTA", "DUSUK") else "ORTA",
                         "sorun": temizle(d.get("sorun"), 300), "anlam": temizle(d.get("anlam"), 400),
                         "oneriler": oneriler})
@@ -244,8 +251,10 @@ JSON: {{"kararlar": [{{"id": "O1", "karar": "YAP|BEKLET|IPTAL", "oncelik": 1, "g
         state = agac.setdefault("kurul", {})
         bekleyen = state.setdefault("bekleyen_denetimler", [])
         pending_refs = {(d["kalem"]["tur"], d["kalem"]["ref"]) for d in bekleyen}
-        sonuclar = [s for s in self.sonuclar(agac, simdi)
-                    if (s["tur"], s["ref"]) not in pending_refs][:max(0, SONUC_TAVAN - len(bekleyen))]
+        blocked_sources = state.get("bekleyen_kaynaklar", [])
+        retained_refs = pending_refs | {(s["tur"], s["ref"]) for s in blocked_sources}
+        sonuclar = blocked_sources + [s for s in self.sonuclar(agac, simdi)
+                    if (s["tur"], s["ref"]) not in retained_refs][:max(0, SONUC_TAVAN - len(bekleyen) - len(blocked_sources))]
 
         def kaydet():
             if not self.iu.kuru:
@@ -260,8 +269,14 @@ JSON: {{"kararlar": [{{"id": "O1", "karar": "YAP|BEKLET|IPTAL", "oncelik": 1, "g
 
         # 1) denetim: denetçi birim başına tek çağrı
         gruplar: dict[str, list[dict]] = {}
+        state["bekleyen_kaynaklar"] = []
         for s in sonuclar:
-            gruplar.setdefault(self._denetci(s["dep"], deps), []).append(s)
+            reviewer = self._denetci(s["dep"], deps)
+            if reviewer is None:
+                state["bekleyen_kaynaklar"].append({k: v for k, v in s.items() if k != "gorev"})
+                self.iu.kayit.append({"kurul": s["ref"], "engel": "bagimsiz denetci yok", "sorumlu": "sahip"})
+                continue
+            gruplar.setdefault(reviewer, []).append(s)
         denetimler: list[dict] = []
         for kod, kalemler in gruplar.items():
             if kod not in deps:
@@ -284,6 +299,11 @@ JSON: {{"kararlar": [{{"id": "O1", "karar": "YAP|BEKLET|IPTAL", "oncelik": 1, "g
         denetimler = list(bekleyen)
         oneriler: list[dict] = []
         for d in denetimler[:SONUC_TAVAN]:
+            if not self._denetci_uygun(d["denetci"], d["kalem"]["dep"], deps, d.get("denetci_uye", "")):
+                d["engel"] = "bagimsiz denetci yok; sahip atamasi bekleniyor"
+                self.iu.kayit.append({"kurul": d["kalem"]["ref"], "engel": d["engel"], "sorumlu": "sahip"})
+                continue  # Includes frozen, previously self-reviewed outbox payloads.
+            d.pop("engel", None)
             for o in d["oneriler"]:
                 kimlik(o, [d["kalem"]["tur"], d["kalem"]["ref"]])
                 o.setdefault("kaynak_ref", d["kalem"]["ref"])
@@ -370,7 +390,7 @@ JSON: {{"kararlar": [{{"id": "O1", "karar": "YAP|BEKLET|IPTAL", "oncelik": 1, "g
         # Consume a source only after every proposal has a terminal acknowledgement.
         # Missing review/decision, BEKLET, capacity limits and callback failures remain queued.
         if not self.iu.kuru:
-            tamam = [d for d in denetimler if all(o.get("tamamlandi") for o in d["oneriler"])]
+            tamam = [d for d in denetimler if not d.get("engel") and all(o.get("tamamlandi") for o in d["oneriler"])]
             for d in tamam:
                 kal = d["kalem"]
                 if kal["tur"] == "teslim":
@@ -394,6 +414,7 @@ JSON: {{"kararlar": [{{"id": "O1", "karar": "YAP|BEKLET|IPTAL", "oncelik": 1, "g
         if not self.iu.kuru:
             self.iu.agac_deposu.yaz(agac, simdi)
         return {"mod": "kurul", "tarih": tarih, "sonuc": len(sonuclar), "denetim": len(denetimler),
+                "denetci_bekliyor": len(state["bekleyen_kaynaklar"]) + sum(bool(d.get("engel")) for d in denetimler),
                 "oneri": len(oneriler), "red": sum(o["rt"]["karar"] == "RED" for o in oneriler),
                 "gorev": len(dagitilan), "onaya": len(onaya), "rapor": yol, "kayit": self.iu.kayit}
 

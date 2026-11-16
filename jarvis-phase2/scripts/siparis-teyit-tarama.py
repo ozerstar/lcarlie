@@ -303,7 +303,13 @@ def isle(siparis: dict, *, gonder: bool, baslangic: datetime) -> str:
     try:
         sonuc = whatsapp.sablon_gonder(
             telefon, sablon, degerler, onay_kaynagi=whatsapp.ONAY_OTOMATIK,
-            baslik_gorsel=gorsel, onizleme=onizleme, kuru=not gonder)
+            baslik_gorsel=gorsel, onizleme=onizleme, kuru=not gonder,
+            is_anahtari=f"siparis-teyit:{no}")
+    except whatsapp.GonderimBelirsiz as hata:
+        # Keep the existing non-retryable lock state; no schema change needed.
+        kilit_kapat(no, "GONDERILIYOR", "BELIRSIZ: " + str(hata))
+        _alarm("teyit sonucu belirsiz", "siparis %s: tekrar gondermeyin; uzlastirma gerekli" % no)
+        return "%s: %s BELIRSIZ -- otomatik tekrar yok" % (no, yol)
     except whatsapp.GondermeReddedildi as hata:
         kilit_kapat(no, "HATA", str(hata))
         _alarm("teyit gonderilemedi", "siparis %s (%s): %s" % (no, yol, hata))
@@ -311,7 +317,10 @@ def isle(siparis: dict, *, gonder: bool, baslangic: datetime) -> str:
     if sonuc.get("kuru"):
         kilit_kapat(no, "HATA", "kuru kosu")
         return "%s: %s KURU KOSU (gonderilmedi)" % (no, yol)
-    kilit_kapat(no, "GONDERILDI", "", sonuc.get("wamid", ""))
+    uyari = "gonderim defteri eksik; uzlastirma gerekli" if sonuc.get("uzlastirma_gerekli") else ""
+    kilit_kapat(no, "GONDERILDI", uyari, sonuc.get("wamid", ""))
+    if uyari:
+        _alarm("teyit kaydi eksik", "siparis %s: %s" % (no, uyari))
     return "%s: %s GONDERILDI" % (no, yol)
 
 

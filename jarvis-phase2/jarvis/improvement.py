@@ -121,9 +121,10 @@ class Store:
             raise ValueError('Uygulama gelecekte olamaz.')
         with self.db() as db:
             self._work(db, work_id)
-            db.execute('INSERT OR IGNORE INTO application(work_id,at,evidence,actor) VALUES(?,?,?,?)',
-                       (work_id, at.isoformat(), text(evidence, 'Uygulama kanıtı'), text(actor, 'Kaydeden', 100)))
-            self._audit(db, actor, 'application', work_id)
+            inserted = db.execute('INSERT OR IGNORE INTO application(work_id,at,evidence,actor) VALUES(?,?,?,?)',
+                                  (work_id, at.isoformat(), text(evidence, 'Uygulama kanıtı'), text(actor, 'Kaydeden', 100)))
+            if inserted.rowcount:
+                self._audit(db, actor, 'application', work_id)
 
     def measure(self, *, work_id, baseline, result, sample, before_at, after_at,
                 before_source, after_source, note, actor):
@@ -212,13 +213,14 @@ class Store:
         Only an existing delivery artifact under the state directory qualifies.
         Repeated calls do not create duplicate application or audit records.
         """
+        from .is_uretici import teslim_onayli
         root = self.path.parent.parent.resolve()
         with self.db() as db:
             applied = {row[0] for row in db.execute('SELECT DISTINCT work_id FROM application')}
             known = {row[0] for row in db.execute('SELECT id FROM work')}
         recovered = 0
         for work_id, task in self._task_states().items():
-            if work_id not in known or work_id in applied or task.get('durum') != 'TESLIM_EDILDI':
+            if work_id not in known or work_id in applied or not teslim_onayli(task):
                 continue
             delivery = task.get('teslim') or {}
             if delivery.get('kalite') not in ('GECTI', 'KISMI'):

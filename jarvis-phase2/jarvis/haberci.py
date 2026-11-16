@@ -18,6 +18,7 @@ import sys
 import urllib.request
 from pathlib import Path
 from typing import Any
+from .whatsapp import GonderimBelirsiz
 
 KOK = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KOK))
@@ -108,10 +109,10 @@ def push_gonder(baslik: str, metin: str, etiket: str) -> str:
 
 
 # ------------------------------------------------------------------ whatsapp
-def whatsapp_gonder(degerler: list[str]) -> str:
+def whatsapp_gonder(degerler: list[str], *, is_anahtari: str | None = None) -> str:
     from jarvis import whatsapp
     sonuc = whatsapp.sablon_gonder(SAHIP_TELEFON, SABLON, degerler,
-                                   onay_kaynagi="jarvis-otomatik")
+                                   onay_kaynagi="jarvis-otomatik", is_anahtari=is_anahtari)
     return str(sonuc.get("wamid") or "")
 
 
@@ -196,13 +197,17 @@ def bildir(siparis_id: int, *, kanal: str, siparis_no: str, tutar: str,
             if yol == "push":
                 kimlik = push_gonder(baslik, ozet, "siparis-%d" % siparis_id)
             elif yol == "whatsapp":
-                kimlik = whatsapp_gonder([kanal, siparis_no, tutar, musteri, urunler])
+                kimlik = whatsapp_gonder([kanal, siparis_no, tutar, musteri, urunler],
+                                         is_anahtari=f"sahip-siparis:{siparis_id}")
             elif yol == "eposta":
                 kimlik = eposta_gonder(baslik + " " + siparis_no, uzun)
             else:
                 raise BildirimHatasi("bilinmeyen yol: %s" % yol)
             kilit_kapat(siparis_id, yol, "GONDERILDI", dis_kimlik=kimlik)
             sonuc[yol] = "GONDERILDI"
+        except GonderimBelirsiz:
+            kilit_kapat(siparis_id, yol, "GONDERILIYOR", hata="BELIRSIZ: uzlastirmadan tekrar gondermeyin")
+            sonuc[yol] = "BELIRSIZ: otomatik tekrar yok"
         except Exception as hata:                      # noqa: BLE001
             kilit_kapat(siparis_id, yol, "HATA",
                         hata="%s: %s" % (type(hata).__name__, hata))

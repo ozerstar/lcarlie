@@ -237,6 +237,8 @@ def cevap_gonder(konusma_id: int, metin: str, *, kuru: bool = False) -> dict:
                                konusma_id=int(konusma_id), kuru=kuru)
     except whatsapp.GondermeReddedildi as hata:
         raise KutuHatasi(str(hata)) from None
+    except whatsapp.GonderimBelirsiz:
+        raise KutuHatasi("Gönderim sonucu belirsiz. Yeniden göndermeden önce iş durumunu kontrol edin.") from None
 
 
 # ══════════════════════════════════════════════════════════════════════

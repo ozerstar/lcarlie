@@ -1384,6 +1384,7 @@ async function sendMessage(message, previous = null) {
   qs('chatDockStatus').textContent = 'Yanıt hazırlanıyor…';
   stageDiv.setAttribute('aria-busy', 'true');
   let terminal = false;
+  let failed = false;
   let streamed = '';
   let reader = null;
 
@@ -1425,12 +1426,14 @@ async function sendMessage(message, previous = null) {
           terminal = true;
           const result = event.result;
           if (result.kind === 'REQUIRES_REASONING_CAPABILITY') {
+            failed = true;
             stageDiv.className = 'chat-msg jarvis reasoning';
-            stageDiv.innerHTML = escapeHtml(JarvisDil.error(result.message));
+            stageDiv.innerHTML = renderMarkdownLite(streamed) + '<p class="chat-stream-notice">' + escapeHtml(JarvisDil.error(result.message)) + '</p>';
             spoken = JarvisDil.error(result.message);
           } else if (result.kind === 'ERROR') {
+            failed = true;
             stageDiv.className = 'chat-msg jarvis';
-            stageDiv.innerHTML = 'Anlaşılamadı: ' + escapeHtml(JarvisDil.error(result.message));
+            stageDiv.innerHTML = renderMarkdownLite(streamed) + '<p class="chat-stream-notice">Anlaşılamadı: ' + escapeHtml(JarvisDil.error(result.message)) + '</p>';
             spoken = 'Anlaşılamadı. ' + JarvisDil.error(result.message);
           } else {
             stageDiv.className = 'chat-msg jarvis';
@@ -1439,7 +1442,8 @@ async function sendMessage(message, previous = null) {
           }
         } else if (event.type === 'error') {
           terminal = true;
-          stageDiv.innerHTML = 'Hata: ' + escapeHtml(JarvisDil.error(event.message));
+          failed = true;
+          stageDiv.innerHTML = renderMarkdownLite(streamed) + '<p class="chat-stream-notice">Hata: ' + escapeHtml(JarvisDil.error(event.message)) + '</p>';
           spoken = 'Hata. ' + JarvisDil.error(event.message);
         }
       }
@@ -1463,7 +1467,7 @@ async function sendMessage(message, previous = null) {
     if (!stageDiv.querySelector('.copy-btn')) addChatCopyButton(stageDiv);
     stageDiv.setAttribute('aria-busy', 'false');
     stageDiv.classList.remove('stage');
-    qs('chatDockStatus').textContent = terminal ? 'Yanıt alındı' : 'Yanıt tamamlanmadı';
+    qs('chatDockStatus').textContent = failed ? 'Yanıt hatayla sonlandı' : terminal ? 'Yanıt alındı' : 'Yanıt tamamlanmadı';
     qs('stopBtn').hidden = true;
     qs('sendBtn').disabled = false;
     qs('retryBtn').hidden = terminal;
