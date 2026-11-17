@@ -9374,7 +9374,7 @@ function ryCiz() {
   if (!r) return;
   const sayac = qs('kampanyaCount');
   const ds = r.ozet.durum_sayim || {};
-  if (sayac) sayac.textContent = `${ds.acik ?? r.ozet.aktif_reklam} açık · ${ds.kapali ?? 0} kapalı · ${ds.reddedildi ?? 0} reddedilen · ${r.ozet.reklam_sayisi} reklam`;
+  if (sayac) sayac.textContent = `${ds.acik ?? r.ozet.aktif_reklam} açık · ${(ds.planlandi || 0) + (ds.bitti || 0) ? ((ds.planlandi || 0) + (ds.bitti || 0)) + ' planlandı/bitti · ' : ''}${ds.kapali ?? 0} kapalı · ${ds.reddedildi ?? 0} reddedilen · ${r.ozet.reklam_sayisi} reklam`;
   ryPlatformCiz(r);
   qs('ryNeYap').innerHTML = ryNeYapHtml(r);
   qs('ryOlcum').innerHTML = ryOlcumHtml(r);

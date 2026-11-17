@@ -127,6 +127,11 @@ class Yorum(unittest.TestCase):
         # aynı gönderi bir kez sorulur
         self.assertEqual(sum(1 for c in cagri if c.endswith("/comments")), 2)  # iki jeton denemesi
 
+    def test_video_izin_hatasi_dogru_sebep(self):
+        s = md.hata_sebebi(RuntimeError("HTTP 400: (#283) This endpoint requires the 'pages_read_engagement' "
+                                        "permission or the 'Page Public Content Access' feature"))
+        self.assertIn("pages_read_engagement", s)
+
     def test_hata_sebebi_jetonsuz(self):
         s = md.hata_sebebi(RuntimeError('HTTP 400: {"error":{"code":190,"message":"Invalid OAuth abcTOKEN"}}'))
         self.assertEqual(s, "jeton geçersiz/süresi dolmuş")
@@ -197,6 +202,7 @@ class PanelRaporu(unittest.TestCase):
         e["adset"]["baslangic"] = "2026-11-18T09:00:00+0300"
         s = _rapor([e])["reklamlar"][0]
         self.assertEqual(s["durum_sinif"], "planlandi")
+        self.assertEqual(_rapor([e])["ozet"]["durum_sayim"]["planlandi"], 1)
         self.assertIn("18.11.2026 09:00", s["kapali_neden"])
 
     def test_platformlar_bagli_olmayani_sifir_yazmaz(self):

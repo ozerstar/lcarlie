@@ -281,6 +281,9 @@ def fb_yorumlari(gonderi_id: str, liste: list[dict], sayfa_id: str | None) -> li
 def hata_sebebi(h: Exception | str) -> str:
     """Meta hatasını panelde okunur, jetonsuz kısa Türkçe sebebe çevirir."""
     s = str(h)
+    if "pages_read_engagement" in s:
+        return ("video başka bir sayfaya ait ya da sayfa jetonunda 'pages_read_engagement' izni yok "
+                "(Meta önizlemesinden izlenebilir)")
     if "pages_read_user_content" in s or "Page Public Content Access" in s:
         return ("Facebook gönderi yorumları okunamıyor: sayfa jetonunda 'pages_read_user_content' "
                 "izni yok (Meta uygulamasına bu izin eklenmeli)")
@@ -288,9 +291,6 @@ def hata_sebebi(h: Exception | str) -> str:
         return "jeton geçersiz/süresi dolmuş"
     if '"code":10' in s or "does not have permission" in s:
         return "izin yok (Meta kod 10)"
-    if "pages_read_engagement" in s:
-        return ("video başka bir sayfaya ait ya da sayfa jetonunda 'pages_read_engagement' izni yok "
-                "(Meta önizlemesinden izlenebilir)")
     if "does not exist" in s:
         return "Instagram/Facebook gönderisi artık yok ya da bu jetonla görülemiyor (Meta: nesne bulunamadı)"
     if '"code":100' in s:
