@@ -9223,6 +9223,7 @@ const ryState = {
   aralik: '7', bas: '', bit: '', sekme: 'reklam', veri: null, yukleniyor: false,
   sonYukleme: 0, anahtar: '',
   f: { kampanya: '', set: '', durum: '', hedef: '' }, sirala: 'harcama',
+  platform: 'tumu', acik: null, dsekme: 'onizleme', varlik: 0,
 };
 const RY_ROZET = { IYI: 'İYİ', IZLE: 'İZLE', KES: 'KES', BILINMIYOR: 'ÖLÇÜLEMEZ' };
 const RY_OPT = { LINK_CLICKS: 'Bağlantı tıklaması', LANDING_PAGE_VIEWS: 'Sayfa görüntüleme',
@@ -9253,9 +9254,97 @@ function ryYas(dk) {
   return `${Math.round(dk / 60)} saat önce`;
 }
 function ryDurumSinif(d) {
-  if (d === 'ACTIVE') return 'is-on';
-  if (d === 'DISAPPROVED' || d === 'WITH_ISSUES') return 'is-bad';
+  // 17.11: durum_sinif (acik/kapali/reddedildi/inceleniyor/planlandi/bitti) ya da ham Meta kodu
+  const k = RY_DURUM_KOD[d] || d;
+  if (k === 'acik') return 'is-on';
+  if (k === 'reddedildi') return 'is-bad';
+  if (k === 'inceleniyor' || k === 'planlandi') return 'is-wait';
   return 'is-off';
+}
+const RY_DURUM_KOD = { ACTIVE: 'acik', PAUSED: 'kapali', ADSET_PAUSED: 'kapali', CAMPAIGN_PAUSED: 'kapali',
+  ARCHIVED: 'kapali', DELETED: 'kapali', DISAPPROVED: 'reddedildi', WITH_ISSUES: 'reddedildi',
+  PENDING_REVIEW: 'inceleniyor', IN_PROCESS: 'inceleniyor', PREAPPROVED: 'inceleniyor' };
+const RY_DURUM_AD = { acik: 'Açık', kapali: 'Kapalı', reddedildi: 'Reddedilen', inceleniyor: 'İnceleniyor',
+  planlandi: 'Planlandı', bitti: 'Bitti', bilinmiyor: 'Bilinmiyor' };
+const RY_PLATFORM = [
+  { kod: 'tumu', ad: 'Tümü', harf: '∑' }, { kod: 'meta', ad: 'Meta', harf: 'M' },
+  { kod: 'trendyol', ad: 'Trendyol', harf: 'T' }, { kod: 'google', ad: 'Google', harf: 'G' },
+  { kod: 'hepsiburada', ad: 'Hepsiburada', harf: 'H' }, { kod: 'n11', ad: 'n11', harf: 'n' },
+  { kod: 'idefix', ad: 'Idefix', harf: 'i' }];
+const RY_PF_DURUM = { BAGLI: 'Bağlı', KISMI: 'Kısmen bağlı', BAGLI_DEGIL: 'Bağlı değil', VERI_YOK: 'Veri yok' };
+
+/* Harcama çubuğu (son 14 gün). Kendi SVG'miz; dış kitaplık ve inline stil yok. */
+function rySerit(seri, sinif = '') {
+  const v = (seri || []).map((x) => Number(x) || 0);
+  if (!v.length || !v.some((x) => x > 0)) return `<span class="ry-serit ry-serit-bos ${sinif}" aria-hidden="true"></span>`;
+  const enCok = Math.max(...v);
+  const W = 70, H = 18, adim = W / v.length;
+  const cubuk = v.map((x, i) => {
+    const h = x > 0 ? Math.max(1.5, (x / enCok) * H) : 0;
+    return `<rect x="${(i * adim + 0.5).toFixed(1)}" y="${(H - h).toFixed(1)}" width="${Math.max(1, adim - 1).toFixed(1)}" height="${h.toFixed(1)}"></rect>`;
+  }).join('');
+  return `<svg class="ry-serit ${sinif}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Son 14 gün günlük harcama">${cubuk}</svg>`;
+}
+function ryPfRozet(kod, harf) {
+  return `<span class="ry-pf-logo is-${escapeHtml(kod)}" aria-hidden="true">${escapeHtml(harf)}</span>`;
+}
+function ryPlatformHtml(r) {
+  const durum = {};
+  for (const p of r.platformlar || []) durum[p.kod] = p;
+  return RY_PLATFORM.map((p) => {
+    const d = durum[p.kod];
+    const alt = p.kod === 'tumu' ? `${(r.platformlar || []).filter((x) => x.durum === 'BAGLI').length} bağlı`
+      : (d ? (d.durum === 'BAGLI' ? `${d.reklam} reklam` : RY_PF_DURUM[d.durum] || d.durum) : '—');
+    const on = ryState.platform === p.kod;
+    return `<button type="button" class="ry-pf${on ? ' is-on' : ''}${d && d.durum !== 'BAGLI' ? ' is-kapali' : ''}" data-ry-pf="${p.kod}" aria-pressed="${on}">
+      ${ryPfRozet(p.kod, p.harf)}<span class="ry-pf-ad">${escapeHtml(p.ad)}</span><small>${escapeHtml(alt)}</small></button>`;
+  }).join('');
+}
+function ryPlatformKart(p, kisa = false) {
+  const d = RY_PF_DURUM[p.durum] || p.durum;
+  const gereken = (p.gereken || []).map((g) => `<li>${escapeHtml(g)}</li>`).join('');
+  const sayi = p.durum === 'BAGLI'
+    ? `<p class="ry-pf-sayi"><b>${rySayi(p.reklam)}</b> reklam · <b>${rySayi(p.acik)}</b> açık · seçili aralıkta ${ryTl(p.harcama)}</p>` : '';
+  return `<article class="ry-pf-kart is-${escapeHtml(p.durum)}" data-original-text="1">
+    <header>${ryPfRozet(p.kod, (RY_PLATFORM.find((x) => x.kod === p.kod) || {}).harf || '?')}<h4>${escapeHtml(p.ad)}</h4>
+      <span class="ry-pf-etiket is-${escapeHtml(p.durum)}">${escapeHtml(d)}</span></header>
+    ${sayi}<p class="ry-pf-var">${escapeHtml(p.var || '')}</p>
+    ${gereken && !kisa ? `<h5>${p.durum === 'BAGLI' ? 'Eksik kalan' : 'Bağlamak için gereken'}</h5><ul>${gereken}</ul>` : ''}
+    ${kisa && p.durum !== 'BAGLI' ? `<button type="button" class="ry-chip" data-ry-pf="${escapeHtml(p.kod)}">Ne gerekiyor?</button>` : ''}
+  </article>`;
+}
+function ryPlatformCiz(r) {
+  qs('ryPlatform').innerHTML = ryPlatformHtml(r);
+  const govde = qs('ryPlatformGovde');
+  const meta = qs('ryMetaKok');
+  const pf = ryState.platform;
+  if (pf === 'meta') { govde.hidden = true; meta.hidden = false; return; }
+  if (pf === 'tumu') {
+    govde.hidden = false; meta.hidden = false;
+    govde.innerHTML = `<h3 class="km-baslik">Platformlar · reklam verisi nereden geliyor</h3>
+      <div class="ry-pf-izgara">${(r.platformlar || []).map((p) => ryPlatformKart(p, true)).join('')}</div>
+      <p class="ry-not">Aşağıdaki tablo bugün bağlı olan tek platformun (Meta) reklamlarıdır. Bağlı olmayan platform için sıfır yazılmaz; ne gerektiği yazar.</p>`;
+    return;
+  }
+  const p = (r.platformlar || []).find((x) => x.kod === pf);
+  meta.hidden = true; govde.hidden = false;
+  govde.innerHTML = p ? ryPlatformKart(p) : '<p class="sect-empty">Bu platform için kayıt yok.</p>';
+}
+function ryDurumCipHtml(r) {
+  const say = { '': r.reklamlar.length };
+  for (const s of r.reklamlar) {
+    const k = ryDurumGrup(s);
+    say[k] = (say[k] || 0) + 1;
+  }
+  const liste = [['', 'Tümü'], ['acik', 'Açık'], ['kapali', 'Kapalı'], ['reddedildi', 'Reddedilen'],
+    ['inceleniyor', 'İnceleniyor'], ['planlandi', 'Planlandı / bitti']];
+  return liste.filter(([k]) => k === '' || say[k]).map(([k, ad]) =>
+    `<button type="button" class="ry-cip is-${k || 'tum'}${ryState.f.durum === k ? ' is-on' : ''}" data-ry-cip="${k}" aria-pressed="${ryState.f.durum === k}">
+      <i aria-hidden="true"></i>${ad}<b>${say[k] || 0}</b></button>`).join('');
+}
+function ryDurumGrup(s) {
+  const k = s.durum_sinif || RY_DURUM_KOD[s.durum] || 'kapali';
+  return k === 'bitti' ? 'planlandi' : k;
 }
 
 async function loadReklamYoneticisi(zorla = false) {
@@ -9277,13 +9366,16 @@ async function loadReklamYoneticisi(zorla = false) {
   ryState.anahtar = anahtar;
   ryState.sonYukleme = Date.now();
   ryCiz();
+  if (ryState.acik && qs('ryDialog').open && ryState.dsekme !== 'yorum') ryDialogCiz();
 }
 
 function ryCiz() {
   const r = ryState.veri;
   if (!r) return;
   const sayac = qs('kampanyaCount');
-  if (sayac) sayac.textContent = `${r.ozet.aktif_reklam} yayında · ${r.ozet.reklam_sayisi} reklam`;
+  const ds = r.ozet.durum_sayim || {};
+  if (sayac) sayac.textContent = `${ds.acik ?? r.ozet.aktif_reklam} açık · ${ds.kapali ?? 0} kapalı · ${ds.reddedildi ?? 0} reddedilen · ${r.ozet.reklam_sayisi} reklam`;
+  ryPlatformCiz(r);
   qs('ryNeYap').innerHTML = ryNeYapHtml(r);
   qs('ryOlcum').innerHTML = ryOlcumHtml(r);
   qs('ryKartlar').innerHTML = ryKartlarHtml(r);
@@ -9404,9 +9496,8 @@ function ryFiltreSecenek(r) {
 
 function ryDurumUyar(d, f) {
   if (!f) return true;
-  if (f === 'on') return d === 'ACTIVE';
-  if (f === 'bad') return d === 'DISAPPROVED' || d === 'WITH_ISSUES';
-  return d !== 'ACTIVE' && d !== 'DISAPPROVED' && d !== 'WITH_ISSUES';
+  const k = (d && typeof d === 'object') ? ryDurumGrup(d) : (RY_DURUM_KOD[d] || 'kapali');
+  return k === f;
 }
 
 function ryOnerileriBul(anahtarlar) {
@@ -9421,12 +9512,15 @@ function ryRozet(x) {
 }
 
 function ryReklamSatir(s) {
-  const r = ryState.veri;
-  const md = (r.medya || {})[s.ad_id] || {};
-  const tip = s.kreatif.tip === 'VIDEO' ? 'VİDEO' : 'GÖRSEL';
-  const kucuk = md.gorsel
-    ? `<img class="ry-kucuk" src="/api/reklam-yoneticisi/medya/${encodeURIComponent(s.ad_id)}.jpg" alt="" loading="lazy">`
-    : `<span class="ry-kucuk ry-kucuk-yok">${tip}</span>`;
+  const tip = { VIDEO: 'VİDEO', KARUSEL: 'KARUSEL' }[s.kreatif.tip] || 'GÖRSEL';
+  const kapak = (s.varliklar || []).find((v) => v.kapak);
+  const kucuk = kapak
+    ? `<img class="ry-kucuk" src="/api/reklam-yoneticisi/varlik/${encodeURIComponent(kapak.ad)}.jpg" alt="" loading="lazy">`
+    : ((ryState.veri.medya || {})[s.ad_id] || {}).gorsel
+      ? `<img class="ry-kucuk" src="/api/reklam-yoneticisi/medya/${encodeURIComponent(s.ad_id)}.jpg" alt="" loading="lazy">`
+      : `<span class="ry-kucuk ry-kucuk-yok">${tip}</span>`;
+  const oynat = s.kreatif.tip === 'VIDEO' && (s.varliklar || []).some((v) => v.tur === 'video' && v.var)
+    ? '<span class="ry-oynat" aria-hidden="true"></span>' : '';
   const d = s.defter;
   let meta;
   if (!s.meta_olculur) meta = '<span class="ry-olculemez" title="Hedef Trendyol: Meta pikseli yok, satış göremez">ölçülemez</span>';
@@ -9439,18 +9533,28 @@ function ryReklamSatir(s) {
       : `<span class="${d.sonuc >= 0 ? 'ry-arti' : 'ry-eksi'}">${ryTl(d.sonuc)}</span><small>katkı ${ryTl(d.katki)}</small>`;
     roas = `${d.roas == null ? '—' : rySayi(d.roas, 2)}<small>başabaş ${d.basabas_roas == null ? '—' : rySayi(d.basabas_roas, 2)}</small>`;
   }
+  const so = s.sonuc || {};
+  const sonuc = so.deger == null
+    ? `<span class="ry-olculemez">${escapeHtml(so.neden || '—')}</span><small>${escapeHtml(so.ad || '')}</small>`
+    : `<b>${rySayi(so.deger)}</b><small>${escapeHtml(so.ad || '')}</small>`;
   const oneri = ryOnerileriBul([s.ad_id, s.adset_id, s.urun || '-']);
   const isaret = (s.isaretler || []).map((i) => `<span class="ry-isaret">${escapeHtml(i)}</span>`).join('');
+  const y = s.yorum || {};
+  const yorum = y.sayi ? `<span class="ry-yorum-say${y.cevapsiz ? ' is-cevapsiz' : ''}">${y.sayi} yorum${y.cevapsiz ? ` · ${y.cevapsiz} cevapsız` : ''}</span>` : '';
   const sor = (oneri.length ? `<span class="ry-oneri-say">${oneri.length} öneri</span>` : '')
     + (s.an_not ? `<span class="ry-an-not">${escapeHtml(s.an_not)}</span>` : '');
-  return `<tr class="ry-satir" data-ry-ad="${escapeHtml(s.ad_id)}">
-    <td class="ry-kreatif-hucre" data-l="Kreatif"><button type="button" class="ry-kreatif" data-ry-ac="${escapeHtml(s.ad_id)}">
-      ${kucuk}<span class="ry-kreatif-metin"><b>${escapeHtml(s.ad)}</b>
+  const neden = s.kapali_neden ? `<span class="ry-neden">${escapeHtml(s.kapali_neden)}</span>` : '';
+  const red = (s.red || []).length ? `<span class="ry-red" data-original-text="1">${escapeHtml(s.red[0].slice(0, 120))}${s.red[0].length > 120 ? '…' : ''}</span>` : '';
+  return `<tr class="ry-satir is-${escapeHtml(ryDurumGrup(s))}${s.aralikta_veri ? '' : ' is-sessiz'}" data-ry-ad="${escapeHtml(s.ad_id)}">
+    <td class="ry-kreatif-hucre" data-l="Reklam"><button type="button" class="ry-kreatif" data-ry-ac="${escapeHtml(s.ad_id)}">
+      <span class="ry-kucuk-sar">${kucuk}${oynat}</span><span class="ry-kreatif-metin"><b>${escapeHtml(s.ad)}</b>
       <small>${escapeHtml(s.kampanya || '')} › ${escapeHtml(s.set || '')}</small>
-      <span class="ry-etiketler"><span class="ry-durum ${ryDurumSinif(s.durum)}">${escapeHtml(s.durum_ad)}</span>
-        <span class="ry-hedef">${tip} · ${escapeHtml(s.urun || '?')} → ${escapeHtml(s.hedef_ad)}</span>${ryRozet(s)}${sor}</span>
-      ${isaret ? `<span class="ry-isaretler">${isaret}</span>` : ''}</span></button></td>
-    <td data-l="Harcama" class="ry-sayi"><b>${ryTl(s.m.harcama)}</b></td>
+      <span class="ry-etiketler"><span class="ry-durum ${ryDurumSinif(s.durum_sinif || s.durum)}"><i aria-hidden="true"></i>${escapeHtml(s.durum_ad)}</span>${neden}
+        <span class="ry-hedef">${tip} · ${escapeHtml(s.urun || '?')} → ${escapeHtml(s.hedef_ad)}</span>${ryRozet(s)}${yorum}${sor}</span>
+      ${red}${isaret ? `<span class="ry-isaretler">${isaret}</span>` : ''}</span></button></td>
+    <td data-l="Harcama" class="ry-sayi ry-harcama-hucre"><b>${ryTl(s.m.harcama)}</b>${rySerit(s.seri)}</td>
+    <td data-l="Sonuç" class="ry-sayi ry-sonuc-hucre">${sonuc}</td>
+    <td data-l="Sonuç başı maliyet" class="ry-sayi">${so.maliyet == null ? '—' : ryTl(so.maliyet, 2)}</td>
     <td data-l="Gösterim" class="ry-sayi">${rySayi(s.m.gosterim)}</td>
     <td data-l="${s.m.erisim_tekil ? 'Erişim' : 'Erişim (gün toplamı)'}" class="ry-sayi">${rySayi(s.m.erisim)}</td>
     <td data-l="Frekans" class="ry-sayi">${s.m.frekans == null ? '—' : rySayi(s.m.frekans, 2)}</td>
@@ -9459,15 +9563,19 @@ function ryReklamSatir(s) {
     <td data-l="CPM" class="ry-sayi">${ryTl(s.m.cpm, 2)}</td>
     <td data-l="Bağlantı tık." class="ry-sayi">${rySayi(s.m.link_tiklama)}</td>
     <td data-l="Sepete ekleme" class="ry-sayi">${s.meta_olculur ? rySayi(s.m.sepete_ekle) : '<span class="ry-olculemez">ölçülemez</span>'}</td>
+    <td data-l="Mesaj" class="ry-sayi">${rySayi(s.m.mesaj_baslat)}</td>
     <td data-l="Satın alma (Meta iddiası)" class="ry-sayi ry-meta">${meta}</td>
     <td data-l="Gerçek sipariş (defter)" class="ry-sayi ry-defter">${defter}</td>
     <td data-l="Reklam sonrası" class="ry-sayi">${katki}</td>
     <td data-l="ROAS (defter)" class="ry-sayi">${roas}</td>
-    <td data-l="Durum" class="ry-rozet-hucre">${ryRozet(s)}${s.an_not ? `<span class="ry-an-not">${escapeHtml(s.an_not)}</span>` : ''}<small>${escapeHtml(s.rozet_neden || '')}</small></td>
+    <td data-l="Başarı" class="ry-rozet-hucre">${ryRozet(s)}${s.an_not ? `<span class="ry-an-not">${escapeHtml(s.an_not)}</span>` : ''}<small>${escapeHtml(s.rozet_neden || '')}</small></td>
   </tr>`;
 }
 
 const RY_SIRALA = {
+  metasonuc: (a, b) => ((b.sonuc || {}).deger ?? -1) - ((a.sonuc || {}).deger ?? -1),
+  sonucmaliyet: (a, b) => ((a.sonuc || {}).maliyet ?? 1e9) - ((b.sonuc || {}).maliyet ?? 1e9),
+  yorum: (a, b) => ((b.yorum || {}).sayi || 0) - ((a.yorum || {}).sayi || 0),
   harcama: (a, b) => b.m.harcama - a.m.harcama,
   tik: (a, b) => b.m.link_tiklama - a.m.link_tiklama,
   ctr: (a, b) => (b.m.ctr || 0) - (a.m.ctr || 0),
@@ -9491,7 +9599,7 @@ function ryGrupTablo(liste, tur) {
     const ust = tur === 'set'
       ? `<small>${escapeHtml(x.kampanya || '')} · ${escapeHtml(RY_OPT[x.optimizasyon] || x.optimizasyon || '')}${x.butce ? ' · günlük ' + ryTl(x.butce) : ''}</small>`
       : `<small>${escapeHtml(KM_HEDEF[x.amac] || x.amac || '')} · ${escapeHtml((x.urunler || []).join(', '))}</small>`;
-    return `<tr><td class="ry-kreatif-hucre" data-l="${tur === 'set' ? 'Reklam seti' : 'Kampanya'}"><span class="ry-kreatif-metin"><b>${escapeHtml(x.ad)}</b>${ust}
+    return `<tr><td class="ry-kreatif-hucre" data-l="${tur === 'set' ? 'Reklam seti' : 'Kampanya'}"><span class="ry-kreatif-metin"><button type="button" class="ry-git" data-ry-git="${tur}:${escapeHtml(x.id)}" title="Bu ${tur === 'set' ? 'setin' : 'kampanyanın'} reklamlarını göster"><b>${escapeHtml(x.ad)}</b> <span aria-hidden="true">›</span></button>${ust}
         <span class="ry-etiketler"><span class="ry-durum ${ryDurumSinif(x.durum)}">${escapeHtml(x.durum_ad)}</span>
         <span class="ry-hedef">${x.reklam_sayisi} reklam · ${escapeHtml((x.hedefler || []).join(', '))}</span>
         ${oneri ? `<span class="ry-oneri-say">${oneri} öneri</span>` : ''}</span></span></td>
@@ -9545,28 +9653,44 @@ function ryTabloCiz() {
   }
   const f = ryState.f;
   qs('rySuzgecKutu').hidden = ryState.sekme === 'yerlesim';
-  if (ryState.sekme === 'yerlesim') { kutu.innerHTML = ryYerlesimTablo(r); return; }
+  if (ryState.sekme === 'yerlesim') { qs('ryDurumCip').innerHTML = ''; qs('ryIz').innerHTML = ''; kutu.innerHTML = ryYerlesimTablo(r); return; }
   if (ryState.sekme === 'set') {
     const l = r.setler.filter((x) => (!f.kampanya || x.kampanya_id === f.kampanya) && ryDurumUyar(x.durum, f.durum));
+    qs('ryDurumCip').innerHTML = ''; qs('ryIz').innerHTML = ryIzHtml(r);
     kutu.innerHTML = ryGrupTablo(l, 'set');
     return;
   }
   if (ryState.sekme === 'kampanya') {
     const l = r.kampanyalar.filter((x) => (!f.kampanya || x.id === f.kampanya) && ryDurumUyar(x.durum, f.durum));
+    qs('ryDurumCip').innerHTML = ''; qs('ryIz').innerHTML = '';
     kutu.innerHTML = ryGrupTablo(l, 'kampanya');
     return;
   }
   const liste = r.reklamlar.filter((s) => (!f.kampanya || s.kampanya_id === f.kampanya)
-    && (!f.set || s.adset_id === f.set) && ryDurumUyar(s.durum, f.durum)
+    && (!f.set || s.adset_id === f.set) && ryDurumUyar(s, f.durum)
     && (!f.hedef || s.hedef === f.hedef || (f.hedef === 'diger' && !['trendyol', 'site'].includes(s.hedef))))
     .sort(RY_SIRALA[ryState.sirala] || RY_SIRALA.harcama);
+  qs('ryDurumCip').innerHTML = ryDurumCipHtml(r);
+  qs('ryIz').innerHTML = ryIzHtml(r);
+  const sessiz = liste.filter((s) => !s.aralikta_veri).length;
   kutu.innerHTML = `<div class="ry-tablo-sar"><table class="ry-tablo ry-reklam-tablo"><thead><tr>
-    <th>Kreatif</th><th>Harcama</th><th>Gösterim</th><th>Erişim${r.aralik.gun > 1 ? '*' : ''}</th><th>Frekans</th><th>CTR</th><th>TBM</th><th>CPM</th>
-    <th>Bağlantı tık.</th><th>Sepete</th><th class="ry-meta">Satın alma<br><small>Meta iddiası</small></th>
-    <th class="ry-defter">Gerçek sipariş<br><small>defter</small></th><th>Reklam sonrası</th><th>ROAS</th><th>Durum</th></tr></thead>
-    <tbody>${liste.map(ryReklamSatir).join('') || '<tr><td colspan="15">Bu süzgeçte reklam yok.</td></tr>'}</tbody></table></div>
+    <th>Reklam</th><th>Harcama<br><small>14 gün</small></th><th>Sonuç<br><small>amaç</small></th><th>Sonuç başı</th><th>Gösterim</th><th>Erişim${r.aralik.gun > 1 ? '*' : ''}</th><th>Frekans</th><th>CTR</th><th>TBM</th><th>CPM</th>
+    <th>Bağlantı tık.</th><th>Sepete</th><th>Mesaj</th><th class="ry-meta">Satın alma<br><small>Meta iddiası</small></th>
+    <th class="ry-defter">Gerçek sipariş<br><small>defter</small></th><th>Reklam sonrası</th><th>ROAS</th><th>Başarı</th></tr></thead>
+    <tbody>${liste.map(ryReklamSatir).join('') || '<tr><td colspan="18">Bu süzgeçte reklam yok.</td></tr>'}</tbody></table></div>
+    ${sessiz ? `<p class="ry-not">${sessiz} reklamın bu aralıkta teslimi yok (kapalı ya da başlamadı); soluk gösterilir, metrikleri 0'dır ve satış hesabına girmez.</p>` : ''}
     <p class="ry-not">Gerçek sipariş = reklamın ürününün aynı kanaldaki, reklam başladıktan sonraki satışı (ürün geneli; Trendyol siparişinin hangi reklamdan geldiği bilinmez, atıf değil artış tahminidir).
     Reklam sonrası = sipariş katkısı (ödenen tutar ÷ 1,20 − komisyon − finans merkezi maliyeti − kargo 92,66 TL) − ürüne harcanan reklam.${r.aralik.gun > 1 ? ' *Erişim: günlük erişimlerin toplamı, tekil kişi değil.' : ''}</p>`;
+}
+
+function ryIzHtml(r) {
+  const f = ryState.f;
+  if (!f.kampanya && !f.set) return '';
+  const k = r.kampanyalar.find((x) => x.id === f.kampanya);
+  const st = r.setler.find((x) => x.id === f.set);
+  return `<button type="button" class="ry-iz-oge" data-ry-iz="tum">Tüm kampanyalar</button>
+    ${k ? `<span aria-hidden="true">›</span><button type="button" class="ry-iz-oge" data-ry-iz="kampanya">${escapeHtml(k.ad)}</button>` : ''}
+    ${st ? `<span aria-hidden="true">›</span><span class="ry-iz-oge is-son">${escapeHtml(st.ad)}</span>` : ''}`;
 }
 
 function ryOneriKart(o) {
@@ -9602,37 +9726,148 @@ function ryUyarilarHtml(r) {
     ${x.oneri ? `<br><span class="ry-uyari-oneri">${escapeHtml(x.oneri)}</span>` : ''}</li>`).join('')}</ul>`;
 }
 
+function ryVarlikGoster(v, s) {
+  const yol = (ad, uz) => `/api/reklam-yoneticisi/varlik/${encodeURIComponent(ad)}.${uz}`;
+  if (!v) {
+    const md = (ryState.veri.medya || {})[s.ad_id] || {};
+    return md.gorsel
+      ? `<img class="ry-buyuk" src="/api/reklam-yoneticisi/medya/${encodeURIComponent(s.ad_id)}.jpg" alt="${escapeHtml(s.ad)} kreatifi">`
+      : '<div class="ry-buyuk ry-kucuk-yok">Görsel önbellekte yok</div>';
+  }
+  if (!v.var) {
+    return `<div class="ry-buyuk ry-kucuk-yok ry-yok-neden"><b>${v.tur === 'video' ? 'Video' : 'Görsel'} önbellekte yok</b><span data-original-text="1">${escapeHtml(v.neden || '')}</span></div>`;
+  }
+  if (v.tur === 'video') {
+    return `<video class="ry-buyuk ry-video" controls playsinline preload="metadata"${v.kapak ? ` poster="${yol(v.ad, 'jpg')}"` : ''}
+      src="${yol(v.ad, 'mp4')}" aria-label="${escapeHtml(s.ad)} videosu">Tarayıcı videoyu oynatamıyor.</video>`;
+  }
+  return `<img class="ry-buyuk" src="${yol(v.ad, 'jpg')}" alt="${escapeHtml(s.ad)} görseli">`;
+}
+function ryDialogBolum(s, bolum) {
+  const k = s.kreatif;
+  const oz = s.ozellik || {};
+  const kit = oz.kitle || {};
+  const bag = s.baglanti || {};
+  const liste = (a) => (a || []).length ? (a.length === 1 ? `<p>${escapeHtml(a[0])}</p>`
+    : `<ol class="ry-varyasyon">${a.map((x) => `<li>${escapeHtml(x)}</li>`).join('')}</ol>`) : '<p class="ry-not">—</p>';
+  if (bolum === 'metin') {
+    const m = s.metinler || {};
+    return `<div data-original-text="1">${m.dinamik ? '<p class="ry-bilgi">Dinamik kreatif: Meta bu metin ve görselleri kitleye göre karıştırarak gösterir; aşağıdakilerin hepsi yayındaki varyasyonlardır.</p>' : ''}
+      <h5 class="ry-alt-baslik">Birincil metin <small>${(m.govde || []).length} varyasyon</small></h5>${liste(m.govde)}
+      <h5 class="ry-alt-baslik">Başlık <small>${(m.baslik || []).length}</small></h5>${liste(m.baslik)}
+      <h5 class="ry-alt-baslik">Açıklama <small>${(m.aciklama || []).length}</small></h5>${liste(m.aciklama)}
+      <h5 class="ry-alt-baslik">Harekete geçirici düğme</h5>${liste(oz.cta)}
+      ${(s.kartlar || []).length ? `<h5 class="ry-alt-baslik">Karusel kartları</h5><ol class="ry-varyasyon">${s.kartlar.map((c) =>
+        `<li><b>${escapeHtml(c.baslik || '—')}</b>${c.aciklama ? ' · ' + escapeHtml(c.aciklama) : ''}</li>`).join('')}</ol>` : ''}</div>`;
+  }
+  if (bolum === 'ozellik') {
+    const yer = kit.advantage_yerlesim ? 'Advantage+ yerleşim (Meta seçer)'
+      : (kit.yerlesim || []).map((y) => `${y.yayinci}: ${y.konumlar.join(', ')}`).join(' · ') || '—';
+    const satir = (dt, dd) => `<dt>${dt}</dt><dd>${dd}</dd>`;
+    return `<dl class="ry-dl ry-dl-genis">
+      ${satir('Kampanya amacı', escapeHtml(oz.amac || '—'))}
+      ${satir('Optimizasyon', escapeHtml(oz.optimizasyon || '—'))}
+      ${satir('Bütçe', oz.butce ? `${ryTl(oz.butce)} · ${escapeHtml(oz.butce_tur || '')}<small>${escapeHtml(oz.butce_seviye || '')}</small>` : '—')}
+      ${satir('Teklif stratejisi', escapeHtml(oz.teklif || '—'))}
+      ${satir('Başlangıç · bitiş', `${escapeHtml(oz.baslangic || '—')} → ${escapeHtml(oz.bitis || '—')}`)}
+      ${satir('Yaş · cinsiyet', `${escapeHtml(kit.yas || '—')} · ${escapeHtml(kit.cinsiyet || '—')}`)}
+      ${satir('Konum', escapeHtml((kit.konum || []).map((x) => x === 'TR' ? 'Türkiye' : x).join(', ')) + ((kit.haric_konum || []).length ? `<small>hariç: ${escapeHtml(kit.haric_konum.join(', '))}</small>` : ''))}
+      ${satir('İlgi alanları', (kit.ilgi || []).length ? escapeHtml(kit.ilgi.join(', ')) : 'Belirtilmemiş (geniş kitle)')}
+      ${(kit.ozel_kitle || []).length ? satir('Özel kitle', escapeHtml(kit.ozel_kitle.join(', '))) : ''}
+      ${satir('Advantage+ kitle', kit.advantage_kitle ? '<span class="ry-durum is-wait">Açık</span> Meta kitleyi genişletebilir' : '<span class="ry-durum is-off">Kapalı</span>')}
+      ${satir('Yerleşimler', escapeHtml(yer))}
+      ${satir('Cihaz', escapeHtml((kit.cihaz || []).map((c) => ({ mobile: 'Mobil', desktop: 'Masaüstü' }[c] || c)).join(', ') || 'Tümü'))}
+      ${satir('Hedef adres', (oz.hedef_url || []).map((u) => `<a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer" class="ry-url">${escapeHtml(u.replace(/^https?:\/\/(www\.)?/, '').slice(0, 70))}</a>`).join('<br>') || '—')}
+      ${satir('Ürün', `${escapeHtml(s.urun || 'çözülemedi')} → ${escapeHtml(s.hedef_ad)}`)}
+      ${satir('Oluşturma · son değişiklik', `${escapeHtml(oz.olusturma || '—')} · ${escapeHtml(oz.guncelleme || '—')}`)}
+      ${satir('Reklam kimliği', `<span class="ry-mono">${escapeHtml(s.ad_id)}</span>`)}
+    </dl>`;
+  }
+  if (bolum === 'perf') {
+    const d = s.defter || {};
+    const so = s.sonuc || {};
+    const oneriler = ryOnerileriBul([s.ad_id, s.adset_id, s.urun || '-']);
+    return `<div class="ry-perf-ust"><div><span class="ry-kart-ad">Son 14 gün harcama</span>${rySerit(s.seri, 'is-buyuk')}</div>
+      <div>${ryRozet(s)} <span class="ry-not">${escapeHtml(s.rozet_neden || '')}</span></div></div>
+      <dl class="ry-dl ry-dl-genis">
+      <dt>Harcama</dt><dd>${ryTl(s.m.harcama, 2)} <small>${escapeHtml(ryState.veri.aralik.etiket || '')}</small></dd>
+      <dt>Sonuç</dt><dd>${so.deger == null ? escapeHtml(so.neden || '—') : rySayi(so.deger)} · ${escapeHtml(so.ad || '')}${so.maliyet != null ? ` · sonuç başı ${ryTl(so.maliyet, 2)}` : ''}</dd>
+      <dt>Gösterim · erişim</dt><dd>${rySayi(s.m.gosterim)} · ${rySayi(s.m.erisim)} · frekans ${s.m.frekans == null ? '—' : rySayi(s.m.frekans, 2)}</dd>
+      <dt>Bağlantı tıklaması</dt><dd>${rySayi(s.m.link_tiklama)} · CTR ${ryYuzde(s.m.ctr)} · TBM ${ryTl(s.m.tbm, 2)} · CPM ${ryTl(s.m.cpm, 2)}</dd>
+      <dt>Sepete · ödeme · mesaj</dt><dd>${s.meta_olculur ? rySayi(s.m.sepete_ekle) + ' · ' + rySayi(s.m.odeme_baslat) : 'ölçülemez (Trendyol)'} · ${rySayi(s.m.mesaj_baslat)}</dd>
+      <dt>Satın alma (Meta iddiası)</dt><dd>${s.meta_olculur ? `${rySayi(s.m.satin_alma)} · ${ryTl(s.m.satin_alma_degeri)}` : 'ölçülemez (Trendyol)'}</dd>
+      <dt>Gerçek sipariş (defter)</dt><dd>${d.durum === 'OK' ? `${rySayi(d.siparis)} · ${ryTl(d.ciro)}<small>ürün geneli: ürünün aynı kanaldaki tüm satışı, reklama atıf değil</small>` : (d.durum === 'OKUNAMADI' ? 'OKUNAMADI' : '—')}</dd>
+      <dt>Reklam sonrası</dt><dd>${d.sonuc == null ? '—' : ryTl(d.sonuc)}${d.roas != null ? ` · ROAS ${rySayi(d.roas, 2)} (başabaş ${d.basabas_roas == null ? '—' : rySayi(d.basabas_roas, 2)})` : ''}</dd>
+      </dl>${oneriler.length ? `<h5 class="ry-alt-baslik">Bu reklamla ilgili öneriler</h5>${oneriler.map(ryOneriKart).join('')}` : ''}`;
+  }
+  if (bolum === 'yorum') return '<div id="ryYorumKutu"><p class="sect-empty">Yorumlar yükleniyor…</p></div>';
+  // önizleme
+  const v = s.varliklar || [];
+  const secili = v[ryState.varlik] || v[0];
+  const serit = v.length > 1 ? `<div class="ry-galeri" role="group" aria-label="Varyasyonlar">${v.map((x, i) =>
+    `<button type="button" class="ry-galeri-oge${x === secili ? ' is-on' : ''}" data-ry-varlik="${i}" aria-label="${x.tur === 'video' ? 'Video' : 'Görsel'} ${i + 1}">
+      ${x.kapak ? `<img src="/api/reklam-yoneticisi/varlik/${encodeURIComponent(x.ad)}.jpg" alt="" loading="lazy">` : `<span>${i + 1}</span>`}
+      ${x.tur === 'video' ? '<span class="ry-oynat" aria-hidden="true"></span>' : ''}</button>`).join('')}</div>` : '';
+  const dugme = (href, ad) => href ? `<a class="ry-chip" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${ad}</a>` : '';
+  return `<div class="ry-onizleme">${ryVarlikGoster(secili, s)}${serit}
+    <p class="ry-not">${v.length ? `${v.filter((x) => x.tur === 'video').length} video · ${v.filter((x) => x.tur !== 'video').length} görsel${v.length > 1 ? ' — Meta yerleşime/kitleye göre seçer' : ''}` : ''}</p>
+    <div class="ry-dugmeler">${dugme(bag.onizleme, 'Meta önizlemesi')}${dugme(bag.ads_manager, 'Reklam Yöneticisi’nde aç')}${dugme(bag.instagram, 'Instagram gönderisi')}${dugme((oz.hedef_url || [])[0], 'Hedef sayfa')}</div></div>`;
+}
+function ryDialogCiz() {
+  const r = ryState.veri;
+  const s = r && r.reklamlar.find((x) => x.ad_id === ryState.acik);
+  if (!s) return;
+  const sekmeler = [['onizleme', 'Reklam'], ['metin', 'Metinler'], ['ozellik', 'Özellikler'], ['perf', 'Performans'],
+    ['yorum', `Yorumlar${(s.yorum || {}).sayi ? ' (' + s.yorum.sayi + ')' : ''}`]];
+  const red = (s.red || []).length ? `<div class="ry-red-kutu" role="alert" data-original-text="1"><b>${escapeHtml(s.durum_ad)} — Meta'nın gerekçesi</b>${s.red.map((x) => `<p>${escapeHtml(x)}</p>`).join('')}</div>` : '';
+  qs('ryDialogGovde').innerHTML = `<h3 id="ryDialogBaslik">${escapeHtml(s.ad)}</h3>
+    <p class="ry-kaynak">${ryPfRozet('meta', 'M')} ${escapeHtml(s.kampanya || '')} › ${escapeHtml(s.set || '')}</p>
+    <div class="ry-etiketler ry-dialog-etiket"><span class="ry-durum ${ryDurumSinif(s.durum_sinif)}"><i aria-hidden="true"></i>${escapeHtml(s.durum_ad)}</span>
+      ${s.kapali_neden ? `<span class="ry-neden">${escapeHtml(s.kapali_neden)}</span>` : ''}${ryRozet(s)}
+      <span class="ry-hedef">${escapeHtml(({ VIDEO: 'Video', KARUSEL: 'Karusel' })[s.kreatif.tip] || 'Görsel')} · ${escapeHtml(s.urun || '?')} → ${escapeHtml(s.hedef_ad)}</span></div>
+    ${red}
+    <div class="ry-sekmeler ry-d-sekmeler" role="tablist">${sekmeler.map(([k, ad]) =>
+      `<button type="button" role="tab" data-ry-dsekme="${k}" class="${ryState.dsekme === k ? 'is-on' : ''}" aria-selected="${ryState.dsekme === k}">${escapeHtml(ad)}</button>`).join('')}</div>
+    <div class="ry-d-govde">${ryDialogBolum(s, ryState.dsekme)}</div>`;
+  if (ryState.dsekme === 'yorum') ryYorumYukle(s);
+}
+async function ryYorumYukle(s) {
+  const kutu = qs('ryYorumKutu');
+  const { ok, body } = await api('/api/reklam-yoneticisi/reklam?ad=' + encodeURIComponent(s.ad_id));
+  if (!kutu || ryState.acik !== s.ad_id) return;
+  if (!ok || !body || body.durum !== 'OK') {
+    kutu.innerHTML = '<p class="sect-empty is-bad">Yorumlar okunamadı. Bu “yorum yok” demek değil.</p>';
+    return;
+  }
+  const ig = body.instagram || {};
+  const fb = body.facebook || {};
+  const kaynak = (ad, x) => {
+    if (x.durum === 'OK') return `<li class="is-ok"><b>${ad}</b> okundu${x.meta_sayac != null ? ` · Meta sayacı ${x.meta_sayac} yorum` : ''}${x.begeni != null ? ` · ${x.begeni} beğeni` : ''}${x.sebep ? ` <small>${escapeHtml(x.sebep)}</small>` : ''}</li>`;
+    if (x.durum === 'YOK_GONDERI') return `<li class="is-off"><b>${ad}</b> bu reklamın ${ad} gönderisi yok</li>`;
+    return `<li class="is-bad"><b>${ad}</b> okunamadı — ${escapeHtml(x.sebep || 'sebep bilinmiyor')}</li>`;
+  };
+  const tarih = (z) => (z ? new Date(z).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—');
+  const yorumHtml = (y, yanit) => `<article data-role="user" class="ry-yorum${y.bizden ? ' is-biz' : ''}${yanit ? ' is-yanit' : ''}">
+      <header><b>${escapeHtml(y.kullanici || 'adsız')}</b>${y.bizden ? '<span class="ry-biz">L’CARLIÉ</span>' : ''}
+        <span class="ry-yorum-pf">${y.platform === 'facebook' ? 'Facebook' : 'Instagram'}</span><time>${escapeHtml(tarih(y.zaman))}</time></header>
+      <p>${escapeHtml(y.metin || '')}</p>
+      <footer>${y.begeni ? `<span>♥ ${y.begeni}</span>` : ''}${!yanit && !y.bizden ? (y.cevaplandi ? '<span class="ry-cevap is-ok">Cevaplandı</span>' : '<span class="ry-cevap is-bad">Cevaplanmadı</span>') : ''}</footer>
+    </article>${(y.yanitlar || []).map((x) => yorumHtml(x, true)).join('')}`;
+  const liste = body.yorumlar || [];
+  const bos = ig.durum === 'OK'
+    ? `<p class="ry-temiz">Instagram gönderisinde yorum yok (okundu ${escapeHtml(tarih(body.olcum))}).</p>`
+    : '<p class="ry-temiz">Okunabilen yorum yok; yukarıdaki kaynak durumuna bakın.</p>';
+  kutu.innerHTML = `<ul class="ry-yorum-kaynak" data-original-text="1">${kaynak('Instagram', ig)}${kaynak('Facebook', fb)}</ul>
+    ${liste.length ? liste.map((y) => yorumHtml(y, false)).join('') : bos}
+    <p class="ry-not">Yorumlar saatte bir okunur; buradan yoruma cevap yazılmaz. Son okuma ${escapeHtml(tarih(body.olcum))}.</p>`;
+}
 function ryDialogAc(adId) {
   const r = ryState.veri;
-  const s = r && r.reklamlar.find((x) => x.ad_id === adId);
-  if (!s) return;
-  const md = (r.medya || {})[adId] || {};
-  const gorsel = md.gorsel
-    ? `<img class="ry-buyuk" src="/api/reklam-yoneticisi/medya/${encodeURIComponent(adId)}.jpg" alt="${escapeHtml(s.ad)} kreatifi">`
-    : '<div class="ry-buyuk ry-kucuk-yok">Görsel önbellekte yok</div>';
-  const k = s.kreatif;
-  const onizle = md.onizleme
-    ? `<a class="ry-chip" href="${escapeHtml(md.onizleme)}" target="_blank" rel="noopener noreferrer">${k.tip === 'VIDEO' ? 'Videoyu Meta önizlemesinde aç' : 'Meta önizlemesinde aç'}</a>` : '';
-  const hedef = k.hedef_url ? `<a class="ry-chip" href="${escapeHtml(k.hedef_url)}" target="_blank" rel="noopener noreferrer">Hedef sayfa</a>` : '';
-  const oneriler = ryOnerileriBul([s.ad_id, s.adset_id, s.urun || '-']);
-  const d = s.defter || {};
-  qs('ryDialogGovde').innerHTML = `<h3 id="ryDialogBaslik">${escapeHtml(s.ad)}</h3>
-    <p class="ry-kaynak">${escapeHtml(s.kampanya || '')} › ${escapeHtml(s.set || '')} · ${escapeHtml(s.durum_ad)} · ${k.tip === 'VIDEO' ? 'Video' : 'Görsel'}</p>
-    <div class="ry-dialog-izgara"><div>${gorsel}${k.tip === 'VIDEO' ? '<p class="ry-not">Video kapağı. Oynatmak için Meta önizlemesini açın.</p>' : ''}
-      <div class="ry-dugmeler">${onizle}${hedef}</div></div>
-      <div class="ry-metin">
-        ${k.baslik ? `<p><span class="ry-o-et">Başlık</span>${escapeHtml(k.baslik)}</p>` : ''}
-        ${k.govde ? `<p><span class="ry-o-et">Metin</span>${escapeHtml(k.govde)}</p>` : ''}
-        ${k.aciklama ? `<p><span class="ry-o-et">Açıklama</span>${escapeHtml(k.aciklama)}</p>` : ''}
-        <p><span class="ry-o-et">Düğme</span>${escapeHtml(RY_CTA[k.cta] || (k.cta ? k.cta.toLowerCase().replaceAll('_', ' ') : '—'))} → ${escapeHtml(s.hedef_ad)}</p>
-        <dl class="ry-dl">
-          <dt>Harcama</dt><dd>${ryTl(s.m.harcama, 2)}</dd><dt>Bağlantı tık.</dt><dd>${rySayi(s.m.link_tiklama)} · CTR ${ryYuzde(s.m.ctr)}</dd>
-          <dt>TBM · CPM</dt><dd>${ryTl(s.m.tbm, 2)} · ${ryTl(s.m.cpm, 2)}</dd>
-          <dt>Satın alma (Meta)</dt><dd>${s.meta_olculur ? rySayi(s.m.satin_alma) : 'ölçülemez (Trendyol)'}</dd>
-          <dt>Gerçek sipariş</dt><dd>${d.durum === 'OK' ? `${rySayi(d.siparis)} · ${ryTl(d.ciro)} (ürün geneli)` : '—'}</dd>
-          <dt>Durum</dt><dd>${ryRozet(s)} ${escapeHtml(s.rozet_neden || '')}</dd>
-        </dl></div></div>
-    ${oneriler.length ? `<h4 class="ry-dept-ad">Bu reklamla ilgili öneriler</h4>${oneriler.map(ryOneriKart).join('')}` : ''}`;
+  if (!r || !r.reklamlar.find((x) => x.ad_id === adId)) return;
+  ryState.acik = adId;
+  ryState.dsekme = 'onizleme';
+  ryState.varlik = 0;
+  ryDialogCiz();
   qs('ryDialog').showModal();
 }
 
@@ -9649,7 +9884,27 @@ document.addEventListener('click', (ev) => {
   if (t) { ryState.sekme = t.dataset.rySekme; ryTabloCiz(); return; }
   const k = ev.target.closest('[data-ry-ac]');
   if (k) { ryDialogAc(k.dataset.ryAc); return; }
-  if (ev.target.closest('#ryDialogKapat')) qs('ryDialog').close();
+  const pf = ev.target.closest('[data-ry-pf]');
+  if (pf) { ryState.platform = pf.dataset.ryPf; if (ryState.veri) ryPlatformCiz(ryState.veri); return; }
+  const cip = ev.target.closest('[data-ry-cip]');
+  if (cip) { ryState.f.durum = cip.dataset.ryCip; const sel = qs('ryFDurum'); if (sel) sel.value = ryState.f.durum; ryTabloCiz(); return; }
+  const git = ev.target.closest('[data-ry-git]');
+  if (git) {
+    const [tur, id] = git.dataset.ryGit.split(':');
+    if (tur === 'kampanya') { ryState.f.kampanya = id; ryState.f.set = ''; }
+    else { const st = ryState.veri.setler.find((x) => x.id === id); ryState.f.set = id; ryState.f.kampanya = st ? st.kampanya_id : ''; }
+    ryState.sekme = 'reklam'; ryFiltreSecenek(ryState.veri); ryTabloCiz(); return;
+  }
+  const iz = ev.target.closest('[data-ry-iz]');
+  if (iz) {
+    if (iz.dataset.ryIz === 'tum') { ryState.f.kampanya = ''; ryState.f.set = ''; } else ryState.f.set = '';
+    ryFiltreSecenek(ryState.veri); ryTabloCiz(); return;
+  }
+  const ds = ev.target.closest('[data-ry-dsekme]');
+  if (ds) { ryState.dsekme = ds.dataset.ryDsekme; ryDialogCiz(); return; }
+  const vr = ev.target.closest('[data-ry-varlik]');
+  if (vr) { ryState.varlik = Number(vr.dataset.ryVarlik) || 0; ryDialogCiz(); return; }
+  if (ev.target.closest('#ryDialogKapat')) { qs('ryDialog').close(); }
 });
 document.addEventListener('change', (ev) => {
   const id = ev.target && ev.target.id;
@@ -9671,3 +9926,19 @@ document.addEventListener('submit', (ev) => {
     if (ryState.bas && ryState.bit) loadReklamYoneticisi(true);
   }
 });
+
+/* Pencere kapanınca (Kapat ya da Esc) video susar ve yorum isteği bırakılır. */
+(function () {
+  const d = document.getElementById('ryDialog');
+  if (d) {
+    d.addEventListener('close', () => {
+      // 'close' olayı kuyruktan gelir: arada başka reklam açıldıysa ona dokunma.
+      if (d.open) return;
+      const v = d.querySelector('video');
+      if (v) v.pause();
+      ryState.acik = null;
+      const g = qs('ryDialogGovde');
+      if (g) g.innerHTML = '';
+    });
+  }
+})();

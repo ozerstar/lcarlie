@@ -901,11 +901,15 @@
     </div>
     <div class="panel-body sect-body">
       <p class="fm-sub">
-        Meta reklamları reklam reklam: ne harcadı, ne getirdi. <strong>Meta'nın iddiası</strong> ile
+        Reklamlar reklam reklam, Meta Business düzeninde: hangisi açık, hangisi kapalı ve neden; ne harcadı,
+        ne getirdi; metni, görseli/videosu, hedef kitlesi ve yorumları. Satıra dokununca reklam açılır. <strong>Meta'nın iddiası</strong> ile
         <strong>bizim defterimiz</strong> (gerçek sipariş) ayrı sütundur. Trendyol'a giden reklamda Meta
         satışı göremez: "ölçülemez" yazar, sıfır değildir. Bu sayfadan hiçbir reklam ayarı değişmez.
       </p>
       <div class="ry" id="ryKok">
+        <nav class="ry-platform" id="ryPlatform" aria-label="Reklam platformu"></nav>
+        <section class="ry-pf-govde" id="ryPlatformGovde" hidden aria-live="polite"></section>
+        <div class="ry ry-meta-kok" id="ryMetaKok">
         <section class="ry-neyap" id="ryNeYap" aria-label="Ne yapmalıyım"><p class="sect-empty">Yükleniyor…</p></section>
         <div class="ry-arac">
           <div class="ry-aralik" role="group" aria-label="Tarih aralığı">
@@ -940,16 +944,21 @@
               <label for="ryFKampanya">Kampanya<select id="ryFKampanya"><option value="">Tümü</option></select></label>
               <label for="ryFSet">Reklam seti<select id="ryFSet"><option value="">Tümü</option></select></label>
               <label for="ryFDurum">Durum<select id="ryFDurum">
-                <option value="">Tümü</option><option value="on">Yayında</option>
-                <option value="off">Durdu</option><option value="bad">Reddedildi / sorunlu</option></select></label>
+                <option value="">Tümü</option><option value="acik">Açık</option>
+                <option value="kapali">Kapalı</option><option value="reddedildi">Reddedilen / sorunlu</option>
+                <option value="inceleniyor">İnceleniyor</option><option value="planlandi">Planlandı / bitti</option></select></label>
               <label for="ryFHedef">Hedef<select id="ryFHedef">
                 <option value="">Tümü</option><option value="trendyol">Trendyol</option>
                 <option value="site">Site</option><option value="diger">Diğer (mesaj, profil)</option></select></label>
               <label for="rySirala">Sırala<select id="rySirala">
-                <option value="harcama">Harcama</option><option value="sonuc">Reklam sonrası sonuç</option>
+                <option value="harcama">Harcama</option><option value="metasonuc">Sonuç (amaç)</option>
+                <option value="sonucmaliyet">Sonuç başı maliyet (ucuzdan)</option><option value="sonuc">Reklam sonrası sonuç</option>
+                <option value="yorum">Yorum</option>
                 <option value="roas">ROAS (defter)</option><option value="tik">Bağlantı tıklaması</option>
                 <option value="ctr">CTR</option><option value="tbm">TBM (ucuzdan)</option></select></label>
             </div></details>
+            <div class="ry-durum-cipler" id="ryDurumCip" role="group" aria-label="Durum süzgeci"></div>
+            <nav class="ry-iz" id="ryIz" aria-label="Kampanya › Reklam seti"></nav>
             <div id="ryTablo"><p class="sect-empty">Yükleniyor…</p></div>
           </div>
           <aside class="ry-yan" aria-label="Öneriler">
@@ -985,6 +994,7 @@
           <summary>Süren kampanya izleme · reklam reklam ayrıntı</summary>
           <div id="kampanyaGovde"><p class="sect-empty">Yükleniyor…</p></div>
         </details>
+        </div>
       </div>
     </div>
   </section>

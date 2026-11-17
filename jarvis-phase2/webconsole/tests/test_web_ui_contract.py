@@ -60,6 +60,8 @@ def _fonksiyon_govdeleri(js: str, onek: str):
 KNOWN_ROUTES = {
     # Existing read-only GET handlers in app.py, backed by live campaign views.
     "/api/kampanya", "/api/reklam-olcum", "/api/reklam-yoneticisi",
+    # 17.11: tek reklamin yorumlari (?ad=<id>)
+    "/api/reklam-yoneticisi/reklam",
     "/api/account/password",
     # Etkin sohbetin turlari (04.11.2026): panel acilinca konusma geri gelir.
     "/api/chat/aktif",

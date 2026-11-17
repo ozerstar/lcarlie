@@ -72,6 +72,44 @@ KONUM_AD = {"feed": "Akış", "instagram_reels": "Reels", "facebook_reels": "Ree
             "marketplace": "Marketplace", "video_feeds": "Video akışı", "right_hand_column": "Sağ sütun",
             "facebook_reels_overlay": "Reels katmanı", "messenger_inbox": "Gelen kutusu",
             "notification": "Bildirim", "profile_feed": "Profil akışı"}
+# 17.11: reklam bazlı görünüm (Meta Business düzeni)
+DURUM_SINIF = {"ACTIVE": "acik", "PAUSED": "kapali", "ADSET_PAUSED": "kapali",
+               "CAMPAIGN_PAUSED": "kapali", "ARCHIVED": "kapali", "DELETED": "kapali",
+               "DISAPPROVED": "reddedildi", "WITH_ISSUES": "reddedildi",
+               "PENDING_REVIEW": "inceleniyor", "IN_PROCESS": "inceleniyor",
+               "PREAPPROVED": "inceleniyor", "PENDING_BILLING_INFO": "inceleniyor"}
+KAPALI_NEDEN = {"PAUSED": "Reklamın kendisi kapalı", "ADSET_PAUSED": "Reklam seti kapalı",
+                "CAMPAIGN_PAUSED": "Kampanya kapalı", "ARCHIVED": "Arşive alınmış",
+                "DELETED": "Silinmiş"}
+AMAC_AD = {"OUTCOME_SALES": "Satış", "OUTCOME_TRAFFIC": "Trafik", "OUTCOME_ENGAGEMENT": "Etkileşim",
+           "OUTCOME_AWARENESS": "Bilinirlik", "OUTCOME_LEADS": "Potansiyel müşteri",
+           "OUTCOME_APP_PROMOTION": "Uygulama tanıtımı", "LINK_CLICKS": "Trafik",
+           "CONVERSIONS": "Dönüşüm", "MESSAGES": "Mesaj", "POST_ENGAGEMENT": "Etkileşim"}
+OPT_AD = {"LINK_CLICKS": "Bağlantı tıklaması", "LANDING_PAGE_VIEWS": "Açılış sayfası görüntüleme",
+          "OFFSITE_CONVERSIONS": "Dönüşüm (satın alma)", "IMPRESSIONS": "Gösterim", "REACH": "Erişim",
+          "CONVERSATIONS": "Mesajlaşma", "THRUPLAY": "Video izlenme (ThruPlay)",
+          "POST_ENGAGEMENT": "Gönderi etkileşimi",
+          "PROFILE_AND_PAGE_ENGAGEMENT": "Profil ve sayfa etkileşimi",
+          "PROFILE_VISIT": "Profil ziyareti", "VALUE": "Satın alma değeri"}
+CTA_AD = {"SHOP_NOW": "Hemen alışveriş yap", "LEARN_MORE": "Daha fazla bilgi", "BUY_NOW": "Hemen satın al",
+          "ORDER_NOW": "Sipariş ver", "SIGN_UP": "Kaydol", "CONTACT_US": "Bize ulaşın",
+          "WHATSAPP_MESSAGE": "WhatsApp mesajı", "SEND_WHATSAPP_MESSAGE": "WhatsApp mesajı",
+          "MESSAGE_PAGE": "Mesaj gönder", "SEND_MESSAGE": "Mesaj gönder", "GET_OFFER": "Teklifi al",
+          "SEE_MORE": "Daha fazlasını gör", "VIEW_INSTAGRAM_PROFILE": "Instagram profilini gör",
+          "NO_BUTTON": "Düğme yok", "INSTAGRAM_MESSAGE": "Instagram mesajı", "WATCH_MORE": "Daha fazla izle",
+          "GET_QUOTE": "Teklif al", "APPLY_NOW": "Hemen başvur", "DOWNLOAD": "İndir",
+          "SUBSCRIBE": "Abone ol", "CALL_NOW": "Hemen ara"}
+# Sonuç = reklam setinin optimize ettiği eylem (Meta Business "Sonuçlar" sütunu)
+SONUC = {"OFFSITE_CONVERSIONS": ("satin_alma", "Satın alma (Meta)"),
+         "VALUE": ("satin_alma", "Satın alma (Meta)"),
+         "LANDING_PAGE_VIEWS": ("sayfa_goruntule", "Açılış sayfası görüntüleme"),
+         "LINK_CLICKS": ("link_tiklama", "Bağlantı tıklaması"),
+         "CONVERSATIONS": ("mesaj_baslat", "Başlatılan mesaj"),
+         "REACH": ("erisim", "Erişim"), "IMPRESSIONS": ("gosterim", "Gösterim")}
+TEKLIF_AD = {"LOWEST_COST_WITHOUT_CAP": "En düşük maliyet (sınırsız)",
+             "LOWEST_COST_WITH_BID_CAP": "Teklif sınırı", "COST_CAP": "Maliyet sınırı",
+             "LOWEST_COST_WITH_MIN_ROAS": "Asgari ROAS"}
+
 YAYINCI_AD = {"facebook": "Facebook", "instagram": "Instagram",
               "audience_network": "Audience Network", "messenger": "Messenger",
               "threads": "Threads", "whatsapp": "WhatsApp"}
@@ -285,6 +323,21 @@ def veri_oku(bas: date, bit: date, trend_gun: int = 30) -> dict:
             "FROM raw.meta_izleme_uyari WHERE son_at > now() - interval '3 days' "
             "ORDER BY CASE seviye WHEN 'KRITIK' THEN 0 WHEN 'UYARI' THEN 1 ELSE 2 END, son_at DESC LIMIT 40"),
         "kosu": _js("SELECT id, bas_at, bit_at, durum, hata FROM raw.meta_izleme_kosu ORDER BY id DESC LIMIT 1"),
+        # 17.11: TÜM reklamlar (kapalı/reddedilen dahil) + yorum SAYILARI.
+        # Yorum METNİ burada yok: o yalnız reklam_detay() ile panelin detay
+        # ucundan okunur (öneri modeline giden rapora kişisel veri girmez).
+        "envanter": _js(
+            "SELECT e.ad_id, e.ad_adi, e.durum, e.ayar_durum, e.adset_id, e.adset_adi, e.adset_durum, "
+            "e.kampanya_id, e.kampanya_adi, e.kampanya_durum, e.kampanya_amaci, e.olusturma, e.guncelleme, "
+            "e.onizleme, e.hesap_id, e.red_sebep, e.sorunlar, e.kampanya, e.adset, e.kreatif, e.ig_baglanti, "
+            "e.ig_yorum_sayaci, e.ig_begeni, e.ig_yorum_durum, e.ig_yorum_sebep, e.fb_yorum_durum, "
+            "e.fb_yorum_sebep, e.yorum_olcum_at, e.olcum_at, "
+            "(SELECT count(*) FROM raw.meta_reklam_yorum y WHERE y.medya_id IN (e.ig_medya_id, e.fb_gonderi_id) "
+            " AND y.ust_yorum_id IS NULL AND NOT coalesce(y.bizden, false)) AS yorum_sayisi, "
+            "(SELECT count(*) FROM raw.meta_reklam_yorum y WHERE y.medya_id IN (e.ig_medya_id, e.fb_gonderi_id) "
+            " AND y.ust_yorum_id IS NULL AND NOT coalesce(y.bizden, false) AND NOT coalesce(y.cevaplandi, false)) "
+            " AS cevapsiz_yorum "
+            "FROM raw.meta_reklam_envanter e"),
         "oneri_kosu": _js(
             "SELECT id, bas_at, bit_at, tetik, durum, donem_bas, donem_bit, model, ozet, hata "
             "FROM core.reklam_oneri_kosu WHERE durum IN ('TAMAM','KISMI') ORDER BY id DESC LIMIT 1"),
@@ -386,9 +439,45 @@ def rapor_kur(v: dict, bas: date, bit: date, simdi: datetime | None = None,
         if gun >= str(x["ilk"]["gun"])[:10]:
             x["ilk"] = r
 
+    env_tum = {str(e["ad_id"]): e for e in (v.get("envanter") or [])}
+    for aid, e in env_tum.items():
+        if aid not in reklamlar:
+            # Aralıkta teslimi olmayan reklam (kapalı, reddedilen, yeni):
+            # Meta Business gibi listede görünür, metrikleri 0, defter/grup
+            # hesabına GİRMEZ (aralikta_veri=False).
+            reklamlar[aid] = {"ad_id": aid, "m": _bos_metrik(), "gunler": 0, "env_yalniz": True,
+                              "ilk": {"ad_adi": e.get("ad_adi"), "kampanya_id": e.get("kampanya_id"),
+                                      "kampanya_adi": e.get("kampanya_adi"), "adset_id": e.get("adset_id"),
+                                      "adset_adi": e.get("adset_adi"), "kampanya_amaci": e.get("kampanya_amaci"),
+                                      "optimizasyon": (e.get("adset") or {}).get("optimizasyon"),
+                                      "durum": e.get("durum")}}
+    seri_gunler = [(bit - timedelta(days=i)).isoformat() for i in range(13, -1, -1)]
+    seri: dict[str, dict] = {}
+    for r in v.get("reklam") or []:
+        g = str(r["gun"])[:10]
+        if g in seri_gunler:
+            d_ = seri.setdefault(str(r["ad_id"]), {})
+            d_[g] = d_.get(g, 0.0) + _f(r.get("harcama"))
+
     satirlar = []
     for aid, x in reklamlar.items():
         r, kr, sd = x["ilk"], kreatif.get(aid, {}), son.get(aid, {})
+        env = env_tum.get(aid) or {}
+        ek = (env.get("kreatif") or {})
+        if not kr and ek:
+            kr = {"hedef_url": (ek.get("hedef_url") or [None])[0], "cta": (ek.get("cta") or [None])[0],
+                  "baslik": (ek.get("baslik") or [""])[0], "govde": (ek.get("govde") or [""])[0],
+                  "aciklama": (ek.get("aciklama") or [""])[0], "kreatif_adi": ek.get("kreatif_adi"),
+                  "nesne_tipi": "VIDEO" if ek.get("tip") == "VIDEO" else "SHARE"}
+        if env:
+            # envanter saatlik ve tüm reklamları kapsar: durum ondan
+            sd = dict(sd, durum=env.get("durum"), adset_durum=env.get("adset_durum"),
+                      kampanya_durum=env.get("kampanya_durum"),
+                      kampanya_amaci=env.get("kampanya_amaci") or sd.get("kampanya_amaci"),
+                      optimizasyon=(env.get("adset") or {}).get("optimizasyon") or sd.get("optimizasyon"),
+                      gunluk_butce=((env.get("adset") or {}).get("gunluk_butce")
+                                    or (env.get("kampanya") or {}).get("gunluk_butce")
+                                    or sd.get("gunluk_butce")))
         m = _turet(x["m"], gun_sayisi)
         hedef = hedef_kanal(kr.get("hedef_url"), kr.get("cta"), m["mesaj_baslat"])
         urun = _urun_bul(kr, r.get("ad_adi"), kodlar, barkod_kod)
@@ -410,6 +499,9 @@ def rapor_kur(v: dict, bas: date, bit: date, simdi: datetime | None = None,
                 "hedef_url": kr.get("hedef_url") or "", "kreatif_adi": kr.get("kreatif_adi") or "",
             },
             "m": m, "ilk_harcama_gunu": x.get("ilk_harc"),
+            "aralikta_veri": not x.get("env_yalniz"),
+            "seri": [round(seri.get(aid, {}).get(g, 0.0), 2) for g in seri_gunler],
+            "env": env,
         })
 
     # --- Audience Network: son 2 gün ve son harcama günü (set bazında) ---
@@ -434,7 +526,7 @@ def rapor_kur(v: dict, bas: date, bit: date, simdi: datetime | None = None,
     grup: dict[tuple, dict] = {}
     for s in satirlar:
         kanal = kanal_of(s["hedef"])
-        if not kanal or not s["urun"]:
+        if not kanal or not s["urun"] or not s["aralikta_veri"]:
             continue
         g = grup.setdefault((kanal, s["urun"]), {"harcama": 0.0, "reklam": [], "link_tiklama": 0,
                                                   "ilk_gun": None})
@@ -504,7 +596,7 @@ def rapor_kur(v: dict, bas: date, bit: date, simdi: datetime | None = None,
         s["meta_olculur"] = s["hedef"] == "site"
         s["defter"] = None
         s["grup"] = None
-        if kanal and s["urun"]:
+        if kanal and s["urun"] and (kanal, s["urun"]) in grup:
             g = grup[(kanal, s["urun"])]
             s["defter"] = _defter_ozet(kanal, s["urun"], g["harcama"])
             s["grup"] = {"kanal": kanal, "reklam_sayisi": len(g["reklam"]), "ilk_gun": g["ilk_gun"],
@@ -518,6 +610,7 @@ def rapor_kur(v: dict, bas: date, bit: date, simdi: datetime | None = None,
             g = s["an_son_gun"]
             s["an_not"] = "AN şimdi kapalı · son AN harcaması %s.%s" % (g[8:10], g[5:7])
         s["isaretler"] = isaretler(s)
+        reklam_bazli(s, simdi)
 
     satirlar.sort(key=lambda s: -s["m"]["harcama"])
 
@@ -536,7 +629,7 @@ def rapor_kur(v: dict, bas: date, bit: date, simdi: datetime | None = None,
             for mk in _METRIK:
                 o["m"][mk] += s["m"][mk] if mk in s["m"] else 0
             o["reklam"].append(s["ad_id"])
-            if s["urun"] and kanal_of(s["hedef"]):
+            if s["urun"] and kanal_of(s["hedef"]) and (kanal_of(s["hedef"]), s["urun"]) in grup:
                 o["urunler"].add((kanal_of(s["hedef"]), s["urun"]))
             o["hedefler"].add(s["hedef_ad"])
             durum = s["kampanya_durum"] if anahtar_id == "kampanya_id" else s["set_durum"]
@@ -679,6 +772,11 @@ def rapor_kur(v: dict, bas: date, bit: date, simdi: datetime | None = None,
         "an_son_gun": an_son_gun_tum,
         "aktif_reklam": sum(1 for s in satirlar if s["durum"] == "ACTIVE"),
         "reklam_sayisi": len(satirlar),
+        "durum_sayim": {k: sum(1 for s in satirlar if s["durum_sinif"] == k)
+                        for k in ("acik", "kapali", "reddedildi", "inceleniyor", "bilinmiyor")},
+        "harcayan_reklam": sum(1 for s in satirlar if s["m"]["harcama"] > 0),
+        "yorum": sum(s["yorum"]["sayi"] or 0 for s in satirlar),
+        "cevapsiz_yorum": sum(s["yorum"]["cevapsiz"] or 0 for s in satirlar),
     }
 
     # --- tazelik ---
@@ -715,7 +813,9 @@ def rapor_kur(v: dict, bas: date, bit: date, simdi: datetime | None = None,
     rapor = {
         "durum": "OK",
         "aralik": {"bas": bas.isoformat(), "bit": bit.isoformat(), "gun": gun_sayisi, "etiket": etiket},
+        "platformlar": platform_durumu(satirlar),
         "olcum": {"meta": kosu.get("bit_at") or kosu.get("bas_at"), "meta_durum": kosu.get("durum"),
+                  "envanter": max((str(s["env_olcum"]) for s in satirlar if s.get("env_olcum")), default=None),
                   "meta_yas_dk": _yas(kosu.get("bit_at") or kosu.get("bas_at")),
                   "defter": tazelik.get("son_olcum"), "defter_yas_dk": _yas(tazelik.get("son_olcum"))},
         "ozet": ozet,
@@ -736,7 +836,207 @@ def rapor_kur(v: dict, bas: date, bit: date, simdi: datetime | None = None,
                          for k, e in sorted(ekon.items()) if any(k == s["urun"] for s in satirlar)],
         "okunamadi": okunamadi,
     }
+    for s in satirlar:
+        s.pop("env", None)
     return rapor
+
+
+# ------------------------------------------------------------------ reklam bazlı (17.11)
+def _zaman(iso):
+    if not iso:
+        return None
+    try:
+        return datetime.fromisoformat(str(iso).replace("Z", "+00:00").replace("+0300", "+03:00")
+                                      .replace("+0000", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _gs(t) -> str:
+    """datetime -> '18.11.2026 09:00' (TR)."""
+    return t.astimezone(TR).strftime("%d.%m.%Y %H:%M") if t else ""
+
+
+def red_metinleri(red, sorunlar) -> list[str]:
+    out = []
+    for _kapsam, d in ((red or {}).items() if isinstance(red, dict) else []):
+        if isinstance(d, dict):
+            for kat, metin in d.items():
+                out.append("%s: %s" % (kat, str(metin).strip()))
+        elif d:
+            out.append(str(d))
+    for x in sorunlar or []:
+        m = (x or {}).get("mesaj") or (x or {}).get("ozet")
+        if m:
+            out.append(str(m))
+    return out
+
+
+def ads_manager_link(hesap_id, ad_id) -> str | None:
+    if not (str(hesap_id or "").isdigit() and str(ad_id or "").isdigit()):
+        return None
+    return ("https://adsmanager.facebook.com/adsmanager/manage/ads?act=%s&selected_ad_ids=%s"
+            % (hesap_id, ad_id))
+
+
+def reklam_bazli(s: dict, simdi: datetime) -> None:
+    """Satıra Meta Business'taki reklam bazlı alanları ekler (durum ayrıntısı,
+    sonuç, özellikler, tüm metin varyasyonları, varlıklar, yorum sayısı)."""
+    env = s.get("env") or {}
+    d = s.get("durum") or ""
+    s["durum_sinif"] = DURUM_SINIF.get(d, "bilinmiyor" if not d else "kapali")
+    kamp, aset = env.get("kampanya") or {}, env.get("adset") or {}
+    bas = _zaman(aset.get("baslangic") or kamp.get("baslangic"))
+    bit = _zaman(aset.get("bitis") or kamp.get("bitis"))
+    zaman_not = None
+    if s["durum_sinif"] == "acik" and bas and bas > simdi:
+        s["durum_sinif"] = "planlandi"
+        zaman_not = "Henüz başlamadı · başlangıç %s" % _gs(bas)
+    elif s["durum_sinif"] == "acik" and bit and bit < simdi:
+        s["durum_sinif"] = "bitti"
+        zaman_not = "Süresi doldu · bitiş %s" % _gs(bit)
+    s["durum_ad"] = {"acik": "Açık", "kapali": "Kapalı", "reddedildi": DURUM_AD.get(d, "Reddedildi"),
+                     "inceleniyor": "İnceleniyor", "planlandi": "Planlandı", "bitti": "Bitti",
+                     "bilinmiyor": "Bilinmiyor"}[s["durum_sinif"]]
+    s["kapali_neden"] = KAPALI_NEDEN.get(d) or zaman_not
+    s["red"] = red_metinleri(env.get("red_sebep"), env.get("sorunlar"))
+
+    # Sonuç (setin optimize ettiği eylem)
+    opt = s.get("optimizasyon")
+    anahtar, ad = SONUC.get(opt or "", (None, OPT_AD.get(opt or "", opt or "—")))
+    deger = None
+    neden = None
+    if anahtar == "satin_alma" and not s["meta_olculur"]:
+        neden = "ölçülemez: hedef pikselsiz (Trendyol)"
+    elif anahtar:
+        deger = s["m"].get(anahtar)
+    else:
+        neden = "bu sonuç türü ölçümde toplanmıyor"
+    s["sonuc"] = {"ad": ad, "deger": deger, "neden": neden,
+                  "maliyet": _yuvarla(_bol(s["m"]["harcama"], deger)) if deger else None}
+
+    ek = env.get("kreatif") or {}
+    if ek:
+        s["kreatif"]["tip"] = ek.get("tip") or s["kreatif"]["tip"]
+    kitle = aset.get("kitle") or {}
+    gunluk = aset.get("gunluk_butce") or kamp.get("gunluk_butce")
+    omur = aset.get("omur_butce") or kamp.get("omur_butce")
+    s["ozellik"] = {
+        "amac": AMAC_AD.get(s.get("amac") or "", s.get("amac") or "—"),
+        "optimizasyon": OPT_AD.get(opt or "", opt or "—"),
+        "butce_tur": "Günlük" if gunluk else ("Toplam (ömür boyu)" if omur else None),
+        "butce": gunluk or omur,
+        "butce_seviye": ("Kampanya (Advantage+ bütçe)" if (kamp.get("gunluk_butce") or kamp.get("omur_butce"))
+                         else ("Reklam seti" if (gunluk or omur) else None)),
+        "baslangic": _gs(bas) or None, "bitis": _gs(bit) or "Süresiz",
+        "teklif": TEKLIF_AD.get(aset.get("teklif") or "", aset.get("teklif")),
+        "kitle": kitle,
+        "cta": [CTA_AD.get(c, c.replace("_", " ").lower()) for c in ek.get("cta") or []]
+               or ([CTA_AD.get(s["kreatif"]["cta"], s["kreatif"]["cta"])] if s["kreatif"]["cta"] else []),
+        "hedef_url": ek.get("hedef_url") or ([s["kreatif"]["hedef_url"]] if s["kreatif"]["hedef_url"] else []),
+        "olusturma": _gs(_zaman(env.get("olusturma"))) or None,
+        "guncelleme": _gs(_zaman(env.get("guncelleme"))) or None,
+    }
+    s["metinler"] = {"govde": ek.get("govde") or ([s["kreatif"]["govde"]] if s["kreatif"]["govde"] else []),
+                     "baslik": ek.get("baslik") or ([s["kreatif"]["baslik"]] if s["kreatif"]["baslik"] else []),
+                     "aciklama": ek.get("aciklama") or ([s["kreatif"]["aciklama"]] if s["kreatif"]["aciklama"] else []),
+                     "dinamik": bool(ek.get("dinamik"))}
+    s["varliklar"] = [{"tur": x.get("tur"), "ad": x.get("ad")} for x in ek.get("varliklar") or []
+                      if str(x.get("ad") or "").replace("_", "").isalnum()]
+    s["kartlar"] = ek.get("kartlar") or []
+    s["baglanti"] = {"onizleme": env.get("onizleme") if str(env.get("onizleme") or "").startswith("https://fb.me/") else None,
+                     "ads_manager": ads_manager_link(env.get("hesap_id"), s["ad_id"]),
+                     "instagram": env.get("ig_baglanti") if str(env.get("ig_baglanti") or "").startswith("https://www.instagram.com/") else None}
+    s["yorum"] = {"ig": env.get("ig_yorum_durum"), "ig_sebep": env.get("ig_yorum_sebep"),
+                  "fb": env.get("fb_yorum_durum"), "fb_sebep": env.get("fb_yorum_sebep"),
+                  "sayi": int(env["yorum_sayisi"]) if env.get("yorum_sayisi") is not None else None,
+                  "cevapsiz": int(env["cevapsiz_yorum"]) if env.get("cevapsiz_yorum") is not None else None,
+                  "meta_sayac": env.get("ig_yorum_sayaci"), "begeni": env.get("ig_begeni"),
+                  "olcum": env.get("yorum_olcum_at")}
+    s["env_olcum"] = env.get("olcum_at")
+
+
+# Platform bağlantı durumu. Yalnız ÖLÇÜLMÜŞ kaynak "BAGLI" yazar; reklam
+# verisi olmayan platform sekmesi boş tablo ya da 0 GÖSTERMEZ, ne gerektiğini
+# yazar (17.11 ölçümü: Trendyol/Idefix/n11 satıcı API'leri yalnız sipariş ve
+# finans verir, reklam ucu yok; Google Ads anahtarı yok; HB canlı API yok).
+PLATFORM_GEREKEN = {
+    "trendyol": {
+        "ad": "Trendyol", "durum": "KISMI",
+        "var": "Satış bağlı (sipariş API'si). Reklam bakiyesi yüklemeleri finans API'sinde 'Reklam Bedeli' "
+               "faturası olarak görünüyor; reklam bazlı harcama/gösterim/tık API'de yok.",
+        "gereken": ["Trendyol satıcı API'sinde reklam (ürün/mağaza/influencer) raporu ucu YOK — "
+                    "reklam bazlı veri yalnız satıcı panelinde (Reklam → Reklam Yönetimi).",
+                    "Yol 1: tarayıcı worker'a (PC-1 Chrome) Trendyol reklam paneli okuyucusu; o Chrome "
+                    "profilinde Trendyol oturumunu sahip açar.",
+                    "Yol 2: panelden haftalık Excel dışa aktarımı + onu içe alan betik.",
+                    "Trendyol panelinden açılan Meta reklamları Meta hesabımızda görünmez; aynı yoldan alınır."]},
+    "google": {
+        "ad": "Google Ads", "durum": "BAGLI_DEGIL",
+        "var": "Merchant Center ücretsiz listeleme var; ölçülmüş Google reklam kampanyası yok.",
+        "gereken": ["Google Ads müşteri kimliği (customer id).",
+                    "Google Ads API developer token (Ads hesabı → API Merkezi).",
+                    "'adwords' kapsamlı OAuth yenileme jetonu (mevcut Google jetonunda bu kapsam yok; "
+                    "sahip bir kez onay verir)."]},
+    "hepsiburada": {
+        "ad": "Hepsiburada", "durum": "BAGLI_DEGIL",
+        "var": "Yalnız test (SIT) API kimliği var; canlı API talebi açık (11.11).",
+        "gereken": ["Canlı Hepsiburada API kimliği (talep bekliyor).",
+                    "Reklam bazlı veri için ayrıca panel okuyucu ya da Excel dışa aktarımı "
+                    "(API'de yalnız 'SponsorshipFee' finans kalemi var)."]},
+    "n11": {
+        "ad": "n11", "durum": "BAGLI_DEGIL",
+        "var": "Sipariş API'si bağlı; reklam ucu yok. Sistemde açılmış n11 reklamı izi yok.",
+        "gereken": ["n11 panelinde reklam açılmışsa panel okuyucu ya da Excel dışa aktarımı."]},
+    "idefix": {
+        "ad": "Idefix", "durum": "BAGLI_DEGIL",
+        "var": "Sipariş API'si bağlı; Idefix satıcı API'sinde reklam ucu yok.",
+        "gereken": ["Idefix panelinde reklam açılmışsa panel okuyucu ya da Excel dışa aktarımı."]},
+}
+
+
+def platform_durumu(satirlar: list[dict]) -> list[dict]:
+    meta = {"kod": "meta", "ad": "Meta", "durum": "BAGLI" if satirlar else "VERI_YOK",
+            "var": "Meta Reklam API'si (saatlik): tüm reklamlar, durum, harcama, sonuç, kreatif, "
+                   "Instagram yorumları.",
+            "gereken": ["Facebook gönderi yorumları için Meta uygulamasına 'pages_read_user_content' izni."],
+            "reklam": len(satirlar),
+            "acik": sum(1 for s in satirlar if s.get("durum_sinif") == "acik"),
+            "harcama": round(sum(s["m"]["harcama"] for s in satirlar), 2)}
+    return [meta] + [dict(kod=k, reklam=None, acik=None, harcama=None, **v)
+                     for k, v in PLATFORM_GEREKEN.items()]
+
+
+def reklam_detay(ad_id: str) -> dict:
+    """Detay ucu: tek reklamın envanteri + YORUMLARI (kişisel veri: yalnız
+    panel). Öneri modeli bu işlevi ÇAĞIRMAZ."""
+    if not (str(ad_id).isdigit() and 6 <= len(str(ad_id)) <= 25):
+        raise VeriHatasi("gecersiz reklam kimligi")
+    satir = _calistir(_js(
+        "SELECT ad_id, ig_medya_id, fb_gonderi_id, ig_yorum_durum, ig_yorum_sebep, fb_yorum_durum, "
+        "fb_yorum_sebep, ig_yorum_sayaci, ig_begeni, yorum_olcum_at FROM raw.meta_reklam_envanter "
+        "WHERE ad_id = '%s'" % ad_id))
+    if not satir:
+        return {"durum": "YOK", "yorumlar": []}
+    e = satir[0]
+    medya = [m for m in (e.get("ig_medya_id"), e.get("fb_gonderi_id")) if m and re.fullmatch(r"[0-9_]+", m)]
+    ham = _calistir(_js(
+        "SELECT platform, yorum_id, ust_yorum_id, zaman, metin, kullanici, begeni, yanit_sayisi, bizden, "
+        "cevaplandi FROM raw.meta_reklam_yorum WHERE medya_id IN (%s) ORDER BY zaman"
+        % ",".join("'%s'" % m for m in medya))) if medya else []
+    ust: dict[str, dict] = {}
+    for y in ham:
+        if not y.get("ust_yorum_id"):
+            ust[y["yorum_id"]] = dict(y, yanitlar=[])
+    for y in ham:
+        if y.get("ust_yorum_id") and y["ust_yorum_id"] in ust:
+            ust[y["ust_yorum_id"]]["yanitlar"].append(y)
+    yorumlar = sorted(ust.values(), key=lambda y: str(y.get("zaman") or ""), reverse=True)
+    return {"durum": "OK", "ad_id": ad_id,
+            "instagram": {"durum": e.get("ig_yorum_durum"), "sebep": e.get("ig_yorum_sebep"),
+                          "meta_sayac": e.get("ig_yorum_sayaci"), "begeni": e.get("ig_begeni")},
+            "facebook": {"durum": e.get("fb_yorum_durum"), "sebep": e.get("fb_yorum_sebep")},
+            "olcum": e.get("yorum_olcum_at"), "yorumlar": yorumlar}
 
 
 # ------------------------------------------------------------------ rozet
@@ -746,6 +1046,8 @@ def rozet(s: dict, gun_sayisi: int) -> tuple[str, str]:
     m = s["m"]
     if s["durum"] in ("DISAPPROVED", "WITH_ISSUES"):
         return "KES", "Reklam %s; yayın sorunu çözülmeden harcama verimsiz." % DURUM_AD.get(s["durum"], s["durum"]).lower()
+    if not s.get("aralikta_veri", True):
+        return "BILINMIYOR", "Bu aralıkta teslim yok (harcama 0); başarı ölçülemez."
     d = s.get("defter")
     if not kanal_of(s["hedef"]):
         return "BILINMIYOR", "Hedef satış sayfası değil (%s); satış ölçülemez." % s["hedef_ad"]

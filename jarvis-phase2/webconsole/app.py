@@ -1018,6 +1018,61 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _send_aralikli(self, path: Path) -> None:
+        """Buyuk medya (video): Range destekli, parca parca yazar (bellege
+        tum dosyayi almaz). Icerik turu sihirli baytlardan."""
+        boyut = path.stat().st_size
+        with open(path, "rb") as f:
+            bas_bayt = f.read(12)
+        if path.suffix == ".mp4":
+            tur = "video/mp4"
+        elif bas_bayt.startswith(b"\x89PNG"):
+            tur = "image/png"
+        elif bas_bayt[:4] == b"RIFF" and bas_bayt[8:12] == b"WEBP":
+            tur = "image/webp"
+        else:
+            tur = "image/jpeg"
+        bas, son = 0, boyut - 1
+        aralik = (self.headers.get("Range") or "").strip()
+        m = re.fullmatch(r"bytes=(\d*)-(\d*)", aralik) if aralik else None
+        if m and (m.group(1) or m.group(2)):
+            if m.group(1):
+                bas = int(m.group(1))
+                if m.group(2):
+                    son = min(int(m.group(2)), boyut - 1)
+            else:
+                bas = max(0, boyut - int(m.group(2)))
+            if bas > son or bas >= boyut:
+                self.send_response(HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE)
+                self.send_header("Content-Range", "bytes */%d" % boyut)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            self.send_response(HTTPStatus.PARTIAL_CONTENT)
+            self.send_header("Content-Range", "bytes %d-%d/%d" % (bas, son, boyut))
+        else:
+            self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", tur)
+        self.send_header("Content-Length", str(son - bas + 1))
+        self.send_header("Accept-Ranges", "bytes")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Cache-Control", "private, max-age=86400")
+        self.end_headers()
+        if self.command == "HEAD":
+            return
+        kalan = son - bas + 1
+        with open(path, "rb") as f:
+            f.seek(bas)
+            try:
+                while kalan > 0:
+                    parca = f.read(min(1 << 18, kalan))
+                    if not parca:
+                        break
+                    self.wfile.write(parca)
+                    kalan -= len(parca)
+            except (BrokenPipeError, ConnectionResetError):
+                return
+
     def _set_session_cookies(self, session: auth.Session) -> list[tuple[str, str]]:
         secure = "; Secure" if os.environ.get("JARVIS_WEB_INSECURE_COOKIES") != "1" else ""
         return [
@@ -2094,7 +2149,31 @@ class Handler(BaseHTTPRequestHandler):
                                       "error": "Reklam verisi şu anda okunamadı."})
                 return
             rapor["medya"] = _reklam_medya_dizini()
+            _reklam_varlik_isaretle(rapor)
             self._send_json(200, rapor)
+            return
+        if path == "/api/reklam-yoneticisi/reklam":
+            # 17.11: tek reklamin yorumlari (kisisel veri: kullanici adi, metin).
+            # Yalniz oturumlu panel okur; oneri modeli bu ucu kullanmaz.
+            aid = (query.get("ad") or [""])[0]
+            try:
+                self._send_json(200, reklam_yoneticisi.reklam_detay(aid))
+            except reklam_yoneticisi.VeriHatasi:
+                self._send_json(404 if not aid.isdigit() else 503,
+                                {"durum": "OKUNAMADI", "error": "Reklam ayrıntısı okunamadı."})
+            return
+        if path.startswith("/api/reklam-yoneticisi/varlik/"):
+            # Reklam videosu/gorseli (scripts/reklam-oneri.py varlik_onbellek).
+            # CSP media-src/img-src 'self': dis adres yok. Ad deseni sabit
+            # (yol gecisi yok). Video Range destekli (iPhone Safari ister).
+            ad = path.rsplit("/", 1)[-1]
+            hedef = None
+            if re.fullmatch(r"[vi]_k?[0-9a-fA-F]{4,64}\.(mp4|jpg)", ad):
+                hedef = STATE_DIR / "reklam-medya" / ad
+            if hedef is None or not hedef.is_file():
+                self._send_json(404, {"error": "Dosya önbellekte yok."})
+                return
+            self._send_aralikli(hedef)
             return
         if path.startswith("/api/reklam-yoneticisi/medya/"):
             # scripts/reklam-oneri.py'nin indirdigi kreatif gorseli. CSP dis
@@ -4546,6 +4625,32 @@ def _reklam_medya_dizini() -> dict:
                          "video": bool(k.get("video")),
                          "onizleme": link if link.startswith("https://fb.me/") else None}
     return out
+
+
+def _reklam_varlik_isaretle(rapor: dict) -> None:
+    """Her reklamin varliklarina 'var' (dosya onbellekte) ve inmediyse
+    'neden' ekler (state/reklam-medya/varlik.json). Okunamazsa var=False,
+    neden 'onbellek kaydi yok' -- 'video yok' denmez."""
+    kok = STATE_DIR / "reklam-medya"
+    try:
+        dizin = json.loads((kok / "varlik.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        dizin = {}
+    toplam = {"video": 0, "video_var": 0, "gorsel": 0, "gorsel_var": 0}
+    for s in rapor.get("reklamlar") or []:
+        for v in s.get("varliklar") or []:
+            ad = str(v.get("ad") or "")
+            uzanti = ".mp4" if v.get("tur") == "video" else ".jpg"
+            v["var"] = (kok / (ad + uzanti)).is_file()
+            v["kapak"] = (kok / (ad + ".jpg")).is_file() if v.get("tur") == "video" else v["var"]
+            if not v["var"]:
+                k = dizin.get(ad) or {}
+                v["neden"] = (str(k.get("hata"))[:160] if k.get("hata")
+                              else "önbelleğe henüz alınmadı (saatlik iş)")
+            tur = "video" if v.get("tur") == "video" else "gorsel"
+            toplam[tur] += 1
+            toplam[tur + "_var"] += 1 if v["var"] else 0
+    rapor["varlik_ozet"] = toplam
 
 
 def _kampanya_gorunumu() -> dict:

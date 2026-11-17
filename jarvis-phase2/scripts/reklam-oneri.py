@@ -138,6 +138,147 @@ def medya_onbellek(tazelik_saat: int = 24) -> dict:
     return sayac
 
 
+# --------------------------------------------------------------------- varlık (17.11)
+VARLIK_EN_BUYUK_VIDEO = 200_000_000     # 200 MB
+VARLIK_EN_BUYUK_GORSEL = 15_000_000
+
+
+def _meta_jeton(yol: str, sorgu: dict, jeton_adi: str) -> dict:
+    from jarvis import pazaryeri
+    jeton = pazaryeri._n8n_env(jeton_adi)
+    if not jeton:
+        raise RuntimeError("%s yok" % jeton_adi)
+    url = "%s/%s?%s" % (G, yol, urllib.parse.urlencode(sorgu))
+    return json.loads(pazaryeri._istek(url, {"Authorization": "Bearer " + jeton}))
+
+
+def _indir(url: str, hedef: Path, sinir: int) -> int:
+    """Akışla indirir; sınırı aşarsa yarım dosya bırakmaz. Dönüş: bayt."""
+    gecici = hedef.with_name(hedef.name + ".tmp")
+    toplam = 0
+    try:
+        with urllib.request.urlopen(url, timeout=60) as y, open(gecici, "wb") as f:  # noqa: S310 - Meta CDN
+            while True:
+                parca = y.read(1 << 20)
+                if not parca:
+                    break
+                toplam += len(parca)
+                if toplam > sinir:
+                    raise RuntimeError("dosya sınırı aştı (%d MB)" % (sinir // 1_000_000))
+                f.write(parca)
+        if toplam == 0:
+            raise RuntimeError("boş dosya")
+        os.chmod(gecici, 0o644)
+        gecici.replace(hedef)
+        return toplam
+    finally:
+        if gecici.exists():
+            gecici.unlink()
+
+
+def varlik_onbellek(yeniden_dene_saat: int = 6) -> dict:
+    """raw.meta_reklam_envanter'deki her reklamın TÜM varlıkları: video (mp4 +
+    kapak) ve görseller (dinamik kreatif varyasyonları, karusel kartları).
+    Ad: v_<video_id>.mp4/.jpg, i_<hash>.jpg. Bir kez inen dosya değişmez
+    (Meta varlığı değişmez); hata olan 6 saat sonra yeniden denenir.
+    Video kaynağı yalnız sayfa jetonuyla okunuyor (17.11 ölçümü: reklam
+    jetonu '#10 izin yok'). Yalnız GET."""
+    MEDYA.mkdir(parents=True, exist_ok=True)
+    dizin_yolu = MEDYA / "varlik.json"
+    try:
+        dizin = json.loads(dizin_yolu.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        dizin = {}
+    ham = sql("SELECT coalesce(json_agg(json_build_object('hesap', hesap_id, 'k', kreatif)), '[]') "
+              "FROM raw.meta_reklam_envanter;")
+    varliklar: dict[str, dict] = {}
+    hesap = None
+    for satir in json.loads(ham or "[]"):
+        hesap = hesap or satir.get("hesap")
+        for v in (satir.get("k") or {}).get("varliklar") or []:
+            ad = str(v.get("ad") or "")
+            if re.fullmatch(r"[vi]_k?[0-9a-fA-F]{4,64}", ad):
+                varliklar.setdefault(ad, v)
+    simdi = datetime.now(TR)
+    sayac = {"video": 0, "gorsel": 0, "zaten": 0, "hata": 0, "bayt": 0}
+
+    def _gec(ad):
+        k = dizin.get(ad) or {}
+        if not k.get("hata"):
+            return False
+        try:
+            return simdi - datetime.fromisoformat(k["zaman"]) < timedelta(hours=yeniden_dene_saat)
+        except (KeyError, ValueError):
+            return False
+
+    # Görsel hash -> adres (reklam hesabı adimages, toplu)
+    hashler = [v["hash"] for a, v in varliklar.items() if v.get("hash") and not (MEDYA / (a + ".jpg")).exists()
+               and not _gec(a)]
+    adres: dict[str, str] = {}
+    for i in range(0, len(hashler), 40):
+        try:
+            r = _meta_jeton("act_%s/adimages" % hesap, {"hashes": json.dumps(hashler[i:i + 40]),
+                                                       "fields": "hash,url"}, "META_ADS_TOKEN")
+            for g in r.get("data") or []:
+                if g.get("hash") and g.get("url"):
+                    adres[g["hash"]] = g["url"]
+        except Exception as h:  # noqa: BLE001
+            print("adimages okunamadı:", str(h)[:120], file=sys.stderr)
+
+    for ad, v in sorted(varliklar.items()):
+        try:
+            if v.get("tur") == "video":
+                mp4, jpg = MEDYA / (ad + ".mp4"), MEDYA / (ad + ".jpg")
+                if mp4.exists() and jpg.exists():
+                    sayac["zaten"] += 1
+                    continue
+                if _gec(ad):
+                    continue
+                bilgi, son = None, None
+                for jeton in ("FB_PAGE_TOKEN", "META_ADS_TOKEN"):
+                    try:
+                        bilgi = _meta_jeton(v["video_id"], {"fields": "source,picture,length"}, jeton)
+                        if bilgi.get("source"):
+                            break
+                    except Exception as h:  # noqa: BLE001
+                        son = h
+                if not (bilgi or {}).get("source"):
+                    from jarvis.meta_reklam_detay import hata_sebebi
+                    raise RuntimeError("video kaynağı okunamadı: %s" % (hata_sebebi(son) if son else "source alanı boş"))
+                if not mp4.exists():
+                    sayac["bayt"] += _indir(bilgi["source"], mp4, VARLIK_EN_BUYUK_VIDEO)
+                    sayac["video"] += 1
+                kapak = v.get("kapak_kaynak") or bilgi.get("picture")
+                if kapak and not jpg.exists():
+                    try:
+                        _indir(kapak, jpg, VARLIK_EN_BUYUK_GORSEL)
+                    except Exception:  # noqa: BLE001 - kapak süresi dolmuş olabilir
+                        if bilgi.get("picture") and bilgi["picture"] != kapak:
+                            _indir(bilgi["picture"], jpg, VARLIK_EN_BUYUK_GORSEL)
+                dizin[ad] = {"zaman": simdi.isoformat(), "tur": "video", "sure": bilgi.get("length")}
+            else:
+                jpg = MEDYA / (ad + ".jpg")
+                if jpg.exists():
+                    sayac["zaten"] += 1
+                    continue
+                if _gec(ad):
+                    continue
+                url = adres.get(v.get("hash") or "") or v.get("kaynak")
+                if not url:
+                    raise RuntimeError("görsel adresi yok (hash çözülemedi)")
+                sayac["bayt"] += _indir(url, jpg, VARLIK_EN_BUYUK_GORSEL)
+                sayac["gorsel"] += 1
+                dizin[ad] = {"zaman": simdi.isoformat(), "tur": "gorsel"}
+        except Exception as h:  # noqa: BLE001 - bir varlık diğerini durdurmaz
+            dizin[ad] = {"zaman": simdi.isoformat(), "tur": v.get("tur"), "hata": str(h)[:160]}
+            sayac["hata"] += 1
+    gecici = dizin_yolu.with_suffix(".tmp")
+    gecici.write_text(json.dumps(dizin, ensure_ascii=False, indent=1), encoding="utf-8")
+    os.chmod(gecici, 0o644)
+    gecici.replace(dizin_yolu)
+    return sayac
+
+
 # --------------------------------------------------------------------- tetik
 def tetik_belirle(elle: bool) -> str | None:
     if elle:
@@ -226,7 +367,9 @@ def kanit_metni(rapor: dict, dun: dict | None, bugun: dict | None) -> str:
     veri = {
         "donem": rapor["aralik"], "ozet_7_gun": rapor["ozet"],
         "dun_ozet": (dun or {}).get("ozet"), "bugun_ozet": (bugun or {}).get("ozet"),
-        "reklamlar": [reklam(s) for s in rapor["reklamlar"]],
+        # 17.11: aralıkta teslimi olmayan (kapalı) reklam modele gitmez;
+        # yorum metni rapora hiç girmez (yalnız panelin detay ucu okur).
+        "reklamlar": [reklam(s) for s in rapor["reklamlar"] if s.get("aralikta_veri", True)],
         "setler": [{"id": x["id"], "ad": x["ad"], "durum": x["durum"], "butce": x["butce"],
                     "optimizasyon": x["optimizasyon"], "harcama": x["m"]["harcama"],
                     "an_pay": x["m"]["an_pay"], "defter": x["defter"]} for x in rapor["setler"]],
@@ -432,6 +575,10 @@ def main() -> int:
     if not a.kuru:
         try:
             print("kreatif önbelleği:", medya_onbellek())
+        except Exception as h:  # noqa: BLE001
+            print("kreatif önbelleği hata:", str(h)[:160], file=sys.stderr)
+        try:
+            print("varlık önbelleği (video/görsel):", varlik_onbellek())
         except Exception as h:  # noqa: BLE001 - önbellek öneriyi durdurmaz
             print("kreatif önbelleği yazılamadı:", h, file=sys.stderr)
     if a.medya:

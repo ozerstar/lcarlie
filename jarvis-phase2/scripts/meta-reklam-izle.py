@@ -16,6 +16,10 @@ Bu betik her kosuda, hesaptaki TUM kampanya/reklam seti/reklamlar icin:
   4. kurallari isletir, YENI uyariyi sahibe push + e-posta ile bildirir
      (haberci; siparis nobetcisi ve kampanya-izle ile ayni hat)
   5. kosuyu raw.meta_izleme_kosu'ya yazar.
+  6. (17.11) TUM reklamlarin envanteri (kapali/reddedilen dahil: durum, red
+     sebebi, kitle, butce, kreatif varyasyonlari) + reklam gonderisi
+     yorumlari -> raw.meta_reklam_envanter / raw.meta_reklam_yorum
+     (jarvis/meta_reklam_detay.py). Yorum metni/kullanici adi LOG'A YAZILMAZ.
 
 🔴 YALNIZ OKUR VE ONERIR. Meta'ya tek bir yazma istegi gitmez (yalniz GET).
    Uyarilardaki "oneri" metni sahibin karari icindir.
@@ -47,7 +51,7 @@ from pathlib import Path
 KOK = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KOK))
 
-from jarvis import haberci, pazaryeri  # noqa: E402
+from jarvis import haberci, meta_reklam_detay, pazaryeri  # noqa: E402
 
 TR = timezone(timedelta(hours=3))
 G = "https://graph.facebook.com/v21.0"
@@ -140,6 +144,51 @@ def meta_get(yol: str, sorgu: dict) -> list[dict]:
         if not url:
             return cikti
     raise RuntimeError("sayfalama 50 sayfayi asti: %s" % yol)
+
+
+def meta_tek(yol: str, sorgu: dict, jeton_adi: str = "META_ADS_TOKEN") -> dict:
+    """Tek nesne GET (envanter/yorum). Hata yukari firlatilir."""
+    jeton = pazaryeri._n8n_env(jeton_adi)
+    if not jeton:
+        raise RuntimeError("%s yok" % jeton_adi)
+    url = "%s/%s?%s" % (G, yol, urllib.parse.urlencode(sorgu))
+    for deneme in range(3):
+        try:
+            return json.loads(pazaryeri._istek(url, {"Authorization": "Bearer " + jeton}))
+        except RuntimeError as h:
+            if deneme == 2 or not any(k in str(h) for k in ('"code":17', '"code":4,', "80004", "HTTP 5")):
+                raise
+            time.sleep(15 * (deneme + 1))
+    raise RuntimeError("ulasilamadi")
+
+
+ENVANTER_KOLON = (
+    "ad_id text, hesap_id text, ad_adi text, durum text, ayar_durum text, adset_id text, "
+    "adset_adi text, adset_durum text, kampanya_id text, kampanya_adi text, kampanya_durum text, "
+    "kampanya_amaci text, olusturma timestamptz, guncelleme timestamptz, onizleme text, "
+    "red_sebep jsonb, sorunlar jsonb, kampanya jsonb, adset jsonb, kreatif jsonb, "
+    "fb_gonderi_id text, ig_medya_id text, ig_baglanti text, ig_yorum_sayaci int, ig_begeni int, "
+    "ig_yorum_durum text, ig_yorum_sebep text, fb_yorum_durum text, fb_yorum_sebep text, "
+    "yorum_olcum_at timestamptz")
+YORUM_KOLON = (
+    "platform text, yorum_id text, medya_id text, ust_yorum_id text, zaman timestamptz, "
+    "metin text, kullanici text, begeni int, yanit_sayisi int, bizden boolean, cevaplandi boolean")
+
+
+def detay_yaz(hid: str, kuru: bool = False) -> dict:
+    """Envanter + yorum (jarvis/meta_reklam_detay). Donus yalniz SAYILAR."""
+    d = meta_reklam_detay.topla(hid, meta_tek, meta_get)
+    if kuru:
+        return d["olcum"]
+    _upsert("raw.meta_reklam_envanter", ENVANTER_KOLON, "ad_id", d["envanter"])
+    # Okunabilen medyanin yorumlari tam yenilenir (silinen yorum kalmaz);
+    # okunamayaninki DOKUNULMAZ (son bilinen hali kalir, durum OKUNAMADI).
+    okunan = [m for m, v in {**d["okunan_ig"], **d["okunan_fb"]}.items() if v["durum"] == "OK"]
+    if okunan:
+        psql("DELETE FROM raw.meta_reklam_yorum WHERE medya_id IN (SELECT jsonb_array_elements_text(%s::jsonb));"
+             % _j(okunan))
+    _upsert("raw.meta_reklam_yorum", YORUM_KOLON, "platform, yorum_id", d["yorumlar"])
+    return d["olcum"]
 
 
 def hesaplar() -> list[str]:
@@ -493,6 +542,17 @@ def main() -> int:
 
     if not arg.kuru and (reklam or yerlesim):
         yaz(reklam, yerlesim, bas, bugun)
+
+    # 6) Envanter + yorum. Ana olcumu bozmaz: hatasi ayri yazilir.
+    for hid in hlar:
+        try:
+            o = detay_yaz(hid, kuru=arg.kuru)
+            print("envanter act_%s: %d reklam · Instagram %d/%d medya okundu, %d yorum · "
+                  "Facebook %d/%d gonderi okundu, %d yorum%s"
+                  % (hid, o["reklam"], o["ig_okundu"], o["ig_medya"], o["ig_yorum"], o["fb_okundu"],
+                     o["fb_gonderi"], o["fb_yorum"], (" (FB: %s)" % o["fb_sebep"]) if o["fb_sebep"] else ""))
+        except Exception as h:                            # noqa: BLE001
+            print("ENVANTER OKUNAMADI act_%s: %s" % (hid, meta_reklam_detay.hata_sebebi(h)), file=sys.stderr)
 
     satis = satis_oku([bugun - timedelta(days=1), bugun])
     uyari, satir = kurallar(reklam, yerlesim, satis, a, bugun) if not hatalar or reklam else ([], [])
