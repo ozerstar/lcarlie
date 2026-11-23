@@ -69,9 +69,12 @@ yeniden okunmalıdır. Hiçbir upstream paket sürümü bu değişiklikle yükse
 
 ## Doğrulama ve canlı kabul
 
-Yerel doğrulama: 70 test çalıştırıldı, 63 geçti; 7 SDK testi bu ortamda opsiyonel
-MCP SDK import edilemediği için atlandı. Yeni 11 yanıt/envanter testi çalıştı ve
-geçti. Python derleme ve `git diff --check` kontrolleri geçti.
+Yerel doğrulama (tamamlandı): ayrı geçici test venv'ine depodaki `mcp==2.2.0`
+kuruldu. 70 seçili testin tamamı geçti, atlanan test kalmadı. Gerçek SDK stdio
+istemcisiyle el sıkışması, tam salt okunur araç kümesi, allowlist reddi ve geçersiz
+limit reddi ayrıca geçti. Tekrarı: `python scripts/check_mcp_boundary.py`.
+Python derleme ve `git diff --check` geçti. Bu, canlı veritabanı veya sunucudaki
+paket sürümü doğrulaması değildir.
 
 Canlıya alma öncesinde mevcut ayrı `venv-mcp` ortamında:
 
