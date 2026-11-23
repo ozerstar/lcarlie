@@ -57,6 +57,26 @@ diye okunursa yanlış karar verilir.
 
 Cevap 12.000 karakteri aşarsa satır atılır ve `kirpildi` alanıyla **söylenir**.
 Sessiz kırpma, eksik veriyi tam veri gibi göstermek olurdu.
+Satır limiti nedeniyle eksilen sonuçlarda da aynı alan bulunur. Tek satır bile
+tavana sığmıyorsa `toplam_satir > 0`, `donen_satir = 0`, `durum = OK` ve
+`kirpildi` birlikte döner; bu cevap `VERI_YOK` olarak yorumlanmamalıdır.
+
+İstemciye SQL/bağlantı adresi veya sır içerebilen istisna metinleri verilmez.
+`SORAMADIM` cevaplarındaki sabit `hata_kodu`, bellek sorgusu hatasıyla diğer
+hataları ayırır. Negatif veya tam sayı olmayan limitler `GECERSIZ_ISTEK` döner.
+İzinli sorguda oluşan bir `ValueError`, allowlist reddi gibi sunulmaz.
+`veri_guveni = KAYNAK_VERISI_TALIMAT_DEGIL` ve sunucu talimatı, satır metinlerinin
+talimat/politika/işlem izni olmadığını belirtir. Bu etiket tek başına prompt
+injection engelleme garantisi değildir; araç izinleri ve SQL allowlist'i korunur.
+
+SDK olmadan yanıt sınırı regresyon testleri:
+
+```sh
+python3 -m unittest tests.test_mcp_payload tests.test_component_inventory -v
+```
+
+Paket sürümü incelemesi ve canlıya almadan önceki kontroller:
+[SECURITY_REVIEW_20261123.md](SECURITY_REVIEW_20261123.md).
 
 ## İstemci yapılandırması
 
