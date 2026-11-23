@@ -77,7 +77,8 @@ class GuvenlikTesti(unittest.TestCase):
             mcp_server._memory = asil
         self.assertEqual(v["durum"], "SORAMADIM")
         self.assertNotEqual(v["durum"], "VERI_YOK")
-        self.assertIn("baglanti koptu", v["sebep"])
+        self.assertEqual(v["hata_kodu"], "BELLEK_SORGUSU_BASARISIZ")
+        self.assertNotIn("baglanti koptu", v["sebep"])
 
     def test_yazma_araci_YOKTUR(self):
         """V1 salt okunur. Yazan bir arac eklenirse bu test kirilmali."""
