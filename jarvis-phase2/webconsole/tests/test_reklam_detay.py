@@ -125,7 +125,7 @@ class Yorum(unittest.TestCase):
         self.assertEqual(e["ig_yorum_durum"], "OK")
         self.assertEqual(d["olcum"]["fb_okundu"], 0)
         # aynı gönderi bir kez sorulur
-        self.assertEqual(sum(1 for c in cagri if c.endswith("/comments")), 2)  # iki jeton denemesi
+        self.assertEqual(sum(1 for c in cagri if c.endswith("/comments")), 3)  # üç jeton denemesi (yorum, sayfa, reklam)
 
     def test_video_izin_hatasi_dogru_sebep(self):
         s = md.hata_sebebi(RuntimeError("HTTP 400: (#283) This endpoint requires the 'pages_read_engagement' "

@@ -348,7 +348,8 @@ def topla(hid: str, get: Callable[[str, dict, str], dict], get_liste: Callable[[
             okunan_fb[gid] = {"durum": "OKUNAMADI", "sebep": fb_genel_hata}
             continue
         son_hata = None
-        for jeton in ("FB_PAGE_TOKEN", "META_ADS_TOKEN"):
+        # FB_PAGE_YORUM_TOKEN: yalnız yorum okuma izinli ayrı jeton (scripts/meta-sayfa-jetonu-yenile.py).
+        for jeton in ("FB_PAGE_YORUM_TOKEN", "FB_PAGE_TOKEN", "META_ADS_TOKEN"):
             try:
                 ham = get(gid + "/comments", {"fields": FB_YORUM_ALAN, "limit": "100", "filter": "toplevel"}, jeton)
                 ys = fb_yorumlari(gid, ham.get("data") or [], sayfa_id)
