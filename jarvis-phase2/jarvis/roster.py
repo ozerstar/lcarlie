@@ -91,8 +91,9 @@ ROSTER: tuple[Member, ...] = (
     # bir sutun bile yoktu. Veri Wix'te duruyordu ve hic okunmuyordu.
     Member("seo_icerik", "SEO İçerik Uzmanı",
            "Ürün başlık ve açıklamalarının arama görünürlüğü açısından "
-           "tanımlı olup olmadığını okur.",
-           ("urun_seo",), kind="specialist"),
+           "tanımlı olup olmadığını okur; günlük blog yayın hattını "
+           "(yayınlanan, bekleyen, sahibe düşen yazılar) izler.",
+           ("urun_seo", "blog_hatti"), kind="specialist"),
     Member("seo_anahtar", "Anahtar Kelime Uzmanı",
            "Hangi ürüne hangi anahtar kelime atanmış, tekrar eden ya da "
            "boş kalan var mı.",

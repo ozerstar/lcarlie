@@ -798,6 +798,17 @@
    "bilgi": [
     "kasim-2026-plani"
    ]
+  },
+  {
+   "id": "seo-blog-hatti",
+   "departman": "SEO",
+   "siklik": "gunluk",
+   "tip": "ANALIZ",
+   "kaynak": "blog_hatti",
+   "baslik": "Blog yayın hattını denetle: bugün yayınlanan, görsel/Wix bekleyen ve sahibe düşen yazılar",
+   "cikti": "Durum × adet tablosu + bekleyen/sahibe düşen her yazı için tek cümlelik sebep + yarının ilk 3 konusu",
+   "kabul_olcutu": "Adetler blog_hatti kaynağıyla birebir; YAYINLANDI yazıların 5 dil adresi sayılmış",
+   "not": "Yayını yapan program lcarlie-blog-hatti.timer'dır (06:30 + saatlik); bu rutin yalnız izler, dış eylem yok."
   }
  ]
 }

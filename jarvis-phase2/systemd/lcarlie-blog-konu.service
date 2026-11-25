@@ -1,0 +1,10 @@
+[Unit]
+Description=LCARLIE blog konu bulucu: GSC'de gosterimi olup 10. siradan geride kalan kapsanmamis sorgular
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+Environment=JARVIS_MEMORY_TRANSPORT=local-docker
+ExecStart=/opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/blog-hatti.py konu-bul
+TimeoutStartSec=300

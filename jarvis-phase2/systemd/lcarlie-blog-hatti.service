@@ -1,0 +1,21 @@
+[Unit]
+# BLOG HATTI (25.11.2026): gunde 3 SEO yazisi -> TR kapilari -> 4 dile ceviri ->
+# ChatGPT (PC-1 tarayici worker) urunsuz sahne -> gercek urun kesitiyle kapak x5 ->
+# Wix Blog TR + bagli ceviriler. Jarvis rutini; Claude oturumuna bagli degil.
+Description=LCARLIE blog hatti: gunluk 3 SEO yazisi, 5 dil, gorsel ve Wix yayini
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+Environment=JARVIS_MEMORY_TRANSPORT=local-docker
+Environment=JARVIS_STATE_DIR=/opt/lcarlie/jarvis-phase2/state
+Environment=TARAYICI_CIKTI_DIR=/opt/lcarlie/tarayici-cikti
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=-/etc/lcarlie/jarvis-phase2.env
+EnvironmentFile=-/etc/lcarlie/blog-hatti.env
+ExecStartPre=/opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/blog-hatti.py yukle
+ExecStart=/usr/bin/flock -n /run/lcarlie-blog-hatti.lock /opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/blog-hatti.py calis
+TimeoutStartSec=5400
+Nice=5

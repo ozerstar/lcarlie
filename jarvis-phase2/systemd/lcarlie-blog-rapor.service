@@ -1,0 +1,11 @@
+[Unit]
+Description=LCARLIE blog hatti gunluk raporu (push + e-posta)
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lcarlie/jarvis-phase2
+Environment=JARVIS_MEMORY_TRANSPORT=local-docker
+EnvironmentFile=-/etc/lcarlie/jarvis-phase2.env
+ExecStart=/opt/lcarlie/jarvis-phase2/venv/bin/python /opt/lcarlie/jarvis-phase2/scripts/blog-hatti.py rapor
+TimeoutStartSec=300

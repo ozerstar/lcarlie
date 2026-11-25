@@ -388,13 +388,18 @@ def main() -> int:
     rapor["nabiz_uyarisi"] = nabiz_denetle(s["sayilar"])
 
     try:
-        bekleyenler = tarayici.sunulacaklar(limit=10)
+        bekleyenler = tarayici.sunulacaklar(limit=30)
     except tarayici.TarayiciHatasi as hata:
         rapor["hata"].append({"asama": "sunulacaklar", "sebep": str(hata)[:300]})
         print(json.dumps(rapor, ensure_ascii=False))
         return 1
 
     for is_ in bekleyenler:
+        # 25.11.2026: blog hattinin sahne isleri onay kuyruguna GITMEZ; sonucu
+        # scripts/blog-hatti.py dogrudan okur, isler ve SUNULDU isaretler.
+        if str(is_.get("isteyen") or "").startswith("blog-hatti"):
+            rapor.setdefault("blog_hattina_birakilan", []).append(is_.get("is_id"))
+            continue
         try:
             rapor["sunulan"].append(sonucu_sun(is_))
         except Exception as hata:            # noqa: BLE001 - bir iş diğerini düşürmez

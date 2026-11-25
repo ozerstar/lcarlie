@@ -365,6 +365,14 @@ class CompanyMemory:
             "onaylayan,onay_zamani,olusturma "
             "FROM lcarlie.satis_yaklasim ORDER BY surum DESC,id DESC) x;"
         ),
+        # 25.11.2026: blog yayin hatti (core.blog_kuyruk ozeti; govde metni yok)
+        "blog_hatti": (
+            "SELECT row_to_json(x) FROM (SELECT slug AS entity_id,"
+            "'mart.blog_hatti_ozet' AS source,slug AS source_record_id,"
+            "guncellendi AS observed_at,konu,tur,durum,sebep,tr_url,"
+            "yayinli_dil,yayinlandi FROM mart.blog_hatti_ozet "
+            "ORDER BY guncellendi DESC LIMIT 60) x;"
+        ),
         "urun_alan_karsilastirma": (
             "SELECT row_to_json(x) FROM (SELECT urun_id AS entity_id,"
             "'mart.urun_alan_karsilastirma' AS source,urun_id AS source_record_id,"

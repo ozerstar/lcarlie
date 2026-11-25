@@ -1,0 +1,9 @@
+[Unit]
+Description=LCARLIE blog konu bulucu haftalik (Pazartesi 05:40)
+
+[Timer]
+OnCalendar=Mon *-*-* 05:40:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

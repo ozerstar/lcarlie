@@ -1,0 +1,11 @@
+[Unit]
+Description=LCARLIE blog hatti 06:30 ana kosu + 07-22 arasi saatlik devam (gorsel/yayin adimlari)
+
+[Timer]
+OnCalendar=*-*-* 06:30:00
+OnCalendar=*-*-* 07..22:15:00
+Persistent=true
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target
