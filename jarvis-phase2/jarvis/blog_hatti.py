@@ -758,6 +758,7 @@ class KrediBitti(DisHata):
 # işleri PC-1'deki tarayıcı worker'ına (core.tarayici_isi, hedef chatgpt_chat)
 # gider; worker ayrı sekmede YENİ sohbet açar, yanıtın kod bloğunu ham döndürür.
 METIN_YOLU = os.environ.get("BLOG_METIN_YOLU", "chatgpt")
+MD_LINK_RE = re.compile(r"\[(https?://[^\]\s]+)\]\((?:\1|https?://[^)\s]+)\)")
 CIKTI_TALIMATI = ("\n\nÇIKTI BİÇİMİ: Cevabının TAMAMINI tek bir ```json kod bloğu içinde ver; blok dışında "
                   "hiçbir şey yazma, açıklama ekleme, metni kısaltma.")
 
@@ -793,6 +794,9 @@ def chatgpt_web(istem: str, *, sistem: str | None = None, arama: bool = False,
             metin = d.get("sonuc_metin") or ""
             if not metin.strip():
                 raise DisHata("ChatGPT boş yanıt döndü (iş %d)" % is_id)
+            # ChatGPT web, kod bloğundaki adresleri de "[url](url)" diye
+            # markdown bağlantısına çeviriyor (25.11 ölçüldü: href kapısı düştü).
+            metin = MD_LINK_RE.sub(r"\1", metin)
             return metin, "chatgpt-web"
         if durum == "INSAN_GEREKLI":
             raise KrediBitti("ChatGPT (PC-1 Chrome) giriş/doğrulama istiyor: %s" % (d.get("hata") or "")[:200])
