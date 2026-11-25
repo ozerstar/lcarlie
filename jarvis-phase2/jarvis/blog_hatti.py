@@ -758,7 +758,7 @@ class KrediBitti(DisHata):
 # işleri PC-1'deki tarayıcı worker'ına (core.tarayici_isi, hedef chatgpt_chat)
 # gider; worker ayrı sekmede YENİ sohbet açar, yanıtın kod bloğunu ham döndürür.
 METIN_YOLU = os.environ.get("BLOG_METIN_YOLU", "chatgpt")
-MD_LINK_RE = re.compile(r"\[(https?://[^\]\s]+)\]\((?:\1|https?://[^)\s]+)\)")
+MD_LINK_RE = re.compile(r"\[(https?://[^\]\s\\]+)\\*\]\((?:https?://[^)\s]+?)\\*\)")  # [url](url), JSON kaçışı \ kuyruğu dahil
 CIKTI_TALIMATI = ("\n\nÇIKTI BİÇİMİ: Cevabının TAMAMINI tek bir ```json kod bloğu içinde ver; blok dışında "
                   "hiçbir şey yazma, açıklama ekleme, metni kısaltma.")
 
