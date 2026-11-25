@@ -209,7 +209,7 @@ def komut_al(argv: list[str]) -> int:
     ad = worker_adi(argv[0])
     satirlar = psql(
         "SELECT COALESCE(json_agg(row_to_json(t))::text, '[]') FROM "
-        "core.tarayici_isi_al(:'worker', 420) t;",
+        "core.tarayici_isi_al(:'worker', 1800) t;",
         {"worker": ad})
     isler = json.loads(satirlar[0]) if satirlar else []
     print(json.dumps(isler[0] if isler else {}, ensure_ascii=False))

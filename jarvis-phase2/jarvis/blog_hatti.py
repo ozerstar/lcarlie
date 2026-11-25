@@ -10,7 +10,7 @@ Bu modül hattın saf (yan etkisiz) parçalarını ve dış istemcileri tutar:
   kapılar (gate)            kelime_kapisi, yapi_kapisi, iddia_kapisi,
                             kaynak_kapisi (PMID/DOI çözümleme)
   HTML -> Ricos             html_to_ricos()
-  Gemini istemcisi          gemini()
+  model istemcisi           gemini() -> varsayılan ChatGPT web (chatgpt_web); BLOG_METIN_YOLU=gemini eski yol
   Wix istemcisi             WixBlog
   görsel dizgi              kapak_diz(), ic_gorsel_diz()
   kuyruk (Postgres)         Kuyruk
@@ -708,6 +708,8 @@ def gemini(istem: str, *, modeller: list[str], arama: bool = False, json_cikti: 
         govde["tools"] = [{"google_search": {}}]
     elif json_cikti:
         govde["generationConfig"]["responseMimeType"] = "application/json"
+    if METIN_YOLU == "chatgpt":
+        return chatgpt_web(istem, sistem=sistem, arama=arama, zaman=max(zaman, 1800))
     anahtar = gemini_anahtar()
     hatalar = []
     for model in modeller:
@@ -750,6 +752,55 @@ def gemini(istem: str, *, modeller: list[str], arama: bool = False, json_cikti: 
 
 class KrediBitti(DisHata):
     """Ücretli model kredisi bitti: deneme yakılmaz, sahibe günde bir haber verilir."""
+
+
+# 25.11.2026 sahip: "O hattı Gemini'den al, ChatGPT'nin Chrome'una bağla". Metin
+# işleri PC-1'deki tarayıcı worker'ına (core.tarayici_isi, hedef chatgpt_chat)
+# gider; worker ayrı sekmede YENİ sohbet açar, yanıtın kod bloğunu ham döndürür.
+METIN_YOLU = os.environ.get("BLOG_METIN_YOLU", "chatgpt")
+CIKTI_TALIMATI = ("\n\nÇIKTI BİÇİMİ: Cevabının TAMAMINI tek bir ```json kod bloğu içinde ver; blok dışında "
+                  "hiçbir şey yazma, açıklama ekleme, metni kısaltma.")
+
+
+def chatgpt_web(istem: str, *, sistem: str | None = None, arama: bool = False,
+                zaman: int = 1800) -> tuple[str, str]:
+    """ChatGPT web (PC-1 Chrome) üzerinden üretim; (metin, "chatgpt-web") döner.
+
+    Giriş/doğrulama istenirse ya da worker/Chrome işi hiç almazsa KrediBitti
+    yükselir: deneme yakılmaz, kuyruk bekler, sahibe günde bir haber gider.
+    """
+    from jarvis import tarayici
+    govde = "[YENI_SOHBET] " + (("SİSTEM TALİMATI: %s\n\n" % sistem) if sistem else "") + istem
+    if arama:
+        govde += ("\n\nKAYNAKLAR İÇİN WEB'DE ARA: PubMed/PMC, DOI ve resmî kurum sayfalarını açıp doğrula; "
+                  "açamadığın kaynağı yazma.")
+    govde += CIKTI_TALIMATI
+    ozet = hashlib.sha256(govde.encode("utf-8")).hexdigest()[:20]
+    try:
+        is_ = tarayici.enqueue_browser_task(govde, "chatgpt_chat", requested_by="blog-hatti",
+                                            idempotency_key="blog-metin:%s:%d" % (ozet, int(time.time())),
+                                            uyum_kapisi=False)
+    except tarayici.TarayiciHatasi as e:
+        raise DisHata("ChatGPT işi kuyruğa yazılamadı: %s" % e) from None
+    is_id = int(is_["is_id"])
+    bitis = time.time() + zaman
+    d: dict[str, Any] = {}
+    while time.time() < bitis:
+        time.sleep(15)
+        d = tarayici.isi_sonucu(is_id) or {}
+        durum = d.get("durum")
+        if durum in ("BITTI", "SUNULDU"):
+            metin = d.get("sonuc_metin") or ""
+            if not metin.strip():
+                raise DisHata("ChatGPT boş yanıt döndü (iş %d)" % is_id)
+            return metin, "chatgpt-web"
+        if durum == "INSAN_GEREKLI":
+            raise KrediBitti("ChatGPT (PC-1 Chrome) giriş/doğrulama istiyor: %s" % (d.get("hata") or "")[:200])
+        if durum == "HATA":
+            raise DisHata("ChatGPT işi %d hata verdi: %s" % (is_id, (d.get("hata") or "")[:300]))
+    if d.get("durum") == "BEKLIYOR":
+        raise KrediBitti("ChatGPT işi %d %d sn kuyrukta bekledi; PC-1 worker/Chrome kapalı olabilir" % (is_id, zaman))
+    raise DisHata("ChatGPT işi %d %d sn içinde bitmedi (durum %s)" % (is_id, zaman, d.get("durum")))
 
 
 OPENROUTER_MODELLERI = [m for m in os.environ.get(
@@ -804,7 +855,9 @@ def json_ayikla(metin: str) -> Any:
     m = re.search(r"```(?:json)?\s*(.*?)```", metin, re.S)
     ham = m.group(1) if m else metin
     bas = min([i for i in (ham.find("{"), ham.find("[")) if i >= 0], default=0)
-    return json.loads(ham[bas:].strip())
+    # ChatGPT web kod bloğunun önünde/arkasında "json", "Kopyala" gibi arayüz
+    # metni kalabilir: ilk geçerli JSON değeri alınır, kuyruğu atılır.
+    return json.JSONDecoder().raw_decode(ham[bas:].strip())[0]
 
 
 # ---------------------------------------------------------------------- Wix

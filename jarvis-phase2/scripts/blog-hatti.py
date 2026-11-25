@@ -854,11 +854,10 @@ def calis(a) -> dict:
                 log("KREDI", r["slug"], str(e)[:300])
                 rapor["hata"].append({"slug": r["slug"], "asama": onceki_durum, "hata": "KREDI: " + str(e)[:200]})
                 if not a.kuru:
-                    k.guncelle(r["slug"], bekleme_sebebi="Model kredisi bitti: " + str(e)[:400])
+                    k.guncelle(r["slug"], bekleme_sebebi="Yazı modeli bekliyor: " + str(e)[:400])
                     if gunde_bir("kredi"):
-                        bildir("Blog: model kredisi bitti", "Gemini ön ödeme kredisi bitti (AI Studio > proje > "
-                               "faturalandırma). Ücretsiz yedek model de cevap vermedi; blog yazıları kredi "
-                               "yüklenince kendiliğinden devam eder.", "blog-kredi", eposta=True)
+                        bildir("Blog: yazı modeli bekliyor", "Blog yazısı üretilemedi: %s. Sorun giderilince "
+                               "yazılar kendiliğinden devam eder." % str(e)[:300], "blog-kredi", eposta=True)
                 break
             except bh.KapiRed as e:
                 insana(k, r, str(e), a.kuru)

@@ -52,6 +52,7 @@ HEDEFLER = ("chatgpt_image", "chatgpt_chat", "claude_chat")
 # sayı olması, bu projede yaşanmış bir hata sınıfı.
 EN_AZ_ISTEM = 8
 EN_COK_ISTEM = 8000
+EN_COK_METIN_ISTEMI = 60000   # chatgpt_chat: blog yazısı/çevirisi tam metni taşır (25.11.2026)
 
 _SLUG_RE = re.compile(r"^[A-Za-z0-9_.-]{1,80}$")
 _IDEM_RE = re.compile(r"^[A-Za-z0-9_.:-]{8,200}$")
@@ -143,7 +144,8 @@ def _psql(sql: str, rol: str, *, degiskenler: dict[str, str] | None = None,
 def enqueue_browser_task(prompt: str, target: str,
                          input_files: list[str] | None = None,
                          requested_by: str = "jarvis",
-                         idempotency_key: str | None = None) -> dict[str, Any]:
+                         idempotency_key: str | None = None,
+                         uyum_kapisi: bool = True) -> dict[str, Any]:
     """Tarayıcı işini kuyruğa koyar. Mevzuat kapısını geçmeyen istem GİRMEZ.
 
     `input_files`, sunucudaki yolların listesidir (worker onları indirir).
@@ -156,13 +158,18 @@ def enqueue_browser_task(prompt: str, target: str,
                              % ", ".join(HEDEFLER))
     if len(istem) < EN_AZ_ISTEM:
         raise TarayiciHatasi("istem en az %d karakter olmali" % EN_AZ_ISTEM)
-    if len(istem) > EN_COK_ISTEM:
-        raise TarayiciHatasi("istem en fazla %d karakter olabilir" % EN_COK_ISTEM)
+    tavan = EN_COK_METIN_ISTEMI if target == "chatgpt_chat" else EN_COK_ISTEM
+    if len(istem) > tavan:
+        raise TarayiciHatasi("istem en fazla %d karakter olabilir" % tavan)
 
     # 🔴 MEVZUAT KAPISI — GİRİŞ. Bloklu bir iddia taşıyan istem kuyruğa hiç
     #    girmez. Kapıyı worker'a bırakmak, kapıyı PC'ye taşımak olurdu.
-    inceleme = compliance.review(istem)
-    if inceleme.blocked:
+    #    uyum_kapisi=False yalnız blog hattının metin işleri içindir: istem
+    #    reklam değil yazım TALİMATIDIR (yasak kalıpları örnek olarak sayar ve
+    #    kapıya takılır); üretilen metin yayından önce blog hattının iddia
+    #    kapısından ve compliance.review'dan geçer.
+    inceleme = compliance.review(istem if uyum_kapisi else "")
+    if uyum_kapisi and inceleme.blocked:
         raise UyumEngelledi(inceleme.blocked)
 
     # Sahibin beğenmediği görsellerin nedenleri (Görsel onayları ekranı) her yeni

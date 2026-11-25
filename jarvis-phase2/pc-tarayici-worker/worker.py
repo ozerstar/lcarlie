@@ -131,11 +131,22 @@ def tarayiciya_baglan(playwright):
         tarayici = playwright.chromium.connect_over_cdp(
             "http://127.0.0.1:%d" % CDP_PORT, timeout=20000)
     except Exception as hata:                              # noqa: BLE001
+        tarayici, son_hata = None, hata
+        # 25.11.2026: Chrome sabah kapanmisti ve gun boyu kimse acmadi; isler
+        # 07:50'de ECONNREFUSED ile dustu. Port dinlemiyorsa start-chrome.ps1
+        # calistirilir (betik portu kendisi yoklar, acik Chrome'u ikiletmez).
+        if not surucu_olu_mu(son_hata) and _chrome_baslat():
+            try:
+                tarayici = playwright.chromium.connect_over_cdp(
+                    "http://127.0.0.1:%d" % CDP_PORT, timeout=20000)
+            except Exception as hata2:                     # noqa: BLE001
+                son_hata = hata2
+    if tarayici is None:
         yol = chrome_yolu()
         raise KapiHatasi(
             "Chrome'a baglanilamadi (127.0.0.1:%d). start-chrome.ps1 "
             "calisiyor mu? Chrome: %s. Sebep: %s"
-            % (CDP_PORT, yol or "BULUNAMADI", str(hata)[:200])) from None
+            % (CDP_PORT, yol or "BULUNAMADI", str(son_hata)[:200]))
     if not tarayici.contexts:
         raise KapiHatasi("Chrome baglandi ama hic baglam yok")
     _BAGLANTI = tarayici
@@ -143,6 +154,27 @@ def tarayiciya_baglan(playwright):
 
 
 _BAGLANTI = None   # tek CDP baglantisi; surucu yeniden kurulunca sifirlanir
+_SON_BASLATMA = 0.0
+
+
+def _chrome_baslat() -> bool:
+    """start-chrome.ps1'i en cok 3 dakikada bir calistirir; acildiysa True."""
+    global _SON_BASLATMA
+    if time.time() - _SON_BASLATMA < 180:
+        return False
+    _SON_BASLATMA = time.time()
+    import subprocess
+    say("Chrome 127.0.0.1:%d'de yok; start-chrome.ps1 ile aciliyor" % CDP_PORT)
+    try:
+        r = subprocess.run(
+            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+             str(KOK / "start-chrome.ps1")],
+            capture_output=True, text=True, timeout=90, check=False)
+    except Exception as hata:                              # noqa: BLE001
+        say("start-chrome.ps1 calismadi: %s" % hata)
+        return False
+    say("start-chrome.ps1 cikis %s: %s" % (r.returncode, (r.stdout or r.stderr or "").strip()[-200:]))
+    return r.returncode == 0
 
 
 # --------------------------------------------------------------------------
