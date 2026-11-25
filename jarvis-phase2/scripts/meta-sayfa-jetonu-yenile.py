@@ -6,7 +6,7 @@ import json, shutil, sys, time, urllib.parse, urllib.request
 from pathlib import Path
 
 ENV = Path("/opt/lcarlie/n8n/.env")
-SAYFA_ID = "122278306424025"  # L'carlie Natural Cosmetics (panoda goruldu, asagida dogrulanir)
+SAYFA_ID = "1222783064240254"  # L'carlie Natural Cosmetics (panoda goruldu, asagida dogrulanir)
 GEREKLI = {"pages_read_user_content", "pages_read_engagement"}
 G = "https://graph.facebook.com/v21.0/"
 
@@ -33,6 +33,14 @@ try:
 except urllib.error.HTTPError as e:
     sys.exit(f"HATA: Meta {e.code}: {json.load(e).get('error', {}).get('message', '')[:160]}")
 s = next((p for p in sayfalar if p["id"] == SAYFA_ID), None) or (sayfalar[0] if len(sayfalar) == 1 else None)
+if not s:  # Isletme sayfasi me/accounts'ta gorunmeyebilir: dogrudan sor
+    try:
+        s = get(SAYFA_ID, access_token=uzun, fields="id,name,access_token")
+        if "access_token" not in s:
+            s = None
+    except urllib.error.HTTPError as e:
+        print("dogrudan sayfa sorgusu:", json.load(e).get("error", {}).get("message", "")[:160])
+        s = None
 if not s:
     sys.exit("HATA: sayfa bulunamadi; gorulenler: " + ", ".join(p["name"] for p in sayfalar))
 jeton = s["access_token"]
