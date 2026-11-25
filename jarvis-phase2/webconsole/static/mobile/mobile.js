@@ -1401,33 +1401,91 @@ $('refresh-system').addEventListener('click', loadSystem);
 async function loadDailySummary() {
   const container = $('daily-summary');
   const results = await Promise.allSettled([
-    readApi('/api/isler'), readApi('/api/actions'), readApi('/api/mobile/reminders'), readApi('/api/satislar')]);
+    readApi('/api/isler'), readApi('/api/actions'), readApi('/api/mobile/reminders'),
+    readApi('/api/reklam-yoneticisi?aralik=bugun&ozet=1')]);
   container.replaceChildren();
   const jobs = results[0].status === 'fulfilled' ? results[0].value : null;
   const proposals = results[1].status === 'fulfilled' ? results[1].value : null;
   const reminderData = results[2].status === 'fulfilled' ? results[2].value : null;
-  const sales = results[3].status === 'fulfilled' ? results[3].value : null;
-  const approvalCount = Array.isArray(proposals?.pending) ? proposals.pending.length : 0;
-  const completed = jobs?.sayilar?.biten || 0;
-  const upcoming = (reminderData?.reminders || []).filter((item) => new Date(item.due_at) > new Date()).length;
-  const today = new Date().toLocaleDateString('sv-SE');
-  const visibleOrders = Array.isArray(sales?.siparisler) ? sales.siparisler.filter((order) => String(order.gun || '').slice(0, 10) === today).length : null;
+  const gun = results[3].status === 'fulfilled' ? results[3].value : null;
+  const approvalCount = Array.isArray(proposals?.pending) ? proposals.pending.length : null;
+  const sayilar = jobs?.sayilar || {};
+  const completed = jobs ? Number(sayilar.biten || 0) : null;
+  const waiting = jobs ? ['bekleyen', 'calisan', 'hata'].reduce((t, k) => t + (Number(sayilar[k]) || 0), 0) : null;
+  const upcoming = reminderData ? (reminderData.reminders || []).filter((item) => new Date(item.due_at) > new Date()).length : null;
+  // 25.11: bu iki sayı hiç doldurulmuyordu, ana sayfada hep "—" kalıyordu.
+  $('home-jobs-count').textContent = waiting === null ? '—' : String(waiting);
+  $('home-reminder-count').textContent = upcoming === null ? '—' : String(upcoming);
+  mobilBugun(gun, approvalCount);
   const items = [
-    [visibleOrders === null ? 'Satış verisi alınamadı' : `Bugün kayıtlı ${visibleOrders} sipariş (bağlı kanallar)`, 'home'],
-    [`${approvalCount} onay bekliyor`, 'approvals'],
-    [`${upcoming} yaklaşan hatırlatıcı`, 'chat'],
-    [`${completed} toplam tamamlanan iş`, 'jobs'],
+    [approvalCount === null ? 'Onaylar okunamadı' : `${approvalCount} onay bekliyor`, 'approvals'],
+    [upcoming === null ? 'Hatırlatıcılar okunamadı' : `${upcoming} yaklaşan hatırlatıcı`, 'chat'],
+    [waiting === null ? 'İşler okunamadı' : `${waiting} iş sırada · ${completed} tamamlandı`, 'jobs'],
   ];
   for (const [label, tab] of items) {
     const button = document.createElement('button'); button.type = 'button'; button.className = 'daily-item';
     button.textContent = label + '  ›'; button.addEventListener('click', () => {
-      if (tab === 'home') { window.location.href = '/?view=satislar'; return; }
       document.querySelector(`[data-tab="${tab}"]`).click();
       if (tab === 'chat') document.querySelector('[data-chat-mode="personal"]').click();
     }); container.append(button);
   }
   if (!jobs && !proposals && !reminderData) container.textContent = 'Özet yüklenemedi. Sayfayı yenileyin.';
 }
+/* "Bugün" kutuları (25.11.2026) — masaüstü ana sayfasıyla aynı kaynak:
+   satış defteri (tüm kanallar), Meta harcaması, bekleyen onay, bugünkü uyarılar.
+   Okunamayan değer "—" ve sebebiyle kalır; hiçbir rakam uydurulmaz. */
+function mobilBugun(gun, onay) {
+  const tl = (n) => Number(n).toLocaleString('tr-TR', { maximumFractionDigits: Math.abs(n) >= 100 ? 0 : 2 }) + ' TL';
+  const yaz = (id, deger, alt, ton) => {
+    const k = $(id); if (!k) return;
+    k.querySelector('strong').textContent = deger; k.querySelector('small').textContent = alt;
+    if (ton) k.dataset.ton = ton; else delete k.dataset.ton;
+  };
+  const ok = gun && gun.durum === 'OK'; const o = ok ? (gun.ozet || {}) : null;
+  if (!ok || o.defter_durum !== 'OK' || o.tum_siparis === null || o.tum_siparis === undefined) yaz('m-satis', '—', 'Satış defteri okunamadı');
+  else {
+    const ciro = Number(o.tum_ciro || 0);
+    yaz('m-satis', `${o.tum_siparis} sipariş`, ciro > 0 ? tl(ciro) : (o.tum_siparis > 0 ? 'Tutar henüz gelmedi' : 'Henüz sipariş yok'), o.tum_siparis > 0 ? 'iyi' : null);
+  }
+  if (!ok) yaz('m-reklam', '—', 'Okunamadı');
+  else {
+    const meta = (gun.platformlar || []).find((p) => p.kod === 'meta');
+    yaz('m-reklam', tl(o.harcama || 0), meta && meta.acik != null ? `Meta · ${meta.acik} reklam açık` : 'Meta', o.harcama >= 500 && o.tum_siparis === 0 ? 'dikkat' : null);
+  }
+  yaz('m-onay', onay === null ? '—' : String(onay), onay === null ? 'Okunamadı' : (onay ? 'Kararını bekliyor' : 'Bekleyen yok'), onay ? 'dikkat' : null);
+  const liste = $('m-uyarilar'); liste.replaceChildren();
+  if (!ok) { yaz('m-uyari', '—', 'Okunamadı'); liste.hidden = true; }
+  else {
+    const today = new Date().toLocaleDateString('sv-SE');
+    const sira = { KRITIK: 0, UYARI: 1, BILGI: 2 };
+    const bugunku = (gun.uyarilar || []).filter((u) => String(u.zaman || '').slice(0, 10) === today)
+      .sort((a, b) => (sira[a.seviye] ?? 3) - (sira[b.seviye] ?? 3));
+    const ciddi = bugunku.filter((u) => u.seviye === 'KRITIK' || u.seviye === 'UYARI');
+    const kritik = bugunku.some((u) => u.seviye === 'KRITIK');
+    yaz('m-uyari', String(ciddi.length), ciddi.length ? 'Reklamlara bak' : 'Kritik uyarı yok', kritik ? 'kritik' : (ciddi.length ? 'dikkat' : null));
+    const ad = { KRITIK: 'Kritik', UYARI: 'Uyarı', BILGI: 'Bilgi' };
+    bugunku.slice(0, 2).forEach((u) => {
+      const li = document.createElement('li'); li.dataset.seviye = u.seviye || 'BILGI'; li.dataset.originalText = '1';
+      const b = document.createElement('b'); b.textContent = ad[u.seviye] || 'Not';
+      const sp = document.createElement('span'); sp.textContent = String(u.metin || '').replace(/\s*\($/, '');
+      li.append(b, sp); liste.append(li);
+    });
+    liste.hidden = !bugunku.length;
+  }
+  // 25.11: "Öncelikli konu" kutusu hiç doldurulmuyordu, hep "hazırlanıyor" yazıyordu.
+  const odak = onay ? [`${onay} karar seni bekliyor`, 'Önerileri okuyup onayla ya da reddet.', 'Onaylara git', 'approvals']
+    : (ok && o.harcama >= 500 && o.tum_siparis === 0) ? ['Reklam harcıyor, sipariş yok', `Bugün ${tl(o.harcama)} harcandı; hangi reklamın çalıştığına bak.`, 'Reklamlara bak', 'reklam']
+    : ['Bugün bekleyen karar yok', 'İşlerin durumuna göz atabilir ya da asistana sorabilirsin.', 'İşlere bak', 'jobs'];
+  $('home-focus-title').textContent = odak[0]; $('home-focus-detail').textContent = odak[1];
+  const odakBtn = $('home-focus-action'); odakBtn.textContent = odak[2]; odakBtn.dataset.focusTab = odak[3];
+  const olc = $('m-bugun-olcum');
+  if (olc) olc.textContent = ok && gun.olcum && gun.olcum.defter ? new Intl.DateTimeFormat('tr-TR', { hour: '2-digit', minute: '2-digit' }).format(new Date(gun.olcum.defter)) + ' itibarıyla' : '';
+}
+$('home-focus-action').addEventListener('click', () => {
+  const hedef = $('home-focus-action').dataset.focusTab || 'jobs';
+  if (hedef === 'reklam') { window.location.href = '/?view=kampanya'; return; }
+  document.querySelector(`.tab-nav [data-tab="${hedef}"]`)?.click();
+});
 function refreshMobile() { loadJobs(); loadApprovals(); loadSystem(); loadDailySummary(); }
 async function loadDevices() {
   const list = $('device-list');

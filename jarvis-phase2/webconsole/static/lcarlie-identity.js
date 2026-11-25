@@ -21,17 +21,21 @@
     if (document.getElementById('lcNavigation')) return;
     const mobile = location.pathname.startsWith('/mobile/');
     const home = () => mobile || matchMedia('(max-width:760px)').matches ? '/mobile/index.html' : '/';
+    // 25.11.2026: masaüstündeki HER sekme burada olmalı (telefondan da ulaşılsın).
+    // Reklamlar (kampanya), Görsel onay ve Eczaneler eksikti.
     const sections = [
-      ['home','Ana sayfa'],['analiz','Analiz'],['asistan','Asistan'],['raporlar','Raporlar'],
-      ['gorevler','Görevler'],['fiyat','Fiyatlar'],['eticaret','E-ticaret'],['satislar','Satışlar'],
-      ['kargo','Kargo'],['gelenkutusu','Gelen kutusu'],['musteri','Müşteriler'],['uretilenler','Üretilenler'],
-      ['kreatifParti','Kreatif çalışmalar'],['reklam','Reklam'],['tasarim','Tasarım ve üretim'],
-      ['ekip','Ekip'],['ajanlar','Ajanlar'],['hafiza','Hafıza'],['veri','Veri'],['katalog','Katalog'],
-      ['saha','Saha'],['isler','İşler'],['sistem','Sistem'],['ayarlar','Ayarlar']
+      ['home','Ana sayfa'],['satislar','Satışlar'],['kampanya','Reklamlar'],['gorevler','Onaylar ve görevler'],
+      ['gelenkutusu','Gelen kutusu'],['kargo','Kargo'],['asistan','Asistan'],['fiyat','Fiyatlar'],
+      ['eticaret','E-ticaret'],['musteri','Müşteriler'],['eczaneler','Eczaneler'],['saha','Saha'],['katalog','Katalog'],
+      ['uretilenler','Üretilenler'],['kreatifParti','Kreatif çalışmalar'],['gorselOnay','Görsel onay'],
+      ['reklam','Reklam kreatifleri'],['tasarim','Tasarım ve üretim'],['analiz','Analiz'],['raporlar','Raporlar'],
+      ['ekip','Ekip'],['isler','İşler'],['ajanlar','Ajanlar'],['hafiza','Hafıza'],['veri','Veri'],
+      ['sistem','Sistem'],['ayarlar','Ayarlar']
     ];
     const tabs = [['home','Ana sayfa'],['chat','Asistanla konuş'],['jobs','Görevler'],['approvals','Onaylar'],
       ['creative','Görseller'],['system','Sistem durumu'],['settings','Ayarlar'],['more','Diğer bölümler']];
-    const routes = [['/cari.html','Cari hesaplar'],['/belgeler.html','Fiş ve faturalar'],['/office.html','L’carlie Ofisi'],['/image-jobs.html','Görsel işleri']];
+    const routes = [['/finans.html','Finans merkezi'],['/finans.html#/urunkar','Ürün kârlılığı'],['/harcamalar.html','Harcamalarım'],
+      ['/cari.html','Cari hesaplar'],['/belgeler.html','Fiş ve faturalar'],['/office.html','L’carlie Ofisi'],['/image-jobs.html','Görsel işleri']];
     const desktop = !!document.getElementById('mainNav');
     const bar = document.createElement('nav');
     bar.id = 'lcNavigation';bar.setAttribute('aria-label','Sayfa gezinmesi');
@@ -58,7 +62,7 @@
       }list.append(group);
     }
     if(mobile)addGroup('Mobil çalışma alanı',tabs,'tab');
-    addGroup('Hesaplar ve ofis',routes,'route');
+    addGroup('Para, hesaplar ve ofis',routes,'route');
     addGroup('Bütün bölümler',mobile?sections.filter(([key])=>!['home','gorevler','sistem','ayarlar'].includes(key)):sections,'view');
     const currentView=()=>desktop?document.querySelector('#mainNav .nav-item.is-active')?.dataset.view:
       mobile?[...document.querySelectorAll('#app > .tab-panel:not([hidden])')].find(e=>e.id!=='chat-panel')?.id.replace(/-panel$/,''):null;

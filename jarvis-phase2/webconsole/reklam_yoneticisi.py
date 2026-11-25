@@ -335,7 +335,9 @@ def veri_oku(bas: date, bit: date, trend_gun: int = 30) -> dict:
             "(SELECT count(*) FROM raw.meta_reklam_yorum y WHERE y.medya_id IN (e.ig_medya_id, e.fb_gonderi_id) "
             " AND y.ust_yorum_id IS NULL AND NOT coalesce(y.bizden, false)) AS yorum_sayisi, "
             "(SELECT count(*) FROM raw.meta_reklam_yorum y WHERE y.medya_id IN (e.ig_medya_id, e.fb_gonderi_id) "
-            " AND y.ust_yorum_id IS NULL AND NOT coalesce(y.bizden, false) AND NOT coalesce(y.cevaplandi, false)) "
+            " AND y.ust_yorum_id IS NULL AND NOT coalesce(y.bizden, false) AND NOT coalesce(y.cevaplandi, false) "
+            # 25.11: Instagram'da gizlenen yorum cevap beklemez; cevapsız sayısına girmez.
+            " AND NOT coalesce(y.gizli, false)) "
             " AS cevapsiz_yorum "
             "FROM raw.meta_reklam_envanter e"),
         "oneri_kosu": _js(
@@ -1023,7 +1025,7 @@ def reklam_detay(ad_id: str) -> dict:
     medya = [m for m in (e.get("ig_medya_id"), e.get("fb_gonderi_id")) if m and re.fullmatch(r"[0-9_]+", m)]
     ham = _calistir(_js(
         "SELECT platform, yorum_id, ust_yorum_id, zaman, metin, kullanici, begeni, yanit_sayisi, bizden, "
-        "cevaplandi FROM raw.meta_reklam_yorum WHERE medya_id IN (%s) ORDER BY zaman"
+        "cevaplandi, gizli FROM raw.meta_reklam_yorum WHERE medya_id IN (%s) ORDER BY zaman"
         % ",".join("'%s'" % m for m in medya))) if medya else []
     ust: dict[str, dict] = {}
     for y in ham:
@@ -1314,6 +1316,19 @@ def kanit_ozeti(r: dict, sinir: int = 1500) -> str:
 
 
 # ------------------------------------------------------------------ üst düzey
+OZET_ANAHTARLARI = ("durum", "aralik", "olcum", "ozet", "platformlar", "uyarilar", "ne_yapmaliyim", "okunamadi")
+
+
+def ozet_kesiti(r: dict) -> dict:
+    """Ana sayfa için raporun küçük kesiti (25.11.2026). Hesap AYNI rapordan;
+    yalnız reklam/set/kampanya listeleri ve ham satırlar çıkarılır."""
+    k = {a: r.get(a) for a in OZET_ANAHTARLARI if a in r}
+    if isinstance(k.get("ozet"), dict):
+        k["ozet"] = {a: v for a, v in k["ozet"].items() if not isinstance(v, (list, dict))
+                     or a == "durum_sayim"}
+    return k
+
+
 def rapor(secim: str | None = None, bas: str | None = None, bit: str | None = None) -> dict:
     b, s, etiket = aralik_coz(secim, bas, bit)
     return rapor_kur(veri_oku(b, s), b, s, etiket=etiket)

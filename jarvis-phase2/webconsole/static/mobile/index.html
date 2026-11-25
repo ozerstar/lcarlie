@@ -1,9 +1,10 @@
 <!doctype html>
-<html data-lcarlie-theme="botanical" lang="tr">
+<html data-lcarlie-theme="botanical" data-ui="2026" lang="tr">
 <head>
   <meta charset="utf-8">
+  <script src="/tema-2026.js?v=1"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f7f5ef">
+  <meta name="theme-color" content="#f5f2ec">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>L’carlie</title>
@@ -19,17 +20,19 @@
   <link rel="stylesheet" href="/mobile/jarvis-night.css?v=2">
   <link rel="stylesheet" href="/mobile/workspace-refresh.css?v=1">
   <link rel="stylesheet" href="/mobile/chat-overlay.css?v=1">
-  <script defer src="/display-text.js?v=4"></script>
+  <script defer src="/display-text.js?v=6"></script>
   <script defer src="/mobile/voice-rtc.js?v=3"></script>
-  <script defer src="/mobile/mobile.js?v=32"></script>
-<link rel="stylesheet" href="/lcarlie-theme.css?v=1">
-<script defer src="/lcarlie-identity.js?v=1"></script>
+  <script defer src="/mobile/mobile.js?v=33"></script>
+<link rel="stylesheet" href="/lcarlie-theme.css?v=2">
+<link rel="stylesheet" href="/mobile/tasarim-2026.css?v=1">
+<script defer src="/lcarlie-identity.js?v=2"></script>
+<script defer src="/tasarim-2026.js?v=1"></script>
 </head>
 <body>
   <main class="shell">
     <header class="header">
       <div class="brand"><span class="brand-icon" aria-hidden="true">✦</span><div><img class="lcarlie-brand-logo" src="/img/lcarlie-mark-dark.png" alt="L’carlie"><small>Kurumsal yönetim alanı</small></div></div>
-      <div class="header-actions"><span id="status" class="status">Bağlanıyor</span><button id="logout" class="text-button" hidden>Çıkış</button></div>
+      <div class="header-actions"><span id="status" class="status">Bağlanıyor</span><button type="button" class="tema-dugme" data-tema-dugme aria-pressed="false" aria-label="Koyu temaya geç">☾</button><button id="logout" class="text-button" hidden>Çıkış</button></div>
     </header>
 
     <section id="login" class="login card" hidden>
@@ -57,6 +60,16 @@
           <div><p id="today-date" class="desk-date">Bugün</p><h1>Merhaba.</h1><p>Önce önemli olanı halledelim.</p></div>
           <button type="button" class="desk-orb" id="home-voice" aria-label="Sesli asistana geç"><span aria-hidden="true">✦</span><small>Dokun ve konuş</small></button>
         </div>
+        <section class="m-bugun" aria-label="Bugün">
+          <div class="m-bugun-bas"><h2>Bugün</h2><small id="m-bugun-olcum"></small></div>
+          <div class="m-kpis">
+            <a class="m-kpi" id="m-satis" href="/?view=satislar"><span>Satış</span><strong>—</strong><small>Okunuyor…</small></a>
+            <a class="m-kpi" id="m-reklam" href="/?view=kampanya"><span>Reklam</span><strong>—</strong><small>Okunuyor…</small></a>
+            <button type="button" class="m-kpi" id="m-onay" data-tab="approvals"><span>Onay</span><strong>—</strong><small>Okunuyor…</small></button>
+            <a class="m-kpi" id="m-uyari" href="/?view=kampanya"><span>Uyarı</span><strong>—</strong><small>Okunuyor…</small></a>
+          </div>
+          <ul class="m-uyarilar" id="m-uyarilar" hidden></ul>
+        </section>
         <div class="desk-quick" aria-label="Hızlı işlemler"><button type="button" data-tab="chat"><span>✦</span>Asistana sor</button><button type="button" data-tab="jobs"><span>▤</span>İşleri gör</button><button type="button" data-tab="approvals"><span>✓</span>Karar ver</button><button type="button" data-tab="creative"><span>▧</span>Görseller</button></div>
         <section class="desk-focus" aria-label="Öncelikli konu">
           <div class="desk-focus-top"><span>Öncelikli konu</span><span aria-hidden="true">↗</span></div>
@@ -71,21 +84,41 @@
         </div>
         <section class="desk-flow" aria-label="Günün akışı"><div class="desk-section-heading"><h2>Günün akışı</h2><button type="button" data-tab="jobs">Tüm işler</button></div><div id="daily-summary">Özet hazırlanıyor…</div></section>
         <div id="home-summary" class="home-status" role="status"><span class="home-status-dot" aria-hidden="true"></span><span><strong id="home-system-state">Durum yükleniyor…</strong><small id="home-memory-state">Şirket hafızası kontrol ediliyor</small></span></div>
-        <details class="desk-directory"><summary>Şirket bölümleri <span>Satışlar, görseller ve diğerleri</span></summary>
-          <div class="overview-links">
-            <a href="/?view=home"><strong>Ana Sayfa</strong><small>Şirket özeti</small></a>
-            <a href="/?view=satislar"><strong>Satışlar</strong><small>Satış kayıtları</small></a>
-            <a href="/?view=eticaret"><strong>E-Ticaret</strong><small>Ürün ve kanal görünümü</small></a>
-            <a href="/?view=fiyat"><strong>Fiyat</strong><small>Fiyat çalışmaları</small></a>
-            <a href="/?view=kargo"><strong>Kargo</strong><small>Gönderiler</small></a>
-            <a href="/?view=musteri"><strong>Müşteriler</strong><small>Müşteri görünümü</small></a>
-            <a href="/finans.html"><strong>Finans Merkezi</strong><small>Muhasebe · şirketler ve şahsi tek yerde</small></a>
-            <a href="/finans.html#/urunkar"><strong>Ürün Kârlılığı</strong><small>L’CARLIÉ ürün maliyeti, satış, kâr/zarar</small></a>
-            <a href="/harcamalar.html"><strong>Harcamalarım</strong><small>Nereye, kime, ne için ne kadar</small></a>
-            <a href="/belgeler.html"><strong>Fiş ve Faturalar</strong><small>Ortak fişler · Lemos / MOY faturaları</small></a>
-            <a href="/cari.html"><strong>Cari Ekstreler</strong><small>Ürün, tahsilat ve bakiye</small></a>
-            <a href="/?view=kampanya"><strong>Reklamlar</strong><small>Hangi reklam açık, ne getirdi, yorumlar</small></a><button type="button" data-tab="creative"><strong>Görseller</strong><small>Üretilen reklam çalışmaları</small></button>
+        <details class="desk-directory" open><summary>Bütün bölümler <span>Masaüstündeki her sayfa</span></summary>
+          <div class="overview-links m-dizin">
+            <p class="m-dizin-bas">Her gün</p>
+            <a href="/?view=satislar"><strong>Satışlar</strong><small>Tüm kanalların siparişleri</small></a>
+            <a href="/?view=kampanya"><strong>Reklamlar</strong><small>Hangi reklam açık, ne getirdi, yorumlar</small></a>
+            <a href="/?view=gorevler"><strong>Onaylar ve görevler</strong><small>Masaüstü onay ekranı</small></a>
+            <a href="/?view=gelenkutusu"><strong>Gelen kutusu</strong><small>Müşteri mesajları</small></a>
+            <a href="/?view=kargo"><strong>Kargo</strong><small>Gönderiler ve etiketler</small></a>
+            <p class="m-dizin-bas">Para</p>
+            <a href="/finans.html"><strong>Finans merkezi</strong><small>Şirketler ve şahsi tek yerde</small></a>
+            <a href="/finans.html#/urunkar"><strong>Ürün kârlılığı</strong><small>Maliyet, satış, kâr/zarar</small></a>
+            <a href="/harcamalar.html"><strong>Harcamalarım</strong><small>Nereye, kime, ne kadar</small></a>
+            <a href="/belgeler.html"><strong>Fiş ve faturalar</strong><small>Fotoğraf çek, yükle, arşivle</small></a>
+            <a href="/cari.html"><strong>Cari ekstreler</strong><small>Ürün, tahsilat ve bakiye</small></a>
+            <a href="/?view=fiyat"><strong>Fiyat</strong><small>Kanal fiyatları</small></a>
+            <p class="m-dizin-bas">Satış ve ürün</p>
+            <a href="/?view=eticaret"><strong>E-ticaret</strong><small>Ürün ve kanal görünümü</small></a>
+            <a href="/?view=musteri"><strong>Müşteriler</strong><small>Müşteri kartları</small></a>
+            <a href="/?view=eczaneler"><strong>Eczaneler</strong><small>Eczane listesi ve takip</small></a>
+            <a href="/?view=saha"><strong>Saha</strong><small>Ziyaret ve rota</small></a>
+            <a href="/?view=katalog"><strong>Katalog</strong><small>Ürün kartları</small></a>
+            <p class="m-dizin-bas">Kreatif</p>
+            <a href="/?view=uretilenler"><strong>Üretilenler</strong><small>Görseller, konseptler, PDF'ler</small></a>
+            <a href="/?view=kreatifParti"><strong>Kreatif</strong><small>Kreatif partileri</small></a>
+            <a href="/?view=gorselOnay"><strong>Görsel onay</strong><small>Beğen / beğenme</small></a>
+            <a href="/?view=reklam"><strong>Reklam kreatifleri</strong><small>Kreatif performansı</small></a>
+            <a href="/?view=tasarim"><strong>Tasarım</strong><small>Tasarım işleri</small></a>
+            <p class="m-dizin-bas">Yönetim</p>
             <a href="/?view=raporlar"><strong>Raporlar</strong><small>Şirket raporları</small></a>
+            <a href="/?view=analiz"><strong>Analiz</strong><small>Plan ve kanıt</small></a>
+            <a href="/?view=ekip"><strong>Ekip</strong><small>Departmanlar ve işler</small></a>
+            <a href="/?view=isler"><strong>İşler</strong><small>Görsel üretim kuyruğu</small></a>
+            <a href="/?view=hafiza"><strong>Hafıza</strong><small>Kayıtlı notlar</small></a>
+            <a href="/?view=sistem"><strong>Sistem</strong><small>Makineler ve ölçümler</small></a>
+            <button type="button" data-tab="creative"><strong>Görseller</strong><small>Telefonda inceleme</small></button>
           </div>
         </details>
       </section>
@@ -230,7 +263,11 @@
       <section id="more-panel" class="tab-panel" hidden>
         <div class="intro"><span class="eyebrow">Diğer</span><h1>Araçlar ve hesap</h1><p>Sistem durumunu gör veya hesabını yönet.</p></div>
         <div class="more-links">
-          <a href="/?view=kampanya"><strong>Reklamlar</strong><small>Meta, Trendyol, Google: reklam reklam durum, video ve yorumlar</small></a>
+          <a href="/?view=kampanya"><strong>Reklamlar</strong><small>Reklam bazında durum, video ve yorumlar</small></a>
+          <a href="/?view=satislar"><strong>Satışlar</strong><small>Tüm kanalların siparişleri</small></a>
+          <a href="/?view=gelenkutusu"><strong>Gelen kutusu</strong><small>Müşteri mesajları</small></a>
+          <a href="/finans.html"><strong>Finans merkezi</strong><small>Şirketler ve şahsi tek yerde</small></a>
+          <a href="/harcamalar.html"><strong>Harcamalarım</strong><small>Nereye, kime, ne kadar</small></a>
           <a href="/cari.html"><strong>Cari Ekstreler</strong><small>Cari seç, hareketleri ve bakiyeyi düzenle</small></a>
           <a href="/belgeler.html"><strong>Fiş ve Faturalar</strong><small>Fotoğraf çek, yükle ve arşivle</small></a>
           <button type="button" data-tab="creative"><strong>Görseller</strong><small>Üretilen çalışmalar ve inceleme kararları</small></button>

@@ -1,0 +1,361 @@
+/* ==========================================================================
+   L'CARLIÉ PANEL · TASARIM SİSTEMİ 2026 (25.11.2026)
+   Sahip: "jarvis panelini biraz geliştir, zaten çok eski kaldı."
+
+   Bu dosya EN SON yüklenir. Üç iş yapar:
+   1. Jetonlar (lcarlie-theme.css başında, :root): renk, boşluk, köşe, gölge, yazı ölçeği. Açık + koyu tema.
+      Marka yüzeyi siyah / beyaz / krem (sahip 13.11: "yeşil marka rengi değil").
+      lcarlie-theme.css, lcarlie-premium.css ve nav-pro.css'teki sabit renkler
+      bu jetonlara çevrildi (araç: renk_jeton.py), yani tema tek yerden döner.
+   2. Eski değişken adlarını (--lc-*, --ink-*, --ivory-*, --bg, --line ...)
+      yeni jetonlara bağlar: 225 KB'lık app.css'e dokunmadan tüm sekmeler
+      aynı paleti konuşur.
+   3. Ortak bileşenleri (üst çubuk, menü, kart, başlık, rozet, tablo, düğme)
+      sakin ve tutarlı hale getirir.
+
+   Kurallar (testle kilitli: tests/test_panel_okunurluk.py):
+   - metin jetonları her iki temada da zemine karşı en az 4,5:1
+   - yazı en az 11 px
+   - satır içi stil yok (CSP 'self')
+   ========================================================================== */
+
+/* ---------------------------------------------------------------- jetonlar */
+html[data-ui="2026"] {
+  /* eski değişkenler -> yeni jetonlar (app.css, tema katmanları bunları okur) */
+  --lc-paper: var(--p-bg); --lc-surface: var(--p-surface); --lc-ink: var(--p-text);
+  --lc-muted: var(--p-text-3); --lc-green: var(--p-accent); --lc-line: var(--p-line);
+  --lc-sage: var(--p-fill); --lc-peach: var(--p-fill); --lc-sky: var(--p-fill); --lc-lilac: var(--p-fill);
+  --ink-0: var(--p-bg); --ink-1: var(--p-surface); --ink-2: var(--p-surface-2); --ink-3: var(--p-fill);
+  --glass: var(--p-surface); --glass-2: var(--p-fill);
+  --ivory: var(--p-text); --ivory-2: var(--p-text-2); --ivory-3: var(--p-text-3); --ivory-4: var(--p-text-3);
+  --cream: var(--p-text); --champagne: var(--p-text-2);
+  --bg: var(--p-bg); --paper: var(--p-bg); --surface: var(--p-surface); --panel: var(--p-surface);
+  --ink: var(--p-text); --text: var(--p-text); --muted: var(--p-text-3); --deep: var(--p-accent);
+  --accent: var(--p-accent); --soft: var(--p-fill);
+  --line-soft: var(--p-line); --line-strong: var(--p-line-strong);
+  --gold: var(--p-gold); --gold-hi: var(--p-gold); --gold-dim: var(--p-text-3);
+  --green: var(--p-ok); --amber: var(--p-warn); --red: var(--p-crit); --slate: var(--p-text-3);
+  --ok: var(--p-ok); --warn: var(--p-warn); --crit: var(--p-crit); --info: var(--p-info);
+  --ed-ink: var(--p-bg); --ed-panel: var(--p-surface); --ed-line: var(--p-line); --ed-text: var(--p-text);
+  --ed-muted: var(--p-text-3); --ed-cyan: var(--p-accent);
+    --shadow: var(--sh-1);
+  --font-ui: var(--f-ui);
+  color-scheme: light;
+}
+html[data-ui="2026"][data-lcarlie-theme] { --line: var(--p-line); background: var(--p-bg); color: var(--p-text); accent-color: var(--p-accent); }
+
+/* koyu tema jetonları lcarlie-theme.css başında (:root[data-theme="dark"]) */
+html[data-ui="2026"][data-theme="dark"] img.brand-logo,
+html[data-ui="2026"][data-theme="dark"] img.lcarlie-brand-logo { filter: invert(1) !important; }
+
+/* ----------------------------------------------------------- tek yazı tipi */
+/* "daktilo gibi" görünen eş aralıklı sayaçlar ve sistem serif başlıklar kalkar.
+   Kod/ham kayıt blokları eş aralıklı kalır. */
+html[data-ui="2026"] body,
+html[data-ui="2026"] body :where(:not(code, pre, kbd, samp, .mono, .ham-json, .ham-json *)) {
+  font-family: var(--f-ui) !important;
+}
+html[data-ui="2026"] body { font-size: var(--t-md); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+html[data-ui="2026"] :is(.panel-count, .tb-time, .tb-date, .quick-count, .ek-n, .ed-stat strong, .gn-kpi strong) { font-variant-numeric: tabular-nums; }
+
+/* ------------------------------------------------------------- iskelet */
+html[data-ui="2026"][data-lcarlie-theme] body { background: var(--p-bg) !important; color: var(--p-text) !important; }
+html[data-ui="2026"][data-lcarlie-theme] body::before { background: none !important; }
+
+/* Masaüstünde sol menü zaten var: "Geri / Menü" şeridi yalnız telefonda kalır. */
+@media (min-width: 1025px) {
+  html[data-ui="2026"] #lcNavigation { display: none !important; }
+  html[data-ui="2026"].lc-has-navigation { --lc-nav-height: 0px; }
+}
+
+/* üst çubuk */
+html[data-ui="2026"][data-lcarlie-theme] .app-view .topbar {
+  /* backdrop-filter KONMAZ: sabit konumlu sol menü (.tb-nav) üst çubuğun içinde;
+     filtre ona yeni bir kap yaratır ve menü 200 px'lik kutuya sıkışır (ölçüldü). */
+  background: var(--p-surface) !important;
+  border-bottom: 1px solid var(--p-line) !important;
+  box-shadow: none !important;
+}
+html[data-ui="2026"][data-lcarlie-theme] .app-view .tb-brand { background: var(--p-surface) !important; }
+html[data-ui="2026"][data-lcarlie-theme] .app-view .tb-brand .brand-sub { color: var(--p-text-3) !important; letter-spacing: .14em !important; font-size: 11px !important; }
+html[data-ui="2026"] .tb-meta { gap: var(--s-2) !important; }
+html[data-ui="2026"][data-lcarlie-theme] :is(.quick-action, .quick-approvals, #logoutBtn, .gn-tema) {
+  min-height: 38px; padding: 0 var(--s-3) !important; border: 1px solid var(--p-line) !important;
+  border-radius: var(--r-pill) !important; background: var(--p-surface) !important; color: var(--p-text) !important;
+  font-size: var(--t-sm) !important; font-weight: 600 !important; letter-spacing: 0 !important; box-shadow: none !important;
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+}
+html[data-ui="2026"][data-lcarlie-theme] :is(.quick-action, .quick-approvals, #logoutBtn, .gn-tema):hover { border-color: var(--p-line-strong) !important; background: var(--p-surface-2) !important; }
+html[data-ui="2026"][data-lcarlie-theme] .quick-approvals .quick-count {
+  min-width: 22px; height: 22px; padding: 0 6px; border-radius: var(--r-pill); display: inline-grid; place-items: center;
+  background: var(--p-accent) !important; color: var(--p-accent-ink) !important; font-size: 12px !important; font-weight: 700;
+}
+html[data-ui="2026"] #logoutBtn { text-transform: none !important; }
+html[data-ui="2026"] .tb-clock { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.15; }
+html[data-ui="2026"][data-lcarlie-theme] .tb-date { color: var(--p-text-3) !important; font-size: 11px !important; letter-spacing: .04em !important; text-transform: none !important; }
+html[data-ui="2026"][data-lcarlie-theme] .tb-time { color: var(--p-text) !important; font-size: var(--t-md) !important; font-weight: 600 !important; letter-spacing: 0 !important; }
+html[data-ui="2026"][data-lcarlie-theme] .tb-live {
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: var(--r-pill);
+  background: var(--p-fill); border: 1px solid var(--p-line);
+}
+html[data-ui="2026"][data-lcarlie-theme] .tb-live .live-text { color: var(--p-text-2) !important; font-size: 12px !important; font-weight: 600 !important; letter-spacing: .02em !important; }
+html[data-ui="2026"] .tb-live .live-dot { animation: none !important; }
+/* "ONAY BEKLİYOR" gibi büyük harfli durum -> "Onay bekliyor" */
+html[data-ui="2026"][data-lcarlie-theme] .tb-live .live-text { display: inline-block; text-transform: lowercase !important; }
+html[data-ui="2026"] .tb-live .live-text::first-letter { text-transform: uppercase; }
+html[data-ui="2026"][data-lcarlie-theme] .tb-operator .op-avatar {
+  width: 30px; height: 30px; border-radius: 50%; display: inline-grid; place-items: center;
+  background: var(--p-accent) !important; color: var(--p-accent-ink) !important; border: 0 !important; font-size: 12px !important; font-weight: 700;
+}
+html[data-ui="2026"][data-lcarlie-theme] .tb-operator .op-name { color: var(--p-text-2) !important; font-size: var(--t-sm) !important; letter-spacing: 0 !important; text-transform: none !important; }
+
+/* ----------------------------------------------------------------- menü */
+html[data-ui="2026"][data-lcarlie-theme] .app-view .tb-nav { background: var(--p-surface) !important; border-right: 1px solid var(--p-line) !important; }
+html[data-ui="2026"][data-lcarlie-theme] .ed-nav-search {
+  background: var(--p-surface-2) !important; border: 1px solid var(--p-line) !important; border-radius: var(--r-md) !important; color: var(--p-text-3) !important;
+}
+html[data-ui="2026"][data-lcarlie-theme] .ed-nav-search kbd { background: var(--p-surface) !important; border: 1px solid var(--p-line) !important; color: var(--p-text-3) !important; border-radius: 6px; font-size: 11px !important; }
+html[data-ui="2026"][data-lcarlie-theme] .nav-head {
+  color: var(--p-text-3) !important; font-size: 11px !important; font-weight: 700 !important; letter-spacing: .12em !important;
+}
+html[data-ui="2026"][data-lcarlie-theme] #mainNav .nav-item {
+  min-height: 38px; border: 0 !important; border-radius: var(--r-sm) !important; color: var(--p-text-2) !important;
+  font-size: 14px !important; font-weight: 500 !important; letter-spacing: 0 !important; text-transform: none !important;
+  box-shadow: none !important; background: transparent !important;
+}
+html[data-ui="2026"][data-lcarlie-theme] #mainNav .nav-item .nav-ic { color: var(--p-text-3); opacity: 1; }
+html[data-ui="2026"][data-lcarlie-theme] #mainNav .nav-item:hover { background: var(--p-surface-2) !important; color: var(--p-text) !important; }
+html[data-ui="2026"][data-lcarlie-theme] #mainNav .nav-item.is-active {
+  background: var(--p-fill) !important; color: var(--p-text) !important; font-weight: 650 !important;
+  box-shadow: inset 3px 0 0 var(--p-accent) !important;
+}
+html[data-ui="2026"][data-lcarlie-theme] #mainNav .nav-item.is-active .nav-ic { color: var(--p-text); }
+html[data-ui="2026"] #mainNav .nav-label { text-transform: none !important; letter-spacing: 0 !important; }
+html[data-ui="2026"] #mainNav .nav-rozet {
+  margin-left: auto; min-width: 22px; height: 20px; padding: 0 6px; border-radius: var(--r-pill);
+  display: inline-grid; place-items: center; font-size: 11px; font-weight: 700;
+  background: var(--p-accent); color: var(--p-accent-ink);
+}
+html[data-ui="2026"] #mainNav .nav-rozet[hidden] { display: none; }
+
+/* --------------------------------------------------------- sayfa başlığı */
+/* Bölüm başlığı (interior.js .iv-hero): görsel kalır, yükseklik yarıya iner;
+   içerik ilk ekranda görünür. */
+html[data-ui="2026"][data-lcarlie-theme] .iv-hero {
+  min-height: 0 !important; height: auto !important; border-radius: var(--r-lg) !important;
+  background: var(--p-surface) !important; border: 1px solid var(--p-line) !important; box-shadow: var(--sh-1) !important;
+}
+html[data-ui="2026"][data-lcarlie-theme] .iv-hero::after { height: 0 !important; background: none !important; }
+html[data-ui="2026"] .iv-copy { padding: 22px 28px !important; }
+html[data-ui="2026"][data-lcarlie-theme] .iv-category { color: var(--p-text-3) !important; font-size: 11px !important; font-weight: 700 !important; letter-spacing: .14em !important; text-transform: uppercase; margin: 0 0 6px !important; }
+html[data-ui="2026"][data-lcarlie-theme] .iv-copy h1 { font-size: clamp(26px, 2.6vw, 36px) !important; font-weight: 600 !important; letter-spacing: -.025em !important; margin: 0 0 6px !important; color: var(--p-text) !important; }
+html[data-ui="2026"][data-lcarlie-theme] .iv-description { color: var(--p-text-2) !important; font-size: var(--t-md) !important; margin: 0 0 14px !important; }
+html[data-ui="2026"] .iv-tools { gap: var(--s-2) !important; }
+html[data-ui="2026"][data-lcarlie-theme] .iv-tools button { min-height: 38px !important; padding: 0 16px !important; border-radius: var(--r-pill) !important; font-size: var(--t-sm) !important; }
+html[data-ui="2026"][data-lcarlie-theme] .iv-count { background: color-mix(in srgb, var(--p-surface) 92%, transparent) !important; color: var(--p-text-2) !important; border: 1px solid var(--p-line) !important; border-radius: var(--r-pill) !important; }
+html[data-ui="2026"] .iv-art { -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 38%); mask-image: linear-gradient(90deg, transparent 0, #000 38%); }
+/* "Bu ekranda 01 02 03" şeridi tıklanmıyor ve yer kaplıyordu */
+html[data-ui="2026"] .iv-flow { display: none !important; }
+
+/* ---------------------------------------------------------------- kartlar */
+html[data-ui="2026"][data-lcarlie-theme] :is(.panel, .ed-card, .iv-chart, .iv-gallery, .insight-block, .iv-view > .panel) {
+  background: var(--p-surface) !important; border: 1px solid var(--p-line) !important; border-radius: var(--r-lg) !important; box-shadow: var(--sh-1) !important;
+}
+html[data-ui="2026"][data-lcarlie-theme] :is(.iv-view .sect-card, .iv-view .ek-tile, .detail-block, .sn-kart, .iv-view .kr-kart, .iv-view .ur-kart, .insight-card) {
+  background: var(--p-surface-2) !important; border: 1px solid var(--p-line) !important; border-radius: var(--r-md) !important; box-shadow: none !important;
+}
+html[data-ui="2026"] .panel-head { gap: var(--s-3); align-items: baseline !important; border-bottom: 1px solid var(--p-line) !important; }
+/* BÜYÜK HARF başlıklar cümle düzenine iner (lang="tr": İ→i, I→ı doğru çevrilir) */
+html[data-ui="2026"][data-lcarlie-theme] .panel-title {
+  text-transform: lowercase; font-size: var(--t-xl) !important; font-weight: 650 !important; letter-spacing: -.015em !important; color: var(--p-text) !important;
+}
+html[data-ui="2026"] .panel-title::first-letter { text-transform: uppercase; }
+html[data-ui="2026"][data-lcarlie-theme] .panel-count {
+  color: var(--p-text-3) !important; font-size: var(--t-sm) !important; letter-spacing: 0 !important; text-transform: none !important; text-align: right;
+}
+html[data-ui="2026"][data-lcarlie-theme] :is(.sect-title, .rp-sub, .insight-heading h2, .iv-chart-head h2, .iv-gallery-head h2) { color: var(--p-text) !important; font-weight: 650 !important; letter-spacing: -.01em !important; }
+html[data-ui="2026"][data-lcarlie-theme] :is(.fm-sub, .sect-note, .empty-note, .rp-src, .kr-aciklama, .insight-heading p, .iv-chart-note) { color: var(--p-text-2) !important; }
+html[data-ui="2026"][data-lcarlie-theme] .empty-note { border-left: 2px solid var(--p-line-strong) !important; }
+html[data-ui="2026"][data-lcarlie-theme] :is(.iv-explain, .iv-explain > summary) { background: var(--p-surface-2) !important; color: var(--p-text-2) !important; border-color: var(--p-line) !important; border-radius: var(--r-md) !important; }
+
+/* Görevler: üç panel ızgarada sabit yüksekliğe sıkışıyordu; "Bekleyen öneriler"
+   ilk kartın ortasından kesiliyor, "Döngü kayıtları" listelerin üstüne biniyordu
+   (ölçüldü: satır 356 px, içerik 3530 px). Sahne yine kendi içinde kayar. */
+html[data-ui="2026"][data-lcarlie-theme] .app-view #viewGorevler.stage:not([hidden]) {
+  display: flex !important; flex-wrap: wrap; align-content: flex-start; align-items: flex-start; gap: var(--s-4);
+  overflow-y: auto !important;
+}
+html[data-ui="2026"][data-lcarlie-theme] .app-view #viewGorevler.stage > :is(.iv-hero, .iv-flow, .iv-chart) { flex: 1 1 100%; }
+html[data-ui="2026"][data-lcarlie-theme] .app-view #viewGorevler.stage > .panel {
+  flex: 1 1 calc(50% - var(--s-4)); min-width: 320px; height: auto !important; max-height: none !important; min-height: 0 !important; overflow: visible !important; margin: 0 !important;
+}
+html[data-ui="2026"][data-lcarlie-theme] .app-view #viewGorevler.stage > .panel:last-child { flex-basis: 100%; }
+html[data-ui="2026"] #viewGorevler :is(#taskProposalList, #orchestrationList, #taskCycleList) { max-height: none !important; overflow: visible !important; }
+
+/* öneri kartı (Görevler + Asistan): ince çerçeveli kutu yerine sakin kart */
+html[data-ui="2026"][data-lcarlie-theme] .proposal-card {
+  list-style: none; margin: 0 0 var(--s-3) !important; padding: 16px 18px !important; cursor: pointer;
+  background: var(--p-surface-2) !important; border: 1px solid var(--p-line) !important; border-radius: var(--r-md) !important; box-shadow: none !important;
+  transition: border-color .15s ease;
+}
+html[data-ui="2026"][data-lcarlie-theme] .proposal-card:hover { border-color: var(--p-line-strong) !important; }
+html[data-ui="2026"][data-lcarlie-theme] .proposal-card .p-type {
+  display: flex; align-items: center; gap: 8px; color: var(--p-warn) !important; font-size: 12px !important; font-weight: 700 !important; letter-spacing: .04em !important; text-transform: none !important;
+}
+html[data-ui="2026"][data-lcarlie-theme] .proposal-card .risk-badge { padding: 1px 8px !important; border-radius: var(--r-pill) !important; border: 1px solid var(--p-line) !important; background: var(--p-surface) !important; color: var(--p-text-2) !important; font-size: 11px !important; letter-spacing: 0 !important; }
+html[data-ui="2026"][data-lcarlie-theme] .proposal-card .p-konu { margin: 8px 0 6px; color: var(--p-text) !important; font-size: var(--t-md) !important; font-weight: 600 !important; line-height: 1.45 !important; }
+html[data-ui="2026"][data-lcarlie-theme] .proposal-card .p-meta { color: var(--p-text-3) !important; font-size: 12px !important; }
+html[data-ui="2026"][data-lcarlie-theme] .proposal-card .p-open { display: inline-block; margin-top: 10px; color: var(--p-text) !important; font-size: var(--t-sm) !important; font-weight: 650 !important; border-bottom: 1px solid var(--p-line-strong); }
+
+/* ---------------------------------------------------------------- düğmeler */
+html[data-ui="2026"][data-lcarlie-theme] :is(.ed-hero-ask, .iv-go, .primary, .btn-primary, .composer button, #htrEkle, #uploadButton, .login-form button, .chat-launcher, #chatSend) {
+  background: var(--p-accent) !important; border-color: var(--p-accent) !important; color: var(--p-accent-ink) !important; box-shadow: none !important;
+}
+html[data-ui="2026"][data-lcarlie-theme] :is(.ed-focus > button, .ed-section-title button, .ed-decision > button, .iv-tools button.iv-ask, .secondary, .iv-view .btn, .iv-view .qa-btn, .insight-link) {
+  background: var(--p-surface) !important; color: var(--p-text) !important; border: 1px solid var(--p-line-strong) !important; box-shadow: none !important;
+}
+html[data-ui="2026"][data-lcarlie-theme] :is(.ed-focus > button, .ed-section-title button, .ed-decision > button, .iv-tools button.iv-ask, .secondary, .iv-view .btn, .iv-view .qa-btn, .insight-link):hover { background: var(--p-surface-2) !important; }
+html[data-ui="2026"][data-lcarlie-theme] :is(button, a, input, textarea, select, summary):focus-visible { outline: 2px solid var(--p-accent) !important; outline-offset: 2px !important; }
+
+/* ----------------------------------------------------- rozet / durum renkleri */
+html[data-ui="2026"][data-lcarlie-theme] :is(.pill, .badge, .tag) { background: var(--p-fill); color: var(--p-text-2); border-color: var(--p-line); border-radius: var(--r-pill); }
+html[data-ui="2026"][data-lcarlie-theme] :is(.cari-alert, .warning, .notice-warning) { background: var(--p-warn-bg) !important; color: var(--p-warn) !important; border-color: color-mix(in srgb, var(--p-warn) 30%, transparent) !important; }
+html[data-ui="2026"][data-lcarlie-theme] :is(.error, .login-error, .danger) { color: var(--p-crit) !important; }
+
+/* ---------------------------------------------------------------- tablo */
+html[data-ui="2026"][data-lcarlie-theme] th { background: var(--p-surface-2) !important; color: var(--p-text-3) !important; font-size: 12px !important; font-weight: 650 !important; letter-spacing: .02em; }
+html[data-ui="2026"][data-lcarlie-theme] td { color: var(--p-text); }
+html[data-ui="2026"][data-lcarlie-theme] tr:hover td { background: var(--p-surface-2); }
+html[data-ui="2026"][data-lcarlie-theme] :is(table, td, th) { border-color: var(--p-line) !important; }
+
+/* form */
+html[data-ui="2026"][data-lcarlie-theme] :is(input, textarea, select, .iv-view .fm-input) { background: var(--p-surface) !important; color: var(--p-text) !important; border-color: var(--p-line-strong) !important; border-radius: var(--r-sm) !important; }
+html[data-ui="2026"][data-lcarlie-theme] :is(input, textarea)::placeholder { color: var(--p-text-3) !important; }
+html[data-ui="2026"][data-lcarlie-theme] label { color: var(--p-text-2) !important; }
+
+/* çubuk grafik */
+html[data-ui="2026"][data-lcarlie-theme] :is(.iv-bar-track, .progress-track) { background: var(--p-fill) !important; }
+html[data-ui="2026"][data-lcarlie-theme] :is(.iv-bar-fill, .progress-fill) { background: var(--p-accent) !important; }
+
+/* ------------------------------------------------------------- ana sayfa */
+html[data-ui="2026"][data-lcarlie-theme] .ed-hero {
+  background: var(--p-surface) !important; border: 1px solid var(--p-line) !important; box-shadow: var(--sh-1) !important;
+  padding: 26px 30px !important; margin-bottom: var(--s-4) !important;
+}
+html[data-ui="2026"][data-lcarlie-theme] .ed-hero::after { background: none !important; height: 0 !important; }
+html[data-ui="2026"][data-lcarlie-theme] .ed-hero h1 { font-size: clamp(30px, 3vw, 42px) !important; font-weight: 600 !important; letter-spacing: -.03em !important; }
+html[data-ui="2026"] .ed-hero-rule { display: none !important; }
+html[data-ui="2026"][data-lcarlie-theme] .ed-eyebrow { color: var(--p-text-3) !important; margin-bottom: 10px !important; letter-spacing: .14em !important; }
+html[data-ui="2026"][data-lcarlie-theme] :is(.ed-orb, .core-btn) {
+  background: var(--p-surface-2) !important; border: 1px solid var(--p-line-strong) !important; box-shadow: none !important; color: var(--p-text) !important;
+}
+html[data-ui="2026"][data-lcarlie-theme] .ed-orb-core { color: var(--p-text) !important; }
+html[data-ui="2026"][data-lcarlie-theme] :is(.ed-focus, .desk-focus) { background: var(--p-surface) !important; border-color: var(--p-line) !important; box-shadow: var(--sh-1) !important; }
+html[data-ui="2026"][data-lcarlie-theme] .ed-focus-marker { background: var(--p-warn) !important; box-shadow: 0 0 0 4px var(--p-warn-bg) !important; }
+html[data-ui="2026"][data-lcarlie-theme] .ed-stat-row > .ed-stat { background: var(--p-surface) !important; border: 1px solid var(--p-line) !important; box-shadow: var(--sh-1) !important; }
+html[data-ui="2026"][data-lcarlie-theme] .ed-stat span { color: var(--p-text-3) !important; font-size: 12px !important; letter-spacing: .06em !important; }
+html[data-ui="2026"][data-lcarlie-theme] .ed-stat strong { color: var(--p-text) !important; font-weight: 600 !important; }
+html[data-ui="2026"][data-lcarlie-theme] .ed-stat small { color: var(--p-text-2) !important; }
+html[data-ui="2026"][data-lcarlie-theme] :is(.ed-nav-search, .ed-shortcuts button, .ed-technical) { background: var(--p-surface-2) !important; color: var(--p-text-2) !important; border-color: var(--p-line) !important; }
+html[data-ui="2026"][data-lcarlie-theme] :is(.ed-calendar-grid span.ed-today) { background: var(--p-accent) !important; color: var(--p-accent-ink) !important; border-color: var(--p-accent) !important; box-shadow: none !important; }
+html[data-ui="2026"][data-lcarlie-theme] .chat-launcher { box-shadow: var(--sh-2) !important; }
+/* Karar listesi: uzun öneri metni duvar gibi akıyordu -> 3 satırda kesilir, tamamı onay ekranında */
+html[data-ui="2026"] .ed-rail-item strong { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; font-weight: 550; line-height: 1.45; }
+html[data-ui="2026"][data-lcarlie-theme] .ed-rail-item { border-left: 2px solid var(--p-line-strong) !important; padding: 2px 0 2px 12px; margin-bottom: 14px; }
+html[data-ui="2026"][data-lcarlie-theme] .ed-rail-item small { color: var(--p-text-3) !important; }
+
+/* "Bugün" şeridi — günün dört rakamı (tasarim-2026.js doldurur) */
+html[data-ui="2026"] .gn-bugun { margin: 0 0 var(--s-4); }
+html[data-ui="2026"] .gn-bugun-bas { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-3); margin: 0 2px var(--s-3); }
+html[data-ui="2026"] .gn-bugun-bas h2 { margin: 0; font-size: var(--t-lg); font-weight: 650; letter-spacing: -.01em; color: var(--p-text); }
+html[data-ui="2026"] .gn-bugun-bas small { color: var(--p-text-3); font-size: var(--t-xs); }
+html[data-ui="2026"] .gn-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-3); }
+html[data-ui="2026"] .gn-kpi {
+  position: relative; display: flex; flex-direction: column; gap: 6px; min-height: 128px; padding: 18px 18px 16px;
+  text-align: left; cursor: pointer; font: inherit; color: var(--p-text);
+  background: var(--p-surface); border: 1px solid var(--p-line); border-radius: var(--r-lg); box-shadow: var(--sh-1);
+  transition: border-color .15s ease, transform .15s ease;
+}
+html[data-ui="2026"] .gn-kpi:hover { border-color: var(--p-line-strong); transform: translateY(-1px); }
+html[data-ui="2026"] .gn-kpi > span { color: var(--p-text-3); font-size: 12px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
+html[data-ui="2026"] .gn-kpi > strong { font-size: var(--t-2xl); font-weight: 650; letter-spacing: -.02em; line-height: 1.1; }
+html[data-ui="2026"] .gn-kpi > small { color: var(--p-text-2); font-size: var(--t-sm); line-height: 1.45; }
+html[data-ui="2026"] .gn-kpi[data-ton="iyi"] > strong { color: var(--p-ok); }
+html[data-ui="2026"] .gn-kpi[data-ton="dikkat"] { border-color: color-mix(in srgb, var(--p-warn) 35%, var(--p-line)); background: linear-gradient(180deg, var(--p-warn-bg), var(--p-surface) 70%); }
+html[data-ui="2026"] .gn-kpi[data-ton="kritik"] { border-color: color-mix(in srgb, var(--p-crit) 35%, var(--p-line)); background: linear-gradient(180deg, var(--p-crit-bg), var(--p-surface) 70%); }
+html[data-ui="2026"] .gn-kpi[data-ton="kritik"] > strong { color: var(--p-crit); }
+html[data-ui="2026"] .gn-uyarilar { list-style: none; margin: var(--s-3) 0 0; padding: 0; display: grid; gap: var(--s-2); }
+html[data-ui="2026"] .gn-uyarilar li {
+  display: flex; gap: var(--s-3); align-items: flex-start; padding: 12px 14px; border-radius: var(--r-md);
+  background: var(--p-surface); border: 1px solid var(--p-line); color: var(--p-text-2); font-size: var(--t-sm); line-height: 1.5;
+}
+html[data-ui="2026"] .gn-uyarilar li b { flex: none; padding: 2px 8px; border-radius: var(--r-pill); font-size: 11px; font-weight: 700; letter-spacing: .04em; }
+html[data-ui="2026"] .gn-uyarilar li[data-seviye="KRITIK"] b { background: var(--p-crit-bg); color: var(--p-crit); }
+html[data-ui="2026"] .gn-uyarilar li[data-seviye="UYARI"] b { background: var(--p-warn-bg); color: var(--p-warn); }
+html[data-ui="2026"] .gn-uyarilar li[data-seviye="BILGI"] b { background: var(--p-info-bg); color: var(--p-info); }
+html[data-ui="2026"] .gn-uyarilar[hidden] { display: none; }
+@media (max-width: 1100px) { html[data-ui="2026"] .gn-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* tema düğmesi */
+html[data-ui="2026"] .gn-tema { width: 38px; justify-content: center; padding: 0 !important; font-size: 16px !important; }
+
+/* ------------------------------------------------- reklam yorumu: gizlendi */
+html[data-ui="2026"] .ry-yorum.is-gizli { opacity: .55; }
+html[data-ui="2026"] .ry-gizli-rozet {
+  display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: var(--r-pill);
+  background: var(--p-fill); color: var(--p-text-2); border: 1px solid var(--p-line); font-size: 11px; font-weight: 650;
+}
+
+/* ----------------------------------------------------- koyu tema yamaları */
+/* Eski katmanlarda sabit kalan açık zeminler */
+html[data-ui="2026"][data-theme="dark"][data-lcarlie-theme] :is(.app-view, .view-panel, .app-view .iv-view, #viewHome) { background: var(--p-bg) !important; color: var(--p-text) !important; }
+html[data-ui="2026"][data-theme="dark"] :is(.ed-hero, .iv-hero, .login-card) { background: var(--p-surface) !important; }
+html[data-ui="2026"][data-theme="dark"] .iv-art { opacity: .55 !important; }
+
+/* ---------------------------------------------------------------- telefon */
+@media (max-width: 1024px) {
+  html[data-ui="2026"] #lcNavigation { min-height: 48px; padding: 6px 12px !important; background: var(--p-surface) !important; border-bottom: 1px solid var(--p-line) !important; }
+  html[data-ui="2026"] #lcNavigation :is(#lcBack, #lcMenu) {
+    min-height: 36px; padding: 0 12px !important; border-radius: var(--r-pill) !important; font-size: 14px !important;
+    background: var(--p-surface-2) !important; border: 1px solid var(--p-line) !important; color: var(--p-text) !important; box-shadow: none !important;
+  }
+  html[data-ui="2026"] #lcNavigation #lcPageLabel { color: var(--p-text) !important; font-weight: 650; font-size: 15px !important; }
+  /* üst çubukta logo + çıkış yeter; ara ve sor düğmeleri logonun üstüne biniyordu */
+  html[data-ui="2026"] .app-view .topbar { padding: 8px 14px !important; gap: 8px !important; }
+  html[data-ui="2026"] .tb-meta :is(#quickSearch, #quickChat, .tb-clock, .tb-operator, .tb-live) { display: none !important; }
+}
+@media (max-width: 640px) {
+  /* onay sayısı ana sayfadaki "Bugün" kutusunda; üst çubukta logonun üstüne biniyordu */
+  html[data-ui="2026"] .tb-meta #quickApprovals { display: none !important; }
+  html[data-ui="2026"] .app-view .tb-brand .brand-logo { width: 128px !important; }
+  html[data-ui="2026"] .app-view .tb-brand .brand-sub { display: none !important; }
+  html[data-ui="2026"] .iv-copy { padding: 18px !important; }
+  html[data-ui="2026"] .iv-art { display: none !important; }
+  html[data-ui="2026"] .iv-count { position: static !important; display: inline-block; margin: 0 18px 16px; }
+  html[data-ui="2026"][data-lcarlie-theme] .panel-title { font-size: var(--t-lg) !important; }
+  html[data-ui="2026"] .panel-head { flex-wrap: wrap; }
+  html[data-ui="2026"] .panel-count { text-align: left !important; flex-basis: 100%; }
+  html[data-ui="2026"] .ed-hero { padding: 20px !important; }
+}
+@media (max-width: 640px) {
+  html[data-ui="2026"] .gn-kpis { gap: var(--s-2); }
+  html[data-ui="2026"] .gn-kpi { min-height: 112px; padding: 14px; }
+  html[data-ui="2026"] .gn-kpi > strong { font-size: var(--t-xl); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-ui="2026"] .gn-kpi { transition: none; }
+  html[data-ui="2026"] .gn-kpi:hover { transform: none; }
+}
+
+/* yazı tabanı 11 px (sahip 26.09 "yazılar okunmuyor"): ölçümde Ekip'te 91, Katalog'da 60
+   metin 9,7–10,4 px çıktı — üst öğenin küçük puntosundan "small" ile bir daha küçülüyordu */
+html[data-ui="2026"] :is(#viewEkip, #viewKatalog) :is(small, .ek-bugun-lbl) { font-size: max(12px, .85em) !important; }
+
+/* koyu temada sol üstteki logo siyah zeminde kayboluyordu (tema katmanı filter:none veriyor) */
+html[data-ui="2026"][data-theme="dark"][data-lcarlie-theme] .app-view .tb-brand .brand-logo { filter: invert(1) !important; }
+
+/* "Bugün" şeridi geldikten sonra eski sayı satırındaki "Kararını bekleyen" ve
+   "Bugünkü sipariş" aynı rakamı ikinci kez gösteriyordu; ekip sayıları kalır */
+html[data-ui="2026"] .ed-stat-row { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+html[data-ui="2026"] .ed-stat-row > .ed-stat:nth-child(n+3) { display: none !important; }

@@ -70,7 +70,7 @@
         : 'Kıyaslanabilecek reklam örneği henüz yok. ';
       for (const target of [sales, ads]) {
         target.grid.replaceChildren(
-          makeCard('—', 'Sepete ekleme', 'Sitede add_to_cart olayı bulunuyor; GA4 sayısı Jarvis’e aktarılmadığı için burada sayı gösterilemiyor.'),
+          makeCard('—', 'Sepete ekleme', 'Sitede sepete ekleme ölçülüyor ama bu sayı henüz panele aktarılmıyor; o yüzden burada rakam yok.'),
           makeCard(clicks === null ? '—' : formatNumber(clicks), 'Reklam bağlantı tıklaması',
             clicks === null ? 'Reklam verisi alınamadı.' : 'Kreatif performans kayıtlarındaki bağlantı tıklamalarının toplamı; sipariş atfı değildir.'),
           makeCard(confirmed === null ? '—' : formatNumber(confirmed), 'Doğrulanmış sipariş',

@@ -172,7 +172,8 @@ ENVANTER_KOLON = (
     "yorum_olcum_at timestamptz")
 YORUM_KOLON = (
     "platform text, yorum_id text, medya_id text, ust_yorum_id text, zaman timestamptz, "
-    "metin text, kullanici text, begeni int, yanit_sayisi int, bizden boolean, cevaplandi boolean")
+    "metin text, kullanici text, begeni int, yanit_sayisi int, bizden boolean, cevaplandi boolean, "
+    "gizli boolean")  # gizli: 25.11 göç 080
 
 
 def detay_yaz(hid: str, kuru: bool = False) -> dict:

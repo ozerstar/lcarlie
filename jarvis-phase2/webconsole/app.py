@@ -2148,6 +2148,11 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(503, {"durum": "OKUNAMADI",
                                       "error": "Reklam verisi şu anda okunamadı."})
                 return
+            if _q("ozet") == "1":
+                # 25.11.2026: ana sayfanın "Bugün" şeridi yalnız özet ister;
+                # 460 KB'lık reklam listesi yerine aynı rapordan küçük kesit.
+                self._send_json(200, reklam_yoneticisi.ozet_kesiti(rapor))
+                return
             rapor["medya"] = _reklam_medya_dizini()
             _reklam_varlik_isaretle(rapor)
             self._send_json(200, rapor)

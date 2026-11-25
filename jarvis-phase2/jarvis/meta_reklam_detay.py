@@ -36,8 +36,10 @@ REKLAM_ALAN = (
     "thumbnail_url,video_id,effective_object_story_id,effective_instagram_media_id,"
     "instagram_permalink_url,object_story_spec,asset_feed_spec,link_url}")
 
-IG_YORUM_ALAN = ("comments_count,like_count,comments.limit(100){id,timestamp,text,like_count,"
-                 "username,replies.limit(50){id,timestamp,text,username,like_count}}")
+# 25.11.2026: `hidden` = yorum Instagram'da gizlendi (sahip 25.11'de 7 yorumu gizledi).
+# Panelde soluk + "gizlendi" görünür ve "cevapsız" sayısına girmez. Yalnız OKUNUR.
+IG_YORUM_ALAN = ("comments_count,like_count,comments.limit(100){id,timestamp,text,like_count,hidden,"
+                 "username,replies.limit(50){id,timestamp,text,username,like_count,hidden}}")
 FB_YORUM_ALAN = "id,created_time,message,like_count,comment_count,from{id,name},comments.limit(50){id,created_time,message,like_count,from{id,name}}"
 
 DURUM_SINIF = {
@@ -237,6 +239,12 @@ def _z(s):
     return s or None
 
 
+def _gizli(c: dict):
+    """Instagram `hidden` alanı: True/False; alan gelmediyse None (bilinmiyor, "gizli değil" sayılmaz)."""
+    h = c.get("hidden")
+    return h if isinstance(h, bool) else None
+
+
 def ig_yorumlari(medya_id: str, ham: dict, biz: str | None) -> list[dict]:
     out = []
     biz = (biz or "").lower()
@@ -247,13 +255,13 @@ def ig_yorumlari(medya_id: str, ham: dict, biz: str | None) -> list[dict]:
                     "ust_yorum_id": None, "zaman": _z(c.get("timestamp")), "metin": c.get("text") or "",
                     "kullanici": c.get("username") or "", "begeni": int(c.get("like_count") or 0),
                     "yanit_sayisi": len(yan), "bizden": bool(biz) and (c.get("username") or "").lower() == biz,
-                    "cevaplandi": bizden_yanit})
+                    "cevaplandi": bizden_yanit, "gizli": _gizli(c)})
         for r in yan:
             out.append({"platform": "instagram", "yorum_id": str(r["id"]), "medya_id": medya_id,
                         "ust_yorum_id": str(c["id"]), "zaman": _z(r.get("timestamp")), "metin": r.get("text") or "",
                         "kullanici": r.get("username") or "", "begeni": int(r.get("like_count") or 0),
                         "yanit_sayisi": 0, "bizden": bool(biz) and (r.get("username") or "").lower() == biz,
-                        "cevaplandi": None})
+                        "cevaplandi": None, "gizli": _gizli(r)})
     return out
 
 
@@ -267,14 +275,14 @@ def fb_yorumlari(gonderi_id: str, liste: list[dict], sayfa_id: str | None) -> li
                     "kullanici": (c.get("from") or {}).get("name") or "", "begeni": int(c.get("like_count") or 0),
                     "yanit_sayisi": int(c.get("comment_count") or len(yan)),
                     "bizden": bool(sayfa_id) and (c.get("from") or {}).get("id") == sayfa_id,
-                    "cevaplandi": bizden_yanit})
+                    "cevaplandi": bizden_yanit, "gizli": None})
         for r in yan:
             out.append({"platform": "facebook", "yorum_id": str(r["id"]), "medya_id": gonderi_id,
                         "ust_yorum_id": str(c["id"]), "zaman": _z(r.get("created_time")),
                         "metin": r.get("message") or "", "kullanici": (r.get("from") or {}).get("name") or "",
                         "begeni": int(r.get("like_count") or 0), "yanit_sayisi": 0,
                         "bizden": bool(sayfa_id) and (r.get("from") or {}).get("id") == sayfa_id,
-                        "cevaplandi": None})
+                        "cevaplandi": None, "gizli": None})
     return out
 
 

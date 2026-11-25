@@ -9847,11 +9847,12 @@ async function ryYorumYukle(s) {
     return `<li class="is-bad"><b>${ad}</b> okunamadı — ${escapeHtml(x.sebep || 'sebep bilinmiyor')}</li>`;
   };
   const tarih = (z) => (z ? new Date(z).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—');
-  const yorumHtml = (y, yanit) => `<article data-role="user" class="ry-yorum${y.bizden ? ' is-biz' : ''}${yanit ? ' is-yanit' : ''}">
-      <header><b>${escapeHtml(y.kullanici || 'adsız')}</b>${y.bizden ? '<span class="ry-biz">L’CARLIÉ</span>' : ''}
+  // 25.11: Instagram'da gizlenen yorum soluk + "Gizlendi"; cevap beklemez.
+  const yorumHtml = (y, yanit) => `<article data-role="user" class="ry-yorum${y.bizden ? ' is-biz' : ''}${yanit ? ' is-yanit' : ''}${y.gizli ? ' is-gizli' : ''}">
+      <header><b>${escapeHtml(y.kullanici || 'adsız')}</b>${y.bizden ? '<span class="ry-biz">L’CARLIÉ</span>' : ''}${y.gizli ? '<span class="ry-gizli-rozet" data-original-text="1">Gizlendi</span>' : ''}
         <span class="ry-yorum-pf">${y.platform === 'facebook' ? 'Facebook' : 'Instagram'}</span><time>${escapeHtml(tarih(y.zaman))}</time></header>
       <p>${escapeHtml(y.metin || '')}</p>
-      <footer>${y.begeni ? `<span>♥ ${y.begeni}</span>` : ''}${!yanit && !y.bizden ? (y.cevaplandi ? '<span class="ry-cevap is-ok">Cevaplandı</span>' : '<span class="ry-cevap is-bad">Cevaplanmadı</span>') : ''}</footer>
+      <footer>${y.begeni ? `<span>♥ ${y.begeni}</span>` : ''}${!yanit && !y.bizden && !y.gizli ? (y.cevaplandi ? '<span class="ry-cevap is-ok">Cevaplandı</span>' : '<span class="ry-cevap is-bad">Cevaplanmadı</span>') : ''}</footer>
     </article>${(y.yanitlar || []).map((x) => yorumHtml(x, true)).join('')}`;
   const liste = body.yorumlar || [];
   const bos = ig.durum === 'OK'
