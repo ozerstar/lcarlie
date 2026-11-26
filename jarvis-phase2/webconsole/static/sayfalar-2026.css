@@ -1,0 +1,439 @@
+/* ==========================================================================
+   L'CARLIÉ PANEL · AYRI SAYFALAR · TASARIM 2026 (26.11.2026)
+   Finans merkezi, Harcamalarım, Cari ekstreler, Fiş ve faturalar, Ofis,
+   Görsel işleri. 25.11'de panelin kendisi yenilendi (tasarim-2026.css); bu
+   sayfalar renkleri kısmen alıyor ama kendi eski düzenlerini taşıyordu:
+   lacivert/mavi menü, yeşil kahraman kutusu, renkli daireli sayaçlar,
+   BÜYÜK HARF başlıklar ve dört farklı yazı tipi (Inter, CariMetro,
+   sistem yazısı, Times).
+
+   Bu dosya her ayrı sayfada EN SON yüklenir; yalnız görünümü değiştirir.
+   - Jetonlar lcarlie-theme.css başından gelir (--p-*); yeni renk icat edilmez.
+   - Sayfa kendi değişken adlarını (--bg, --card, --ink ...) jetona bağlar.
+   - Cari ekstrenin YAZDIRMA görünümü müşteriye gider: kurallar @media screen.
+   - Kurallar testle kilitli (webconsole/tests/test_sayfalar_2026.py):
+     yazı en az 11 px, satır içi stil yok, sayfa bu dosyayı en son yükler.
+   ========================================================================== */
+
+/* ----------------------------------------------------------- yazı tipi */
+/* Ayrı sayfalar app.css yüklemez; marka yazısı burada tanımlanır. */
+@font-face { font-family: "Metropolis"; font-style: normal; font-weight: 300; font-display: swap; src: url("/fonts/Metropolis-Light.otf") format("opentype"); }
+@font-face { font-family: "Metropolis"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/Metropolis-Regular.otf") format("opentype"); }
+@font-face { font-family: "Metropolis"; font-style: normal; font-weight: 500; font-display: swap; src: url("/fonts/Metropolis-Medium.otf") format("opentype"); }
+@font-face { font-family: "Metropolis"; font-style: normal; font-weight: 600; font-display: swap; src: url("/fonts/Metropolis-SemiBold.otf") format("opentype"); }
+@font-face { font-family: "Metropolis"; font-style: normal; font-weight: 700; font-display: swap; src: url("/fonts/Metropolis-Bold.otf") format("opentype"); }
+
+html[data-ui="2026"] body,
+html[data-ui="2026"] body :where(:not(code, pre, kbd, samp, .mono)) { font-family: var(--f-ui) !important; }
+html[data-ui="2026"] body { background: var(--p-bg) !important; color: var(--p-text) !important; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+html[data-ui="2026"] body::before { background: none !important; }
+html[data-ui="2026"] :is(button, a, input, textarea, select, summary):focus-visible { outline: 2px solid var(--p-accent) !important; outline-offset: 2px !important; }
+html[data-ui="2026"] ::selection { background: var(--p-fill); color: var(--p-text); }
+/* dosya seçici: Metropolis ile "Dosya seç + seçilmedi" satırı telefonda kutudan taşıyordu */
+html[data-ui="2026"] input[type=file] { max-width: 100%; min-width: 0; }
+
+/* ---------------------------------------------- üst gezinme (Geri · Menü) */
+/* Ayrı sayfalarda sol menü yok; bu şerit her genişlikte tek gezinme yolu.
+   Panelin telefon görünümündeki hap düğmelerle aynı dil. */
+html[data-ui="2026"] #lcNavigation {
+  min-height: 56px; background: var(--p-surface) !important; border-bottom: 1px solid var(--p-line) !important; box-shadow: none !important;
+}
+html[data-ui="2026"] #lcNavigation :is(#lcBack, #lcMenu) {
+  min-height: 38px; min-width: 0; padding: 0 16px !important; border-radius: var(--r-pill) !important; font-size: var(--t-sm) !important; font-weight: 600 !important;
+  background: var(--p-surface) !important; border: 1px solid var(--p-line-strong) !important; color: var(--p-text) !important; box-shadow: none !important;
+}
+html[data-ui="2026"] #lcNavigation :is(#lcBack, #lcMenu):hover { background: var(--p-surface-2) !important; }
+html[data-ui="2026"] #lcNavigation #lcPageLabel { color: var(--p-text) !important; font-weight: 650; font-size: var(--t-md) !important; letter-spacing: -.005em; }
+html[data-ui="2026"] #lcMenuDialog { background: var(--p-bg); color: var(--p-text); }
+
+/* ortak sayfa başlığı: panelin bölüm başlığıyla (.iv-hero) aynı ölçü */
+html[data-ui="2026"] .sf-ust { color: var(--p-text-3) !important; font-size: 11px !important; font-weight: 700 !important; letter-spacing: .14em !important; text-transform: uppercase; margin: 0 0 6px !important; }
+
+/* ========================================================== FİNANS MERKEZİ */
+/* Sayfanın kendi değişkenleri jetona bağlanır: lacivert menü, mavi vurgu ve
+   Inter yazısı gider; kurum renkleri (Şahsım/MOY/Lemos/L’CARLIÉ) sahip
+   isteğiyle (03.11) kalır ama yalnız işaret olarak. */
+html[data-sayfa="finans"] {
+  --bg: var(--p-bg); --card: var(--p-surface); --primary: var(--p-accent); --primary-soft: var(--p-fill);
+  --dark: var(--p-text); --text: var(--p-text); --muted: var(--p-text-3);
+  --success: var(--p-ok); --success-soft: var(--p-ok-bg); --danger: var(--p-crit); --danger-soft: var(--p-crit-bg);
+  --warning: var(--p-warn); --warning-soft: var(--p-warn-bg);
+  --border: var(--p-line); --line: var(--p-line);
+  --sidebar: var(--p-surface); --sidebar-ink: var(--p-text-2); --sidebar-hover: var(--p-surface-2);
+  --radius: var(--r-lg); --radius-sm: var(--r-sm); --shadow: var(--sh-1); --shadow-hover: var(--sh-2);
+  background: var(--p-bg);
+}
+html[data-sayfa="finans"] body { font-size: 14px; }
+html[data-sayfa="finans"] .side { color: var(--p-text); border-right: 1px solid var(--p-line); padding: 18px 14px; }
+html[data-sayfa="finans"] .brand { display: block; padding: 4px 10px 16px; }
+html[data-sayfa="finans"] .sf-logo { display: block; width: 150px; max-width: 100%; height: auto; }
+html[data-sayfa="finans"] .brand small { display: block; margin-top: 8px; color: var(--p-text-3); font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+html[data-sayfa="finans"] .home-link { margin: 0 2px 14px; padding: 8px 12px; border-radius: var(--r-pill); background: var(--p-surface); border: 1px solid var(--p-line-strong); color: var(--p-text); font-size: var(--t-sm); }
+html[data-sayfa="finans"] .home-link:hover { background: var(--p-surface-2); color: var(--p-text); }
+html[data-sayfa="finans"] .side h6 { color: var(--p-text-3); font-size: 11px; font-weight: 700; letter-spacing: .12em; }
+html[data-sayfa="finans"] .side h6 #kurumName { color: var(--p-text-3); }
+html[data-sayfa="finans"] .nav a { color: var(--p-text-2); font-size: 14px; font-weight: 500; border-radius: var(--r-sm); padding: 8px 10px; }
+html[data-sayfa="finans"] .nav a .ic { color: var(--p-text-3); }
+html[data-sayfa="finans"] .nav a:hover { background: var(--p-surface-2); color: var(--p-text); }
+html[data-sayfa="finans"] body .nav a.on { background: var(--p-fill); color: var(--p-text); font-weight: 650; box-shadow: inset 3px 0 0 var(--sf-kurum, var(--p-accent)); }
+html[data-sayfa="finans"] body .nav a.on .ic { color: var(--p-text); }
+/* kurum seçici: seçili kurum beyaz kart + kendi renginde alt çizgi */
+html[data-sayfa="finans"] .kurum { background: var(--p-surface-2); border: 1px solid var(--p-line); }
+html[data-sayfa="finans"] .kurum button { color: var(--p-text-2); font-size: 12px; }
+html[data-sayfa="finans"] .kurum button:hover { background: var(--p-fill); color: var(--p-text); }
+html[data-sayfa="finans"] body .kurum button.on { background: var(--p-surface); color: var(--p-text); box-shadow: var(--sh-1), inset 0 -3px 0 var(--sf-kurum, var(--p-accent)); }
+html[data-sayfa="finans"] .kurum button .ic { color: var(--p-text-3); }
+html[data-sayfa="finans"] body[data-kurum="sahsi"] { --sf-kurum: var(--c-kisisel); }
+html[data-sayfa="finans"] body[data-kurum="moy"] { --sf-kurum: var(--c-moy); }
+html[data-sayfa="finans"] body[data-kurum="lemos"] { --sf-kurum: var(--c-lemos); }
+html[data-sayfa="finans"] body[data-kurum="lcarlie"] { --sf-kurum: var(--c-lcarlie); }
+html[data-sayfa="finans"] body[data-kurum="cross"] { --sf-kurum: var(--p-accent); }
+html[data-sayfa="finans"] .kurum button[data-kurum="sahsi"] { --sf-kurum: var(--c-kisisel); }
+html[data-sayfa="finans"] .kurum button[data-kurum="moy"] { --sf-kurum: var(--c-moy); }
+html[data-sayfa="finans"] .kurum button[data-kurum="lemos"] { --sf-kurum: var(--c-lemos); }
+html[data-sayfa="finans"] .kurum button[data-kurum="lcarlie"] { --sf-kurum: var(--c-lcarlie); }
+html[data-sayfa="finans"] body .kurum-tag {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; background: var(--p-surface); color: var(--p-text-2);
+  border: 1px solid var(--p-line); font-size: 12px; font-weight: 650; letter-spacing: 0;
+}
+html[data-sayfa="finans"] .kurum-tag::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--sf-kurum, var(--p-text-3)); }
+html[data-sayfa="finans"] .kurum-tag:empty { display: none; }
+html[data-sayfa="finans"] .safe { background: var(--p-surface-2); border: 1px solid var(--p-line); color: var(--p-text-2); }
+html[data-sayfa="finans"] .safe b, html[data-sayfa="finans"] .me b { color: var(--p-text); }
+html[data-sayfa="finans"] .me small { color: var(--p-text-3); font-size: 12px; }
+html[data-sayfa="finans"] .me .av { background: var(--p-accent); color: var(--p-accent-ink); }
+/* üst satır */
+html[data-sayfa="finans"] .top .date { color: var(--p-text-3); font-size: 11px; letter-spacing: .14em; font-weight: 700; }
+html[data-sayfa="finans"] .top h1 { font-size: clamp(26px, 2.4vw, 34px); font-weight: 600; letter-spacing: -.025em; color: var(--p-text); }
+html[data-sayfa="finans"] .top p { color: var(--p-text-2); font-size: var(--t-sm); }
+html[data-sayfa="finans"] .icon-btn { border-radius: var(--r-pill); border-color: var(--p-line-strong); }
+html[data-sayfa="finans"] .icon-btn .dot { background: var(--p-accent); color: var(--p-accent-ink); font-size: 11px; }
+html[data-sayfa="finans"] .search { border-radius: var(--r-pill); border-color: var(--p-line-strong); }
+html[data-sayfa="finans"] .ctl { border-color: var(--p-line-strong); border-radius: var(--r-sm); }
+html[data-sayfa="finans"] .ctl:focus, html[data-sayfa="finans"] .search:focus-within { outline: 2px solid var(--p-accent); border-color: var(--p-accent); }
+/* dönem seçici: panelin sekme dili (seçili = beyaz kart) */
+html[data-sayfa="finans"] .seg { background: var(--p-surface-2); border-color: var(--p-line); }
+html[data-sayfa="finans"] .seg button { color: var(--p-text-2); }
+html[data-sayfa="finans"] .seg button:hover { color: var(--p-text); }
+html[data-sayfa="finans"] .seg button.on { background: var(--p-surface); color: var(--p-text); box-shadow: var(--sh-1), inset 0 0 0 1px var(--p-line); }
+/* kart, sayaç, tablo */
+html[data-sayfa="finans"] .card { border-color: var(--p-line); }
+html[data-sayfa="finans"] .card-h h2, html[data-sayfa="finans"] .card-title { font-size: var(--t-lg); font-weight: 650; letter-spacing: -.01em; color: var(--p-text); }
+html[data-sayfa="finans"] .card-h p { color: var(--p-text-2); font-size: 13px; }
+html[data-sayfa="finans"] :is(.hero .lbl, .trio span, .tbl th, .dl dt, .mini, .cal .h) { color: var(--p-text-3); font-size: 12px; letter-spacing: .06em; }
+html[data-sayfa="finans"] .hero .big { font-weight: 650; letter-spacing: -.03em; }
+html[data-sayfa="finans"] .hero .badge { background: var(--p-fill); color: var(--p-text); border-radius: var(--r-md); }
+html[data-sayfa="finans"] .kpi .t { color: var(--p-text-2); }
+html[data-sayfa="finans"] .kpi .v { font-weight: 650; }
+html[data-sayfa="finans"] .chip-ic { border-radius: var(--r-pill); }
+html[data-sayfa="finans"] .chip-ic.blue { background: var(--p-fill); color: var(--p-text); }
+html[data-sayfa="finans"] .tbl th { background: var(--p-surface-2); }
+html[data-sayfa="finans"] :is(.tbl tbody tr:hover, .tbl tr.open td, .tbl tr.detail td, .tbl tr.sumrow td, .tbl.oz tr.sumrow td:first-child) { background: var(--p-surface-2); }
+html[data-sayfa="finans"] .tbl.oz .nowc { background: var(--p-fill); }
+html[data-sayfa="finans"] .tbl.oz tr.sumrow td.nowc { background: var(--p-line); }
+html[data-sayfa="finans"] .tbl.oz th small { color: var(--p-text-2); }
+html[data-sayfa="finans"] .tag.orange { color: var(--p-warn); }
+html[data-sayfa="finans"] :is(.alert.warn, .cal .ev) { color: var(--p-warn); }
+html[data-sayfa="finans"] .alert.info { color: var(--p-info); background: var(--p-info-bg); }
+html[data-sayfa="finans"] .alert.err { color: var(--p-crit); }
+html[data-sayfa="finans"] .cal .d { background: var(--p-surface-2); }
+html[data-sayfa="finans"] .cal .d.today { border-color: var(--p-accent); }
+html[data-sayfa="finans"] .empty .ic { color: var(--p-line-strong); }
+html[data-sayfa="finans"] .sk { background: linear-gradient(90deg, var(--p-fill) 0%, var(--p-surface-2) 50%, var(--p-fill) 100%); background-size: 200% 100%; }
+html[data-sayfa="finans"] .ratio .track i { background: var(--p-text-3); }
+html[data-sayfa="finans"] .tip { background: var(--p-text); color: var(--p-surface); }
+html[data-sayfa="finans"] .chart .pt { stroke: var(--p-surface); }
+html[data-sayfa="finans"] a { text-underline-offset: 3px; }
+html[data-sayfa="finans"] .btn { border-radius: var(--r-pill); border-color: var(--p-line-strong); }
+html[data-sayfa="finans"] .btn.ghost { border-color: transparent; color: var(--p-text); text-decoration: underline; text-underline-offset: 3px; }
+html[data-sayfa="finans"] .overlay.open { background: color-mix(in srgb, var(--p-text) 35%, transparent); }
+/* 10–10,5 px yazılar 11 px tabanına çıkar (ölçüldü: menüde ve takvimde 6 metin) */
+html[data-sayfa="finans"] :is(.sub, .tag, .tbl td .sub, .rows .ra small, .cal .d, .cal .ev) { font-size: 12px; }
+@media (max-width: 1100px) {
+  html[data-sayfa="finans"] .side { box-shadow: none; }
+  html[data-sayfa="finans"] .side.open { box-shadow: var(--sh-2); }
+}
+@media (max-width: 760px) {
+  html[data-sayfa="finans"] .top h1 { font-size: 22px; }
+  html[data-sayfa="finans"] .seg button { padding: 8px 11px; white-space: nowrap; }
+  html[data-sayfa="finans"] .cal .ev { font-size: 11px; }
+}
+@media (max-height: 900px) {
+  html[data-sayfa="finans"] .kurum button { font-size: 12px; }
+}
+
+/* ============================================================ HARCAMALARIM */
+html[data-sayfa="harcamalar"] .viz-root {
+  --bg: var(--p-bg); --surface: var(--p-surface); --surface-2: var(--p-surface-2);
+  --ink: var(--p-text); --ink-2: var(--p-text-2); --muted: var(--p-text-3); --faint: var(--p-text-3);
+  --line: var(--p-line); --line-2: var(--p-line); --grid: var(--p-line); --focus: var(--p-accent);
+  --brand: var(--p-accent); --brand-soft: var(--p-fill); --prev: var(--p-line-strong);
+  --up: var(--p-crit); --down: var(--p-ok); --warn-bg: var(--p-warn-bg); --good-bg: var(--p-ok-bg); --info-bg: var(--p-info-bg);
+  --radius: var(--r-lg); --shadow: var(--sh-1);
+}
+html[data-sayfa="harcamalar"] .fx { max-width: 1280px; padding-top: 22px; }
+html[data-sayfa="harcamalar"] .fx-crumbs { font-size: var(--t-sm); }
+html[data-sayfa="harcamalar"] .fx-title h1 { font-size: clamp(28px, 2.6vw, 36px); font-weight: 600; letter-spacing: -.025em; }
+html[data-sayfa="harcamalar"] .fx-sub { color: var(--p-text-2); }
+html[data-sayfa="harcamalar"] :is(.fx-seg, .fx-side) { background: var(--p-surface-2); border-color: var(--p-line); }
+html[data-sayfa="harcamalar"] :is(.fx-seg button.on, .fx-side button.on) { background: var(--p-surface); color: var(--p-text); box-shadow: var(--sh-1), inset 0 0 0 1px var(--p-line); }
+html[data-sayfa="harcamalar"] :is(.fx-step, .fx-account select) { border-color: var(--p-line-strong); }
+html[data-sayfa="harcamalar"] .fx-tabs button.on { border-bottom-color: var(--p-accent); }
+html[data-sayfa="harcamalar"] .fx-error { color: var(--p-crit); background: var(--p-crit-bg); border-color: color-mix(in srgb, var(--p-crit) 25%, transparent); }
+/* özet kutusu: yeşil degrade yerine marka siyahı (panelin birincil yüzeyi).
+   Sabit renkler koyu temanın jeton değerleridir (#1a1917 zeminde >= 4,5:1, testli). */
+html[data-sayfa="harcamalar"] body .fx-hero { background: #1a1917; color: #f4f0e8; box-shadow: var(--sh-2); border-radius: var(--r-lg); }
+html[data-sayfa="harcamalar"] .fx-hero .lbl { color: #aaa192; font-size: 12px; letter-spacing: .1em; }
+html[data-sayfa="harcamalar"] :is(.fx-hero .d, .fx-hero .chg) { color: #d3cbbd; }
+html[data-sayfa="harcamalar"] .fx-hero .say { color: #f4f0e8; }
+html[data-sayfa="harcamalar"] .fx-hero .chg.up { color: #f08a7e; }
+html[data-sayfa="harcamalar"] .fx-hero .chg.down { color: #7fc59b; }
+html[data-sayfa="harcamalar"] .fx-hero-spark .line { stroke: #d3cbbd; }
+html[data-sayfa="harcamalar"] .fx-hero-spark .end { fill: #d3cbbd; }
+html[data-sayfa="harcamalar"] .fx-hero-spark .area { fill: #ffffff14; }
+html[data-sayfa="harcamalar"] .fx-hero-spark text { fill: #aaa192; font-size: 11px; }
+html[data-sayfa="harcamalar"] .fx-hero .big { font-weight: 650; }
+html[data-sayfa="harcamalar"] .fx-drop { min-width: 0; border-color: var(--p-line-strong); background: var(--p-surface-2); border-radius: var(--r-md); }
+html[data-sayfa="harcamalar"] .fx-tip { background: var(--p-text); color: var(--p-surface); }
+html[data-sayfa="harcamalar"] :is(.sk-save-n) { fill: var(--p-line-strong); }
+html[data-sayfa="harcamalar"] :is(.sq.sk-save) { background: var(--p-line-strong); }
+html[data-sayfa="harcamalar"] .sk-link-save { fill: var(--p-line-strong); }
+/* takvim ve küçük etiketler 11 px tabanı */
+html[data-sayfa="harcamalar"] :is(.fx-calendar button small, .fx-hero-spark text, .ax text, .val-label) { font-size: 11px; }
+/* telefonda kurum sekmeleri ve hesap seçici satır dışına taşıyordu (ölçüldü: 5 öğe) */
+@media (max-width: 640px) {
+  html[data-sayfa="harcamalar"] .fx { padding: 14px 16px 80px; }
+  html[data-sayfa="harcamalar"] .fx-period { width: 100%; }
+  html[data-sayfa="harcamalar"] .fx-step { flex: 1 1 auto; min-width: 0; }
+  html[data-sayfa="harcamalar"] .fx-step input { flex: 1 1 auto; width: 100%; }
+}
+
+/* ========================================================= CARİ EKSTRELER */
+/* Yalnız ekran. Yazdırılan/indirilen ekstre müşteriye gider ve aynen kalır. */
+@media screen {
+  html[data-sayfa="cari"] body.cari-standalone { background: var(--p-bg) !important; }
+  html[data-sayfa="cari"] .cari {
+    --c-ink: var(--p-text); --c-muted: var(--p-text-3); --c-line: var(--p-line); --c-bg: var(--p-bg);
+    max-width: 1320px; padding: 22px 32px 48px; background: transparent !important;
+  }
+  html[data-sayfa="cari"] .cari-back { margin: 18px 32px 0; color: var(--p-text-2); font-size: var(--t-sm); }
+  html[data-sayfa="cari"] .cari-back:hover { color: var(--p-text); }
+  /* başlık: dev logo + BÜYÜK HARF yerine panelin bölüm başlığı */
+  html[data-sayfa="cari"] .cari-heading {
+    align-items: center; margin-bottom: 18px; padding: 22px 28px; border: 1px solid var(--p-line); border-radius: var(--r-lg);
+    background: var(--p-surface); box-shadow: var(--sh-1);
+  }
+  html[data-sayfa="cari"] .cari-brand { width: 132px; }
+  html[data-sayfa="cari"] .cari h1 {
+    margin: 10px 0 0; font-size: clamp(26px, 2.6vw, 36px); font-weight: 600; letter-spacing: -.025em; text-transform: lowercase;
+  }
+  html[data-sayfa="cari"] .cari h1::first-letter { text-transform: uppercase; }
+  html[data-sayfa="cari"] .cari-date { border: 0; padding: 0; min-width: 0; gap: 12px; color: var(--p-text-2); }
+  html[data-sayfa="cari"] .cari-date > svg { width: 22px; height: 22px; color: var(--p-text-3); }
+  html[data-sayfa="cari"] .cari-date span { font-size: 11px; font-weight: 700; letter-spacing: .14em; color: var(--p-text-3); }
+  html[data-sayfa="cari"] .cari-date time { font-size: var(--t-lg); font-weight: 650; color: var(--p-text); }
+  /* sekmeler: panelin segment dili */
+  html[data-sayfa="cari"] .cari-workspace { border-bottom: 0; padding-bottom: 0; margin-bottom: 18px; }
+  html[data-sayfa="cari"] .cari-tabs { gap: 2px; padding: 3px; background: var(--p-surface-2); border: 1px solid var(--p-line); border-radius: var(--r-md); }
+  html[data-sayfa="cari"] .cari .cari-tabs button { min-height: 38px; border: 0; border-radius: var(--r-sm); color: var(--p-text-2); font-weight: 600; font-size: var(--t-sm); background: transparent !important; }
+  html[data-sayfa="cari"] .cari .cari-tabs button[aria-selected=true] { background: var(--p-surface) !important; color: var(--p-text); box-shadow: var(--sh-1), inset 0 0 0 1px var(--p-line); }
+  html[data-sayfa="cari"] .cari button { border-radius: var(--r-pill); border-color: var(--p-line-strong); font-weight: 600; }
+  html[data-sayfa="cari"] .cari button:hover { background: var(--p-surface-2); }
+  html[data-sayfa="cari"] .cari .cari-primary { background: var(--p-accent) !important; border-color: var(--p-accent) !important; color: var(--p-accent-ink) !important; }
+  html[data-sayfa="cari"] .cari :is(input, select, textarea) { border-radius: var(--r-sm); }
+  html[data-sayfa="cari"] .cari-card { border-radius: var(--r-lg) !important; background: var(--p-surface) !important; box-shadow: var(--sh-1) !important; }
+  /* sayaçlar: dört renkli daire yerine sakin kart (panelin "Bugün" kutuları) */
+  html[data-sayfa="cari"] .cari-stats { gap: var(--s-3); }
+  html[data-sayfa="cari"] #cariRoot .cari-stat {
+    min-height: 0; padding: 18px; gap: 14px; align-items: flex-start;
+    background: var(--p-surface) !important; border: 1px solid var(--p-line) !important; border-radius: var(--r-lg) !important; box-shadow: var(--sh-1) !important;
+  }
+  html[data-sayfa="cari"] #cariRoot .cari-stat-icon {
+    width: 36px; height: 36px; flex: 0 0 36px; background: var(--p-fill) !important; color: var(--p-text-2) !important; box-shadow: none;
+  }
+  html[data-sayfa="cari"] .cari .cari-stat-icon svg { width: 18px; height: 18px; }
+  html[data-sayfa="cari"] .cari .cari-stat-label { font-size: 12px; font-weight: 650; letter-spacing: .06em; color: var(--p-text-3) !important; }
+  html[data-sayfa="cari"] .cari .cari-stat strong { margin-top: 6px; font-size: clamp(20px, 1.7vw, 26px); font-weight: 650; letter-spacing: -.02em; color: var(--p-text) !important; }
+  html[data-sayfa="cari"] .cari .cari-stat small { font-size: 12px; color: var(--p-text-2); }
+  html[data-sayfa="cari"] .cari :is(.cari-stat-green strong) { color: var(--p-ok) !important; }
+  html[data-sayfa="cari"] .cari-info { border-radius: var(--r-md); }
+  html[data-sayfa="cari"] .cari :is(th) { font-size: 12px; }
+  html[data-sayfa="cari"] .cari small { font-size: max(12px, .85em); }
+  html[data-sayfa="cari"] .cari :is(.cari-scroll-hint, .cari-table-note, .cari-tax-note) { font-size: 12px; }
+  @media (max-width: 720px) {
+    html[data-sayfa="cari"] .cari { padding: 14px 16px 40px; }
+    html[data-sayfa="cari"] .cari-back { margin: 14px 16px 0; }
+    html[data-sayfa="cari"] .cari-heading { padding: 18px; gap: 10px; }
+    html[data-sayfa="cari"] .cari-brand { width: 110px; }
+    /* sekmeler yan kayar, "Yenile" altta tam genişlik: "Fatura aktar" kesiliyordu */
+    html[data-sayfa="cari"] .cari-workspace { flex-wrap: nowrap; align-items: center; gap: 8px; }
+    html[data-sayfa="cari"] .cari-tabs { flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+    html[data-sayfa="cari"] .cari .cari-tabs button { font-size: 13px; padding: 8px 12px; }
+    html[data-sayfa="cari"] .cari-workspace > button { flex: none; font-size: 13px; padding: 8px 14px; }
+    html[data-sayfa="cari"] .cari-toolbar button { font-size: 13px; }
+    html[data-sayfa="cari"] #cariRoot .cari-stat { padding: 14px; gap: 10px; }
+    /* telefonda simge tutarı iki satıra bölüyordu ("31.050,00 / TL"); rakam öne geçer */
+    html[data-sayfa="cari"] #cariRoot .cari-stat-icon { display: none; }
+    html[data-sayfa="cari"] .cari .cari-stat-label { font-size: 11px; }
+    html[data-sayfa="cari"] .cari .cari-stat strong { font-size: 18px; }
+  }
+}
+
+/* ======================================================= FİŞ VE FATURALAR */
+html[data-sayfa="belgeler"] { background: var(--p-bg); }
+html[data-sayfa="belgeler"] body { color: var(--p-text); }
+html[data-sayfa="belgeler"] .page { max-width: 1240px; padding-top: 22px; }
+html[data-sayfa="belgeler"] a { color: var(--p-text); text-underline-offset: 3px; }
+html[data-sayfa="belgeler"] body .page > .top { font-size: var(--t-sm); font-weight: 500; letter-spacing: 0; color: var(--p-text-2); background: transparent !important; box-shadow: none !important; border: 0 !important; }
+html[data-sayfa="belgeler"] .top a { color: var(--p-text-2); }
+html[data-sayfa="belgeler"] .top a:hover { color: var(--p-text); }
+html[data-sayfa="belgeler"] .top span { color: var(--p-text-3); font-size: 12px; }
+/* başlık: fotoğraf kalır (13.11 sahip), yükseklik ve yazı panel ölçüsüne iner */
+html[data-sayfa="belgeler"][data-lcarlie-theme] body .hero {
+  min-height: 0; margin: 14px 0 18px; padding: 24px 28px; border-radius: var(--r-lg) !important;
+  border: 1px solid var(--p-line) !important; box-shadow: var(--sh-1) !important;
+  background: linear-gradient(90deg, var(--p-surface) 0%, var(--p-surface) 52%, transparent 78%), url('/img/hero/belgeler.webp') right center / auto 100% no-repeat, var(--p-surface) !important;
+}
+html[data-sayfa="belgeler"] .hero h1 { margin: 0 0 6px; font-size: clamp(26px, 2.6vw, 36px); font-weight: 600; letter-spacing: -.025em; color: var(--p-text) !important; }
+html[data-sayfa="belgeler"] .hero p:last-child { color: var(--p-text-2) !important; font-size: var(--t-md); margin: 0; }
+html[data-sayfa="belgeler"] .eyebrow { color: var(--p-text-3) !important; font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; margin: 0 0 6px; }
+html[data-sayfa="belgeler"] .card { border-radius: var(--r-lg) !important; padding: 22px 24px; box-shadow: var(--sh-1) !important; }
+html[data-sayfa="belgeler"] .card h2 { margin: 2px 0 14px; font-size: var(--t-xl); font-weight: 650; letter-spacing: -.015em; }
+html[data-sayfa="belgeler"] label { font-weight: 600; color: var(--p-text-2); }
+html[data-sayfa="belgeler"] :is(input, select, textarea) { border-color: var(--p-line-strong) !important; border-radius: var(--r-sm) !important; color: var(--p-text) !important; }
+html[data-sayfa="belgeler"] .hint { color: var(--p-text-2); }
+html[data-sayfa="belgeler"] :is(.file-pick, .camera-pick) { color: var(--p-text); background: var(--p-surface-2); border: 1px dashed var(--p-line-strong); border-radius: var(--r-md); font-weight: 600; }
+html[data-sayfa="belgeler"] :is(.file-pick, .camera-pick) input { color: var(--p-text-2); font-weight: 500; }
+html[data-ui="2026"] ::file-selector-button {
+  margin-right: 12px; padding: 8px 16px; border: 1px solid var(--p-line-strong); border-radius: var(--r-pill);
+  background: var(--p-surface); color: var(--p-text); font: 600 13px var(--f-ui); cursor: pointer;
+}
+html[data-sayfa="belgeler"] button { border-radius: var(--r-pill); border-color: var(--p-line-strong); background: var(--p-surface); color: var(--p-text); font-weight: 600; }
+html[data-sayfa="belgeler"] button:hover { background: var(--p-surface-2); }
+html[data-sayfa="belgeler"] button[type=submit] { background: var(--p-accent) !important; border-color: var(--p-accent) !important; color: var(--p-accent-ink) !important; }
+html[data-sayfa="belgeler"] .ghost { border: 0; background: transparent; }
+html[data-sayfa="belgeler"] .error { color: var(--p-crit); background: var(--p-crit-bg); }
+html[data-sayfa="belgeler"] .mail hr { border-top-color: var(--p-line); }
+html[data-sayfa="belgeler"] .big { color: var(--p-text); font-weight: 650; }
+html[data-sayfa="belgeler"] .filters button.active { background: var(--p-accent); border-color: var(--p-accent); color: var(--p-accent-ink); }
+html[data-sayfa="belgeler"] :is(.document, .card-line) { border-color: var(--p-line); background: var(--p-surface); border-radius: var(--r-md); }
+html[data-sayfa="belgeler"] .document p { color: var(--p-text-2); }
+html[data-sayfa="belgeler"] .document p.dup { color: var(--p-warn); background: var(--p-warn-bg); }
+html[data-sayfa="belgeler"] .document h3 { font-weight: 650; }
+/* önizleme: fotoğraf kartın metninin ve komşu kartın üstüne taşıyordu (ölçüldü).
+   Izgara öğesindeki %100 yükseklik çözülemiyordu; görsel kutuya sabitlenir. */
+html[data-sayfa="belgeler"] .preview { position: relative; overflow: hidden; background: var(--p-fill); }
+html[data-sayfa="belgeler"] .preview img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+html[data-sayfa="belgeler"] .preview .pdf { color: var(--p-text-3); font-size: 28px; font-weight: 600; letter-spacing: .08em; }
+html[data-sayfa="belgeler"] .badge { color: var(--p-warn); background: var(--p-warn-bg); font-weight: 700; }
+html[data-sayfa="belgeler"] .badge.ready { color: var(--p-ok); background: var(--p-ok-bg); }
+html[data-sayfa="belgeler"] .chip { color: var(--p-text-2); background: var(--p-fill); }
+html[data-sayfa="belgeler"] table.mini th { color: var(--p-text-3); font-size: 12px; }
+html[data-sayfa="belgeler"] table.mini td { border-bottom-color: var(--p-line); }
+html[data-sayfa="belgeler"] table.mini tr.up td { color: var(--p-warn); background: var(--p-warn-bg); }
+html[data-sayfa="belgeler"] .proof img { border-color: var(--p-line); background: var(--p-surface-2); }
+html[data-sayfa="belgeler"] dialog { background: var(--p-surface); color: var(--p-text); border-radius: var(--r-lg); box-shadow: var(--sh-2); }
+@media (max-width: 700px) {
+  html[data-sayfa="belgeler"][data-lcarlie-theme] body .hero { background: var(--p-surface) !important; padding: 20px; }
+}
+@media (max-width: 560px) {
+  html[data-sayfa="belgeler"] .page { padding: 12px 16px 70px; }
+  html[data-sayfa="belgeler"] .card { padding: 18px 16px; }
+  /* klasör düğmeleri yan kayar; kart dışına taşmaz */
+  html[data-sayfa="belgeler"] .filters { margin: 0 -16px; padding: 4px 16px 18px; }
+  html[data-sayfa="belgeler"] .document-actions { flex-wrap: wrap; }
+  html[data-sayfa="belgeler"] .card-line .document-actions button { flex: 1 1 auto; }
+}
+
+/* ===================================================================== OFİS */
+/* Üç boyutlu sahne ve verisi aynen kalır; çerçeve panel diline taşınır. */
+html[data-sayfa="ofis"] {
+  --bg: var(--p-bg); --panel: var(--p-surface); --panel-2: var(--p-surface-2); --line: var(--p-line);
+  --gold: var(--p-text-2); --cream: var(--p-text); --muted: var(--p-text-3);
+  --green: var(--p-ok); --amber: var(--p-warn); --red: var(--p-crit); --slate: var(--p-text-3);
+  color-scheme: light;
+}
+html[data-sayfa="ofis"] .topbar { height: 64px !important; padding: 0 24px !important; background: var(--p-surface) !important; }
+/* üst şerit zaten Geri + Menü veriyor: ikinci geri oku ve "Ana konsol" tekrarıydı */
+html[data-sayfa="ofis"] .topbar :is(.back, .home-link) { display: none !important; }
+html[data-sayfa="ofis"] .office-brand { height: 22px; width: auto; background: transparent !important; padding: 0 !important; }
+html[data-sayfa="ofis"] .brand-copy small { color: var(--p-text-3) !important; font-size: 11px !important; letter-spacing: .14em; }
+html[data-sayfa="ofis"] .top-center { color: var(--p-text-2) !important; font-size: var(--t-sm) !important; }
+html[data-sayfa="ofis"] .text-button { border-radius: var(--r-pill) !important; border: 1px solid var(--p-line-strong) !important; font-size: var(--t-sm) !important; letter-spacing: 0 !important; font-weight: 600; padding: 8px 14px !important; }
+html[data-sayfa="ofis"] .workspace-heading h1 { font-size: clamp(26px, 2.6vw, 36px) !important; font-weight: 600 !important; letter-spacing: -.025em !important; }
+html[data-sayfa="ofis"] .eyebrow { color: var(--p-text-3) !important; font-size: 11px !important; letter-spacing: .14em !important; }
+html[data-sayfa="ofis"] .subtitle { color: var(--p-text-2) !important; font-size: var(--t-md) !important; }
+html[data-sayfa="ofis"] :is(.view-controls button, .office-shortcuts button, .ambience-controls button, .room-tools button, .manager-quick button) {
+  border-radius: var(--r-pill) !important; border: 1px solid var(--p-line-strong) !important; background: var(--p-surface) !important;
+  color: var(--p-text) !important; font-size: var(--t-sm) !important; letter-spacing: 0 !important; font-weight: 600;
+}
+html[data-sayfa="ofis"] :is(.view-controls button, .office-shortcuts button, .ambience-controls button):hover { background: var(--p-surface-2) !important; }
+html[data-sayfa="ofis"] :is(.view-controls button.active, .office-shortcuts button.active, .office-shortcuts button[aria-pressed="true"]) { background: var(--p-accent) !important; color: var(--p-accent-ink) !important; border-color: var(--p-accent) !important; }
+html[data-sayfa="ofis"] :is(.scene-frame, .sidebar, .floor-bar) { border-color: var(--p-line) !important; }
+html[data-sayfa="ofis"] .scene-frame { border-radius: var(--r-lg) !important; }
+html[data-sayfa="ofis"] .sidebar { background: var(--p-surface) !important; }
+html[data-sayfa="ofis"] .detail { background: var(--p-surface) !important; color: var(--p-text) !important; border-left: 1px solid var(--p-line) !important; }
+/* kapalı ayrıntı paneli ekran dışında dururken 70 px'lik gölgesi sağ kenara
+   gri bir şerit olarak düşüyordu (telefonda belirgin). Açılınca gölge gelir. */
+html[data-sayfa="ofis"] .detail:not(.open) { box-shadow: none !important; visibility: hidden; }
+html[data-sayfa="ofis"] .detail.open { box-shadow: var(--sh-2) !important; visibility: visible; }
+html[data-sayfa="ofis"] :is(.stats strong) { color: var(--p-text) !important; font-weight: 600; }
+html[data-sayfa="ofis"] :is(.stats span, .floor-picker span, .floor-live, #floorContext) { color: var(--p-text-3) !important; font-size: 12px !important; letter-spacing: .02em !important; }
+html[data-sayfa="ofis"] .summary h2 { font-size: var(--t-xl) !important; font-weight: 650 !important; letter-spacing: -.015em; }
+html[data-sayfa="ofis"] .search-row input { border: 0 !important; background: transparent !important; }
+html[data-sayfa="ofis"] .scene-fallback { color: var(--p-text-2) !important; font-size: var(--t-md) !important; padding: 24px; text-align: center; }
+html[data-sayfa="ofis"] .subtitle { line-height: 1.45 !important; max-width: 60ch; }
+html[data-sayfa="ofis"] .search-row .search { background: var(--p-surface) !important; border: 1px solid var(--p-line-strong) !important; border-radius: var(--r-pill) !important; color: var(--p-text-3) !important; }
+html[data-sayfa="ofis"] #clearSearch { border-radius: var(--r-pill) !important; background: var(--p-surface) !important; color: var(--p-text-2) !important; border: 1px solid var(--p-line-strong) !important; }
+/* office.css (office-ui derlemesi) koyu tema için yazılmıştı: açık metin rengi,
+   koyu kutu zemini ve 8–10 px yazılar. Derlemeye dokunmadan, office.css'ten
+   üretilen eşleme (26.11): koyu zemin -> ikinci yüzey, açık metin -> metin
+   jetonu, 11 px altı -> 11 px. Sahnedeki 3B çizim etkilenmez. */
+html[data-sayfa="ofis"] :is(.activity-strip,.ambience-controls button,.ambience-controls select,.chart-ceo,.chart-shell,.chart-unit,.chip,.conversation-item.manager,.conversation-item.user,.department-row.selected,.department-row:hover,.detail,.floor-bar,.floor-picker select,.holding-card,.hr-finding button,.hr-panel,.manager-desk,.manager-question,.manager-quick button,.manager-quick button:focus-visible,.manager-quick button:hover,.member-card,.member-card.active,.member-card:hover,.member-detail,.meta-item,.office-shortcuts button,.ops-tabs button[aria-pressed=true],.org-child,.org-root,.room-tools button,.scene-fallback,.scene-frame,.scene-label:hover,.search,.sidebar,.topbar,.view-controls button,footer){background:var(--p-surface-2)!important;border-color:var(--p-line)!important}
+html[data-sayfa="ofis"] :is(#floorContext,#officeMinimap button,.activity-strip small,.ambience-controls button,.ambience-controls select,.ambience-controls small,.brand-copy small,.chart-ceo small,.chart-unit small,.chart-unit span,.chip,.conversation-item small,.data-note,.department-copy small,.department-size,.eyebrow,.family-label,.floor-live,.floor-picker>span,.hr-finding button,.last-activity,.list-heading,.manager-quick button,.map-legend,.map-legend span,.member-active strong,.member-activity small,.member-copy small,.member-detail h4,.member-statement small,.meta-item span,.org-child small,.org-root small,.org-tree-heading,.scene-hint,.scene-label small,.scene-label strong,.scene-label.wide small,.scene-top-note span,.section-title,.stats span,.status-badge,.top-center,.view-controls button,.walk-hint span,.walk-hint strong,footer){font-size:11px!important}
+html[data-sayfa="ofis"] :is(#floorContext,.ambience-controls small,.ambient-label,.brand-copy small,.brand-mark,.chip,.data-note,.department-size,.eyebrow,.family-label,.favorite-button,.floor-live,.floor-picker select,.holding-card small,.holding-note,.holding-tabs [aria-pressed=true],.hr-finding button,.hr-panel p,.hr-panel small,.hr-panel summary,.manager-quick button,.map-legend,.member-active strong,.member-job,.office-shortcuts button,.ops-tabs button[aria-pressed=true],.room-tools button,.room-tools p,.scene-hint,.scene-label small,.scene-label.wide small,.status-badge.live,.subtitle,footer a){color:var(--p-text-2)!important}
+html[data-sayfa="ofis"] :is(.family-label,.last-activity,.ops-muted,footer){color:var(--p-text-3)!important}
+html[data-sayfa="ofis"] :is(.member-avatar, .favorite-button) { font-size: 11px !important; }
+html[data-sayfa="ofis"] .ops-tabs button[aria-pressed=true] { background: var(--p-accent) !important; color: var(--p-accent-ink) !important; }
+@media (max-width: 750px) {
+  html[data-sayfa="ofis"] .topbar { height: 56px !important; padding: 0 16px !important; }
+  html[data-sayfa="ofis"] .workspace { padding: 18px 16px !important; }
+}
+
+/* ============================================================ GÖRSEL İŞLERİ */
+html[data-sayfa="gorselisleri"] body { font-size: var(--t-md); }
+html[data-sayfa="gorselisleri"] main { padding-top: 22px; }
+html[data-sayfa="gorselisleri"] .ij-geri { color: var(--p-text-2); font-size: var(--t-sm); }
+html[data-sayfa="gorselisleri"][data-lcarlie-theme] body .ij-bas {
+  min-height: 0 !important; padding: 24px 28px !important; margin-top: 14px; border-radius: var(--r-lg) !important;
+  border: 1px solid var(--p-line) !important; box-shadow: var(--sh-1) !important;
+}
+html[data-sayfa="gorselisleri"][data-lcarlie-theme] body .ij-bas { background: linear-gradient(90deg, var(--p-surface) 0%, var(--p-surface) 52%, transparent 78%), url('/img/hero/gorselisleri.webp') right center / auto 100% no-repeat, var(--p-surface) !important; }
+html[data-sayfa="gorselisleri"] .ij-ust { color: var(--p-text-3) !important; font-size: 11px !important; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; margin: 0 0 6px; }
+html[data-sayfa="gorselisleri"] h1 { margin: 0 0 6px; font-size: clamp(26px, 2.6vw, 36px); font-weight: 600; letter-spacing: -.025em; }
+html[data-sayfa="gorselisleri"] h2 { font-size: var(--t-xl); font-weight: 650; letter-spacing: -.015em; }
+html[data-sayfa="gorselisleri"] .muted { color: var(--p-text-2) !important; }
+html[data-sayfa="gorselisleri"] .card { border-radius: var(--r-lg) !important; padding: 22px 24px; box-shadow: var(--sh-1) !important; }
+html[data-sayfa="gorselisleri"] button { border-radius: var(--r-pill); border-color: var(--p-line-strong); font-weight: 600; }
+html[data-sayfa="gorselisleri"] button:hover { border-color: var(--p-text-3); background: var(--p-surface-2); }
+html[data-sayfa="gorselisleri"] :is(#upload, #save, #askTeam) { background: var(--p-accent); border-color: var(--p-accent); color: var(--p-accent-ink); }
+html[data-sayfa="gorselisleri"] .ij-is { border-radius: var(--r-md); background: var(--p-surface); padding: 10px 12px; }
+html[data-sayfa="gorselisleri"] .ij-is.is-secili { border-color: var(--p-accent); background: var(--p-surface-2); box-shadow: inset 3px 0 0 var(--p-accent); }
+html[data-sayfa="gorselisleri"] :is(.ij-is img, .ij-bos) { background: var(--p-fill); border-radius: var(--r-sm); }
+html[data-sayfa="gorselisleri"] .ij-ok { background: var(--p-ok-bg); color: var(--p-ok); }
+html[data-sayfa="gorselisleri"] .ij-orta { background: var(--p-warn-bg); color: var(--p-warn); }
+html[data-sayfa="gorselisleri"] .ij-kotu { background: var(--p-crit-bg); color: var(--p-crit); }
+html[data-sayfa="gorselisleri"] .ij-temiz { color: var(--p-ok); }
+html[data-sayfa="gorselisleri"] .ij-sorun { color: var(--p-crit); }
+html[data-sayfa="gorselisleri"] .ij-raporlar a { color: var(--p-text); text-underline-offset: 3px; }
+html[data-sayfa="gorselisleri"] .ij-uyari-liste button { border-color: color-mix(in srgb, var(--p-crit) 25%, var(--p-line)); background: var(--p-crit-bg); border-radius: var(--r-md); }
+html[data-sayfa="gorselisleri"] .ij-yukle summary { color: var(--p-text-2); font-weight: 600; }
+@media (max-width: 700px) {
+  html[data-sayfa="gorselisleri"][data-lcarlie-theme] body .ij-bas { background: var(--p-surface) !important; padding: 20px !important; }
+  html[data-sayfa="gorselisleri"] main { padding: 14px 16px 48px; }
+  html[data-sayfa="gorselisleri"] .card { padding: 18px 16px; }
+  /* paket satırı: rozet metni üç satıra sıkıştırıyordu; rozet alta iner */
+  html[data-sayfa="gorselisleri"] .ij-is { display: grid; grid-template-columns: 54px minmax(0, 1fr); column-gap: 12px; row-gap: 6px; align-items: center; }
+  html[data-sayfa="gorselisleri"] .ij-is > :is(img, .ij-bos) { grid-row: span 2; }
+  html[data-sayfa="gorselisleri"] .ij-is .ij-rozet { justify-self: start; }
+}

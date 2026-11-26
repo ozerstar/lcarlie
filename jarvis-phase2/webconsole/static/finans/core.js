@@ -250,7 +250,7 @@ export function chart(host, {labels, series, type = 'bar', height = 260, tipTitl
   host.appendChild(lg); widths(host);
 }
 /** yatay çubuk listesi: [{label, value, sub, color}] */
-export function hbars(items, {fmt = tl, color = '#3478E5', limit = 8} = {}) {
+export function hbars(items, {fmt = tl, color = '#1a1917', limit = 8} = {}) {
   if (!items.length) return empty('Bu seçimde kayıt yok.');
   const max = Math.max(1, ...items.map(i => Math.abs(i.value)));
   return `<div class="bars">${items.slice(0, limit).map(i => `<div class="b-row"><span>${esc(i.label)}${i.sub ? ` <small>${esc(i.sub)}</small>` : ''}</span><b class="num">${fmt(i.value)}</b>
@@ -258,5 +258,5 @@ export function hbars(items, {fmt = tl, color = '#3478E5', limit = 8} = {}) {
 }
 // SVG fill özniteliği CSS değişkeni kabul etmez: renkler finans.css'teki belirteçlerin aynısı
 export const COLORS = {lcarlie: '#3478E5', lemos: '#16A36A', moy: '#7A5AF8', kisisel: '#E5A13B', aile: '#E87BA4', ortak: '#94A3B8',
-  grup: '#CBD5E1', belirsiz: '#CBD5E1', dogrudan: '#3478E5', wix: '#0EA5B7', trendyol: '#F27A1A', in: '#16A36A', out: '#DC5555',
-  primary: '#3478E5'};
+  grup: '#CBD5E1', belirsiz: '#CBD5E1', dogrudan: '#3478E5', wix: '#0EA5B7', trendyol: '#F27A1A', in: '#2c6646', out: '#a1342a',
+  primary: '#1a1917'};

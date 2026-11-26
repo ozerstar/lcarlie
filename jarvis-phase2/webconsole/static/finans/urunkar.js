@@ -1,6 +1,6 @@
 // L'CARLIÉ ürün maliyet / kâr tablosu (sahip, 02.11.2026): ürün ürün maliyet, satış, karşılama, kâr/zarar;
 // "Gider ekle" genel maliyete ya da seçilen ürüne yazılır. Tutarlar KDV hariç (şirket KDV'yi indirir).
-import {$, $$, esc, icon, tl, tlBig, qty, pct, monthLabel, dayLabel, api, post, card, filterBar, table, empty, skeleton, widths, today} from './core.js?v=13';
+import {$, $$, esc, icon, tl, tlBig, qty, pct, monthLabel, dayLabel, api, post, card, filterBar, table, empty, skeleton, widths, today} from './core.js?v=14';
 
 // sahip: "ÜGR 108 bin görünüyor, testlerin maliyeti yok" — testler ile ÜGR ayrı satır, yanında KDV dahil
 // testerlar marka tanıtımı: genel maliyet (sahip: "L'CARLIÉ reklamı için harcıyorum, ürün bazlı değil")

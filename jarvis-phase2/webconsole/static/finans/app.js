@@ -1,8 +1,8 @@
 // Finans Merkezi — kabuk: menü, kurum, dönem, sayfa geçişi (sahip, 02.11.2026)
 // sahip, 03.11.2026: "şahsımı, MOY'u, Lemos'u ve L'CARLIÉ'yi 4 farklı başlık, 4 farklı kurum gibi yap; şu anki hâlde
 // her şey birbirine giriyor" — seçili kurum her sayfanın tek konusudur; karşılaştırma sayfaları ayrı bölümdedir.
-import {$, $$, api, esc, icon, iso, today, dayLabel, monthLabel, tl, errorBox, clearCache, setCsrf} from './core.js?v=13';
-import {PAGES, KURUM} from './pages.js?v=13';
+import {$, $$, api, esc, icon, iso, today, dayLabel, monthLabel, tl, errorBox, clearCache, setCsrf} from './core.js?v=14';
+import {PAGES, KURUM} from './pages.js?v=14';
 
 const saved = (() => {try {return localStorage.getItem('finans-kurum');} catch {return null;}})();
 const state = {page: 'genel', scope: KURUM[saved] ? saved : 'sahsi', view: 'month', day: today(), start: '', end: '', q: ''};

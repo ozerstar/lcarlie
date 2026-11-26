@@ -1,8 +1,8 @@
 // Finans Merkezi — sayfalar. Her kartın kendi süzgeci var (sahip: "her birimde, her analizde, her
 // grafikte ayrı"); fatura kaynaklı tutarlar KDV hariç ve dahil yan yana (sahip: "KDV dahil de göreyim").
 import {$, $$, api, esc, icon, tl, tlBig, qty, pct, monthLabel, dayLabel, dayShort, fold, matcher, sum, groupBy,
-  card, filterBar, table, moneyCols, chart, hbars, empty, skeleton, widths, COLORS} from './core.js?v=13';
-import {urunKar} from './urunkar.js?v=13';
+  card, filterBar, table, moneyCols, chart, hbars, empty, skeleton, widths, COLORS} from './core.js?v=14';
+import {urunKar} from './urunkar.js?v=14';
 
 // ------------------------------------------------------------ yardımcılar
 const ENTITY = {lcarlie: "L'CARLIÉ", lemos: 'Lemos (muayenehane)', moy: 'MOY', ortak: 'Ortak gider', belirsiz: 'Belirsiz', grup: 'Grup içi'};
