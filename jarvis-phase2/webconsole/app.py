@@ -4127,17 +4127,77 @@ def _role_reality() -> dict:
     return out
 
 
-def _team_opinions() -> list:
+class _OnceFetchedMemory:
+    """Ekip sorgularini BIR KEZ ve PARALEL okuyan ince sarmalayici.
+
+    🔴 26.11.2026 OLCUM: AJANLAR sayfasi 12-16 sn'de aciliyordu. Sebep:
+    roster.opinions() 47 ayri sorguyu SIRAYLA, her birine yeni baglanti
+    acarak okuyordu (~5,4 sn) ve _panel_ajanlar bunu IKI KEZ cagiriyordu
+    (_team_opinions + _team_by_department). Uc agir gorunum (soru_konu,
+    ekonomi_gunluk, kreatif_hipotez) tek basina ~1-1,7 sn.
+
+    Burada onbellek YOK: her istek veriyi yeniden okur, yalniz ayni istek
+    icinde ayni sorgu ikinci kez gitmez ve sorgular birbirini beklemez.
+    Okunamayan sorgu, eskisi gibi o sorgunun hatasini firlatir (uye
+    "VERI YOK" der); hata gizlenmez.
+    """
+
+    def __init__(self, memory, queries, workers: int = 8):
+        from concurrent.futures import ThreadPoolExecutor
+        self._memory = memory
+        self._sonuc: dict = {}
+        istenen = list(dict.fromkeys(q for q in queries if q))
+        if not istenen:
+            return
+
+        def oku(query):
+            try:
+                return query, memory._fetch(query), None
+            except Exception as exc:  # noqa: BLE001 - hata sorgunun sonucudur
+                return query, None, exc
+
+        with ThreadPoolExecutor(max_workers=max(1, min(workers, len(istenen))),
+                                thread_name_prefix="ekip-oku") as havuz:
+            for query, evidence, exc in havuz.map(oku, istenen):
+                self._sonuc[query] = (evidence, exc)
+
+    def _fetch(self, query):
+        if query not in self._sonuc:
+            evidence = self._memory._fetch(query)
+            self._sonuc[query] = (evidence, None)
+            return evidence
+        evidence, exc = self._sonuc[query]
+        if exc is not None:
+            raise exc
+        return evidence
+
+    def __getattr__(self, name):
+        return getattr(self._memory, name)
+
+
+def _team_queries() -> list:
+    """Ekip panosunun okuyacagi tum sorgular (veri modundaki uyeler + departman)."""
+    from jarvis.roster import ROSTER
+    sorgular = []
+    for member in ROSTER:
+        if getattr(member, "mode", "data") in ("research", "synthesis"):
+            continue
+        sorgular.extend(getattr(member, "reads", ()) or ())
+    sorgular.append("departments")
+    return list(dict.fromkeys(sorgular))
+
+
+def _team_opinions(memory=None) -> list:
     """Ekip üyeleri ve bu veriye bakınca söyledikleri. Sıfır model çağrısı."""
     try:
         from jarvis.roster import opinions
         from jarvis.role_activity import latest
-        return opinions(_memory, activity=latest())
+        return opinions(memory if memory is not None else _memory, activity=latest())
     except Exception as exc:  # noqa: BLE001 - panel hicbir zaman cokmez
         return [_panel_error(exc)]
 
 
-def _team_by_department() -> list:
+def _team_by_department(gorusler_listesi: list | None = None, memory=None) -> list:
     """Ekip, DEPARTMAN altinda ve SORUMLUSUYLA birlikte.
 
     🔴 Sahip 22.09.2026: "hepsinin kendi mudurleri var, ben onlarla
@@ -4154,10 +4214,14 @@ def _team_by_department() -> list:
     except Exception as exc:  # noqa: BLE001 - panel hicbir zaman cokmez
         return [_panel_error(exc)]
 
-    gorusler = {g.get("key"): g for g in _team_opinions() if isinstance(g, dict)}
+    if memory is None:
+        memory = _memory
+    if gorusler_listesi is None:
+        gorusler_listesi = _team_opinions(memory)
+    gorusler = {g.get("key"): g for g in gorusler_listesi if isinstance(g, dict)}
     birim_adlari, misyonlar = {}, {}
     try:
-        for d in _memory._fetch("departments").records:
+        for d in memory._fetch("departments").records:
             kod = str(d.get("kod") or "")
             if kod:
                 birim_adlari[kod] = str(d.get("ad") or kod)
@@ -4235,7 +4299,14 @@ def _panel_ajanlar() -> dict:
                             "evidence": candidate.evidence})
     except Exception as exc:  # noqa: BLE001
         engines = [_panel_error(exc)]
-    return {"team": _team_opinions(), "departmanlar": _team_by_department(),
+    # Ekip gorusleri BIR KEZ hesaplanir; departman gorunumu ayni sonucu
+    # kullanir. Sorgular paralel okunur (bkz. _OnceFetchedMemory).
+    try:
+        memory = _OnceFetchedMemory(_memory, _team_queries())
+    except Exception:  # noqa: BLE001 - onden okuma olmazsa eski yol
+        memory = _memory
+    team = _team_opinions(memory)
+    return {"team": team, "departmanlar": _team_by_department(team, memory),
             "role_reality": reality, "roles": roles,
             "providers": providers, "engines": engines}
 
