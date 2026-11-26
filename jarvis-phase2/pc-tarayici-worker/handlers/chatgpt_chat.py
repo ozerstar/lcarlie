@@ -89,12 +89,22 @@ def _uret(page, is_: dict, tavan: float, uzun: bool) -> dict:
         if yeni_yanit and metin == son_metin and time.monotonic() - son_degisim >= (10 if uzun else 3):
             # Uzun işte düşünme/arama sırasında metin 10 sn'den uzun durabilir:
             # durdur düğmesi görünürken yanıt bitmiş sayılmaz.
-            if not uzun or not _uretiyor_mu(page):
-                return {"metin": (_son_kod_blogu(page) or metin) if uzun else metin, "dosyalar": []}
+            if not uzun:
+                return {"metin": metin, "dosyalar": []}
+            # Web araması sırasında ("Searching 46 websites") durdur düğmesi
+            # görünmeyebilir ve metin dakikalarca durur (26.11 iş 408 erken
+            # döndü). Uzun iş JSON kod bloğu ister: blok gelene dek beklenir.
+            kod = "" if _uretiyor_mu(page) else _son_kod_blogu(page)
+            if kod:
+                return {"metin": kod, "dosyalar": []}
         if yeni_yanit and metin != son_metin:
             son_metin = metin
             son_degisim = time.monotonic()
         page.wait_for_timeout(700)
+    if son_metin and uzun:
+        # Kod bloğu hiç gelmedi: çağıran (blog hattı) JSON ayıklayamayıp
+        # HATA'ya düşer; metin yine de görünür kalsın.
+        return {"metin": _son_kod_blogu(page) or son_metin, "dosyalar": []}
     if son_metin:
         raise TimeoutError("GPT yanıtı süre içinde durulmadı; kısmi yanıt teslim edilmedi")
     raise TimeoutError("GPT Work yanıtı süre içinde alınamadı")
