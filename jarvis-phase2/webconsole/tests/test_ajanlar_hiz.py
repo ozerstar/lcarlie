@@ -106,5 +106,20 @@ class AjanlarTekHesapTests(unittest.TestCase):
         self.assertEqual(bellek.sayac["system"], 1)
 
 
+class PanelRoluJitKapaliTests(unittest.TestCase):
+    """mart.ekonomi_gunluk 943 ms'nin 860 ms'i JIT derlemesiydi (26.11 olcum).
+
+    Goc 082 panel rolunde JIT'i kapatir. Bu test gocun ve yalniz panel
+    rolunu hedefledigini kilitler (n8n gibi baska rollere dokunmaz).
+    """
+
+    def test_goc_082_yalniz_panel_rolunde_jit_kapatir(self):
+        goc = (Path(__file__).resolve().parents[2] / "migrations"
+               / "082_jarvis_web_jit_kapali.sql")
+        komutlar = [s.strip() for s in goc.read_text(encoding="utf-8").splitlines()
+                    if s.strip() and not s.strip().startswith("--")]
+        self.assertEqual(komutlar, ["ALTER ROLE jarvis_web SET jit = off;"])
+
+
 if __name__ == "__main__":
     unittest.main()

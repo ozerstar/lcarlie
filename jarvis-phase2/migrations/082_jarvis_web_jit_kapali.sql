@@ -1,0 +1,13 @@
+-- 082 · panel rolunde JIT kapali (26.11.2026)
+--
+-- OLCUM (EXPLAIN ANALYZE, 26.11): mart.ekonomi_gunluk 943 ms suruyordu;
+-- bunun 860 ms'i PostgreSQL JIT DERLEMESIYDI (720 fonksiyon, Emission 688 ms).
+-- jit=off ile ayni sorgu 44 ms, ayni sonuc. Panel sorgulari kucuk tablolar
+-- uzerinde derin gorunumler: planlayici maliyeti esigi asiyor ama is az, JIT
+-- derlemesi isin kendisinden 20 kat uzun suruyor.
+--
+-- Kapsam: YALNIZ panelin baglandigi jarvis_web rolu. n8n ve diger roller
+-- etkilenmez. Yeni oturumdan itibaren gecerli (panel her sorguda yeni
+-- baglanti aciyor). SET ROLE ai_reader bu ayari sifirlamaz.
+-- Geri donus: ALTER ROLE jarvis_web RESET jit;
+ALTER ROLE jarvis_web SET jit = off;
