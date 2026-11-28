@@ -1,6 +1,6 @@
 ---
 konu: B2B satış geliştirme durumu — Farmazon, eczane kampanyası, distribütörler (28.11.2026)
-anahtar: [farmazon, eczane, kampanya, distribütör, ihracat, bae, dubai, hollanda, b2b, cevap, ilgilenen, takip, gratis]
+anahtar: [farmazon, farmazonda, farmazondaki, farmazonu, eczane, eczaneler, eczanelerden, kampanyası, kampanya, distribütör, ihracat, bae, dubai, hollanda, b2b, cevap, ilgilenen, takip, gratis]
 gizlilik: ic-bilgi
 ---
 
