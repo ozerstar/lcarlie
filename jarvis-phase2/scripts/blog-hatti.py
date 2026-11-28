@@ -26,7 +26,6 @@ import datetime as dt
 import json
 import os
 import re
-import shutil
 import sys
 import time
 import traceback
@@ -205,10 +204,10 @@ YAZIM_SEMA = """JSON nesnesi döndür (başka hiçbir şey yazma):
 {"seo_baslik": "<=60 karakter", "meta": "140-155 karakter", "slug": "ascii-kucuk-harf-tire",
  "baslik": "H1 başlık", "anahtar": "birincil anahtar kelime", "ikincil": ["..."],
  "kategori": "icerik-sozlugu|botanik|bilincli-bakim|rituel|urun-rehber|formul|urun-kategori",
- "html": "gövde HTML (h1 YOK; yalnız p,h2,h3,ul,ol,li,table,thead,tbody,tr,th,td,a,strong,em). İlk paragraf 40-60 kelimelik doğrudan cevap. En az bir tablo. '<h2>Sık Sorulan Sorular</h2>' altında 4-6 soru (h3+p). En sonda '<h2>Kaynaklar</h2><ul><li>Yazar, yıl, başlık (İngilizce asıl başlık), dergi, PMID: ..., doi:...</li></ul>' 4-8 madde",
+ "html": "gövde HTML (h1 YOK; yalnız p,h2,h3,ul,ol,li,table,thead,tbody,tr,th,td,a,strong,em). İlk öğe '<p><strong>Kısa cevap:</strong> ...</p>' biçiminde 40-60 kelimelik, tek başına alıntılanabilir doğrudan cevap. H2 başlıklarının en az üçü okurun aradığı SORU biçiminde ('... nedir?', '... nasıl kullanılır?'); her H2'nin ilk cümlesi o sorunun kısa cevabı ya da tanımıdır. Somut bilgi ver: INCI adı, kullanım sırası, miktar (damla, fındık büyüklüğü), sıklık. En az bir tablo ya da adım listesi; tablolar EN FAZLA 3 sütun. 1-3 ürün sayfası ve 1-2 ilgili yazı bağlantısı. '<h2>Sık Sorulan Sorular</h2>' altında 4-6 soru (h3+p). En sonda '<h2>Kaynaklar</h2><ul><li>Yazar, yıl, başlık (İngilizce asıl başlık), dergi, PMID: ..., doi:...</li></ul>' 4-8 madde",
  "faq": [{"q": "...", "a": "..."}],
- "sahne_tr": "kapak için ürünsüz sahne tarifi (kış/mevsime uygun, Türk insanları varsa doğal)",
- "kesitler": ["kapakta gerçek fotoğrafı kullanılacak 0-2 ürün kesit adı, ör. hydravie"]}"""
+ "sahne_tr": "kapak sahnesi tarifi: zemin, ışık, konuyla ilgili doğal nesneler (krem/taş/keten dünyası; yazı yok)",
+ "kesitler": ["kapakta yer alacak 0-2 ürün kesit adı, ör. hydravie; YALNIZ gövdede bağlantısı verilen ve konu bir içerikse içindekiler listesinde o içeriği taşıyan ürün"]}"""
 
 
 def gemini_yaz(r: dict, ek_uyari: str = "") -> dict:
@@ -223,7 +222,7 @@ def gemini_yaz(r: dict, ek_uyari: str = "") -> dict:
         "Google aramasıyla GERÇEK makaleleri bul; PMID ve DOI'yi yalnız doğruladıysan yaz. Uydurma kaynak "
         "yasak: kaynaklar otomatik olarak NCBI/Crossref'te başlıkla karşılaştırılacak, tutmayan silinecek.\n"
         "- Cümlenin nesnesi görünüm, his, doku, nem, konfor, koku, bakım olur. Ürün tedavi/iyileştirme/hastalık/"
-        "vücut işlevi iddiası taşımaz. 'dermatolog önerir' yazılmaz. Olumsuz satış dili yok.\n"
+        "vücut işlevi iddiası taşımaz. 'dermatolog önerir' yazılmaz.\n- " + bh.OLUMLU_DIL_KURALI + "\n"
         "- Ürün bağlantısı biçimi https://www.lcarlie.shop/product-page/<slug> (1-3 adet); MINISOOTH'a bağlantı yok.\n"
         "- Kesit adları: %s\n%s\n\n%s"
     ) % (brif_metni()[:6000], plan.get("konu") or r["konu"], plan.get("anahtar") or r["konu"],
@@ -247,12 +246,89 @@ def gemini_yaz(r: dict, ek_uyari: str = "") -> dict:
             "yazan_model": model, "plan": plan}
 
 
-def tr_kapilari(ic: dict) -> tuple[dict, dict]:
-    """TR kapıları. (yeni_icerik, kapı_sonucu) döner; red -> KapiRed."""
+OLUMLU_YAZ_ISTEMI = """Sen L'CARLIÉ blogunun Türkçe editörüsün. Aşağıdaki HTML parçalarının her birinde işaretli cümle OLUMSUZ hüküm taşıyor. Her parçayı şu kurala göre yeniden yaz:
+%s
+Ek kurallar:
+- İşaretli cümleyi ya tamamen çıkar ya da aynı paragraftaki bilgiye dayanan doğru ve olumlu bir cümleyle değiştir. Parçanın geri kalanını, HTML etiketlerini ve href adreslerini AYNEN koru.
+- Yeni rakam, yeni çalışma, yeni kaynak, yeni ürün iddiası EKLEME. Tedavi, hastalık, vücut işlevi iddiası yazma.
+- Parçanın tamamı olumsuz hükümden ibaretse ve olumlu karşılığı yoksa "yeni" alanını boş dize ver (parça silinir).
+JSON dizisi döndür: [{"no": 1, "yeni": "<aynı etiketle yeniden yazılmış parça>"}]
+
+PARÇALAR:
+%s"""
+
+
+def olumlu_yaz(html: str, bulgular: list[dict]) -> tuple[str, int]:
+    """Olumsuz cümle taşıyan blokları ChatGPT'ye olumlu dille yeniden yazdırır.
+    (yeni_html, değişen_blok_sayısı) döner. Kapı ardından YENİDEN çalışır; model
+    olumsuzu bırakırsa ya da iddia eklerse yazı yine geçemez."""
+    bloklar: dict[str, list[str]] = {}
+    for b in bulgular:
+        if b.get("blok"):
+            bloklar.setdefault(b["blok"], []).append(b["cumle"])
+    if not bloklar:
+        return html, 0
+    sira = list(bloklar.items())
+    liste = "\n".join("%d) PARÇA: %s\n   OLUMSUZ CÜMLE(LER): %s" % (i + 1, blok, " | ".join(c))
+                      for i, (blok, c) in enumerate(sira))
+    metin, _ = bh.gemini(OLUMLU_YAZ_ISTEMI % (bh.OLUMLU_DIL_KURALI, liste), modeller=bh.YAZI_MODELLERI,
+                         json_cikti=True, en_cok=12000, zaman=900)
+    cevap = bh.json_ayikla(metin)
+    if isinstance(cevap, dict):
+        cevap = cevap.get("parcalar") or cevap.get("sonuc") or [cevap]
+    degisen = 0
+    for x in cevap:
+        try:
+            eski = sira[int(x["no"]) - 1][0]
+        except (KeyError, ValueError, IndexError, TypeError):
+            continue
+        yeni = (x.get("yeni") or "").strip()
+        etiket = re.match(r"<(\w+)", eski).group(1).lower()
+        if yeni and not re.match(r"(?i)<%s[\s>]" % etiket, yeni):
+            continue  # etiketi değiştirmiş: güvenme
+        if set(re.findall(r'href="([^"]+)"', eski)) - set(re.findall(r'href="([^"]+)"', yeni)) and yeni:
+            continue  # bağlantı düşürmüş
+        if not yeni and etiket in ("td", "th", "h2", "h3"):
+            continue  # tablo hücresi/başlık silinmez
+        if eski in html:
+            html = html.replace(eski, yeni, 1)
+            degisen += 1
+    return html, degisen
+
+
+def tr_kapilari(ic: dict, duzelt: bool = True) -> tuple[dict, dict]:
+    """TR kapıları. (yeni_icerik, kapı_sonucu) döner; red -> KapiRed.
+
+    28.11: olumsuz dil kapısı + SEO/GEO kapısı eklendi. Olumsuz cümle bulunursa
+    yazı önce otomatik olarak olumlu dille yeniden yazdırılır (en çok 2 tur);
+    hâlâ olumsuz cümle kalırsa yazı YAYINLANMAZ (INSANA)."""
     html, gunes = bh.gunes_uyarisi_ekle(ic["html"])
     sonuc = {"gunes_uyarisi_eklendi": gunes}
+    ek = [ic.get("meta") or "", ic.get("baslik") or "", ic.get("seo_baslik") or ""]
+    olumsuz = bh.olumsuz_dil_kapisi(html, "tr", ek)
+    sonuc["olumsuz_ilk"] = len(olumsuz)
+    tur = 0
+    while olumsuz and duzelt and tur < 2 and any(b.get("blok") for b in olumsuz):
+        tur += 1
+        html, n = olumlu_yaz(html, olumsuz)
+        log("olumlu yeniden yazım turu %d: %d blok değişti" % (tur, n))
+        olumsuz = bh.olumsuz_dil_kapisi(html, "tr", ek)
+    sonuc["olumlu_yazim_turu"] = tur
+    sonuc["olumsuz"] = [{k: b[k] for k in ("tur", "eslesen", "cumle")} for b in olumsuz[:20]]
     sorun = bh.kelime_kapisi(html) + bh.yapi_kapisi(html)
+    if olumsuz:
+        sorun.append("olumsuz dil kapısı: %d cümle (ör. '%s' <- %s)" % (len(olumsuz), olumsuz[0]["eslesen"],
+                                                                      olumsuz[0]["cumle"][:90]))
     sonuc["kelime"] = bh.kelime_say(html)
+    # FAQ şeması görünen SSS bölümünden üretilir (şema = sayfa)
+    sorular = bh.sss_cikar(html)
+    if sorular:
+        ic = dict(ic, faq_jsonld=bh.faq_jsonld(sorular, "tr"))
+    # hazır (önceden yazılmış) kaynakta soru başlığı eşiği 1; modelin yazdığı yazıda 3
+    geo = bh.geo_kapisi(html, ic.get("seo_baslik") or "", ic.get("meta") or "",
+                        en_az_soru_h2=1 if ic.get("kaynak_dosya") else 3)
+    sonuc["geo"] = geo["olcum"]
+    sorun += ["SEO/GEO: " + s for s in geo["sorun"]]
     faq = ic.get("faq_jsonld") or {}
     nsoru = len(faq.get("mainEntity") or [])
     sonuc["sss"] = nsoru
@@ -287,6 +363,7 @@ Rules:
 - Use natural native wording that people really search in {dil}; primary keyword: "{anahtar}".
 - Cosmetic regulation: sentences about the products may only describe appearance, feel, texture, moisture, comfort, scent and care. Never write that a product treats, heals, cures, repairs, prevents disease or changes body functions; no "dermatologist recommended", no "miracle". Do not add claims that are not in the Turkish text.
 - Keep "consult your doctor" style sentences.
+- Positive wording only, exactly as in the Turkish text: never add statements about missing evidence, unproven effects, myths, "not recommended" or "not necessary".
 """
 KAYNAK_BASLIK = {"en": "Sources", "de": "Quellen", "ru": "Источники", "ar": "المصادر"}
 
@@ -322,6 +399,10 @@ def cevir(ic: dict, dil: str) -> tuple[dict, dict]:
         oran = len(bh.duz_metin(d.get("html") or "")) / max(1, len(bh.duz_metin(ic["html"])))
         if not 0.6 <= oran <= 1.9:
             sorun.append("uzunluk oranı %.2f" % oran)
+        olumsuz = bh.olumsuz_dil_kapisi(d.get("html") or "", dil, [d.get("meta") or "", d.get("baslik") or ""])
+        if olumsuz:
+            sorun.append("negative wording must be rephrased positively or removed: %s"
+                         % "; ".join(b["cumle"][:120] for b in olumsuz[:4]))
         if not sorun:
             break
         son_sorun = sorun
@@ -333,9 +414,10 @@ def cevir(ic: dict, dil: str) -> tuple[dict, dict]:
     slug = (d.get("slug") or "").strip().lower()
     if not re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", slug) or len(slug) > 90:
         slug = bh.slugla(slug) or (ic["slug"] + "-" + dil)
-    faq = {"@context": "https://schema.org", "@type": "FAQPage", "inLanguage": dil, "mainEntity": [
-        {"@type": "Question", "name": x["q"], "acceptedAnswer": {"@type": "Answer", "text": x["a"]}}
-        for x in d.get("faq") or [] if x.get("q") and x.get("a")]}
+    # FAQ şeması çevrilmiş gövdenin SSS bölümünden (TR ile aynı sıradaki H2) üretilir
+    sss = bh.sss_cikar(d["html"], bh.sss_sirasi(ic["html"])) or [x for x in d.get("faq") or []
+                                                               if x.get("q") and x.get("a")]
+    faq = bh.faq_jsonld(sss, dil)
     return ({"baslik": d.get("baslik") or ic["baslik"], "seo_baslik": (d.get("seo_baslik") or "")[:70],
              "meta": (d.get("meta") or "")[:300], "slug": slug, "html": d["html"], "faq_jsonld": faq,
              "kapak_metni": (d.get("kapak_metni") or d.get("baslik") or "")[:90], "model": model},
@@ -355,65 +437,164 @@ def nabiz() -> dict:
     return {"durum": "TAZE" if taze else "BAYAT", "chrome": ayr.get("chrome"), "yas_s": s.get("yas_s")}
 
 
-def sahne_istemi(ic: dict) -> str:
-    istem = ("Translate this Turkish photo brief into ONE short English sentence describing only the setting, "
-             "light, surfaces and props (ASCII only, no product, no packaging, no brand, no text). Return JSON "
-             '{"sahne": "..."}. Brief: ' + (ic.get("sahne_tr") or ic["baslik"]))
+GORSEL_ORTAK = (
+    "Light: soft natural daylight from the left; every object rests firmly on the surface with a soft realistic contact "
+    "shadow falling to the right. Palette: cream, warm stone and natural linen, muted and calm, the L'CARLIE world. "
+    "Composition: the main subject sits in the central area of the frame with generous calm space on all four sides, so "
+    "the image still works when cropped to a square or to a wide strip around the center. Shallow depth of field, high "
+    "detail, premium skincare editorial quality.")
+GORSEL_AMBALAJ = (
+    "Keep every package identical to its reference photo: same shape and proportions, same white body and cap, same "
+    "label layout, same letters and logo, sharp and legible; the labels are the only text in the image and each label "
+    "shows only what its reference shows. A faint reflection of the surface tones may fall on the package.")
+GORSEL_YAZISIZ = "The frame shows only the setting and plain natural objects; every surface is free of writing, logos and cosmetic packaging."
+REF_DIR = bh.YAYIN_DIR / "_ref"
+
+
+def sahne_cumleleri(ic: dict) -> dict:
+    """Türkçe sahne tarifinden kapak ve iç görsel için iki kısa İngilizce sahne cümlesi."""
+    istem = ("From this Turkish blog image brief write TWO short English scene descriptions (ASCII only, one sentence "
+             "each, max 45 words): only setting, surfaces and natural props related to the topic (flowers, plants, "
+             "oil, glass, stone, linen, cotton); no product, no packaging, no brand, no text, no numbers. 'kapak' is "
+             "a still life where a skincare product could stand in the center; 'ic' is a DIFFERENT productless scene "
+             'on the same topic. Return JSON {"kapak": "...", "ic": "..."}. Topic: %s. Brief: %s'
+             % (ic.get("baslik") or "", (ic.get("gorsel_brif") or ic.get("sahne_tr") or ic.get("baslik") or "")[:1500]))
+    d = {}
     try:
         metin, _ = bh.gemini(istem, modeller=["gemini-3.5-flash", "gemini-flash-latest"], json_cikti=True,
-                             en_cok=600, zaman=120)
-        sahne = bh.json_ayikla(metin).get("sahne") or ""
+                             en_cok=800, zaman=300)
+        d = bh.json_ayikla(metin)
     except Exception:  # noqa: BLE001
-        sahne = ""
-    sahne = re.sub(r"[^\x20-\x7e]", "", sahne).strip() or "a calm bathroom shelf with soft morning light"
+        d = {}
+    temiz = lambda s, v: (re.sub(r"[^\x20-\x7e]", "", str(s or "")).strip().rstrip(".") or v)  # noqa: E731
+    return {"kapak": temiz(d.get("kapak"), "a honed cream stone bathroom shelf with a folded linen towel and a small ceramic dish"),
+            "ic": temiz(d.get("ic"), "a calm bathroom counter with a linen towel, a glass of water and a green olive branch")}
+
+
+def mevsim_notu() -> str:
     ay = simdi().month
-    mevsim = ("winter in Turkey, cozy indoor light, knitwear and warm tones" if ay in (12, 1, 2)
-              else "late autumn in Turkey, soft daylight, warm muted tones" if ay in (10, 11)
-              else "spring in Turkey, fresh daylight" if ay in (3, 4, 5) else "summer in Turkey, bright natural light")
-    return ("[L'CARLIE BLOG SCENE - new independent image, ignore earlier images in this chat] "
-            "Create a photorealistic premium editorial photograph in landscape 3:2 format (1536x1024). "
-            "Scene: %s Season and mood: %s. If people appear they are Turkish adults with natural, real-looking skin "
-            "and modest everyday clothing, shown calmly. Composition: keep the left 45 percent of the frame calm, "
-            "soft and simple (it will hold typeset text later) and keep an empty clean surface in the lower right "
-            "third where a real product photo will be placed later. Show only the setting and props: the frame "
-            "contains no bottles, tubes, jars, cosmetic packaging, labels, logos, letters or numbers. "
-            "Natural light, shallow depth of field, muted warm palette, high detail." % (sahne, mevsim))
+    return ("winter in Turkey, cozy indoor daylight" if ay in (12, 1, 2)
+            else "late autumn in Turkey, soft daylight" if ay in (10, 11)
+            else "spring in Turkey, fresh daylight" if ay in (3, 4, 5) else "summer in Turkey, bright natural light")
 
 
-def gorsel_kuyruga(k: bh.Kuyruk, r: dict, kuru: bool) -> dict:
+def kapak_istemi(sahne: str, urunler: list[str]) -> str:
+    bas = "[L'CARLIE BLOG COVER - new independent image, ignore earlier images in this chat] "
+    bicim = "Create a photorealistic premium editorial still-life photograph in landscape 3:2 format (1536x1024). "
+    if not urunler:
+        return (bas + bicim + "Scene: %s. Season: %s. " % (sahne, mevsim_notu()) + GORSEL_ORTAK + " " + GORSEL_YAZISIZ)
+    adlar = ", ".join("IMAGE %d %s" % (i + 1, bh.etiket_adi(u)) for i, u in enumerate(urunler))
+    if len(urunler) == 1:
+        giris = "IMAGE 1 is the real, unretouched cut-out photo of our product (%s). " % bh.etiket_adi(urunler[0])
+        yer = ("This exact product stands upright in the center of the frame, about 50 percent of the frame height, "
+               "with the scene props arranged around it. ")
+    else:
+        giris = "IMAGES 1 to %d are real, unretouched cut-out photos of our products: %s. " % (len(urunler), adlar)
+        yer = ("The exact products stand upright in one row from left to right in the given order, evenly spaced, each "
+               "keeping its true relative size, the row about 50 percent of the frame height, centered. ")
+    return (bas + giris + bicim + "Scene: %s. Season: %s. " % (sahne, mevsim_notu()) + yer + GORSEL_AMBALAJ + " "
+            + GORSEL_ORTAK)
+
+
+def ic_istemi(sahne: str) -> str:
+    return ("[L'CARLIE BLOG SCENE - new independent image, ignore earlier images in this chat] Create a photorealistic "
+            "premium editorial photograph in landscape 3:2 format (1536x1024). Scene: %s. Season: %s. If people appear "
+            "they are Turkish adults with natural, real-looking skin and modest everyday clothing, shown calmly. "
+            % (sahne, mevsim_notu()) + GORSEL_ORTAK + " " + GORSEL_YAZISIZ)
+
+
+def referans_hazirla(kesit: str) -> str:
+    """Etiketi sade (alt satırı kaldırılmış) gerçek ürün kesitinden, ChatGPT'ye
+    verilecek referans fotoğrafı üretir. Ham çekim yerine bu verilir: ham
+    fotoğraftaki eski alt satır ('Redness Relief Mist' vb.) görsele taşınmasın."""
+    from PIL import Image
+    REF_DIR.mkdir(parents=True, exist_ok=True)
+    hedef = REF_DIR / ("%s.jpg" % kesit)
+    kaynak = bh.KESIT_DIR / ("%s.png" % kesit)
+    if hedef.is_file() and hedef.stat().st_mtime >= kaynak.stat().st_mtime:
+        return str(hedef)
+    im = bh.kesit_yukle(kesit)
+    o = 1400 / im.height
+    im = im.resize((max(1, int(im.width * o)), 1400), Image.LANCZOS)
+    zemin = Image.new("RGBA", (im.width + 320, im.height + 320), (232, 232, 230, 255))
+    zemin.alpha_composite(im, (160, 160))
+    zemin.convert("RGB").save(hedef, "JPEG", quality=93)
+    return str(hedef)
+
+
+def gorsel_kuyruga(k: bh.Kuyruk, r: dict, kuru: bool, hangi: tuple = ("kapak", "ic"), urunsuz: bool = False) -> dict:
+    """Kapak ve/veya iç görsel işini ChatGPT (PC-1 Chrome) kuyruğuna koyar.
+    Kapakta ürün olacaksa etiketi sade gerçek ürün kesiti referans olarak yüklenir."""
     from jarvis import tarayici
     ic = r["icerik"]
-    istem = sahne_istemi(ic)
+    g = dict(r.get("gorsel") or {})
+    isler = dict(g.get("is") or {})
+    if "kapak" not in isler and "ic" not in isler:
+        isler = {}  # 28.11 öncesi tek iş düzeni
+    secim = g.get("secim") or bh.gorsel_urun_sec(ic)
+    if urunsuz:
+        secim = dict(secim, urunler=[], kayit=list(secim.get("kayit") or []) + ["ambalaj denetimi geçilemedi: kapak ürünsüz"])
+    sahne = g.get("sahne_cumle") or ({"kapak": "x", "ic": "y"} if kuru else sahne_cumleleri(ic))
     n = int(r.get("gorsel_deneme") or 0) + 1
-    if kuru:
-        return {"istem": istem, "is_id": None, "kuru": True}
-    s = tarayici.enqueue_browser_task(istem, "chatgpt_image", requested_by=ISTEYEN,
-                                      idempotency_key="blog:%s:sahne:v%d" % (r["slug"], n))
-    return {"istem": istem, "is_id": s["is_id"], "deneme": n, "kuyruga": simdi().isoformat()}
+    for tur in hangi:
+        urunler = [u for u in secim["urunler"] if (bh.KESIT_DIR / (u + ".png")).is_file()] if tur == "kapak" else []
+        istem = kapak_istemi(sahne["kapak"], urunler) if tur == "kapak" else ic_istemi(sahne["ic"])
+        if kuru:
+            isler[tur] = {"istem": istem, "is_id": None, "urunler": urunler, "kuru": True}
+            continue
+        s = tarayici.enqueue_browser_task(istem, "chatgpt_image", requested_by=ISTEYEN,
+                                          input_files=[referans_hazirla(u) for u in urunler] or None,
+                                          idempotency_key="blog:%s:%s:v%d" % (r["slug"][:60], tur, n))
+        isler[tur] = {"istem": istem, "is_id": s["is_id"], "deneme": n, "urunler": urunler,
+                      "kuyruga": simdi().isoformat()}
+    return {"is": isler, "secim": secim, "sahne_cumle": sahne, "deneme": n}
 
 
-def gorsel_dizi(r: dict, sahne: str, kuru: bool) -> dict:
-    ic = r["icerik"]
+def referansta_okunuyor(kesit: str) -> bool:
+    """Ürün adı gerçek referans fotoğrafta OCR ile okunabiliyor mu? (sonuç dosyada saklanır)"""
+    ref = Path(referans_hazirla(kesit))
+    kayit = ref.with_suffix(".ocr.json")
+    if kayit.is_file() and kayit.stat().st_mtime >= ref.stat().st_mtime:
+        return bool(json.loads(kayit.read_text()).get("urun"))
+    s = bh.etiket_okunuyor_mu(bh._ocr_kelimeler(str(ref)), bh.etiket_adi(kesit))
+    kayit.write_text(json.dumps({"urun": s["urun"], "marka": s["marka"], "en_yakin": s["en_yakin"]}))
+    return bool(s["urun"])
+
+
+class AmbalajRed(Exception):
+    """Üretilen kapakta etiket okunmadı / değişmiş: görsel kullanılmaz."""
+
+
+def gorsel_isle(r: dict, yollar: dict, urunler: list[str], kuru: bool, denetle: bool = True) -> dict:
+    """ChatGPT çıktısını yayın boyutuna getirir ve ambalaj kilidini ölçer.
+
+    kapak 1500x1000 (3:2, yazısız; liste kartı ortadan kırpar, ürün ortada),
+    iç görsel 1200x800. Kapakta ürün varsa her ürün için etikette marka ve ürün
+    adının HARFİ HARFİNE okunması şarttır; okunmazsa AmbalajRed."""
+    from PIL import Image
     hedef = (KURU_DIR if kuru else bh.YAYIN_DIR) / r["slug"]
     hedef.mkdir(parents=True, exist_ok=True)
-    renk = bh.KATEGORI_RENK.get(r.get("kategori_id") or ic.get("kategori_id"), (176, 132, 96))
-    kesitler = ic.get("kesitler") or []
-    out = {"kapak": {}, "denetim": []}
-    for dil in bh.TUM_DILLER:
-        metin = ic["baslik"] if dil == "tr" else (r["ceviriler"][dil].get("kapak_metni") or r["ceviriler"][dil]["baslik"])
-        yol = str(hedef / ("kapak-%s.jpg" % dil))
-        bilgi = bh.kapak_diz(sahne, metin, dil, kesitler, renk, yol)
-        out["kapak"][dil] = {"yol": yol, "url": "%s/%s/kapak-%s.jpg" % (bh.YAYIN_URL, r["slug"], dil),
-                             "w": bilgi["w"], "h": bilgi["h"]}
-        for ad, yer in zip(kesitler, bilgi["urun_yeri"], strict=False):
-            out["denetim"].append({"dil": dil, "kesit": ad, "fark": bh.kesit_birebir_mi(yol, ad, yer)})
-    yol = str(hedef / "ic.jpg")
-    bilgi = bh.ic_gorsel_diz(sahne, kesitler[:1] or [], yol)
-    out["ic"] = {"yol": yol, "url": "%s/%s/ic.jpg" % (bh.YAYIN_URL, r["slug"]), "w": bilgi["w"], "h": bilgi["h"]}
-    # ambalaj kilidi ölçümü: yapıştırılan bölge kesitle birebir mi (JPEG kaybı payı 12)
-    kotu = [x for x in out["denetim"] if x["fark"] > 12]
-    if kotu:
-        raise bh.KapiRed("ambalaj birebirlik ölçümü tutmadı: %s" % kotu[:3])
+    damga = simdi().strftime("%m%d%H%M")
+    out = {"denetim": []}
+    if denetle and urunler:
+        kelimeler = bh._ocr_kelimeler(yollar["kapak"])
+        for u in urunler:
+            s = bh.etiket_okunuyor_mu(kelimeler, bh.etiket_adi(u))
+            if not s["urun"] and s["marka"] and not s["iddia_sozcugu"] and not referansta_okunuyor(u):
+                # Ölçüm aleti bu etiketi GERÇEK fotoğrafta da okuyamıyor (ör. açık turkuaz
+                # zemin üstünde beyaz LUCIDERM): okunamayan şey üzerinden ret verilmez,
+                # marka okuması yeter ve durum kayda geçer.
+                s = dict(s, gecti=True, urun_adi_referansta_da_okunmuyor=True)
+            out["denetim"].append(dict(s, urun=u, beklenen=bh.etiket_adi(u)))
+        kotu = [x for x in out["denetim"] if not x["gecti"]]
+        if kotu:
+            raise AmbalajRed("etiket okunmadı/değişmiş: %s" % json.dumps(kotu, ensure_ascii=False)[:400])
+    for tur, (W, H) in (("kapak", (1500, 1000)), ("ic", (1200, 800))):
+        im = bh._kapla(Image.open(yollar[tur]).convert("RGB"), W, H, 0.5)
+        ad = "%s-%s.jpg" % (tur, damga)
+        im.save(hedef / ad, "JPEG", quality=88, optimize=True, progressive=True)
+        out[tur] = {"yol": str(hedef / ad), "url": "%s/%s/%s" % (bh.YAYIN_URL, r["slug"], ad), "w": W, "h": H}
+    out["urunler"] = urunler
     return out
 
 
@@ -455,6 +636,21 @@ def ic_linkler(html: str) -> list[str]:
     return sorted(set(u for u in re.findall(r'href="([^"]+)"', html) if "lcarlie.shop" in u))
 
 
+def zengin_icerik(r: dict, dil: str, metin: dict, medya: dict, harita: dict, kaldir: set, guncel=None) -> dict:
+    """Yayına giden Ricos belgesi: en başta kapak görseli, kısa cevap, (varsa)
+    'Güncellendi' satırı; geniş tablo liste olur; tırnaklar tipografik; yazı sonunda
+    ürün yönlendirmesi; iç görsel üçüncü H2'den önce."""
+    g, ic = r["gorsel"], r["icerik"]
+    html = bh.gorunum_hazirla(metin["html"], dil, guncel)
+    baslik = bh.tirnak_duzelt(metin["baslik"], dil)
+    alt_ic = (ic.get("alt_2") or ic.get("alt_1")) if dil == "tr" else ""
+    gorseller = [{"id": medya["kapak"], "width": g["kapak"]["w"], "height": g["kapak"]["h"], "alt": baslik,
+                  "sonra_h2": 0},
+                 {"id": medya["ic"], "width": g["ic"]["w"], "height": g["ic"]["h"], "alt": alt_ic or baslik,
+                  "sonra_h2": 3}]
+    return bh.html_to_ricos(html, gorseller, link_cevir=link_cevirici(dil, harita, kaldir))
+
+
 def yayinla(k: bh.Kuyruk, r: dict, wix: bh.WixBlog, kuru: bool) -> dict:
     ic, slug = r["icerik"], r["slug"]
     g = r["gorsel"]
@@ -466,28 +662,27 @@ def yayinla(k: bh.Kuyruk, r: dict, wix: bh.WixBlog, kuru: bool) -> dict:
     harita = kuyruk_harita(k)
     # 2) medya
     medya = dict(g.get("wix_medya") or {})
-    for anahtar, bilgi in list(g["kapak"].items()) + [("ic", g["ic"])]:
+    for anahtar in ("kapak", "ic"):
         if anahtar in medya:
             continue
-        medya[anahtar] = wix.medya_ice_al(bilgi["url"], "lc-blog-%s-%s.jpg" % (slug[:40], anahtar))
+        medya[anahtar] = wix.medya_ice_al(g[anahtar]["url"], "lc-blog-%s-%s.jpg" % (slug[:40], anahtar))
         if not kuru:
             k.guncelle(slug, gorsel={"wix_medya": medya})
     for fid in medya.values():
         wix.medya_hazir_bekle(fid)
+    guncel = simdi().date() if r["tur"] == "REFRESH" else None
 
     def draft(dil: str, metin: dict) -> dict:
-        alt = ic.get("alt_1") if dil == "tr" else metin["baslik"]
-        rich = bh.html_to_ricos(metin["html"], [{"id": medya["ic"], "width": g["ic"]["w"], "height": g["ic"]["h"],
-                                                 "alt": alt or metin["baslik"], "sonra_h2": 2}],
-                                link_cevir=link_cevirici(dil, harita, kaldir))
+        rich = zengin_icerik(r, dil, metin, medya, harita, kaldir, guncel)
         hatalar = bh.ricos_denetle(rich)
         if hatalar:
             raise bh.KapiRed("Ricos öz-denetimi (%s): %s" % (dil, hatalar))
-        kap = g["kapak"][dil]
-        return {"title": metin["baslik"][:200], "excerpt": metin["meta"][:500], "memberId": bh.MEMBER_ID,
+        kap = g["kapak"]
+        baslik = bh.tirnak_duzelt(metin["baslik"], dil)
+        return {"title": baslik[:200], "excerpt": bh.tirnak_duzelt(metin["meta"], dil)[:500], "memberId": bh.MEMBER_ID,
                 "richContent": rich,
-                "media": {"wixMedia": {"image": {"id": medya[dil], "width": kap["w"], "height": kap["h"]}},
-                          "displayed": True, "custom": True, "altText": metin["baslik"][:150]},
+                "media": {"wixMedia": {"image": {"id": medya["kapak"], "width": kap["w"], "height": kap["h"]}},
+                          "displayed": True, "custom": True, "altText": baslik[:150]},
                 "seoData": bh.seo_verisi(metin["seo_baslik"] or metin["baslik"], metin["meta"],
                                          metin.get("faq_jsonld"), ic.get("anahtar") if dil == "tr" else "",
                                          ic.get("ikincil") or [] if dil == "tr" else [])}
@@ -670,81 +865,105 @@ def adim(k: bh.Kuyruk, r: dict, a, wix_yetki: dict | None) -> str:
             log(slug, dil, "çevrildi", metin["model"], metin["slug"])
         r["ceviriler"] = cev
         onceki_is = ((r.get("gorsel") or {}).get("is") or {})
-        if onceki_is.get("is_id") and not kuru:
-            # sahne işi zaten açılmış (ör. çeviri yeniden yapıldı): yeni iş açılmaz
+        if (onceki_is.get("kapak") or {}).get("is_id") and not kuru:
+            # görsel işleri zaten açılmış (ör. çeviri yeniden yapıldı): yeni iş açılmaz
             k.guncelle(slug, durum="GORSEL_BEKLIYOR")
             r["durum"] = "GORSEL_BEKLIYOR"
             return "GORSEL_BEKLIYOR"
         g = gorsel_kuyruga(k, r, kuru)
         if kuru:
-            (KURU_DIR / slug / "sahne-istemi.txt").write_text(g["istem"])
+            (KURU_DIR / slug / "gorsel-istemleri.json").write_text(json.dumps(g, ensure_ascii=False, indent=1))
             r["durum"] = "GORSEL_BEKLIYOR"
             return "GORSEL_BEKLIYOR(kuru)"
-        k.guncelle(slug, gorsel={"is": g}, durum="GORSEL_BEKLIYOR", gorsel_deneme=g["deneme"],
-                   bekleme_sebebi="ChatGPT sahnesi bekleniyor (tarayıcı işi %s)" % g["is_id"])
-        k.olay(slug, "sahne işi kuyruğa: %s" % g["is_id"])
+        k.guncelle(slug, gorsel=g, durum="GORSEL_BEKLIYOR", gorsel_deneme=g["deneme"],
+                   bekleme_sebebi="ChatGPT görselleri bekleniyor (tarayıcı işleri %s, %s)"
+                                  % (g["is"]["kapak"]["is_id"], g["is"]["ic"]["is_id"]))
+        k.olay(slug, "görsel işleri kuyruğa: kapak %s (ürün: %s), iç %s; seçim: %s"
+               % (g["is"]["kapak"]["is_id"], ",".join(g["is"]["kapak"]["urunler"]) or "yok", g["is"]["ic"]["is_id"],
+                  "; ".join(g["secim"].get("kayit") or [])[:250]))
         r["durum"], r["gorsel_deneme"] = "GORSEL_BEKLIYOR", g["deneme"]
-        r["gorsel"] = dict(r.get("gorsel") or {}, **{"is": g})
+        r["gorsel"] = dict(r.get("gorsel") or {}, **g)
         return "GORSEL_BEKLIYOR"
     if d == "GORSEL_BEKLIYOR":
         from jarvis import tarayici
-        is_ = ((r.get("gorsel") or {}).get("is") or {})
-        sahne_yolu = a.sahne if getattr(a, "sahne", None) else None
-        if not sahne_yolu:
-            if not is_.get("is_id"):
-                return "BEKLE(is yok)"
-            durum = tarayici.isi_sonucu(int(is_["is_id"])) or {}
-            if durum.get("durum") in ("BEKLIYOR", "CALISIYOR"):
-                n = nabiz()
-                if n["durum"] != "TAZE" or n.get("chrome") == "KAPALI":
-                    if gunde_bir("worker-kapali") and not kuru:
-                        bildir("Blog: görsel bekliyor", "Bilgisayardaki ChatGPT worker'ından haber yok ya da Chrome "
-                               "kapalı (nabız %s, chrome %s). Blog yazıları görsel için bekliyor; start-chrome.ps1 "
-                               "açılınca kendiliğinden devam eder." % (n["durum"], n.get("chrome")), "blog-worker")
-                return "BEKLE(%s)" % durum.get("durum")
-            if durum.get("durum") in ("HATA", "INSAN_GEREKLI") or (durum.get("durum") in ("BITTI", "SUNULDU")
-                                                                     and not durum.get("sonuc_dosyalari")):
+        g = dict(r.get("gorsel") or {})
+        isler = dict(g.get("is") or {})
+        if getattr(a, "sahne", None):  # test: verilen dosya kapak ve iç görsel olarak kullanılır, OCR yok
+            gd = gorsel_isle(r, {"kapak": a.sahne, "ic": a.sahne}, [], kuru, denetle=False)
+            r["gorsel"] = dict(g, **gd)
+            if not kuru:
+                k.guncelle(slug, gorsel=dict(gd, wix_medya={}), durum="GORSEL_HAZIR", bekleme_sebebi=None)
+            r["durum"] = "GORSEL_HAZIR"
+            return "GORSEL_HAZIR"
+        if "kapak" not in isler or "ic" not in isler:
+            # 28.11 öncesi düzenden kalan satır: yeni düzenle baştan iste
+            yeni = gorsel_kuyruga(k, dict(r, gorsel={}), kuru)
+            k.guncelle(slug, gorsel=yeni, gorsel_deneme=yeni["deneme"])
+            r["gorsel"], r["gorsel_deneme"] = dict(g, **yeni), yeni["deneme"]
+            return "GORSEL_YENIDEN"
+
+        def sunuldu(is_id):
+            tarayici._psql("SELECT core.tarayici_isi_sunuldu(:'is_id'::bigint, :'slug', 'GECTI');",
+                           "human_approver", degiskenler={"is_id": str(is_id), "slug": "blog-%s" % is_id})
+
+        def yeniden(turler: tuple, sebep: str, urunsuz: bool = False) -> str:
+            if int(r.get("gorsel_deneme") or 0) >= GORSEL_EN_COK and not urunsuz:
+                insana(k, r, "ChatGPT görseli %d denemede üretilemedi: %s" % (GORSEL_EN_COK, sebep[:200]), kuru)
+                return "INSANA"
+            yeni = gorsel_kuyruga(k, r, kuru, hangi=turler, urunsuz=urunsuz)
+            k.guncelle(slug, gorsel=yeni, gorsel_deneme=yeni["deneme"])
+            r["gorsel"], r["gorsel_deneme"] = dict(r.get("gorsel") or {}, **yeni), yeni["deneme"]
+            k.olay(slug, "görsel yeniden istendi (%s): %s" % (",".join(turler), sebep[:160]))
+            return "GORSEL_YENIDEN"
+
+        yollar, bekleyen = {}, []
+        for tur in ("kapak", "ic"):
+            durum = tarayici.isi_sonucu(int(isler[tur]["is_id"])) or {}
+            ds = durum.get("durum")
+            if ds in ("BEKLIYOR", "CALISIYOR"):
+                bekleyen.append(tur)
+                continue
+            dosyalar = durum.get("sonuc_dosyalari") or []
+            if ds in ("HATA", "INSAN_GEREKLI") or not dosyalar:
                 hata = str(durum.get("hata") or "dosya yok")
-                if durum.get("durum") != "SUNULDU":
-                    tarayici._psql("SELECT core.tarayici_isi_sunuldu(:'is_id'::bigint, :'slug', 'GECTI');",
-                                   "human_approver", degiskenler={"is_id": str(is_["is_id"]), "slug": "blog-%s" % is_["is_id"]})
-                chrome_yok = "baglanilamadi" in hata or "Chrome" in hata[:60]
-                if not chrome_yok and int(r.get("gorsel_deneme") or 0) >= GORSEL_EN_COK:
-                    insana(k, r, "ChatGPT sahnesi %d denemede üretilemedi: %s" % (GORSEL_EN_COK, hata[:200]), kuru)
-                    return "INSANA"
+                if ds != "SUNULDU":
+                    sunuldu(isler[tur]["is_id"])
                 n = nabiz()
-                if chrome_yok and (n["durum"] != "TAZE" or n.get("chrome") == "KAPALI"):
+                if ("baglanilamadi" in hata or "Chrome" in hata[:60]) and (n["durum"] != "TAZE" or n.get("chrome") == "KAPALI"):
                     if gunde_bir("worker-kapali") and not kuru:
                         bildir("Blog: görsel bekliyor", "ChatGPT worker'ı Chrome'a bağlanamıyor (chrome %s). "
                                "start-chrome.ps1 açılınca blog hattı kendiliğinden devam eder." % n.get("chrome"),
                                "blog-worker")
-                    # Chrome yokken yeni iş açmak denemeyi yakar; bir sonraki koşuda tekrar bakılır
                     k.guncelle(slug, bekleme_sebebi="ChatGPT worker'ı Chrome'a bağlanamıyor; Chrome açılınca yeniden istenecek")
-                    if n.get("chrome") == "KAPALI" or n["durum"] != "TAZE":
-                        return "BEKLE(chrome yok)"
-                if chrome_yok:  # Chrome geri geldi: deneme sayılmadan yeniden iste
-                    r["gorsel_deneme"] = max(0, int(r.get("gorsel_deneme") or 0))
-                g = gorsel_kuyruga(k, r, kuru)
-                k.guncelle(slug, gorsel={"is": g}, gorsel_deneme=g["deneme"])
-                r["gorsel_deneme"], r["gorsel"] = g["deneme"], dict(r.get("gorsel") or {}, **{"is": g})
-                k.olay(slug, "sahne yeniden istendi (%s): %s" % (hata[:80], g["is_id"]))
-                return "GORSEL_YENIDEN"
-            dosyalar = durum.get("sonuc_dosyalari") or []
-            sahne_yolu = str(tarayici.CIKTI_KOK / dosyalar[0])
-            if durum.get("durum") == "BITTI":
-                tarayici._psql("SELECT core.tarayici_isi_sunuldu(:'is_id'::bigint, :'slug', 'GECTI');",
-                               "human_approver", degiskenler={"is_id": str(is_["is_id"]), "slug": "blog-%s" % is_["is_id"]})
-        hedef = (KURU_DIR if kuru else bh.YAYIN_DIR) / slug
-        hedef.mkdir(parents=True, exist_ok=True)
-        sahne_kopya = bh.KOK / "sahne" / ("%s.png" % slug)
-        sahne_kopya.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(sahne_yolu, sahne_kopya)
-        gd = gorsel_dizi(r, str(sahne_kopya), kuru)
-        gd["sahne"] = str(sahne_kopya)
-        r["gorsel"] = dict(r.get("gorsel") or {}, **gd)
+                    return "BEKLE(chrome yok)"
+                return yeniden((tur,), "%s: %s" % (tur, hata))
+            yollar[tur] = str(tarayici.CIKTI_KOK / dosyalar[0])
+            if ds == "BITTI":
+                sunuldu(isler[tur]["is_id"])
+        if bekleyen:
+            n = nabiz()
+            if n["durum"] != "TAZE" or n.get("chrome") == "KAPALI":
+                if gunde_bir("worker-kapali") and not kuru:
+                    bildir("Blog: görsel bekliyor", "Bilgisayardaki ChatGPT worker'ından haber yok ya da Chrome "
+                           "kapalı (nabız %s, chrome %s). Blog yazıları görsel için bekliyor; start-chrome.ps1 "
+                           "açılınca kendiliğinden devam eder." % (n["durum"], n.get("chrome")), "blog-worker")
+            return "BEKLE(%s)" % ",".join(bekleyen)
+        urunler = list(isler["kapak"].get("urunler") or [])
+        try:
+            gd = gorsel_isle(r, yollar, urunler, kuru)
+        except AmbalajRed as e:
+            # 🔴 AMBALAJ KİLİDİ: etiketi bozuk kapak yayınlanmaz. Önce yeniden istenir;
+            #    deneme hakkı bitince kapak ÜRÜNSÜZ sahne olarak istenir (yazı durmaz).
+            k.olay(slug, "ambalaj denetimi RED: %s" % str(e)[:300])
+            if int(r.get("gorsel_deneme") or 0) >= GORSEL_EN_COK - 1:
+                return yeniden(("kapak",), str(e), urunsuz=True)
+            return yeniden(("kapak",), str(e))
+        gd["ham"] = yollar
+        r["gorsel"] = dict(g, **gd)
         if not kuru:
-            k.guncelle(slug, gorsel=gd, durum="GORSEL_HAZIR", bekleme_sebebi=None)
-            k.olay(slug, "kapak x5 + iç görsel dizildi")
+            k.guncelle(slug, gorsel=dict(gd, wix_medya={}), durum="GORSEL_HAZIR", bekleme_sebebi=None)
+            k.olay(slug, "kapak + iç görsel hazır; ambalaj denetimi: %s"
+                   % (json.dumps(gd["denetim"], ensure_ascii=False)[:300] if gd["denetim"] else "kapak ürünsüz"))
         r["durum"] = "GORSEL_HAZIR"
         return "GORSEL_HAZIR"
     if d == "GORSEL_HAZIR":
@@ -789,9 +1008,10 @@ def link_onar(k: bh.Kuyruk, a) -> list:
                 continue
             metin = r["icerik"] if dil == "tr" else r["ceviriler"][dil]
             g = r["gorsel"]
-            rich = bh.html_to_ricos(metin["html"], [{"id": g["wix_medya"]["ic"], "width": g["ic"]["w"],
-                                                     "height": g["ic"]["h"], "alt": metin["baslik"], "sonra_h2": 2}],
-                                    link_cevir=link_cevirici(dil, harita, set()))
+            if "kapak" not in (g.get("wix_medya") or {}):
+                continue  # 28.11 öncesi görsel düzeni: yeniden üretilmeden dokunma
+            rich = zengin_icerik(r, dil, metin, g["wix_medya"], harita, set(),
+                                 simdi().date() if r["tur"] == "REFRESH" else None)
             wix.guncelle_yayinla(w["post_id"], {"richContent": rich, "memberId": bh.MEMBER_ID})
         k.guncelle(r["slug"], kapilar={"kaldirilan_linkler": []})
         k.olay(r["slug"], "geçici kaldırılan bağlantılar geri kondu: %s" % bekleyen)
@@ -810,7 +1030,7 @@ def sira_sec(k: bh.Kuyruk, a) -> list[dict]:
     bugun_yayin = int(k.sql("SELECT count(*) FROM core.blog_kuyruk WHERE durum='YAYINLANDI' AND "
                             "(yayinlandi AT TIME ZONE 'Europe/Istanbul')::date = (now() AT TIME ZONE "
                             "'Europe/Istanbul')::date;") or 0)
-    bos = TAVAN - bugun_yayin - len([r for r in surecte if r["durum"] != "HATA"])
+    bos = TAVAN - bugun_yayin - len(surecte)
     yeni = []
     if bos > 0:
         bekleyen = k.satirlar("durum = 'BEKLIYOR'")
@@ -933,9 +1153,60 @@ def rapor(a) -> dict:
     return sonuc
 
 
+# ================================================================== YENİLE
+def yenile(a) -> dict:
+    """Yayındaki bir yazıyı yeni kurallarla baştan geçirmek için kuyruğa geri alır.
+
+    Kuyruk satırının tamamı (içerik, çeviriler, görsel, Wix kimlikleri) önce
+    yedek klasörüne yazılır. Yazı REFRESH olur: adresler korunur, yayın adımı
+    canlıdaki hâli de ayrıca yedekler. Ardından `yukle` + `calis --slug`."""
+    if not a.slug:
+        raise SystemExit("yenile: --slug gerekli")
+    k = bh.Kuyruk(kuru=a.kuru)
+    r = k.bir(a.slug)
+    if not r:
+        raise SystemExit("yenile: kuyrukta yok: %s" % a.slug)
+    YEDEK_DIR.mkdir(parents=True, exist_ok=True)
+    yedek = YEDEK_DIR / ("%s-kuyruk-%s.json" % (a.slug, simdi().strftime("%Y%m%d%H%M%S")))
+    yedek.write_text(json.dumps(r, ensure_ascii=False))
+    log("yenile: kuyruk satırı yedeklendi ->", yedek)
+    if a.kuru:
+        return {"yedek": str(yedek), "kuru": True}
+    k.sql("UPDATE core.blog_kuyruk SET durum='BEKLIYOR', tur='REFRESH', mevcut_slug=coalesce(mevcut_slug, slug), "
+          "ceviriler='{}'::jsonb, gorsel='{}'::jsonb, wix='{}'::jsonb, deneme=0, gorsel_deneme=0, hata=NULL, "
+          "bekleme_sebebi=NULL, kaynak_sha='yenile', guncellendi=now() WHERE slug = %s;" % k._lit(a.slug))
+    k.olay(a.slug, "yenile: yeni kurallarla baştan (yedek %s)" % yedek.name)
+    return {"yedek": str(yedek)}
+
+
+# ================================================================= DENETLE
+def denetle(a) -> dict:
+    """Kaynak yazıları kapılardan geçirir, hiçbir şeyi değiştirmez (ölçüm).
+    Olumsuz dil ve SEO/GEO kapılarının kaç yazıyı, hangi cümleyle tuttuğunu dökümler."""
+    ozet = {"dosya": 0, "olumsuz_temiz": 0, "geo_temiz": 0}
+    for yol in sorted((KAYNAK_DIR / "tr").glob("*.html")):
+        d = bh.hazir_dosya_oku(yol)
+        if a.slug and a.slug not in (d["slug"], d.get("mevcut_slug")):
+            continue
+        ozet["dosya"] += 1
+        olumsuz = bh.olumsuz_dil_kapisi(d["html"], "tr", [d.get("meta") or "", d.get("baslik") or ""])
+        geo = bh.geo_kapisi(d["html"], d.get("seo_baslik") or "", d.get("meta") or "")
+        secim = bh.gorsel_urun_sec(d)
+        ozet["olumsuz_temiz"] += not olumsuz
+        ozet["geo_temiz"] += not geo["sorun"]
+        print("%s  olumsuz=%d  geo=%s  görsel ürünü=%s" % (yol.name, len(olumsuz), geo["sorun"] or "TEMİZ",
+                                                          secim["urunler"] or "ürünsüz"))
+        if a.slug:
+            for b in olumsuz:
+                print("   [%s] %s  <-  %s" % (b["tur"], b["eslesen"], b["cumle"][:200]))
+            print("   ölçüm:", json.dumps(geo["olcum"], ensure_ascii=False), "| seçim:", secim["kayit"])
+    print(json.dumps(ozet, ensure_ascii=False))
+    return ozet
+
+
 def main() -> int:
     p = argparse.ArgumentParser()
-    p.add_argument("komut", choices=["yukle", "calis", "konu-bul", "rapor", "yetki"])
+    p.add_argument("komut", choices=["yukle", "calis", "konu-bul", "rapor", "yetki", "yenile", "denetle"])
     p.add_argument("--kuru", action="store_true")
     p.add_argument("--slug")
     p.add_argument("--sahne", help="(test) ChatGPT yerine verilen sahne dosyasıyla diz")
@@ -949,6 +1220,10 @@ def main() -> int:
         konu_bul(a)
     elif a.komut == "rapor":
         rapor(a)
+    elif a.komut == "yenile":
+        yenile(a)
+    elif a.komut == "denetle":
+        denetle(a)
     elif a.komut == "yetki":
         print(json.dumps(bh.WixBlog().yetki(), ensure_ascii=False))
     return 0

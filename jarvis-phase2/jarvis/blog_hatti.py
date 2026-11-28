@@ -72,6 +72,7 @@ FONT_DIR = Path("/opt/lcarlie/jarvis-phase2/varliklar")
 UA = "lcarlie-blog-hatti/1.0 (mailto:info@lcarlie.com.tr)"
 
 EN_AZ_KELIME = 1200
+LINK_RENK = os.environ.get("BLOG_LINK_RENK", "#2A6F6B")  # site vurgu yeşili; beyazda kontrast ~5,9:1
 EN_AZ_KAYNAK = 4
 
 
@@ -310,6 +311,512 @@ def gunes_uyarisi_ekle(html: str) -> tuple[str, bool]:
     return yeni, True
 
 
+# ------------------------------------------------- olumsuz dil kapısı (28.11.2026)
+# Sahip 28.11: "Bu bloglarda asla olumsuz bir şey istemiyorum. '300 kişide test
+# yapıldı etkisi görülmedi' veya 'etkisi kanıtlanmadı' tarzı bir şey olmayacak."
+# Kapı iki şeyi arar: (A) kanıtsızlık/etkisizlik dili, (B) olumsuz tavsiye ve
+# küçümseme. Ürün özelliği ("alkolsüz", "parabensiz") ve kullanım talimatı
+# ("göz çevresine uygulanmaz") olumsuz dil DEĞİLDİR; kalıplar bunlara dokunmaz.
+# 🔴 Düzeltme yönü: olumsuz cümle ya çıkarılır ya da doğru ve olumlu bir bilgiyle
+#    değişir. Tersine çevirip kanıtsız iddia yazmak iddia kapısına takılır.
+OLUMLU_DIL_KURALI = (
+    "OLUMLU DİL (sahip kuralı, bağlayıcı): Yazıda olumsuz hüküm cümlesi kurulmaz. 'kanıtlanmadı', "
+    "'etkisi görülmedi', 'gösteren çalışma yoktur', 'veriler sınırlıdır', 'işe yaramaz', 'önerilmez', "
+    "'uygun değildir', 'zorunlu değildir', 'gerekli değildir', 'zararlıdır' ve 'doğru bilinen yanlışlar' türü "
+    "anlatım kullanılmaz. Bir konuda sağlam bilgi yoksa o konuya HİÇ girilmez; yerine bilinen, kaynaklı ve "
+    "olumlu bilgi yazılır (ör. 'kuru ciltler çiçek suyu bazlı toniklerle daha rahat eder'). Olumsuzu olumluya "
+    "çevirirken kanıtsız iddia, yeni rakam ya da yeni kaynak UYDURULMAZ. Ürün özelliği ('alkolsüz', "
+    "'parabensiz') ve kullanım talimatı serbesttir.")
+
+_KANIT = r"(çalışma|kanıt|veri|araştırma|bulgu|literatür|delil)"
+_SOL = r"(?<![\wçğıöşü])"
+OLUMSUZ_DIL = {
+    "tr": [
+        ("kanıtsızlık", r"kanıtlan(ma(d[ıi]|m[ıi]ş|maktad[ıi]r)|am[ıi]yor|amad[ıi]|amam[ıi]ş)"),
+        ("kanıtsızlık", r"(kanıtlanmış|bilimsel|klinik)\s+(bir\s+)?(etki|fayda|kanıt|veri)\w*\s+(yok|değil|bulunm[au])"),
+        ("kanıtsızlık", r"etki\w*\s+(\w+\s+){0,2}(görülme|gösterme|gösterileme|saptanma|saptanama|bulunama|gözlenme|"
+                        r"doğrulanma|sağlama)(d[ıi]|m[ıi]ş|mekte|makta|z\b)"),
+        ("kanıtsızlık", _SOL + _KANIT + r"\w*\s+(\w+\s+){0,3}(yok(tur)?\b|bulunmuyor|bulunmamakta|yetersiz|"
+                                        r"sınırlı(d[ıi]r)?\b|eksik|zayıf|desteklemiyor|desteklememekte)"),
+        ("kanıtsızlık", r"(anlamlı\s+)?(bir\s+)?fark\w*\s+(yok(tur)?\b|bulunma(d[ıi]|m[ıi]ş)|görülme(d[ıi]|m[ıi]ş)|"
+                        r"saptanma(d[ıi]|m[ıi]ş))"),
+        ("kanıtsızlık", r"(henüz|hâlâ|hala)\s+(\w+\s+){0,3}(bilinmiyor|bilinmemekte|netleşmedi|net\s+değil|belirsiz)"),
+        ("kanıtsızlık", r"(bir\s+)?kesinlik\s+değil|anlamına\s+gelmez|garanti\s+(etmez|edilmez|değil)"),
+        ("etkisizlik", r"işe\s+yarama(z|d[ıi]|maktad[ıi]r)|fayda(sı)?\s+(yok|sağlamaz|görülme)|"
+                       + _SOL + r"etkisiz(dir)?\b|etki\s+etmez|sonuç\s+vermez"),
+        ("olumsuz tavsiye", r"(önerilme(z|mekte|miyor)|tavsiye\s+edilme(z|mekte|miyor))"),
+        ("olumsuz tavsiye", r"uygun\s+değil(dir)?\b|iyi\s+bir\s+(aday|seçim|tercih|fikir)\s+değil|daha\s+az\s+uygun"),
+        ("olumsuz tavsiye", r"(zorunlu|gerekli|şart|mecburi)\s+değil(dir)?\b|" + _SOL + r"gereksiz(dir)?\b|gerek\s+yok(tur)?\b"),
+        ("olumsuz tavsiye", _SOL + r"zararlı(d[ıi]r)?\b(?!\s+m[ıi])|" + _SOL + r"sakıncalı|doğru\s+bilinen\s+yanlış|"
+                            + _SOL + r"efsane(ler|si|dir)?\b"),
+        ("olumsuz tavsiye", _SOL + r"(yapmaz|olmaz|büyütmez|bırakmıyor|durmuyor)\b"),
+    ],
+    "en": [("negative", r"\bno (clinical |scientific |strong |robust )?(evidence|proof|stud(y|ies)|data)\b|"
+                        r"\b(not|never) (been )?(proven|shown|demonstrated|recommended|necessary|required)\b|\bunproven\b|"
+                        r"\bdoes(n't|n’t| not) work\b|\bno (significant )?(effect|difference|benefit)\b|"
+                        r"\b(evidence|data|research) (is|are|remains?) (limited|lacking|scarce|weak|insufficient)\b|"
+                        r"\bmyths?\b|\bharmful\b")],
+    "de": [("negativ", r"nicht (belegt|bewiesen|nachgewiesen|empfohlen|empfehlenswert|notwendig|erforderlich|geeignet)|"
+                       r"kein(e|en)? (klinische[nr]? |wissenschaftliche[nr]? )?(beleg|belege|nachweis|studie|studien|wirkung|"
+                       r"effekt|unterschied)\b|(datenlage|evidenz) (ist )?(begrenzt|schwach|dünn)|\bmythos\b|\bmythen\b|schädlich")],
+    "ru": [("негатив", r"не (доказан|подтвержд|рекоменду|обязател|подходит)|нет (клинических |научных |"
+                       r"убедительных )?(доказательств|данных|исследований)|эффекта не |(данн|доказательств)\w* "
+                       r"(ограничен|недостаточ)|\bмиф|вредн")],
+    "ar": [("سلبي", r"لم (يثبت|تثبت|يُثبت)|لا (يوجد|توجد) (دليل|أدلة|دراس)|غير (مثبت|مؤكد|ضروري|مستحسن|مناسب)|"
+                    r"لا (ينصح|يُنصح|يوصى)|(الأدلة|البيانات) (محدودة|ضعيفة)|خراف|ضار")],
+}
+_BLOK_RE = re.compile(r"(?is)<(p|li|td|th|h2|h3|h4|blockquote)(\s[^>]*)?>(.*?)</\1>")
+
+
+def tr_kucuk(s: str) -> str:
+    """Türkçe küçük harf: I->ı, İ->i; birleşik noktalı biçim (i + U+0307) de düz i olur."""
+    s = unicodedata.normalize("NFC", s).replace("I", "ı").replace("İ", "i").lower()
+    return s.replace("i̇", "i")
+
+
+def _katla(dil: str):
+    return tr_kucuk if dil == "tr" else str.lower
+
+
+def olumsuz_dil_kapisi(html: str, dil: str = "tr", ek_metinler: list[str] | None = None) -> list[dict]:
+    """Gövdede (Kaynaklar hariç) olumsuz hüküm taşıyan cümleleri bulur.
+
+    Dönen her bulgu: {"tur", "eslesen", "cumle", "blok"} — blok, cümlenin
+    içinde durduğu öğenin TAM HTML'idir (otomatik yeniden yazım onu değiştirir).
+    Mevzuatın zorunlu kıldığı güneş uyarı seti denetime girmez.
+    """
+    govde, _ = govde_kaynaksiz(html)
+    govde = govde.replace(GUNES_UYARI_TR, " ")
+    katla = _katla(dil)
+    kaliplar = OLUMSUZ_DIL.get(dil, [])
+    bulgu, gorulen = [], set()
+    bloklar = [(m.group(0), duz_metin(m.group(3))) for m in _BLOK_RE.finditer(govde)]
+    bloklar += [(None, t) for t in (ek_metinler or []) if t]
+    for blok, metin in bloklar:
+        for c in _cumleler(metin) or [metin]:
+            k = katla(c)
+            for tur, d in kaliplar:
+                m = re.search(d, k)
+                if not m or c in gorulen:
+                    continue
+                gorulen.add(c)
+                bulgu.append({"tur": tur, "eslesen": m.group(0), "cumle": c[:300], "blok": blok})
+                break
+    return bulgu
+
+
+# ------------------------------------------------------ SSS (FAQ) gövdeden çıkar
+SSS_BASLIK = re.compile(r"(?is)<h2[^>]*>\s*(sık\s+sorulan\s+sorular|sıkça\s+sorulan\s+sorular|sss)\s*</h2>")
+
+
+def h2_listesi(html: str) -> list[tuple[int, int, str]]:
+    return [(m.start(), m.end(), duz_metin(m.group(1))) for m in re.finditer(r"(?is)<h2[^>]*>(.*?)</h2>", html)]
+
+
+def sss_sirasi(html_tr: str) -> int | None:
+    """TR gövdede SSS başlığının kaçıncı H2 olduğu (0 tabanlı)."""
+    for i, (b, _s, _t) in enumerate(h2_listesi(html_tr)):
+        if SSS_BASLIK.match(html_tr, b):
+            return i
+    return None
+
+
+def sss_cikar(html: str, sira: int | None = None) -> list[dict]:
+    """SSS bölümündeki H3 + izleyen paragrafları {"q","a"} listesi olarak verir.
+    FAQ şeması görünen metinden üretilir: şemada olup sayfada olmayan cevap kalmaz."""
+    h2 = h2_listesi(html)
+    if sira is None:
+        sira = next((i for i, (b, _s, _t) in enumerate(h2) if SSS_BASLIK.match(html, b)), None)
+    if sira is None or sira >= len(h2):
+        return []
+    bas = h2[sira][1]
+    son = h2[sira + 1][0] if sira + 1 < len(h2) else len(html)
+    out = []
+    parcalar = re.split(r"(?is)<h3[^>]*>(.*?)</h3>", html[bas:son])
+    for i in range(1, len(parcalar) - 1, 2):
+        soru = duz_metin(parcalar[i]).rstrip(". ").strip()
+        cevap = " ".join(re.sub(r"\s*\.$", "", duz_metin(p)).strip()
+                         for p in re.findall(r"(?is)<p[^>]*>(.*?)</p>", parcalar[i + 1])).strip()
+        if soru and cevap:
+            out.append({"q": soru, "a": cevap})
+    return out
+
+
+def faq_jsonld(sorular: list[dict], dil: str = "tr") -> dict:
+    return {"@context": "https://schema.org", "@type": "FAQPage", "inLanguage": dil, "mainEntity": [
+        {"@type": "Question", "name": x["q"], "acceptedAnswer": {"@type": "Answer", "text": x["a"]}}
+        for x in sorular if x.get("q") and x.get("a")]}
+
+
+# ------------------------------------------------------------ SEO + GEO kapısı
+def geo_kapisi(html: str, seo_baslik: str = "", meta: str = "", en_az_soru_h2: int = 3) -> dict:
+    """Arama niyeti biçimi: başta kısa cevap, soru biçimli H2, SSS, iç bağlantı.
+    {"sorun": [...], "olcum": {...}} döner; sorun boşsa geçer."""
+    govde, _ = govde_kaynaksiz(html)
+    sorun, olcum = [], {}
+    ilk = re.match(r"(?is)\s*<p[^>]*>(.*?)</p>", govde)
+    n = len(re.findall(r"[\w’'-]+", duz_metin(ilk.group(1)), re.U)) if ilk else 0
+    olcum["kisa_cevap_kelime"] = n
+    if not ilk:
+        sorun.append("yazı kısa cevap paragrafıyla başlamıyor")
+    elif not 30 <= n <= 80:
+        sorun.append("kısa cevap %d kelime (30-80 olmalı)" % n)
+    h2 = [t for _b, _s, t in h2_listesi(govde)]
+    soru = [t for t in h2 if "?" in t or "؟" in t]
+    olcum["h2"], olcum["soru_h2"] = len(h2), len(soru)
+    if len(soru) < en_az_soru_h2:
+        sorun.append("soru biçimli H2 %d (< %d)" % (len(soru), en_az_soru_h2))
+    olcum["sss"] = len(sss_cikar(govde))
+    if olcum["sss"] < 4:
+        sorun.append("SSS %d soru (< 4)" % olcum["sss"])
+    urun = set(re.findall(r'href="https://www\.lcarlie\.shop/product-page/([^"#?]+)"', govde))
+    yazi = set(re.findall(r'href="https://www\.lcarlie\.shop/post/([^"#?]+)"', govde))
+    olcum["urun_baglantisi"], olcum["yazi_baglantisi"] = len(urun), len(yazi)
+    if not yazi:
+        sorun.append("ilgili yazı bağlantısı yok")
+    olcum["seo_baslik"], olcum["meta"] = len(seo_baslik or ""), len(meta or "")
+    if seo_baslik and len(seo_baslik) > 65:
+        sorun.append("SEO başlığı %d karakter (> 65)" % len(seo_baslik))
+    if meta and not 110 <= len(meta) <= 170:
+        sorun.append("meta açıklama %d karakter (110-170 olmalı)" % len(meta))
+    return {"sorun": sorun, "olcum": olcum}
+
+
+# ------------------------------------------- ürün–konu eşleşmesi (INCI'ye dayanır)
+# Konu bir içerikse (hodan yağı, jojoba...) görselde yer alan ürünün İÇİNDEKİLER
+# listesinde o içerik BULUNMAK zorundadır. Kaynak: hattın ürün dosyaları
+# (kaynak/urun/*.txt, e-ticaret açıklamalarıyla aynı metin) ve INCI ambarı
+# (core.urun_inci). Ambarda kayıt varsa o da tutmalıdır.
+KONU_BILESEN = [  # (konu anahtarında aranan kök, INCI/TR içerik deseni)
+    (r"hodan|borage", r"borago|hodan"), (r"jojoba", r"simmondsia|jojoba"), (r"shea", r"butyrospermum|shea"),
+    (r"lavanta", r"lavandula|lavanta"), (r"akgünlük|akgunluk|frankincense", r"boswellia|akgünlük"),
+    (r"centella|cica", r"centella"), (r"niasinamid|niacinamide", r"niacinamide|niasinamid"),
+    (r"seramid|ceramide", r"ceramide|seramid"), (r"hyaluron", r"hyaluron"), (r"bakuchiol", r"bakuchiol"),
+    (r"traneksamik|tranexamic", r"tranexamic|traneksamik"), (r"gül\s*suyu|gul-suyu", r"rosa\s+damascena|gül"),
+    (r"papatya", r"chamomilla|anthemis|papatya"), (r"arnika|arnica", r"arnica|arnika"),
+    (r"pantenol|panthenol", r"panthenol|pantenol"), (r"squalane|skualan", r"squalane"),
+    (r"tamanu", r"calophyllum|tamanu"), (r"kantaron", r"hypericum|kantaron"), (r"kafein", r"caffeine|kafein"),
+    (_SOL + r"üre(?![a-zçğıöşü])|ure-iceren", r"\burea\b"),
+    (r"aloe", r"aloe"), (r"hindistan\s*cevizi|coconut", r"cocos\s+nucifera|hindistan cevizi"),
+    (r"avokado", r"persea|avokado"), (r"çay\s*ağacı|cay-agaci", r"melaleuca|çay ağacı"),
+]
+KESIT_ESAD = {"babyrescue": "baby-rescue", "brightsmile": "bright-smile", "hairnourisher": "hair-nourisher",
+              "femisia": "femisia-for-women", "vireon": "vireon-for-men"}
+AMBAR_ESAD = {"caljaw": "calmjaw", "kinesis": "kinesis+", "hairnourisher": "hairnouriisher",
+              "liftelle": "liftella", "babyshower": "bebepur-probiobebeksampuanı"}
+HAM_FOTO = {"babyrescue": "baby-rescue", "caljaw": "calmjaw", "femisia": "femisia-for-women",
+            "hairnourisher": "hair-nouriher", "minisooth": "minisooth-bebek-pişik-kremi", "sunacnea": "sunacnea-30-spf",
+            "vireon": "vireon-for-men"}
+HAM_DIR = Path(os.environ.get("BLOG_HAM_DIR", "/opt/lcarlie/urun-ham"))
+
+
+def slug_kesit(urun_slug: str) -> str:
+    """Ürün sayfası adresindeki ad -> kesit adı (sunacnea-30-spf -> sunacnea)."""
+    k = re.sub(r"-(for-women|for-men|30-spf)$", "", urun_slug).replace("-", "").replace("+", "")
+    return {"calmjaw": "caljaw"}.get(k, k)
+
+
+def konu_bileseni(anahtar: str, slug: str = "") -> str | None:
+    """Yazının konusu bir içerikse o içeriğin INCI/TR desenini döndürür."""
+    k = tr_kucuk("%s %s" % (anahtar or "", slug or ""))
+    for kok, desen in KONU_BILESEN:
+        if re.search(kok, k):
+            return desen
+    return None
+
+
+def urun_inci_dosya(kesit: str, urun_dir: Path | None = None) -> str | None:
+    """Hattın ürün dosyasındaki İÇİNDEKİLER (INCI) satırı; dosya yoksa None."""
+    urun_dir = urun_dir or (KOK / "kaynak" / "urun")
+    ad = KESIT_ESAD.get(kesit, kesit)
+    for p in sorted(urun_dir.glob("*.txt")) if urun_dir.is_dir() else []:
+        if p.stem.split("-", 1)[-1] == ad:
+            m = re.search(r"(?m)^.*İÇİNDEKİLER.*\n+(.+)$", p.read_text(encoding="utf-8"))
+            return m.group(1).strip() if m else None
+    return None
+
+
+def urun_inci_ambar(kesit: str) -> str | None:
+    """core.urun_inci kaydı; yoksa/boşsa/okunamazsa None (o zaman dosya kaydı yeter)."""
+    try:
+        k = Kuyruk()
+        ham = k.sql("SELECT coalesce(inci,'') FROM core.urun_inci WHERE urun_anahtari = %s;"
+                    % k._lit(AMBAR_ESAD.get(kesit, kesit)))
+    except Exception:  # noqa: BLE001
+        return None
+    return ham.strip() or None
+
+
+def urun_konuya_uyar(kesit: str, desen: str, dosya_inci: str | None, ambar_inci: str | None) -> tuple[bool, str]:
+    """İçerik ürünün listesinde var mı? Dosya kaydı ZORUNLU; ambar kaydı varsa o da tutmalı."""
+    if not dosya_inci:
+        return False, "%s: ürün dosyasında içindekiler listesi yok" % kesit
+    if not re.search(desen, tr_kucuk(dosya_inci)):
+        return False, "%s: içindekiler listesinde konu içeriği yok" % kesit
+    if ambar_inci and not re.search(desen, tr_kucuk(ambar_inci)):
+        return False, "%s: ürün dosyası içeriyor diyor, INCI ambarı içermiyor (kaynaklar çelişkili)" % kesit
+    return True, "%s: içindekiler listesinde var" % kesit
+
+
+def ham_foto(kesit: str) -> Path | None:
+    p = HAM_DIR / ("%s.jpg" % HAM_FOTO.get(kesit, kesit))
+    return p if p.is_file() else None
+
+
+def gorsel_urun_sec(ic: dict, inci_dosya=urun_inci_dosya, inci_ambar=urun_inci_ambar, foto=ham_foto) -> dict:
+    """Görselde kullanılacak ürünleri seçer.
+
+    Kural: görseldeki ürün (1) gövdede ürün sayfası bağlantısı verilmiş bir ürün
+    olmalı, (2) konu bir içerikse içindekiler listesinde o içeriği taşımalı.
+    Uymayan ürün görselden DÜŞER (yazı durmaz; kapak ürünsüz sahne olur).
+    """
+    desen = konu_bileseni(ic.get("anahtar") or "", ic.get("slug") or "")
+    bagli = []
+    for s in re.findall(r'href="https://www\.lcarlie\.shop/product-page/([^"#?]+)"', ic.get("html") or ""):
+        if slug_kesit(s) not in bagli:
+            bagli.append(slug_kesit(s))
+    istenen = list(ic.get("kesitler") or [])
+    # yazarın seçtiği ürünler önce gelir; seçim yoksa bağlantısı verilen ilk uygun ürün (tek ürün)
+    tek = not [k for k in istenen if k in bagli]
+    aday = bagli if tek else [k for k in istenen if k in bagli]
+    secilen, kayit = [], ["%s: gövdede ürün sayfası bağlantısı yok, görselden çıkarıldı" % k
+                          for k in istenen if k not in bagli]
+    for k in aday:
+        if desen:
+            ok, neden = urun_konuya_uyar(k, desen, inci_dosya(k), inci_ambar(k))
+            kayit.append(neden)
+            if not ok:
+                continue
+        if foto(k) is None:
+            kayit.append("%s: gerçek ürün fotoğrafı yok" % k)
+            continue
+        secilen.append(k)
+    return {"urunler": secilen[:1] if tek else secilen[:4], "konu_bileseni": desen, "kayit": kayit}
+
+
+# ------------------------------------------------------------ görünüm hazırlığı
+TIRNAK = {"tr": ("“", "”"), "en": ("“", "”"), "de": ("„", "“"), "ru": ("«", "»"), "ar": ("“", "”")}
+_BLOK_SINIR = re.compile(r"(?i)^</?(p|li|td|th|h[1-6]|ul|ol|table|tr|blockquote|div)[\s>/]")
+
+
+def tirnak_duzelt(html: str, dil: str = "tr") -> str:
+    """Düz çift tırnağı dile uygun tipografik tırnağa, kelime içi düz kesmeyi ’ işaretine çevirir.
+    Etiketlerin içine (href vb.) dokunmaz; açılış/kapanış durumu her blokta sıfırlanır."""
+    ac, kapa = TIRNAK.get(dil, TIRNAK["tr"])
+    out, acik = [], False
+    for parca in re.split(r"(<[^>]+>)", html or ""):
+        if parca.startswith("<"):
+            if _BLOK_SINIR.match(parca):
+                acik = False
+            out.append(parca)
+            continue
+        parca = parca.replace("&quot;", '"').replace("&#39;", "'")
+        yeni = []
+        for i, ch in enumerate(parca):
+            if ch == '"':
+                yeni.append(kapa if acik else ac)
+                acik = not acik
+            elif ch == "'" and 0 < i < len(parca) - 1 and parca[i - 1].isalnum() and parca[i + 1].isalnum():
+                yeni.append("’")
+            else:
+                yeni.append(ch)
+        out.append("".join(yeni))
+    return "".join(out)
+
+
+EN_COK_SUTUN = 3
+
+
+def tablo_duzenle(html: str, en_cok: int = EN_COK_SUTUN) -> str:
+    """Telefonda okunmayan geniş tabloyu (> en_cok sütun) madde listesine çevirir:
+    her satır bir madde; ilk hücre kalın başlık, diğer hücreler 'Sütun adı: değer'."""
+    def cevir(m):
+        tablo = m.group(0)
+        satirlar = [re.findall(r"(?is)<(t[hd])[^>]*>(.*?)</\1>", r) for r in re.findall(r"(?is)<tr[^>]*>(.*?)</tr>", tablo)]
+        satirlar = [r for r in satirlar if r]
+        if not satirlar or max(len(r) for r in satirlar) <= en_cok:
+            return tablo
+        baslik = [h.strip() for _t, h in satirlar[0]] if all(t.lower() == "th" for t, _h in satirlar[0]) else None
+        maddeler = []
+        for r in (satirlar[1:] if baslik else satirlar):
+            hucre = [h.strip() for _t, h in r]
+            parca = []
+            for i, h in enumerate(hucre[1:], 1):
+                if not duz_metin(h):
+                    continue
+                ad = duz_metin(baslik[i]).rstrip(". ") if baslik and i < len(baslik) else ""
+                parca.append(("<em>%s:</em> %s" % (ad, h)) if ad else h)
+            maddeler.append("<li><strong>%s</strong> — %s</li>" % (re.sub(r"(?is)</?strong>", "", hucre[0]),
+                                                                  " · ".join(parca)))
+        return "<ul>" + "".join(maddeler) + "</ul>"
+    return re.sub(r"(?is)<table[^>]*>.*?</table>", cevir, html)
+
+
+AY = {"tr": ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"],
+      "en": ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
+             "November", "December"],
+      "de": ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November",
+             "Dezember"],
+      "ru": ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября",
+             "декабря"],
+      "ar": ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"]}
+GUNCEL_ETIKET = {"tr": "Güncellendi", "en": "Updated", "de": "Aktualisiert", "ru": "Обновлено", "ar": "تم التحديث"}
+ILGILI_URUN = {"tr": ("İlgili L’CARLIÉ ürünleri", "Ürün sayfasında içindekiler listesinin tamamını ve kullanım "
+                                                 "adımlarını bulabilirsiniz."),
+               "en": ("Related L’CARLIÉ products", "The product page lists the full ingredients and the steps for use."),
+               "de": ("Passende L’CARLIÉ Produkte", "Auf der Produktseite finden Sie die vollständige Inhaltsstoffliste und "
+                                                    "die Anwendungsschritte."),
+               "ru": ("Продукты L’CARLIÉ по теме", "На странице продукта приведены полный состав и шаги применения."),
+               "ar": ("منتجات L’CARLIÉ ذات الصلة", "تجدون في صفحة المنتج قائمة المكونات كاملة وخطوات الاستخدام.")}
+
+
+def guncellendi_satiri(dil: str, tarih) -> str:
+    ay = AY.get(dil, AY["en"])[tarih.month - 1]
+    if dil == "de":
+        t = "%d. %s %d" % (tarih.day, ay, tarih.year)
+    elif dil == "en":
+        t = "%s %d, %d" % (ay, tarih.day, tarih.year)
+    else:
+        t = "%d %s %d" % (tarih.day, ay, tarih.year)
+    return "<p><em>%s: %s</em></p>" % (GUNCEL_ETIKET.get(dil, GUNCEL_ETIKET["en"]), t)
+
+
+def urun_yonlendirme(html: str, dil: str = "tr") -> str:
+    """Gövdede bağlantısı verilen ürünlerden yazı sonu için sade bir yönlendirme paragrafı."""
+    gorulen, parca = set(), []
+    for url, metin in re.findall(
+            r'(?is)<a\s+href="(https://www\.lcarlie\.shop/(?:[a-z]{2}/)?product-page/[^"#?]+)"[^>]*>(.*?)</a>', html):
+        slug = url.rsplit("/", 1)[1]
+        if slug in gorulen:
+            continue
+        gorulen.add(slug)
+        ad = duz_metin(metin).rstrip(". ")
+        if not re.fullmatch(r"[A-ZÇĞİÖŞÜ0-9+’' ]{3,40}", ad or ""):
+            ad = slug.replace("-", " ").upper()
+        parca.append('<a href="%s">%s</a>' % (url, ad))
+    if not parca:
+        return ""
+    etiket, not_ = ILGILI_URUN.get(dil, ILGILI_URUN["en"])
+    return "<p><strong>%s:</strong> %s. %s</p>" % (etiket, " · ".join(parca[:4]), not_)
+
+
+def gorunum_hazirla(html: str, dil: str = "tr", guncellendi=None) -> str:
+    """Yayın öncesi görünüm: tipografik tırnak, geniş tablo -> liste, kısa cevabın
+    ardına 'Güncellendi' satırı, Kaynaklar'dan önce ürün yönlendirmesi."""
+    govde, kaynak = govde_kaynaksiz(html)
+    yon = urun_yonlendirme(govde, dil)
+    govde = tablo_duzenle(govde)
+    if guncellendi is not None:
+        ilk = re.match(r"(?is)\s*<p[^>]*>.*?</p>", govde)
+        satir = guncellendi_satiri(dil, guncellendi)
+        govde = (govde[:ilk.end()] + satir + govde[ilk.end():]) if ilk else satir + govde
+    return tirnak_duzelt(govde + yon + kaynak, dil)
+
+
+# ------------------------------------------------------ ambalaj denetimi (OCR)
+def _tess(im, psm: str = "11", tsv: bool = False) -> str:
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix=".png") as f:
+        im.save(f.name)
+        try:
+            s = subprocess.run(["tesseract", f.name, "stdout", "--psm", psm, "-l", "eng"] + (["tsv"] if tsv else []),
+                               capture_output=True, text=True, timeout=120)
+        except (OSError, subprocess.TimeoutExpired):
+            return ""
+    return s.stdout
+
+
+def _ocr_kelimeler(yol: str) -> set[str]:
+    """Görseldeki AMBALAJ yazılarını tesseract ile okur.
+
+    28.11 ölçüldü: bütün kareyi okutmak dokulu zeminde (keten, mermer) çöp üretir.
+    Yöntem: (1) parlak + doygunluğu düşük büyük bölgeler ambalaj adayıdır, 0/90/270
+    derece okunur; (2) marka adı (…CARLIE) bulunan her yerde çevresi büyütülüp
+    gri, ters, doygunluk ve kırmızı-fark kanallarıyla yeniden okunur — ürün adı
+    çoğu etikette renkli ya da koyu zemin üstünde beyazdır."""
+    from PIL import Image, ImageOps, ImageChops
+    import numpy as np
+    from skimage import measure
+    kelime: set[str] = set()
+    im = Image.open(yol).convert("RGB")
+    o = 800 / im.width
+    a = np.asarray(im.resize((800, max(1, int(im.height * o))))).astype(int)
+    maske = (a.max(2) > 205) & ((a.max(2) - a.min(2)) < 28)
+    bolgeler = sorted((r for r in measure.regionprops(measure.label(maske)) if r.area >= 1500),
+                      key=lambda r: -r.area)[:6]
+    kutular = [(max(0, int((r.bbox[1] - 6) / o)), max(0, int((r.bbox[0] - 6) / o)),
+                min(im.width, int((r.bbox[3] + 6) / o)), min(im.height, int((r.bbox[2] + 6) / o))) for r in bolgeler]
+
+    def kanallar(k):
+        gri = ImageOps.autocontrast(k.convert("L"))
+        hsv = k.convert("HSV")
+        r, g, b = k.split()
+        doy = ImageOps.autocontrast(hsv.getchannel("S"))
+        return [gri, ImageOps.invert(gri), ImageOps.invert(doy), doy, doy.point(lambda v: 255 if v > 110 else 0),
+                ImageOps.invert(ImageOps.autocontrast(ImageChops.subtract(r, g)))]
+
+    def buyut(k, hedef):
+        f = hedef / max(k.size)
+        return k.resize((max(1, int(k.width * f)), max(1, int(k.height * f))), Image.LANCZOS) if f > 1 else k
+
+    for kutu in kutular:
+        kesit = im.crop(kutu)
+        for aci in (0, 90, 270):
+            d = buyut(kesit.rotate(aci, expand=True) if aci else kesit, 1600)
+            gri = ImageOps.autocontrast(d.convert("L"))
+            tsv = _tess(gri, "11", tsv=True)
+            marka_kutu = []
+            for satir in tsv.splitlines()[1:]:
+                h = satir.split("\t")
+                if len(h) < 12 or not h[11].strip():
+                    continue
+                w = h[11].strip()
+                kelime.update(re.findall(r"[A-Za-zÀ-ÿ'’+]{3,}", w))
+                if "CARLI" in re.sub(r"[^A-Z]", "", w.upper()):
+                    marka_kutu.append(tuple(int(x) for x in h[6:10]))
+            kelime.update(re.findall(r"[A-Za-zÀ-ÿ'’+]{3,}", _tess(gri, "6")))
+            for (x, y, w, hh) in marka_kutu[:6]:
+                # etiket alanı: marka yazısının çevresi (ürün adı altında, üstünde ya da yanında durur)
+                cevre = d.crop((max(0, x - w), max(0, y - 6 * hh), min(d.width, x + 2 * w), min(d.height, y + 7 * hh)))
+                cevre = buyut(cevre, 2600)
+                for kanal in kanallar(cevre):
+                    for psm in ("11", "6"):
+                        kelime.update(re.findall(r"[A-Za-zÀ-ÿ'’+]{3,}", _tess(kanal, psm)))
+    return kelime
+
+
+def _benzer(a: str, b: str) -> float:
+    import difflib
+    return difflib.SequenceMatcher(None, a, b).ratio()
+
+
+def etiket_okunuyor_mu(kelimeler: set[str], urun_adi: str) -> dict:
+    """Ambalaj kilidi ölçümü: üretilen görselde marka adı ve ürün adı HARFİ HARFİNE
+    okunuyor mu? Model etiketi yeniden çizip harfleri bozduysa okunmaz -> RED."""
+    def duz(s):
+        s = unicodedata.normalize("NFKD", s.upper())
+        return re.sub(r"[^A-Z0-9]", "", "".join(c for c in s if not unicodedata.combining(c)))
+    okunan = {duz(w) for w in kelimeler}
+    okunan.discard("")
+    marka = any("CARLIE" in w and len(w) <= 8 for w in okunan)
+    hedef = duz(urun_adi)
+    urun = hedef in okunan or any(hedef in w for w in okunan if len(w) <= len(hedef) + 2)
+    yakin = sorted(((round(_benzer(hedef, w), 2), w) for w in okunan), reverse=True)[:3]
+    # etikette olmaması gereken iddia sözcükleri (ham fotoğraftaki eski alt satır ya da modelin uydurması)
+    iddia = sorted(w for w in okunan if w in ETIKET_YASAK)
+    return {"marka": marka, "urun": urun, "iddia_sozcugu": iddia, "gecti": marka and urun and not iddia,
+            "en_yakin": yakin}
+
+
+ETIKET_YASAK = {"RELIEF", "REPAIR", "THERAPY", "TREATMENT", "HEALING", "CURE", "MEDICAL", "ANTIAGING", "REDNESS"}
+ETIKET_AD = {"kinesis": "KINESIS", "babyrescue": "RESCUE", "brightsmile": "SMILE", "hairnourisher": "NOURISHER"}
+
+
+def etiket_adi(kesit: str) -> str:
+    """Etikette okunması beklenen ürün adı sözcüğü."""
+    return ETIKET_AD.get(kesit, kesit.upper())
+
+
 # ----------------------------------------------------------- kaynak kapısı
 def _http_json(url: str, timeout: int = 25) -> dict:
     req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/json"})
@@ -468,6 +975,9 @@ class _Ricos(HTMLParser):
         if self.link:
             dek.append({"type": "LINK", "linkData": {"link": {"url": self.link, "target": "SELF"
                         if "lcarlie.shop" in self.link else "BLANK"}}})
+            # marka vurgusu: bağlantı düz yazıdan renk + alt çizgiyle ayrılır (28.11)
+            dek.append({"type": "COLOR", "colorData": {"foreground": LINK_RENK}})
+            dek.append({"type": "UNDERLINE", "underlineData": True})
         s = re.sub(r"\s+", " ", s)
         if not s:
             return
@@ -607,7 +1117,8 @@ class _Ricos(HTMLParser):
                 # Wix güncellemede (PATCH) ondalıklı oranı "Not a numeric value" diye reddeder; tam sayı ver
                 oran = [100 // sutun + (1 if i < 100 % sutun else 0) for i in range(sutun)]
                 t["tableData"]["dimensions"] = {"colsWidthRatio": oran,
-                                                "colsMinWidth": [120] * sutun,
+                                                # 320 px telefon sütununa sığsın: toplam <= 300
+                                                "colsMinWidth": [max(90, 300 // sutun)] * sutun,
                                                 "rowsHeight": [47] * len(t["nodes"])}
 
     def handle_data(self, data):
