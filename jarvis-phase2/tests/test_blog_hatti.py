@@ -210,5 +210,16 @@ class BlogHattiKapilari(unittest.TestCase):
         json.dumps(d, ensure_ascii=False)
 
 
+
+class TabloOranTamSayi(unittest.TestCase):
+    def test_uc_sutun_orani_tam_sayi(self):
+        html = "<table><tr><th>a</th><th>b</th><th>c</th></tr><tr><td>1</td><td>2</td><td>3</td></tr></table>"
+        rc = bh.html_to_ricos(html, [])
+        tablo = [n for n in rc["nodes"] if n["type"] == "TABLE"][0]
+        oran = tablo["tableData"]["dimensions"]["colsWidthRatio"]
+        self.assertTrue(all(isinstance(x, int) for x in oran), oran)
+        self.assertEqual(sum(oran), 100)
+
+
 if __name__ == "__main__":
     unittest.main()

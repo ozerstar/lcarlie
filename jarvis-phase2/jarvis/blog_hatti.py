@@ -604,7 +604,9 @@ class _Ricos(HTMLParser):
                     while len(r["nodes"]) < sutun:
                         r["nodes"].append({"type": "TABLE_CELL", "nodes": [{"type": "PARAGRAPH", "nodes": [],
                                            "paragraphData": {}}], "tableCellData": {"cellStyle": {}, "borderColors": {}}})
-                t["tableData"]["dimensions"] = {"colsWidthRatio": [round(100 / sutun, 2)] * sutun,
+                # Wix güncellemede (PATCH) ondalıklı oranı "Not a numeric value" diye reddeder; tam sayı ver
+                oran = [100 // sutun + (1 if i < 100 % sutun else 0) for i in range(sutun)]
+                t["tableData"]["dimensions"] = {"colsWidthRatio": oran,
                                                 "colsMinWidth": [120] * sutun,
                                                 "rowsHeight": [47] * len(t["nodes"])}
 
