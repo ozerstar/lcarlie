@@ -434,5 +434,22 @@ class GorunumHazirligi(unittest.TestCase):
         assert sira == ["K", "H", "H", "I", "H"], sira
         assert bh.ricos_denetle(doc) == []
 
+class CeviriKelimeIciTuzagi(unittest.TestCase):
+    """28.11 canlıda ölçüldü: Arapça 'ضار' (zararlı) kalıbı 'نضارة' (tazelik) içinde eşleşti,
+    hodan yazısının Arapça çevirisi haksız yere düştü. İki yön de kilitli."""
+
+    def test_arapca_tazelik_zararli_sayilmaz(self):
+        assert not _olumsuz("وللحفاظ على نضارة الزيت مدة أطول، خزّنه في زجاجة داكنة.", "ar")
+        assert not _olumsuz("يُضاف بصفته مضادًا للأكسدة للمحافظة على نضارة الزيوت.", "ar")
+
+    def test_arapca_gercek_olumsuz_yakalanir(self):
+        assert _olumsuz("هذا الزيت ضار بالبشرة.", "ar")
+        assert _olumsuz("هذه مادة ضارة.", "ar")
+        assert _olumsuz("هذه خرافة شائعة.", "ar")
+
+    def test_almanca_unschaedlich_olumlu(self):
+        assert not _olumsuz("Das Öl gilt als unschädlich für die Haut.", "de")
+        assert _olumsuz("Das ist schädlich.", "de")
+
 if __name__ == "__main__":
     unittest.main()

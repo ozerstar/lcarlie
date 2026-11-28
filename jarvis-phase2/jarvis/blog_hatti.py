@@ -358,12 +358,15 @@ OLUMSUZ_DIL = {
                         r"\bmyths?\b|\bharmful\b")],
     "de": [("negativ", r"nicht (belegt|bewiesen|nachgewiesen|empfohlen|empfehlenswert|notwendig|erforderlich|geeignet)|"
                        r"kein(e|en)? (klinische[nr]? |wissenschaftliche[nr]? )?(beleg|belege|nachweis|studie|studien|wirkung|"
-                       r"effekt|unterschied)\b|(datenlage|evidenz) (ist )?(begrenzt|schwach|dünn)|\bmythos\b|\bmythen\b|schädlich")],
+                       r"effekt|unterschied)\b|(datenlage|evidenz) (ist )?(begrenzt|schwach|dünn)|\bmythos\b|\bmythen\b|(?<!un)schädlich")],
     "ru": [("негатив", r"не (доказан|подтвержд|рекоменду|обязател|подходит)|нет (клинических |научных |"
                        r"убедительных )?(доказательств|данных|исследований)|эффекта не |(данн|доказательств)\w* "
                        r"(ограничен|недостаточ)|\bмиф|вредн")],
     "ar": [("سلبي", r"لم (يثبت|تثبت|يُثبت)|لا (يوجد|توجد) (دليل|أدلة|دراس)|غير (مثبت|مؤكد|ضروري|مستحسن|مناسب)|"
-                    r"لا (ينصح|يُنصح|يوصى)|(الأدلة|البيانات) (محدودة|ضعيفة)|خراف|ضار")],
+                    r"لا (ينصح|يُنصح|يوصى)|(الأدلة|البيانات) (محدودة|ضعيفة)|"
+                    # 28.11 ölçüldü: sınırsız "ضار", "نضارة" (tazelik) içinde eşleşip çeviriyi düşürdü
+                    r"(?<![؀-ۿ])(ال)?خراف(ة|ات)(?![؀-ۿ])|"
+                    r"(?<![؀-ۿ])(ال)?ضار(ة)?(?![؀-ۿ])")],
 }
 _BLOK_RE = re.compile(r"(?is)<(p|li|td|th|h2|h3|h4|blockquote)(\s[^>]*)?>(.*?)</\1>")
 
