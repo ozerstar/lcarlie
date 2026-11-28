@@ -577,7 +577,7 @@ def gorsel_isle(r: dict, yollar: dict, urunler: list[str], kuru: bool, denetle: 
     damga = simdi().strftime("%m%d%H%M")
     out = {"denetim": []}
     if denetle and urunler:
-        kelimeler = bh._ocr_kelimeler(yollar["kapak"])
+        kelimeler = bh._ocr_kelimeler(yollar["kapak"], [bh.etiket_adi(u) for u in urunler])
         for u in urunler:
             s = bh.etiket_okunuyor_mu(kelimeler, bh.etiket_adi(u))
             if not s["urun"] and s["marka"] and not s["iddia_sozcugu"] and not referansta_okunuyor(u):

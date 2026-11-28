@@ -726,7 +726,7 @@ def _tess(im, psm: str = "11", tsv: bool = False) -> str:
     return s.stdout
 
 
-def _ocr_kelimeler(yol: str) -> set[str]:
+def _ocr_kelimeler(yol: str, aranan: list[str] | None = None) -> set[str]:
     """Görseldeki AMBALAJ yazılarını tesseract ile okur.
 
     28.11 ölçüldü: bütün kareyi okutmak dokulu zeminde (keten, mermer) çöp üretir.
@@ -759,6 +759,11 @@ def _ocr_kelimeler(yol: str) -> set[str]:
         f = hedef / max(k.size)
         return k.resize((max(1, int(k.width * f)), max(1, int(k.height * f))), Image.LANCZOS) if f > 1 else k
 
+    def tamam() -> bool:
+        # aranan adların hepsi (ve marka) okunduysa kalan bölge/kanal turlarına gerek yok
+        return bool(aranan) and all(etiket_okunuyor_mu(kelime, ad)["marka"] and etiket_okunuyor_mu(kelime, ad)["urun"]
+                                    for ad in aranan)
+
     for kutu in kutular:
         kesit = im.crop(kutu)
         for aci in (0, 90, 270):
@@ -782,6 +787,10 @@ def _ocr_kelimeler(yol: str) -> set[str]:
                 for kanal in kanallar(cevre):
                     for psm in ("11", "6"):
                         kelime.update(re.findall(r"[A-Za-zÀ-ÿ'’+]{3,}", _tess(kanal, psm)))
+                    if tamam():
+                        return kelime
+            if tamam():
+                return kelime
     return kelime
 
 
