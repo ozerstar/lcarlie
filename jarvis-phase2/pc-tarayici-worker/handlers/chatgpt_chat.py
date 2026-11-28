@@ -155,11 +155,26 @@ def _uretiyor_mu(page) -> bool:
 def _son_kod_blogu(page) -> str:
     """Son asistan mesajındaki en uzun kod bloğu (JSON/HTML işlenmeden, ham)."""
     try:
-        mesaj = page.locator(ASISTAN_MESAJI[0]).last
-        bloklar = mesaj.locator("pre code")
+        # 28.11.2026 OLCULDU: ChatGPT arayuzu degisti; asistan mesaj kapsayicisi
+        # (data-message-author-role) artik yok ama kod blogu <pre> olarak duruyor.
+        # Kapsayici bulunamazsa sayfadaki bloklara bakilir ([YENI_SOHBET] islerinde
+        # sayfada yalniz bu isin yaniti vardir). Kapsayicisiz okumada blok ancak
+        # kapanmis bir JSON degeriyle bitiyorsa teslim edilir (yarim yanit donmesin).
+        kapsam, kapsayici_var = page, False
+        for secici in ASISTAN_MESAJI:
+            loc = page.locator(secici)
+            if loc.count():
+                kapsam, kapsayici_var = loc.last, True
+                break
+        bloklar = kapsam.locator("pre code")
         if not bloklar.count():
-            bloklar = mesaj.locator("pre")
+            bloklar = kapsam.locator("pre")
         metinler = [(bloklar.nth(i).inner_text(timeout=5000) or "").strip() for i in range(bloklar.count())]
-        return max(metinler, key=len) if metinler else ""
+        if not metinler:
+            return ""
+        en_uzun = metinler[-1] if not kapsayici_var else max(metinler, key=len)
+        if not kapsayici_var and not en_uzun.rstrip().endswith(("}", "]")):
+            return ""
+        return en_uzun
     except Exception:  # noqa: BLE001
         return ""

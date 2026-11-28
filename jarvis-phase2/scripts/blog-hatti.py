@@ -225,7 +225,7 @@ def gemini_yaz(r: dict, ek_uyari: str = "") -> dict:
         "vücut işlevi iddiası taşımaz. 'dermatolog önerir' yazılmaz.\n- " + bh.OLUMLU_DIL_KURALI + "\n"
         "- Ürün bağlantısı biçimi https://www.lcarlie.shop/product-page/<slug> (1-3 adet); MINISOOTH'a bağlantı yok.\n"
         "- Kesit adları: %s\n%s\n\n%s"
-    ) % (brif_metni()[:6000], plan.get("konu") or r["konu"], plan.get("anahtar") or r["konu"],
+    ) % (brif_metni()[:9000],plan.get("konu") or r["konu"], plan.get("anahtar") or r["konu"],
          (plan.get("not") or "") + " " + (plan.get("kanit") or ""), plan.get("urun") or "-",
          urun_gercekleri(" ".join(str(v) for v in plan.values())) or "(ürün bağlamı yok: ürün adı verme)",
          ("# MEVCUT CANLI METİN (adres korunacak; bunu genişlet ve düzelt)\n%s\n\n" % mevcut) if mevcut else "",
