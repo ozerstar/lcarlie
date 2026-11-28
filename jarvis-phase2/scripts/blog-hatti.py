@@ -627,8 +627,11 @@ def link_cevirici(dil: str, kuyruk_harita: dict, kaldir: set):
 def kuyruk_harita(k: bh.Kuyruk) -> dict:
     """slug -> {dil: yayınlanmış çeviri slug'ı}"""
     h = {}
-    for r in k.satirlar("durum = 'YAYINLANDI'"):
-        h[r["slug"]] = {d: (r["wix"].get(d) or {}).get("slug") for d in bh.DILLER if (r["wix"].get(d) or {}).get("slug")}
+    for r in k.satirlar("durum = 'YAYINLANDI' OR wix ? 'onceki'"):
+        # yenilenmekte olan yazının çeviri adresleri korunur: önceki yayın kaydı da geçerlidir
+        w = dict((r.get("wix") or {}).get("onceki") or {}, **{d: v for d, v in (r.get("wix") or {}).items()
+                                                                 if d in bh.DILLER and (v or {}).get("slug")})
+        h[r["slug"]] = {d: (w.get(d) or {}).get("slug") for d in bh.DILLER if (w.get(d) or {}).get("slug")}
     return h
 
 
@@ -670,7 +673,18 @@ def yayinla(k: bh.Kuyruk, r: dict, wix: bh.WixBlog, kuru: bool) -> dict:
             k.guncelle(slug, gorsel={"wix_medya": medya})
     for fid in medya.values():
         wix.medya_hazir_bekle(fid)
-    guncel = simdi().date() if r["tur"] == "REFRESH" else None
+    # "Güncellendi" satırı yalnız daha önceki bir günde yayınlanmış yazıya konur
+    guncel = None
+    if r["tur"] == "REFRESH":
+        if durum.get("guncellendi"):
+            guncel = dt.date.fromisoformat(durum["guncellendi"])
+        else:
+            onceki = wix.post_slugdan(r["mevcut_slug"] or slug) or {}
+            ilk = (onceki.get("firstPublishedDate") or "")[:10]
+            guncel = simdi().date() if ilk and ilk != simdi().date().isoformat() else None
+            durum["guncellendi"] = guncel.isoformat() if guncel else ""
+            if not kuru:
+                k.guncelle(slug, wix={"guncellendi": durum["guncellendi"]})
 
     def draft(dil: str, metin: dict) -> dict:
         rich = zengin_icerik(r, dil, metin, medya, harita, kaldir, guncel)
@@ -1010,8 +1024,9 @@ def link_onar(k: bh.Kuyruk, a) -> list:
             g = r["gorsel"]
             if "kapak" not in (g.get("wix_medya") or {}):
                 continue  # 28.11 öncesi görsel düzeni: yeniden üretilmeden dokunma
+            gt = (r["wix"] or {}).get("guncellendi")
             rich = zengin_icerik(r, dil, metin, g["wix_medya"], harita, set(),
-                                 simdi().date() if r["tur"] == "REFRESH" else None)
+                                 dt.date.fromisoformat(gt) if gt else None)
             wix.guncelle_yayinla(w["post_id"], {"richContent": rich, "memberId": bh.MEMBER_ID})
         k.guncelle(r["slug"], kapilar={"kaldirilan_linkler": []})
         k.olay(r["slug"], "geçici kaldırılan bağlantılar geri kondu: %s" % bekleyen)
@@ -1173,7 +1188,7 @@ def yenile(a) -> dict:
     if a.kuru:
         return {"yedek": str(yedek), "kuru": True}
     k.sql("UPDATE core.blog_kuyruk SET durum='BEKLIYOR', tur='REFRESH', mevcut_slug=coalesce(mevcut_slug, slug), "
-          "ceviriler='{}'::jsonb, gorsel='{}'::jsonb, wix='{}'::jsonb, deneme=0, gorsel_deneme=0, hata=NULL, "
+          "ceviriler='{}'::jsonb, gorsel='{}'::jsonb, wix=jsonb_build_object('onceki', coalesce(wix,'{}'::jsonb) - 'onceki'), deneme=0, gorsel_deneme=0, hata=NULL, "
           "bekleme_sebebi=NULL, kaynak_sha='yenile', guncellendi=now() WHERE slug = %s;" % k._lit(a.slug))
     k.olay(a.slug, "yenile: yeni kurallarla baştan (yedek %s)" % yedek.name)
     return {"yedek": str(yedek)}
