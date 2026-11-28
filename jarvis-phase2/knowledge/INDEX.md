@@ -19,6 +19,7 @@ dosyaya sığmıyorsa **bölünür** — büyütülmez.
 | `10-iddia-kurallari` | Tek kural, izinli/izinsiz nesne, yasak listeleri | serbest |
 | `12-karsilik-tablosu` | Yasak ifade → uyumlu karşılığı | serbest |
 | `13-kapanmis-kararlar` | Tekrar açılmayacak konular, mevzuat dayanağı | serbest |
+| `14-hukuk-kaynaklari` | Hukuk biriminin kaynakları: Mizan-27B Türk hukuku karar modeli (tarayıcıdan), ne için kullanılır/kullanılmaz, KVKK ve lisans sınırı | **iç bilgi** |
 | `11-marka-dili` | Müşteri yanıtı tonu, influencer tonu, Özer'in çıktı beklentisi, AI görsel yasağı, izinli kaynaklar | serbest |
 | `20-urunler` | 36 ürün, slug, kategori, bilinen katalog hataları | serbest |
 | `21-fiyat` | Fiyat listesi, VIREON 1.200/2.400 karışıklığı, kupon tuzağı, KDV/maliyet, pazar konumu | serbest |
