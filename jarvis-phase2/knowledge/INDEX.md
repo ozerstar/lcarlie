@@ -29,6 +29,7 @@ dosyaya sığmıyorsa **bölünür** — büyütülmez.
 | `30-urun-dermavasc` | DERMAVASC: aynı yapı + ad iddiası | **iç bilgi** |
 | `40-eski-katalog-ic-bilgi` | Eski katalogun tam haritası, 3 satıştan kalkmış ürün, çelişkiler | **iç bilgi** |
 | `50-olcum-gercekleri` | Hangi veri var/yok, sayı tuzakları, ölçülmüş gerçekler | serbest |
+| `63-satis-gelistirme-durum` | B2B satış durumu 28.11: Farmazon (fiyat, API başvurusu, satış 0), eczane kampanyası sonucu ve aranacak 6 eczane, distribütör takipleri, gelen teklifler | **iç bilgi** |
 
 ## `gizlilik` alanı ne demek
 - **serbest** — içeriği müşteriye çıkan metinde de kullanabilirim (kurallara
